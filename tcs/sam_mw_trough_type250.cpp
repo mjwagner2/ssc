@@ -85,6 +85,7 @@ enum{
 	P_T_FP,
 	P_I_BN_DES,
     P_DES_PIPE_VALS,
+    P_DP_SGS_1,
 	P_V_HDR_COLD_MAX,
 	P_V_HDR_COLD_MIN,
     P_V_HDR_HOT_MAX,
@@ -221,6 +222,9 @@ enum{
     O_RUNNER_P_DSN,
     O_LOOP_T_DSN,
     O_LOOP_P_DSN,
+    O_T_FIELD_IN_AT_DSN,
+    O_T_FIELD_OUT_AT_DSN,
+    O_P_FIELD_IN_AT_DSN,
 	O_T_SYS_H,
     O_RECIRC,
 	O_M_DOT_AVAIL,
@@ -289,7 +293,8 @@ tcsvarinfo sam_mw_trough_type250_variables[] = {
 	{ TCS_PARAM,          TCS_MATRIX,    P_FIELD_FL_PROPS,         "field_fl_props",                                                                     "Fluid property data",         "none","7 columns (T,Cp,dens,visc,kvisc,cond,h), at least 3 rows",             "",             "" },
 	{ TCS_PARAM,          TCS_NUMBER,              P_T_FP,                   "T_fp",                       "Freeze protection temperature (heat trace activation temperature)",            "C",             "",             "",          "150" },
 	{ TCS_PARAM,          TCS_NUMBER,          P_I_BN_DES,               "I_bn_des",                                                             "Solar irradiation at design",         "W/m2",             "",             "",          "950" },
-    { TCS_PARAM,          TCS_NUMBER,     P_DES_PIPE_VALS,  "calc_design_pipe_vals",              "Calculate temps and pressures at design conditions for runners and headers",            "-",             "",             "",         "true" },
+    { TCS_PARAM,          TCS_NUMBER,     P_DES_PIPE_VALS,  "calc_design_pipe_vals",                                      "Calculate temps and pressures at design conditions",            "-",             "",             "",         "true" },
+    { TCS_PARAM,          TCS_NUMBER,          P_DP_SGS_1,               "DP_SGS_1",           "Pressure drop in first section of TES/PB before hot tank at design conditions",          "bar",             "",             "",            "0" },
 	{ TCS_PARAM,          TCS_NUMBER,    P_V_HDR_COLD_MAX,         "V_hdr_cold_max",                                      "Maximum HTF velocity in the cold headers at design",          "m/s",             "",             "",            "3" },
 	{ TCS_PARAM,          TCS_NUMBER,    P_V_HDR_COLD_MIN,         "V_hdr_cold_min",                                      "Minimum HTF velocity in the cold headers at design",          "m/s",             "",             "",            "2" },
     { TCS_PARAM,          TCS_NUMBER,     P_V_HDR_HOT_MAX,          "V_hdr_hot_max",                                       "Maximum HTF velocity in the hot headers at design",          "m/s",             "",             "",            "3" },
@@ -425,8 +430,11 @@ tcsvarinfo sam_mw_trough_type250_variables[] = {
     { TCS_OUTPUT,          TCS_ARRAY,      O_RUNNER_V_DSN,    "pipe_runner_vel_dsn",					                                    "Runner piping velocity at design",          "m/s",             "",             "",             "" },
     { TCS_OUTPUT,          TCS_ARRAY,      O_RUNNER_T_DSN,      "pipe_runner_T_dsn",					                                 "Runner piping temperature at design",            "C",             "",             "",             "" },
     { TCS_OUTPUT,          TCS_ARRAY,      O_RUNNER_P_DSN,      "pipe_runner_P_dsn",					                                    "Runner piping pressure at design",          "bar",             "",             "",             "" },
-    { TCS_OUTPUT,          TCS_ARRAY,      O_LOOP_T_DSN,          "pipe_loop_T_dsn",					                                 "Runner piping temperature at design",            "C",             "",             "",             "" },
-    { TCS_OUTPUT,          TCS_ARRAY,      O_LOOP_P_DSN,          "pipe_loop_P_dsn",					                                    "Runner piping pressure at design",          "bar",             "",             "",             "" },
+    { TCS_OUTPUT,          TCS_ARRAY,        O_LOOP_T_DSN,        "pipe_loop_T_dsn",					                                 "Runner piping temperature at design",            "C",             "",             "",             "" },
+    { TCS_OUTPUT,          TCS_ARRAY,        O_LOOP_P_DSN,        "pipe_loop_P_dsn",					                                    "Runner piping pressure at design",          "bar",             "",             "",             "" },
+    { TCS_OUTPUT,          TCS_NUMBER, O_T_FIELD_IN_AT_DSN,     "T_field_in_at_des",	                                 "Field/runner inlet temperature at design conditions",            "C",             "",             "",             "" },
+    { TCS_OUTPUT,          TCS_NUMBER, O_T_FIELD_OUT_AT_DSN,   "T_field_out_at_des",		                            "Field/runner outlet temperature at design conditions",            "C",             "",             "",             "" },
+    { TCS_OUTPUT,          TCS_NUMBER, O_P_FIELD_IN_AT_DSN,     "P_field_in_at_des",		                                "Field/runner inlet pressure at design conditions",          "bar",             "",             "",             "" },
 
 	{ TCS_OUTPUT,          TCS_NUMBER,           O_T_SYS_H,                "T_sys_h",                                                      "Solar field HTF outlet temperature",            "C",             "",             "",             "" },
     { TCS_OUTPUT,          TCS_NUMBER,            O_RECIRC,          "recirculating",                                                 "Field recirculating (bypass valve open)",         "none",             "",             "",             "" },
@@ -504,6 +512,8 @@ private:
 	double T_fp;		//Freeze protection temperature (heat trace activation temperature)
 	double I_bn_des;		//Solar irradiation at design
     bool calc_design_pipe_vals; //Calculate temps and pressures at design conditions for runners and headers
+    double DP_SGS_1;            //Pressure drop in first section of TES/PB before hot tank at design conditions
+    bool SGS_sizing_adjusted;   //Has the field design pressure drop been adjusted for the first section in the TES/PB?
 	double V_hdr_cold_max;		//Maximum HTF velocity in the cold headers at design
 	double V_hdr_cold_min;		//Minimum HTF velocity in the cold headers at design
     double V_hdr_hot_max;		//Maximum HTF velocity in the hot headers at design
@@ -759,7 +769,8 @@ private:
 	emit_table epsilon_3;
     util::matrix_t<double> D_runner, WallThk_runner, L_runner, m_dot_rnr_dsn, V_rnr_dsn, N_rnr_xpans, DP_rnr, T_rnr, P_rnr,
         D_hdr, WallThk_hdr, L_hdr, m_dot_hdr_dsn, V_hdr_dsn, N_hdr_xpans, DP_hdr, T_hdr, P_hdr,
-        DP_intc, P_intc, DP_loop, T_loop, P_loop;
+        DP_intc, P_intc, DP_loop, T_loop, P_loop,
+        T_rnr_des_out, P_rnr_des_out, T_hdr_des_out, P_hdr_des_out, T_loop_des_out, P_loop_des_out;
 
 	util::matrix_t<double> 
 		T_htf_in, T_htf_out, T_htf_ave, q_loss, q_abs, c_htf, rho_htf, DP_tube, E_abs_field, 
@@ -773,7 +784,7 @@ private:
 		is_fieldgeom_init;	//Flag to indicate whether the field geometry has been initialized
 	double T_cold_in_1, c_hdr_cold, start_time, dt, SolarAlt, costh, theta, shift,
 		q_SCA_tot, m_dot_htfX, Header_hl_cold, Header_hl_cold_tot, Runner_hl_cold, Runner_hl_cold_tot, Pipe_hl_cold, T_loop_in,
-		T_loop_outX, Runner_hl_hot, Runner_hl_hot_tot, Header_hl_hot, Header_hl_hot_tot, Pipe_hl_hot, c_hdr_hot, time_hr, dt_hr;
+		T_loop_outX, Runner_hl_hot, Runner_hl_hot_tot, Header_hl_hot, Header_hl_hot_tot, Pipe_hl_hot, Intc_hl, c_hdr_hot, time_hr, dt_hr;
 	int day_of_year, SolveMode, dfcount;
 
 	double ncall_track;
@@ -826,6 +837,8 @@ public:
 		T_fp	= std::numeric_limits<double>::quiet_NaN();
 		I_bn_des	= std::numeric_limits<double>::quiet_NaN();
         calc_design_pipe_vals = false;
+        DP_SGS_1 = std::numeric_limits<double>::quiet_NaN();
+        SGS_sizing_adjusted = false;
 		V_hdr_cold_max	= std::numeric_limits<double>::quiet_NaN();
 		V_hdr_cold_min	= std::numeric_limits<double>::quiet_NaN();
         V_hdr_hot_max = std::numeric_limits<double>::quiet_NaN();
@@ -1165,6 +1178,7 @@ public:
 		T_fp = value(P_T_FP);		//Freeze protection temperature (heat trace activation temperature) [C]
 		I_bn_des = value(P_I_BN_DES);		//Solar irradiation at design [W/m2]
         calc_design_pipe_vals = value(P_DES_PIPE_VALS); //Calculate temps and pressures at design conditions for runners and headers
+        value(P_DP_SGS_1, -1);                      //Set this to a negative value for signalling that it has not yet been set
 		V_hdr_cold_max = value(P_V_HDR_COLD_MAX);	//Maximum HTF velocity in the cold headers at design [m/s]
 		V_hdr_cold_min = value(P_V_HDR_COLD_MIN);	//Minimum HTF velocity in the cold headers at design [m/s]
         V_hdr_hot_max = value(P_V_HDR_HOT_MAX);		//Maximum HTF velocity in the hot headers at design [m/s]
@@ -1189,8 +1203,6 @@ public:
 		accept_init = value(P_ACCEPT_INIT) == 1;				// In acceptance testing mode - require steady-state startup [none]
 		accept_loc = (int)value(P_ACCEPT_LOC);					// In acceptance testing mode - temperature sensor location (1=hx,2=loop) [none]
 		is_using_input_gen = (value(P_USING_INPUT_GEN)>0);	// Is model getting inputs from input generator (true) or from other components in physical trough SYSTEM model (false)
-		
-        calc_design_pipe_vals = true;                   // placeholder for parameter
 
 		solar_mult = value(P_SOLAR_MULT);		//Solar multiple [none]
 		mc_bal_hot = value(P_MC_BAL_HOT);		//The heat capacity of the balance of plant on the hot side [kWht/K-MWt]
@@ -2265,12 +2277,15 @@ overtemp_iter_flag: //10 continue     //Return loop for over-temp conditions
 
             //---------------------
             double P_intc_in = P_field_in;
+            Intc_hl = 0.;
 
             T_loop[0] = T_loop_in;
             intc_state = interconnects[0].State(m_dot_htf * 2, T_loop[0], T_db, P_intc_in);
             T_loop[1] = intc_state.temp_out;
+            Intc_hl += intc_state.heat_loss;            // W, riser
             intc_state = interconnects[1].State(m_dot_htf, T_loop[1], T_db, intc_state.pressure_out);
             T_htf_in[0] = intc_state.temp_out; 
+            Intc_hl += intc_state.heat_loss;            // W, interconnect before first SCA
 
             for (int i = 0; i < nSCA; i++)
             {
@@ -2376,6 +2391,7 @@ overtemp_iter_flag: //10 continue     //Return loop for over-temp conditions
                     IntcOutputs intc_state = interconnects[i + 2].State(m_dot_htf, T_htf_out[i], T_db, P_intc_in);
                     P_intc_in -= intc_state.pressure_drop;  // pressure drops in HCAs only accounted for later
                     T_htf_in[i + 1] = intc_state.temp_out;
+                    Intc_hl += intc_state.heat_loss;            // W
                     //mjw 1.18.2011 Add the internal energy of the crossover piping and interconnects between the current SCA and the next one
                     E_int_loop[i] += intc_state.internal_energy;
                 }
@@ -2384,11 +2400,13 @@ overtemp_iter_flag: //10 continue     //Return loop for over-temp conditions
 
             intc_state = interconnects[interconnects.size() - 2].State(m_dot_htf, T_htf_out[nSCA - 1], T_db, P_intc_in);
             T_loop[2*nSCA + 2] = intc_state.temp_out;
+            Intc_hl += intc_state.heat_loss;            // W, interconnect after last SCA
             P_intc_in -= intc_state.pressure_drop;  // pressure drops in HCAs only accounted for later
 
 			//Set the loop outlet temperature
             intc_state = interconnects[interconnects.size() - 1].State(m_dot_htf * 2, T_loop[2*nSCA + 2], T_db, P_intc_in);
             T_loop_outX = intc_state.temp_out;
+            Intc_hl += intc_state.heat_loss;            // W, downcomer
 
             //Fill in rest of T_loop using the SCA inlet and outlet temps
             loop_i = 2; sca_i = 0;
@@ -2524,7 +2542,7 @@ freeze_prot_flag: //7   continue
 
 				E_field_loss_tot *= 1.e-6 * dt;
 
-				double E_field_pipe_hl = 2*Runner_hl_hot_tot + float(nfsec)*Header_hl_hot_tot + 2*Runner_hl_cold_tot + float(nfsec)*Header_hl_cold_tot;
+				double E_field_pipe_hl = 2*Runner_hl_hot_tot + float(nfsec)*Header_hl_hot_tot + 2*Runner_hl_cold_tot + float(nfsec)*Header_hl_cold_tot + Intc_hl;
 
 				E_field_pipe_hl *= dt;		//[J]
 
@@ -3217,7 +3235,7 @@ calc_final_metrics_goto:
 			Pipe_hl_hot = 2*Runner_hl_hot_tot + float(nfsec)*Header_hl_hot_tot;
 			Pipe_hl_cold = 2*Runner_hl_cold_tot + float(nfsec)*Header_hl_cold_tot;
 
-			Pipe_hl = Pipe_hl_hot + Pipe_hl_cold;
+			Pipe_hl = Pipe_hl_hot + Pipe_hl_cold + Intc_hl;
 
 			if( !is_using_input_gen )
 				E_avail_tot = max(E_avail_tot - Pipe_hl*dt, 0.0);    //[J] 11/1/11 TN: Include hot and cold piping losses in available energy calculation
@@ -3321,39 +3339,63 @@ set_outputs_and_return:
 		double E_field_out = E_field*3.6e-9;
 
         if (calc_design_pipe_vals) {
-            util::matrix_t<double> T_rnr_out, P_rnr_out, T_hdr_out, P_hdr_out, T_loop_out, P_loop_out;
-            T_rnr_out.resize(2 * nrunsec);
-            P_rnr_out.resize(2 * nrunsec);
-            T_hdr_out.resize(2 * nhdrsec);
-            P_hdr_out.resize(2 * nhdrsec);
-            T_loop_out.resize(2 * nSCA + 3);
-            P_loop_out.resize(2 * nSCA + 3);
+            T_rnr_des_out.resize(2 * nrunsec);
+            P_rnr_des_out.resize(2 * nrunsec);
+            T_hdr_des_out.resize(2 * nhdrsec);
+            P_hdr_des_out.resize(2 * nhdrsec);
+            T_loop_des_out.resize(2 * nSCA + 3);
+            P_loop_des_out.resize(2 * nSCA + 3);
 
             for (int i = 0; i < 2 * nrunsec; i++) {
-                T_rnr_out[i] = T_rnr[i] - 273.15; // K to C
-                P_rnr_out[i] = P_rnr[i] / 1.e5;   // Pa to bar
+                T_rnr_des_out[i] = T_rnr[i] - 273.15; // K to C
+                P_rnr_des_out[i] = P_rnr[i] / 1.e5;   // Pa to bar
             }
             for (int i = 0; i < 2 * nhdrsec; i++) {
-                T_hdr_out[i] = T_hdr[i] - 273.15;
-                P_hdr_out[i] = P_hdr[i] / 1.e5;
+                T_hdr_des_out[i] = T_hdr[i] - 273.15;
+                P_hdr_des_out[i] = P_hdr[i] / 1.e5;
             }
             for (int i = 0; i < 2 * nSCA + 3; i++) {
-                T_loop_out[i] = T_loop[i] - 273.15;
-                P_loop_out[i] = P_loop[i] / 1.e5;
+                T_loop_des_out[i] = T_loop[i] - 273.15;
+                P_loop_des_out[i] = P_loop[i] / 1.e5;
             }
-            
-            double *runner_temp_design = allocate(O_RUNNER_T_DSN, (int)T_rnr_out.ncells());
-            std::copy(T_rnr_out.data(), T_rnr_out.data() + T_rnr_out.ncells(), runner_temp_design);
-            double *runner_pressure_design = allocate(O_RUNNER_P_DSN, (int)P_rnr_out.ncells());
-            std::copy(P_rnr_out.data(), P_rnr_out.data() + P_rnr_out.ncells(), runner_pressure_design);
-            double *header_temp_design = allocate(O_HEADER_T_DSN, (int)T_hdr_out.ncells());
-            std::copy(T_hdr_out.data(), T_hdr_out.data() + T_hdr_out.ncells(), header_temp_design);
-            double *header_pressure_design = allocate(O_HEADER_P_DSN, (int)P_hdr_out.ncells());
-            std::copy(P_hdr_out.data(), P_hdr_out.data() + P_hdr_out.ncells(), header_pressure_design);
-            double *loop_temp_design = allocate(O_LOOP_T_DSN, (int)T_loop_out.ncells());
-            std::copy(T_loop_out.data(), T_loop_out.data() + T_loop_out.ncells(), loop_temp_design);
-            double *loop_pressure_design = allocate(O_LOOP_P_DSN, (int)P_loop_out.ncells());
-            std::copy(P_loop_out.data(), P_loop_out.data() + P_loop_out.ncells(), loop_pressure_design);
+
+            value(O_T_FIELD_IN_AT_DSN, T_rnr_des_out.at(0));
+            value(O_T_FIELD_OUT_AT_DSN, T_rnr_des_out.at(T_rnr_des_out.ncells() - 1));
+            value(O_P_FIELD_IN_AT_DSN, P_rnr_des_out.at(0));
+
+            // wait to output arrays until TES/PB sizing has finished so P can be adjusted
+        }
+
+        DP_SGS_1 = value(P_DP_SGS_1);
+        if (!SGS_sizing_adjusted && DP_SGS_1 >= 0) {
+            // Adjust design P values with pressure drop in first section of TES/PB (after controller model has finished sizing)
+
+            for (int i = 0; i < P_rnr_des_out.ncells(); i++) {
+                P_rnr_des_out.at(i) += DP_SGS_1;
+            }
+
+            for (int i = 0; i < P_hdr_des_out.ncells(); i++) {
+                P_hdr_des_out.at(i) += DP_SGS_1;
+            }
+
+            for (int i = 0; i < P_loop_des_out.ncells(); i++) {
+                P_loop_des_out.at(i) += DP_SGS_1;
+            }
+
+            double *runner_temp_design = allocate(O_RUNNER_T_DSN, (int)T_rnr_des_out.ncells());
+            std::copy(T_rnr_des_out.data(), T_rnr_des_out.data() + T_rnr_des_out.ncells(), runner_temp_design);
+            double *runner_pressure_design = allocate(O_RUNNER_P_DSN, (int)P_rnr_des_out.ncells());
+            std::copy(P_rnr_des_out.data(), P_rnr_des_out.data() + P_rnr_des_out.ncells(), runner_pressure_design);
+            double *header_temp_design = allocate(O_HEADER_T_DSN, (int)T_hdr_des_out.ncells());
+            std::copy(T_hdr_des_out.data(), T_hdr_des_out.data() + T_hdr_des_out.ncells(), header_temp_design);
+            double *header_pressure_design = allocate(O_HEADER_P_DSN, (int)P_hdr_des_out.ncells());
+            std::copy(P_hdr_des_out.data(), P_hdr_des_out.data() + P_hdr_des_out.ncells(), header_pressure_design);
+            double *loop_temp_design = allocate(O_LOOP_T_DSN, (int)T_loop_des_out.ncells());
+            std::copy(T_loop_des_out.data(), T_loop_des_out.data() + T_loop_des_out.ncells(), loop_temp_design);
+            double *loop_pressure_design = allocate(O_LOOP_P_DSN, (int)P_loop_des_out.ncells());
+            std::copy(P_loop_des_out.data(), P_loop_des_out.data() + P_loop_des_out.ncells(), loop_pressure_design);
+
+            SGS_sizing_adjusted = true;
         }
 		//------------------------------------------------------------------
 
@@ -4098,7 +4140,9 @@ lab_keep_guess:
 		//Calculate specific heat in kJ/kg
 		c_1ave = cp_1/1000.;
  
-		q_heatloss = q_34tot + q_cond_bracket + q_5solabs;   //[W/m]
+        // 10.6.2016 twn: q_5solabs is already reported as an optical loss, so don't report as a thermal loss...
+		//q_heatloss = q_34tot + q_cond_bracket + q_5solabs;   //[W/m]
+        q_heatloss = q_34tot + q_cond_bracket;   //[W/m]
 
 		//Save temperatures
 		T_save[1] = T_2;

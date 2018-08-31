@@ -4,8 +4,8 @@
  
 #include <gtest/gtest.h>
 #include "lib_weatherfile.h"
-#include "common.h"
-#include "vartab.h"
+#include "../ssc/common.h"
+#include "../ssc/vartab.h"
 
 /**
 * \class weatherfileTest
@@ -19,8 +19,6 @@ protected:
 	weatherfile wf;
 	std::string file;
 	double e;		//epsilon for double comparison
-
-	virtual void SetUp(){}
 };
 
 class CSVCase_WeatherfileTest : public weatherfileTest{
@@ -127,6 +125,12 @@ TEST_F(CSVCase_WeatherfileTest, readTest){
 	EXPECT_NEAR(r.alb, 0.17, e) << "CSV Case: Reset to 1st row\n";
 	EXPECT_NEAR(r.aod, 0.291, e) << "CSV Case: Reset to 1st row\n";
 	EXPECT_EQ(wf.get_counter_value(), 1);
+}
+
+TEST_F(weatherfileTest, EPWMissingValsTest) {
+	std::string file = "C:/Users/dguittet/Desktop/test.epw";
+	wf.open(file);
+	std::string msg = wf.message();
 }
 
 /**

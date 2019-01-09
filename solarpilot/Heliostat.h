@@ -164,6 +164,7 @@ public:
 	double getPowerToReceiver();
 	double getPowerValue();
 	double getRankingMetricValue();
+	double getAnnualEnergy();
 	double getAzimuthTrack();
 	double getZenithTrack();
     double getArea();
@@ -202,6 +203,7 @@ public:
 	void setEfficiencyCloudiness(double eta_cloud);
 	void setEfficiencyTotal(double eta_tot);
 	void setRankingMetricValue(double rval);
+	void setAnnualEnergy(double p_annual);
 	void setLocation(double x, double y, double z);
 	void setAimPoint(double x, double y, double z);
 	void setAimPoint(sp_point &Aim);

@@ -1957,6 +1957,28 @@ sp_optimize *AutoPilot::GetOptimizationObject()
     return _opt;
 }
 
+std::vector<double> AutoPilot::GetSFAnnualEnergy()
+{
+	std::vector<double> ann = {};
+	Hvector *hels = _SF->getHeliostats();
+	for (size_t i = 0; i < hels->size(); i++)
+	{
+		ann.push_back(hels->at(i)->getAnnualEnergy());
+	}
+	return ann;
+}
+
+std::vector<int> AutoPilot::GetHelioIDs()
+{
+	std::vector<int> ann = {};
+	Hvector *hels = _SF->getHeliostats();
+	for (size_t i = 0; i < hels->size(); i++)
+	{
+		ann.push_back(hels->at(i)->getId());
+	}
+	return ann;
+}
+
 void AutoPilot::PostEvaluationUpdate(int iter, vector<double> &pos, /*vector<double> &normalizers, */double &obj, double &flux, double &cost, std::string *note)
 {
 	ostringstream os;

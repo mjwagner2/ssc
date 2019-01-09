@@ -1529,14 +1529,17 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
 	    int rid = _var_map->sf.hsort_method.mapval();
 	
 	    nresults = (int)results->size();
-
+		double energy_ann = 0.;
         //compile the results from each simulation by heliostat
         for(int i=0; i<Npos; i++){
 		    int hid = _heliostats.at(i)->getId();	//use the heliostat ID from the first result to collect all of the other results
 		    rmet = 0.;      //ranking metric
-		    for(int j=0; j<nresults; j++)
-                rmet += results->at(j).data_by_helio[ hid ].getDataByIndex( rid );      //accumulate ranking metric as specified in rid
-
+			energy_ann = 0.; //annual energy output
+			for (int j = 0; j < nresults; j++)
+			{
+				rmet += results->at(j).data_by_helio[hid].getDataByIndex(rid);      //accumulate ranking metric as specified in rid
+				energy_ann += results->at(j).data_by_helio[hid].power_value; //W-hr
+			}
             //normalize for available heliostat power if applicable
             double afact = 1.;
             if( rid == helio_perf_data::PERF_VALUES::POWER_TO_REC || rid == helio_perf_data::PERF_VALUES::POWER_VALUE )
@@ -1545,6 +1548,7 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
             double rank_val = rmet / (afact*(float)nresults);       //Calculate the normalized ranking metric. Divide by heliostat area if needed
 		
             _helio_by_id[hid]->setRankingMetricValue( rank_val );   //store the value
+			_helio_by_id[hid]->setAnnualEnergy(energy_ann);         //store annual energy
 		    hsort.at(i) = rank_val;                                 //also store in the sort array
 		
 	    }

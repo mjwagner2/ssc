@@ -121,6 +121,9 @@ double helio_perf_data::getDataByIndex(const int id){
 		case helio_perf_data::PERF_VALUES::ETA_CLOUD:
 			rval = eta_cloud;
 			break;
+		case helio_perf_data::PERF_VALUES::ANNUAL_ENERGY:
+			rval = energy_annual;
+			break;
 		default:
 			rval = 0.;
 	}	
@@ -184,6 +187,7 @@ void helio_perf_data::resetMetrics(){
 	power_to_rec = 0.;
 	power_value = 0.;
 	rank_metric = 0.;
+	energy_annual = 0.;
 }
 
 double helio_perf_data::calcTotalEfficiency(){

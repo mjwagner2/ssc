@@ -154,6 +154,8 @@ static var_info _cm_vtab_solarpilot[] = {
     { SSC_OUTPUT,       SSC_NUMBER,      "cost_tower_tot",            "Total tower cost",                           "$",      "",         "SolarPILOT",   "*",                "",                "" },
     { SSC_OUTPUT,       SSC_NUMBER,      "cost_land_tot",             "Total land cost",                            "$",      "",         "SolarPILOT",   "*",                "",                "" },
     { SSC_OUTPUT,       SSC_NUMBER,      "cost_site_tot",             "Total site cost",                            "$",      "",         "SolarPILOT",   "*",                "",                "" },
+	{ SSC_OUTPUT,       SSC_ARRAY,       "annual_helio_energy",       "Heliostat annual energy collected",          "MWh",    "",         "SolarPILOT",   "*",                "",                "" },
+	{ SSC_OUTPUT,       SSC_ARRAY,       "helio_ids",                 "Heliostat identifiers",                      "",       "",         "SolarPILOT",   "*",                "",                "" },
 
 	var_info_invalid };
 
@@ -180,6 +182,9 @@ public:
 		std::shared_ptr<weather_data_provider> wdata = std::make_shared<weatherfile>(as_string("solar_resource_file"));
 		solarpilot_invoke spi( this );
 		spi.run(wdata);
+
+		std::vector<double> ann_energy = spi.GetSAPI()->GetSFAnnualEnergy();
+		std::vector<int> h_ids = spi.GetSAPI()->GetHelioIDs();
 
 		assign("h_tower_opt", (ssc_number_t)spi.sf.tht.val);
 		assign("rec_height_opt", (ssc_number_t)spi.recs.front().rec_height.val);
@@ -221,7 +226,13 @@ public:
 			assign("number_heliostats", (ssc_number_t)spi.layout.heliostat_positions.size());
         }
 
- 
+		ssc_number_t *hann = allocate("annual_helio_energy", ann_energy.size());
+		ssc_number_t *hids = allocate("helio_ids", ann_energy.size());
+		for (size_t i = 0; i < ann_energy.size(); i++)
+		{
+			hann[i] = (ssc_number_t)ann_energy.at(i);
+			hids[i] = (ssc_number_t)h_ids.at(i);
+		}
 		
 		//return the land area
 		assign("base_land_area", (ssc_number_t)spi.land.land_area.Val());

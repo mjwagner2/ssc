@@ -4123,6 +4123,7 @@ bool SolarField::parseHeliostatXYZFile(const std::string &filedat, layout_shell 
 		}
 		else{
 			layout.at(i).is_user_focus = false;
+            col += 2;
 		}
 			
 		//Assign the cant vector unless its null
@@ -4137,7 +4138,8 @@ bool SolarField::parseHeliostatXYZFile(const std::string &filedat, layout_shell 
 		}
 		else{
 			layout.at(i).is_user_cant = false;
-		}
+            col += 3;
+        }
 			
 		//Assign the aim point unless its null
 		if(data.at(col)!="NULL")

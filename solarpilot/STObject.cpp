@@ -650,44 +650,17 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		delete [] intens;
 	}
 	else if(sun_type == var_ambient::SUN_TYPE::BUIE_CSR )
-    {		//Buie sun
+    {		
+        //Buie sun
 		shape = 'd';
-		double
-			kappa, gamma, theta, chi;
-		//calculate coefficients
-        chi = V->amb.sun_csr.val; 
-		kappa = 0.9*log(13.5 * chi)*pow(chi, -0.3);
-		gamma = 2.2*log(0.52 * chi)*pow(chi, 0.43) - 0.1;
-
-		int np = 50;
-		double
-			*angle = new double[np],
-			*intens = new double[np];
-
-		for(int i=0; i<np; i++){
-			theta = (double)i*25./(double)np;
-			angle[i] = theta;
-			if(theta > 4.65){
-				intens[i] = exp(kappa)*pow(theta, gamma);
-			}
-			else
-			{
-				intens[i] = cos(0.326 * theta)/cos(0.308 * theta);
-			}
-		}
-		//Fill into the sun object
-		Sun.SunShapeIntensity.resize(np);
-		Sun.SunShapeAngle.resize(np);
-		for(int i=0; i<np; i++){
-			Sun.SunShapeIntensity.at(i) = intens[i];
-			Sun.SunShapeAngle.at(i) = angle[i];
-		}
 		
-		delete [] angle;
-		delete [] intens;
+		//Fill into the sun object
+        SF.getAmbientObject()->calcBuieCSRIntensity(Sun.SunShapeAngle, Sun.SunShapeIntensity);
 
 	}
-	else if(sun_type == 3){	//User sun
+	else if(sun_type == 3)
+    {	
+        //User sun
 		shape = 'd';
 		int np = (int)V->amb.user_sun.val.nrows();
 		double

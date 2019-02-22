@@ -156,7 +156,8 @@ protected:
 	std::vector<Hvector> _layout_groups; //a std::vector of heliostat vectors that share flux intercept factor during layout calculations
 	Rvector _receivers; //A std::vector containing all of the receiver objects
 	Rvector _active_receivers;	//A std::vector containing only active receivers
-	Land _land;
+    Ambient _ambient;
+    Land _land;
 	Financial _financial;
     FluxSimData _fluxsim;
 	Flux *_flux;	/*This object is a pointer because it has a recursive relationship to the SolarField object.
@@ -194,6 +195,7 @@ public:
 	Rvector *getReceivers();
 	Land *getLandObject();
 	Flux *getFluxObject();
+    Ambient *getAmbientObject();
 	Financial *getFinancialObject();
     FluxSimData *getFluxSimObject();
 	htemp_map *getHeliostatTemplates();

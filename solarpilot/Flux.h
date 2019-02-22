@@ -142,7 +142,7 @@ class Flux
 	matrix_t<double> hermitePoly( double x );	//This will return a vector<double> of hermite coefficients
 
 	//moments of sunshape distribution. If user-defined, also requires specification of the _user_sun vector
-	void hermiteSunCoefs(var_map &V, matrix_t<double> &mSun);
+	void hermiteSunCoefs(var_map &V, Ambient& A, matrix_t<double> &mSun);
 
 	//moments of the error distribution
 	void hermiteErrDistCoefs(block_t<double> &errDM);
@@ -165,7 +165,7 @@ class Flux
 	double imagePlaneIntercept(var_map &V, Heliostat &H, Receiver *Rec, Vect *Sun);
 
 	//An algorithm to initialize the polynomial coefficients
-	void initHermiteCoefs(var_map &V);
+	void initHermiteCoefs(var_map &V, Ambient& A);
 
 	//A method to calculate the flux density given a map of values and a solar field
 	void fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, bool clear_grid = true, bool norm_grid = true, bool show_progress=false);

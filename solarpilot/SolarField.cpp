@@ -89,6 +89,7 @@ Rvector *SolarField::getReceivers(){return &_active_receivers;}
 Land *SolarField::getLandObject(){return &_land;}
 //Ambient *SolarField::getAmbientObject(){return &_ambient;}
 Flux *SolarField::getFluxObject(){return _flux;}
+Ambient *SolarField::getAmbientObject() { return &_ambient; }
 Financial *SolarField::getFinancialObject(){return &_financial;}
 FluxSimData *SolarField::getFluxSimObject(){return &_fluxsim;}
 htemp_map *SolarField::getHeliostatTemplates(){return &_helio_templates;}
@@ -322,7 +323,7 @@ void SolarField::Create(var_map &V){
     //Go through and set all of the relevant variables, constructing objects as needed along the way.
 
     //Ambient
-	//_ambient.Create(V);
+	_ambient.Create(V);
  
 	//Create the flux object
 	if(_flux != 0 ){ delete _flux; }	//If the flux object already exists, delete and start over
@@ -552,6 +553,7 @@ void SolarField::updateAllCalculatedParameters(var_map &V)
     /* 
     Update all of the calculated values in all of the child classes and in solarfield
     */
+    _ambient.updateCalculatedParameters(V);
 
     for( int i=0; i<(int)_helio_template_objects.size(); i++)
         _helio_template_objects.at(i).updateCalculatedParameters(V, i);
@@ -1080,7 +1082,7 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
     var_map *V = SF.getVarMap();
 
 	//If the analysis method is Hermite Polynomial, initialize polynomial coefs
-	SF.getFluxObject()->initHermiteCoefs( *V );
+	SF.getFluxObject()->initHermiteCoefs( *V, *SF.getAmbientObject() );
 	//Calculate the Hermite geometry coefficients for each template
 	for(htemp_map::iterator htemp=SF.getHeliostatTemplates()->begin(); 
                             htemp != SF.getHeliostatTemplates()->end(); 

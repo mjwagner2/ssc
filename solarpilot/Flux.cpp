@@ -319,13 +319,14 @@ matrix_t<double> Flux::hermitePoly( double x) {
 	return hermitePoly;
 }
 
-void Flux::initHermiteCoefs(var_map &V){
+void Flux::initHermiteCoefs(var_map &V, Ambient& A)
+{
 	/*
 	Fills out the constant coefficients that don't change during the simulation
 	*/
 
 	//Sun shape
-	hermiteSunCoefs(V, _mu_SN);
+	hermiteSunCoefs(V, A, _mu_SN);
 
 	//Error distribution coefficients
 	hermiteErrDistCoefs(_mu_GN);
@@ -333,7 +334,7 @@ void Flux::initHermiteCoefs(var_map &V){
 	return;
 }
 
-void Flux::hermiteSunCoefs(var_map &V, matrix_t<double> &mSun) {
+void Flux::hermiteSunCoefs(var_map &V, Ambient&A, matrix_t<double> &mSun) {
 	/*
 	###############################################################################################
 	-------WHEN TO CALL------
@@ -460,30 +461,17 @@ void Flux::hermiteSunCoefs(var_map &V, matrix_t<double> &mSun) {
 			user_sun = &temp_sun;		//Assign
 		}
 		else if(suntype == var_ambient::SUN_TYPE::BUIE_CSR )
-        {	//Create the Buie (2003) sun shape based on CSR
-			//[1] Buie, D., Dey, C., & Bosi, S. (2003). The effective size of the solar cone for solar concentrating systems. Solar energy, 74(2003), 417–427. 
-			//[2] Buie, D., Monger, A., & Dey, C. (2003). Sunshape distributions for terrestrial solar simulations. Solar Energy, 74(March 2003), 113–122. 
+        {	
 
-			double
-				kappa, gamma, theta, chi;
-			//calculate coefficients
-			chi = V.amb.sun_csr.val; //A.getSunCSR();
-			kappa = 0.9*log(13.5 * chi)*pow(chi, -0.3);
-			gamma = 2.2*log(0.52 * chi)*pow(chi, 0.43) - 0.1;	//0.43 exponent is positive. See reference [2] above.
+            std::vector<double> angle, intens;
+            A.calcBuieCSRIntensity(angle, intens);
+            temp_sun.resize(angle.size(), 2);
+            for (size_t i = 0; i < angle.size(); i++)
+            {
+                temp_sun.at(i, 0) = angle.at(i);
+                temp_sun.at(i, 1) = intens.at(i);
+            }
 
-			int npt = 50;
-			temp_sun.resize(npt, 2);
-			for(int i=0; i<npt; i++){
-				theta = (double)i*25./(double)npt;
-				temp_sun.at(i, 0) = theta;
-				if(theta > 4.65){
-					temp_sun.at(i,1) = exp(kappa)*pow(theta, gamma)*.1;
-				}
-				else
-				{
-					temp_sun.at(i,1) = cos(0.326 * theta)/cos(0.308 * theta)*.1;
-				}
-			}
 			user_sun = &temp_sun;
 		}
 		else		//Use the user-defined distribution

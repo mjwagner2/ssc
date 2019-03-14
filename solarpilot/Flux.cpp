@@ -445,16 +445,17 @@ void Flux::hermiteSunCoefs(var_map &V, Ambient&A, matrix_t<double> &mSun) {
     case var_ambient::SUN_TYPE::GAUSSIAN_SUN:
     case var_ambient::SUN_TYPE::BUIE_CSR:
     case var_ambient::SUN_TYPE::USER_SUN:
+    {
 		//---user-defined sunshape --- see DELSOL3 lines 6432-6454
             //User provides array of angle (radians) and intensity
 		matrix_t<double> *user_sun;
 		matrix_t<double> temp_sun;
-		if(suntype == var_ambient::SUN_TYPE::GAUSSIAN_SUN){	//Create a gaussian distribution
+        if(suntype == var_ambient::SUN_TYPE::GAUSSIAN_SUN){	//Create a gaussian distribution
 			int npt = 50;
 			temp_sun.resize(npt,2);
 			double ffact = 1./sqrt(2.*pi*sun_rad_limit);
 			for(int i=0; i<npt; i++){
-				double theta = (double)i*25./(double)npt;	//25 mrad is the limit of most pyroheliometers
+				double theta = (double)i*25./(double)npt;	//25 mrad
 				temp_sun.at(i, 0) = theta;	//mrad -> later converted to rad
 				temp_sun.at(i, 1) = ffact * exp(-0.5 * pow(theta/sun_rad_limit, 2));	//Gaussian with standard deviation of sun_rad_limit
 			}
@@ -465,27 +466,40 @@ void Flux::hermiteSunCoefs(var_map &V, Ambient&A, matrix_t<double> &mSun) {
 
             std::vector<double> angle, intens;
             A.calcBuieCSRIntensity(angle, intens);
-            temp_sun.resize(angle.size(), 2);
+            int n_to_lim = 0;
             for (size_t i = 0; i < angle.size(); i++)
+            {
+                if (angle.at(i) > 18.)
+                {
+                    n_to_lim = (int)i;
+                    break;
+                }
+            }
+            if (n_to_lim == 0)
+                n_to_lim = (int)angle.size();
+
+            temp_sun.resize(n_to_lim, 2);
+            for (size_t i = 0; i < n_to_lim; i++)
             {
                 temp_sun.at(i, 0) = angle.at(i);
                 temp_sun.at(i, 1) = intens.at(i);
             }
+            temp_sun.at(n_to_lim-1, 1) = 0.;
 
-			user_sun = &temp_sun;
+            user_sun = &temp_sun;
 		}
 		else		//Use the user-defined distribution
 		{
 			user_sun = &V.amb.user_sun.val; //A.getUserSun();
-		}
+        }
 		
 		std::vector<double> azmin;
         azmin.resize(12,0.);
 
 		//for(int i=0; i<8; i++) azmin[i] = 0.0;;			//Set up an array
-
         int nn = (int)user_sun->nrows()-1;		
         for (int n=1; n<nn+1; n+=1) {		//DELSOL goes 1..nn
+
             //The disc angle and corresponding intensity
 			double disc_angle, intens; 
 			disc_angle = user_sun->at(n-1,0)/1000.;
@@ -528,7 +542,7 @@ void Flux::hermiteSunCoefs(var_map &V, Ambient&A, matrix_t<double> &mSun) {
 		}
         mSun.at(0,0) = 1.;
 		break;
-		
+	}
 	//default:
 	//	;
 	}

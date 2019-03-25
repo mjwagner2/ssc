@@ -115,7 +115,7 @@ void Ambient::calcBuieCSRIntensity(std::vector<double>& angle, std::vector<doubl
     angle.clear();
     intensity.clear();
 
-    double theta = -dt_cs; //set so first adjustment is back to 0
+    double theta = -dt_s; //set so first adjustment is back to 0
 
     while(theta < angle_max)
     {

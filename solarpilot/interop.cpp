@@ -1224,6 +1224,7 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 
         eff_total_sf.set(0,0, 0, 0, 0., power_absorbed / power_on_field);
         eff_cosine.set(0.,0., 0., 0., 0., (double)nhin / (double)nsunrays*Abox / total_heliostat_area);
+        eff_shading.set(1., 1., 1., 0., 1., 1.);        //shading is accounted for in the blocking calculation
 		eff_blocking.set(0.,0., 0., 0., 0., 1. - (double)nhblock / (double)(nhin - nhabs));
 		eff_attenuation.set(0., 0., 0., 0., 0., 1.);	//Not currently accounted for
 		eff_reflect.set(0., 0., 0., 0., 0., (double)(nhin - nhabs) / (double)nhin);

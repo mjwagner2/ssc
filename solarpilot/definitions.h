@@ -382,6 +382,7 @@ struct var_receiver
 	spvar< bool > is_enabled; 		//[] Is template enabled?
 	spvar< bool > is_open_geom; 		//[] If true, the receiver is represented by an arc rather than a closed circle/polygon
 	spvar< bool > is_polygon; 		//[] Receiver geometry is represented as discrete polygon of N panels rather than continuous arc
+	spvar< std::string > map_color; 		//[none] Specified receiver map color (hex)
 	spvar< int > n_panels; 		//[none] Number of receiver panels (polygon facets) for a polygonal receiver geometry
 	spvar< double > panel_rotation; 		//[deg] Azimuth angle between the normal vector to the primary 'north' panel and North
 	spvar< double > peak_flux; 		//[kW/m2] Maximum allowable flux intensity on any portion of the receiver surface

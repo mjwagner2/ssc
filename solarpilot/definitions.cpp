@@ -414,6 +414,7 @@ void var_map::add_receiver(int id)
 	recs.back().is_enabled           .set("receiver."+sid+".is_enabled"      , SP_DATTYPE::SP_BOOL      ,               "TRUE",           "",    false,         "",    "",    false,                   "Is template enabled?", "Is template enabled?");
 	recs.back().is_open_geom         .set("receiver."+sid+".is_open_geom"    , SP_DATTYPE::SP_BOOL      ,              "FALSE",           "",    false, "checkbox",    "",     true,        "Limit receiver panel span angle", "If true, the receiver is represented by an arc rather than a closed circle/polygon");
 	recs.back().is_polygon           .set("receiver."+sid+".is_polygon"      , SP_DATTYPE::SP_BOOL      ,              "FALSE",           "",     true, "checkbox",    "",     true,          "Represent receiver as polygon", "Receiver geometry is represented as discrete polygon of N panels rather than continuous arc");
+	recs.back().map_color            .set("receiver."+sid+".map_color"       , SP_DATTYPE::SP_STRING    ,             "random",       "none",    false,         "",    "",    false,           "Specified receiver map color", "Specified receiver map color (hex)");
 	recs.back().n_panels             .set("receiver."+sid+".n_panels"        , SP_DATTYPE::SP_INT       ,                 "12",       "none",     true,         "",    "",     true,              "Number of receiver panels", "Number of receiver panels (polygon facets) for a polygonal receiver geometry");
 	recs.back().panel_rotation       .set("receiver."+sid+".panel_rotation"  , SP_DATTYPE::SP_DOUBLE    ,                  "0",        "deg",     true,         "",    "",     true,   "Receiver panel azimuthal orientation", "Azimuth angle between the normal vector to the primary 'north' panel and North");
 	recs.back().peak_flux            .set("receiver."+sid+".peak_flux"       , SP_DATTYPE::SP_DOUBLE    ,               "1000",      "kW/m2",     true,         "",    "",    false,                    "Allowable peak flux", "Maximum allowable flux intensity on any portion of the receiver surface");
@@ -718,6 +719,7 @@ void var_receiver::addptrs(unordered_map<std::string, spbase*> &pmap)
 	pmap["receiver."+sid+".is_enabled"] = &is_enabled;
 	pmap["receiver."+sid+".is_open_geom"] = &is_open_geom;
 	pmap["receiver."+sid+".is_polygon"] = &is_polygon;
+	pmap["receiver."+sid+".map_color"] = &map_color;
 	pmap["receiver."+sid+".n_panels"] = &n_panels;
 	pmap["receiver."+sid+".panel_rotation"] = &panel_rotation;
 	pmap["receiver."+sid+".peak_flux"] = &peak_flux;

@@ -168,7 +168,7 @@ class Flux
 	void initHermiteCoefs(var_map &V, Ambient& A);
 
 	//A method to calculate the flux density given a map of values and a solar field
-	void fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, bool clear_grid = true, bool norm_grid = true, bool show_progress=false);
+	void fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, double tht, bool clear_grid = true, bool norm_grid = true, bool show_progress=false);
 
 	double hermiteFluxEval(Heliostat *H, double xs, double ys);
 

@@ -4228,7 +4228,7 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 		if(! _receivers.at(n)->isReceiverEnabled() ) continue;
 		FluxSurfaces *surfaces = _receivers.at(n)->getFluxSurfaces();
 		for(unsigned int i=0; i<surfaces->size(); i++){
-			_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, true, true, true);		
+			_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true, true, true);
 		}
 	}
 

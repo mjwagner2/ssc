@@ -664,14 +664,19 @@ void Heliostat::calcAndSetAimPointFluxPlane(sp_point &aimpos_abs, Receiver &Rec,
     
     sp_point aimpos(aimpos_abs);    
     PointVect NV;
-	Rec.CalculateNormalVector(*H.getLocation(), NV);	//Get the receiver normal vector
+
+    sp_point h_loc_adj = *H.getLocation();
+    var_receiver* rv = Rec.getVarMap();
+    h_loc_adj.Add(-rv->rec_offset_x_global.Val(), -rv->rec_offset_y_global.Val(), -rv->rec_offset_z_global.Val());
+
+	Rec.CalculateNormalVector(h_loc_adj, NV);	//Get the receiver normal vector
 
     double az = atan2(NV.i, NV.j);
     double el = atan2(NV.k*NV.k, NV.i*NV.i + NV.j*NV.j); 
 
     //rotate into flux plane coordinates
-    Toolbox::rotation(PI - az,2,aimpos);
-	Toolbox::rotation(PI/2. - el,0,aimpos);
+    Toolbox::rotation(PI - az, 2, aimpos);
+	Toolbox::rotation(PI/2. - el, 0, aimpos);
 	//The z component should be very small, so zero out
 	if( fabs(aimpos.z) < 1.e-6 ) aimpos.z = 0.;
 	//The X and Y coordinates now indicate the image plane position

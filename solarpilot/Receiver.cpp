@@ -682,8 +682,8 @@ void Receiver::CalculateNormalVector(sp_point &Hloc, PointVect &NV){
 //------------------Scripts------------------
 
 //Initialization call to create the receiver surfaces
-void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y) {
-
+void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y) 
+{
 	/* 
 	The process of defining receiver geometry for each receiver should be:
 
@@ -925,14 +925,18 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y) {
 		//2) Calculate and set the number of surfaces used for the recever. Resize "_surfaces".
 		_surfaces.resize(1);
 		FluxSurface *S = &_surfaces.at(0);
+        S->setParent(this);
 
 		//3) Calculate and set the normal vector for each surface (if not curved surfaces) with setNormalVector(Vect).
 
 		sp_point loc;
-        loc.Set( _var_receiver->rec_offset_x_global.Val(), _var_receiver->rec_offset_y_global.Val(), _var_receiver->rec_offset_z_global.Val() );
-		S->setSurfaceGeometry( _var_receiver->rec_height.val, _var_receiver->rec_width.val, 0. );
+        loc.Set(0., 0., 0.);        //the flux surface offset relative to receiver coordinates should be zero for single-aperture receivers
+        /*loc.Set( _var_receiver->rec_offset_x_global.Val(), _var_receiver->rec_offset_y_global.Val(), _var_receiver->rec_offset_z_global.Val() );*/
+		
+        S->setSurfaceGeometry( _var_receiver->rec_height.val, _var_receiver->rec_width.val, 0. );
 		S->setSurfaceOffset( loc );
-		//For continuous cylindrical surfaces, the normal vector will define the azimuth and zenith of the receiver surface.
+		
+        //For continuous cylindrical surfaces, the normal vector will define the azimuth and zenith of the receiver surface.
 		Vect nv;
         double rec_az = _var_receiver->rec_azimuth.val *D2R;
         double rec_elevation = _var_receiver->rec_elevation.val *D2R;

@@ -1360,18 +1360,19 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
 		//Choose how to focus the heliostat
 		switch(focus_method)
 		{
-		case 0:	//Flat with no focusing
+		case var_heliostat::FOCUS_METHOD::FLAT:	//Flat with no focusing
 			hptr->setFocalLength( 1.e9 );
 			break;
-		case 1:	//Each at a focal length equal to their slant range
+		case var_heliostat::FOCUS_METHOD::AT_SLANT:	//Each at a focal length equal to their slant range
 			hptr->setFocalLength( hptr->getSlantRange() );
-
 			break;
-		case 2:	//Average focal length in template group
+		case var_heliostat::FOCUS_METHOD::GROUP_AVERAGE:	//Average focal length in template group
 			throw spexception("Average template focal length not currently implemented.");
 			break;
-		case 3:	//User defined focusing method
-
+		case var_heliostat::FOCUS_METHOD::USERDEFINED:	//User defined focusing method
+			hptr->setFocalLength(hptr->getVarMap()->x_focal_length.val);
+			if (! hptr->getVarMap()->is_focal_equal.val)
+				hptr->setFocalLengthY(hptr->getVarMap()->y_focal_length.val);
 			break;
 		}
 

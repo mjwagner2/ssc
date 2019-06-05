@@ -101,6 +101,12 @@ void *simulation_info::getCallbackData()
     return _callback_data;
 }
 
+void* simulation_info::getCallbackFunction()
+{
+	return (void*)_callback;
+}
+
+
 bool simulation_info::setCurrentSimulation(int val)
 {
 	if(!_is_active) return true; 

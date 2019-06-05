@@ -115,6 +115,7 @@ public:
 	bool addSimulationNotice(std::string notice);
 	void isEnabled(bool state);
     void* getCallbackData();
+	void* getCallbackFunction();
 };
 
 class simulation_error

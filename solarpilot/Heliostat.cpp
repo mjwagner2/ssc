@@ -147,9 +147,9 @@ void Heliostat::setCantVector(double cant[3]){_cant_vect.Set(cant[0], cant[1], c
 void Heliostat::setSlantRange(double L)
 {
     _slant = L; 
-    if(_var_helio->cant_method.mapval() == var_heliostat::CANT_METHOD::ONAXIS_AT_SLANT)
+	if(_var_helio->focus_method.mapval() == var_heliostat::FOCUS_METHOD::AT_SLANT)
     {
-        _xfocal = L; 
+		_xfocal = L; 
         _yfocal = L;
     }
 }

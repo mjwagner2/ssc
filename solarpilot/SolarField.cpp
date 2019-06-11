@@ -1306,15 +1306,8 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
 		if(hpy > ymax){ymax = hpy;}		//Track the min/max field extents
         
         if (SF.CheckCancelStatus()) return false;	//check for cancelled simulation
-    //}
 
-    ////if we have multiple receivers, calculate the preferred order of heliostat additions for each
-    //if( SF.getActiveReceiverCount() > 1 )
-    //    SF.getFluxObject()->calcReceiverTargetOrder( SF );
-
-	//Quickly determine the aim point for initial calculations
-    //for(int i=0; i<Npos; i++)
-    //{
+		//Quickly determine the aim point for initial calculations
 		if(layout_method == var_solarfield::LAYOUT_METHOD::USERDEFINED || refresh_only){
 			//For user defined layouts...
 			if(layout->at(i).is_user_aim){	//Check to see if the aim point is also supplied.
@@ -1358,24 +1351,33 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
 		hptr->setSlantRange( slant );
 		
 		//Choose how to focus the heliostat
-		switch(focus_method)
-		{
-		case var_heliostat::FOCUS_METHOD::FLAT:	//Flat with no focusing
-			hptr->setFocalLength( 1.e9 );
-			break;
-		case var_heliostat::FOCUS_METHOD::AT_SLANT:	//Each at a focal length equal to their slant range
-			hptr->setFocalLength( hptr->getSlantRange() );
-			break;
-		case var_heliostat::FOCUS_METHOD::GROUP_AVERAGE:	//Average focal length in template group
-			throw spexception("Average template focal length not currently implemented.");
-			break;
-		case var_heliostat::FOCUS_METHOD::USERDEFINED:	//User defined focusing method
-			hptr->setFocalLength(hptr->getVarMap()->x_focal_length.val);
-			if (! hptr->getVarMap()->is_focal_equal.val)
-				hptr->setFocalLengthY(hptr->getVarMap()->y_focal_length.val);
-			break;
-		}
+		bool calculate_focal_length = true;
+		if (layout_method == var_solarfield::LAYOUT_METHOD::USERDEFINED || refresh_only)
+			if (layout->at(i).is_user_focus)
+				calculate_focal_length = false;
 
+
+		if(calculate_focal_length)
+		{
+			//if the user hasn't specified the focal lengths in the imported layout
+			switch (focus_method)
+			{
+			case var_heliostat::FOCUS_METHOD::FLAT:	//Flat with no focusing
+				hptr->setFocalLength(1.e9);
+				break;
+			case var_heliostat::FOCUS_METHOD::AT_SLANT:	//Each at a focal length equal to their slant range
+				hptr->setFocalLength(hptr->getSlantRange());
+				break;
+			case var_heliostat::FOCUS_METHOD::GROUP_AVERAGE:	//Average focal length in template group
+				throw spexception("Average template focal length not currently implemented.");
+				break;
+			case var_heliostat::FOCUS_METHOD::USERDEFINED:	//User defined focusing method
+				hptr->setFocalLength(hptr->getVarMap()->x_focal_length.val);
+				if (!hptr->getVarMap()->is_focal_equal.val)
+					hptr->setFocalLengthY(hptr->getVarMap()->y_focal_length.val);
+				break;
+			}
+		}
         
 
 		//Construct the panel(s) on the heliostat

@@ -20,55 +20,54 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef __csp_solver_mspt_collector_receiver_
-#define __csp_solver_mspt_collector_receiver_
+#ifndef __csp_solver_tower_collector_receiver_
+#define __csp_solver_tower_collector_receiver_
 
 #include "csp_solver_core.h"
-#include "csp_solver_pt_sf_perf_interp.h"
-#include "csp_solver_pt_receiver.h"
+#include "csp_solver_mspt_collector_receiver.h"
+//#include "csp_solver_pt_sf_perf_interp.h"
+//#include "csp_solver_pt_receiver.h"
 
 
 
-class C_csp_mspt_collector_receiver : public C_csp_collector_receiver
+class C_csp_tower_collector_receiver : public C_csp_collector_receiver
 {
 
 private:
-	C_pt_sf_perf_interp &mc_pt_heliostatfield;
-	C_pt_receiver &mc_pt_receiver;
+    std::vector<C_csp_mspt_collector_receiver> collector_receivers;
 
 public:
 	
 	enum
-	{
-		E_FIELD_Q_DOT_INC,		//[MWt] Field incident thermal power
-		E_FIELD_ETA_OPT,		//[-] Optical efficiency including receiver refl
-		E_FIELD_ADJUST,			//[-] Field adjustment factor
-		
-		E_Q_DOT_INC,			//[MWt] Receiver incident thermal power
-		E_ETA_THERMAL,			//[-] Receiver thermal efficiency
-		E_Q_DOT_THERMAL,		//[MWt] Field incident thermal power
-		E_M_DOT_HTF,			//[kg/hr] Receiver mass flow rate
-		E_Q_DOT_STARTUP,		//[MWt] Receiver startup thermal power consumed
-		E_T_HTF_IN,				//[C] Receiver HTF inlet temperature
-		E_T_HTF_OUT,			//[C] Receiver HTF outlet temperature
-		E_Q_DOT_PIPE_LOSS,		//[MWt] Tower piping losses
-        E_Q_DOT_LOSS,           //[MWt] Receiver convection and radiation losses
-		E_P_HEATTRACE,			//[MWe] Receiver heat trace parasitic
-		E_T_HTF_OUT_END,		//[C] Instantaneous receiver HTF outlet temperature at the end of the time step
-		E_T_HTF_OUT_MAX,		//[C] Receiver maximum HTF outlet temperature at any point during time step
-		E_T_HTF_PANEL_OUT_MAX,	//[C] Receiver panel maximum HTF outlet temperature at any point during time step
-		E_T_WALL_INLET,			//[C] Receiver inlet wall temperature at end of time step
-		E_T_WALL_OUTLET,		//[C] Receiver inlet wall temperature at end of time step
-		E_T_RISER,				//[C] Riser temperature at the end of the time step
-		E_T_DOWNC				//[C] Downcomer temperature at the end of the time step
-	};
+    {
+        E_FIELD_Q_DOT_INC,          //[MWt] Field incident thermal power
+        E_FIELD_ETA_OPT,            //[-] Optical efficiency including receiver refl
+        E_FIELD_ADJUST,             //[-] Field adjustment factor
+        
+        E_Q_DOT_INC,                //[MWt] Receiver incident thermal power
+        E_ETA_THERMAL,              //[-] Receiver thermal efficiency
+        E_Q_DOT_THERMAL,            //[MWt] Field incident thermal power
+        E_M_DOT_HTF,                //[kg/hr] Receiver mass flow rate
+        E_Q_DOT_STARTUP,            //[MWt] Receiver startup thermal power consumed
+        E_T_HTF_IN,                 //[C] Receiver HTF inlet temperature
+        E_T_HTF_OUT,                //[C] Receiver HTF outlet temperature
+        E_Q_DOT_PIPE_LOSS,          //[MWt] Tower piping losses
+        E_Q_DOT_LOSS,               //[MWt] Receiver convection and radiation losses
+        E_P_HEATTRACE,              //[MWe] Receiver heat trace parasitic
+        E_T_HTF_OUT_END,            //[C] Instantaneous receiver HTF outlet temperature at the end of the time step
+        E_T_HTF_OUT_MAX,            //[C] Receiver maximum HTF outlet temperature at any point during time step
+        E_T_HTF_PANEL_OUT_MAX,      //[C] Receiver panel maximum HTF outlet temperature at any point during time step
+        E_T_WALL_INLET,             //[C] Receiver inlet wall temperature at end of time step
+        E_T_WALL_OUTLET,            //[C] Receiver inlet wall temperature at end of time step
+        E_T_RISER,                  //[C] Riser temperature at the end of the time step
+        E_T_DOWNC                   //[C] Downcomer temperature at the end of the time step
+    };
 	
 	C_csp_reported_outputs mc_reported_outputs;
 	
-	C_csp_mspt_collector_receiver(C_pt_sf_perf_interp & pt_heliostatfield,
-		C_pt_receiver & pt_receiver);
+	C_csp_tower_collector_receiver(std::vector<C_csp_mspt_collector_receiver> & collector_receivers);
 
-	~C_csp_mspt_collector_receiver();
+	~C_csp_tower_collector_receiver();
 
 	virtual void init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 			C_csp_collector_receiver::S_csp_cr_solved_params & solved_params);
@@ -81,10 +80,6 @@ public:
     virtual double get_min_power_delivery();    //MWt
 	virtual double get_tracking_power();		//MWe
 	virtual double get_col_startup_power();		//MWe-hr
-    double get_design_thermal_power();          //MWt
-
-    C_pt_sf_perf_interp::S_outputs get_field_outputs();
-    C_pt_receiver::S_outputs get_receiver_outputs();
 
     virtual void off(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,
@@ -131,11 +126,4 @@ public:
 
 };
 
-
-
-
-
-
-
-
-#endif //__csp_solver_mspt_collector_receiver_
+#endif //__csp_solver_tower_collector_receiver_

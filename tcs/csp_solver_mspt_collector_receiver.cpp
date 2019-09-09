@@ -112,6 +112,20 @@ double C_csp_mspt_collector_receiver::get_col_startup_power()
 	return mc_pt_heliostatfield.ms_params.m_p_start * mc_pt_heliostatfield.ms_params.m_N_hel *1.e-3;	//MWe-hr
 }
 
+double C_csp_mspt_collector_receiver::get_design_thermal_power()
+{
+    return mc_pt_receiver.m_q_rec_des * 1e-6;  //MWt, originally MW but converted to W in init() so converting back
+}
+
+C_pt_sf_perf_interp::S_outputs C_csp_mspt_collector_receiver::get_field_outputs()
+{
+    return mc_pt_heliostatfield.ms_outputs;
+}
+
+C_pt_receiver::S_outputs C_csp_mspt_collector_receiver::get_receiver_outputs()
+{
+    return mc_pt_receiver.ms_outputs;
+}
 
 void C_csp_mspt_collector_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	const C_csp_solver_htf_1state &htf_state_in,

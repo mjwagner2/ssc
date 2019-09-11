@@ -650,7 +650,8 @@ public:
                 break;
         }
 
-        assign("q_design", as_number("P_ref") / as_number("design_eff") * as_number("solarm"));
+        double q_design = as_number("P_ref") / as_number("design_eff") * as_number("solarm");
+        assign("q_design", q_design);
 
         // Set up "cmod_solarpilot.cpp" conversions as necessary
         assign("helio_optical_error", (ssc_number_t)(as_number("helio_optical_error_mrad")*1.E-3));
@@ -1577,14 +1578,15 @@ public:
             break;
         }
 
-        std::unique_ptr<C_pt_receiver> receiver;
+        std::unique_ptr<C_pt_receiver> receiver, receiver2, receiver3;
+        double DT = (as_double("T_htf_hot_des") - as_double("T_htf_cold_des")) / N_rec;
         if (!as_boolean("is_rec_model_trans") && !as_boolean("is_rec_startup_trans")) {
             //std::unique_ptr<C_mspt_receiver_222> ss_receiver = std::make_unique<C_mspt_receiver_222>();   // new to C++14
             std::unique_ptr<C_mspt_receiver_222> ss_receiver = std::unique_ptr<C_mspt_receiver_222>(new C_mspt_receiver_222());   // steady-state receiver
 
             ss_receiver->m_n_panels = as_integer("N_panels");
             ss_receiver->m_d_rec = D_rec;
-            ss_receiver->m_h_rec = H_rec;
+            ss_receiver->m_h_rec = H_rec / N_rec;
             ss_receiver->m_od_tube = as_double("d_tube_out");
             ss_receiver->m_th_tube = as_double("th_tube");
             ss_receiver->m_mat_tube = as_integer("mat_tube");
@@ -1595,15 +1597,23 @@ public:
             ss_receiver->m_hl_ffact = as_double("hl_ffact");
             ss_receiver->m_A_sf = as_double("A_sf") / N_rec;
             ss_receiver->m_pipe_loss_per_m = as_double("piping_loss");                      //[Wt/m]
-            ss_receiver->m_pipe_length_add = as_double("piping_length_const");  //[m]
+            ss_receiver->m_pipe_length_add = as_double("piping_length_const") / N_rec;  //[m]
             ss_receiver->m_pipe_length_mult = as_double("piping_length_mult");      //[-]
             ss_receiver->m_n_flux_x = as_integer("n_flux_x");
             ss_receiver->m_n_flux_y = as_integer("n_flux_y");
-            ss_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des");
+            ss_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des") - DT * (N_rec - 1);
             ss_receiver->m_hel_stow_deploy = as_double("hel_stow_deploy");
             ss_receiver->m_is_iscc = false;    // Set parameters that were set with TCS defaults
 
+            // Should make a factory method instead of doing this:
+            std::unique_ptr<C_mspt_receiver_222> ss_receiver2{ new C_mspt_receiver_222{*ss_receiver} };
+            std::unique_ptr<C_mspt_receiver_222> ss_receiver3{ new C_mspt_receiver_222{*ss_receiver} };
+
+            ss_receiver2->m_T_salt_hot_target = ss_receiver->m_T_salt_hot_target + DT;
+            ss_receiver3->m_T_salt_hot_target = ss_receiver2->m_T_salt_hot_target + DT;
             receiver = std::move(ss_receiver);
+            receiver2 = std::move(ss_receiver2);
+            receiver3 = std::move(ss_receiver3);
         }
         else {
             //std::unique_ptr<C_mspt_receiver> trans_receiver = std::make_unique<C_mspt_receiver>();    // new to C++14
@@ -1611,7 +1621,7 @@ public:
 
             trans_receiver->m_n_panels = as_integer("N_panels");
             trans_receiver->m_d_rec = D_rec;
-            trans_receiver->m_h_rec = H_rec;
+            trans_receiver->m_h_rec = H_rec / N_rec;
             trans_receiver->m_od_tube = as_double("d_tube_out");
             trans_receiver->m_th_tube = as_double("th_tube");
             trans_receiver->m_mat_tube = as_integer("mat_tube");
@@ -1622,11 +1632,11 @@ public:
             trans_receiver->m_hl_ffact = as_double("hl_ffact");
             trans_receiver->m_A_sf = as_double("A_sf") / N_rec;
             trans_receiver->m_pipe_loss_per_m = as_double("piping_loss");                       //[Wt/m]
-            trans_receiver->m_pipe_length_add = as_double("piping_length_const");   //[m]
+            trans_receiver->m_pipe_length_add = as_double("piping_length_const") / N_rec;   //[m]
             trans_receiver->m_pipe_length_mult = as_double("piping_length_mult");       //[-]
             trans_receiver->m_n_flux_x = as_integer("n_flux_x");
             trans_receiver->m_n_flux_y = as_integer("n_flux_y");
-            trans_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des");
+            trans_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des") - DT * (N_rec - 1);
             trans_receiver->m_hel_stow_deploy = as_double("hel_stow_deploy");
             trans_receiver->m_is_iscc = false;    // Set parameters that were set with TCS defaults
 
@@ -1657,20 +1667,35 @@ public:
                 trans_receiver->m_is_enforce_min_startup = 1;
             }
 
+            std::unique_ptr<C_mspt_receiver> trans_receiver2{ new C_mspt_receiver{*trans_receiver} };
+            std::unique_ptr<C_mspt_receiver> trans_receiver3{ new C_mspt_receiver{*trans_receiver} };
+
+            trans_receiver2->m_T_salt_hot_target = trans_receiver->m_T_salt_hot_target + DT;
+            trans_receiver2->m_preheat_target = trans_receiver->m_preheat_target + DT;
+            trans_receiver2->m_startup_target = trans_receiver->m_startup_target + DT;
+            trans_receiver3->m_T_salt_hot_target = trans_receiver2->m_T_salt_hot_target + DT;
+            trans_receiver3->m_preheat_target = trans_receiver2->m_preheat_target + DT;
+            trans_receiver3->m_startup_target = trans_receiver2->m_startup_target + DT;
             receiver = std::move(trans_receiver);
+            receiver2 = std::move(trans_receiver2);
+            receiver3 = std::move(trans_receiver3);
         }
         //steady-state or transient receiver;
-        receiver->m_h_tower = as_double("h_tower");
-        receiver->m_epsilon = as_double("epsilon");
-        receiver->m_T_htf_hot_des = as_double("T_htf_hot_des");             //[C]
-        receiver->m_T_htf_cold_des = as_double("T_htf_cold_des");           //[C]
-        receiver->m_f_rec_min = as_double("f_rec_min");
-        receiver->m_q_rec_des = as_double("P_ref")/as_double("design_eff")*as_double("solarm");
-        receiver->m_rec_su_delay = as_double("rec_su_delay");
-        receiver->m_rec_qf_delay = as_double("rec_qf_delay");
-        receiver->m_m_dot_htf_max_frac = as_double("csp.pt.rec.max_oper_frac");
-        receiver->m_eta_pump = as_double("eta_pump");
-        receiver->m_night_recirc = 0;
+        receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
+        receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = as_double("epsilon");
+        receiver->m_T_htf_hot_des = as_double("T_htf_hot_des") - DT * (N_rec - 1);          //[C]
+        receiver2->m_T_htf_hot_des = receiver->m_T_htf_hot_des + DT;
+        receiver3->m_T_htf_hot_des = receiver2->m_T_htf_hot_des + DT;
+        receiver->m_T_htf_cold_des = as_double("T_htf_cold_des");                           //[C]
+        receiver2->m_T_htf_cold_des = receiver->m_T_htf_cold_des + DT;
+        receiver3->m_T_htf_cold_des = receiver2->m_T_htf_cold_des + DT;
+        receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
+        receiver->m_q_rec_des = receiver2->m_q_rec_des = receiver3->m_q_rec_des = (as_double("P_ref") / N_rec)/as_double("design_eff")*as_double("solarm");
+        receiver->m_rec_su_delay = receiver2->m_rec_su_delay = receiver3->m_rec_su_delay = as_double("rec_su_delay");
+        receiver->m_rec_qf_delay = receiver2->m_rec_qf_delay = receiver3->m_rec_qf_delay = as_double("rec_qf_delay");
+        receiver->m_m_dot_htf_max_frac = receiver2->m_m_dot_htf_max_frac = receiver3->m_m_dot_htf_max_frac = as_double("csp.pt.rec.max_oper_frac");
+        receiver->m_eta_pump = receiver2->m_eta_pump = receiver3->m_eta_pump = as_double("eta_pump");
+        receiver->m_night_recirc = receiver2->m_night_recirc = receiver3->m_night_recirc = 0;
 
         // Could add optional ISCC stuff...
 
@@ -1679,11 +1704,15 @@ public:
 
         // Now try to instantiate mspt_collector_receiver
         C_csp_mspt_collector_receiver collector_receiver(heliostatfield, *receiver);
+        C_pt_sf_perf_interp heliostatfield2 = heliostatfield;
+        C_csp_mspt_collector_receiver collector_receiver2(heliostatfield2, *receiver2);
+        C_pt_sf_perf_interp heliostatfield3 = heliostatfield;
+        C_csp_mspt_collector_receiver collector_receiver3(heliostatfield3, *receiver3);
         // Then try init() call here, which should call inits from both classes
         //collector_receiver.init();
 
         // Instantiate tower
-        std::vector<C_csp_mspt_collector_receiver> collector_receivers{ collector_receiver, collector_receiver, collector_receiver };
+        std::vector<C_csp_mspt_collector_receiver> collector_receivers{ collector_receiver, collector_receiver2, collector_receiver3 };
         C_csp_tower_collector_receiver tower(collector_receivers);
 
         // *******************************************************

@@ -35,7 +35,7 @@ class C_mspt_receiver_222 : public C_pt_receiver
 // The steady-state receiver (as opposed to the transient, for example)
 
 private:
-	ngcc_power_cycle cycle_calcs;
+	//ngcc_power_cycle cycle_calcs;
 
 	double m_id_tube;
 	double m_A_tube;

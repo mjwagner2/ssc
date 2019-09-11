@@ -64,9 +64,30 @@ C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
 void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 				C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
 {
+    C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
+    double q_dot_rec_des = 0.;
+    double A_aper_total = 0.;
+    double dP_sf = 0.;
+
     for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->init(init_inputs, solved_params);
+        it->init(init_inputs, _solved_params);
+        
+        if (it == collector_receivers.begin()) {
+            solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
+            solved_params.m_P_cold_des = _solved_params.m_P_cold_des;
+            solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
+        }
+        //solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver, but not used
+        q_dot_rec_des += _solved_params.m_q_dot_rec_des;
+        A_aper_total += _solved_params.m_A_aper_total;
+        dP_sf += _solved_params.m_dP_sf;
+        
+        // init HX here -> change iterator in for loop to an integer for also traversing HX vector
     }
+
+    solved_params.m_q_dot_rec_des = q_dot_rec_des;
+    solved_params.m_A_aper_total = A_aper_total;
+    solved_params.m_dP_sf = dP_sf;
 
 	return;
 }
@@ -250,7 +271,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
         cr_out_solver.m_q_thermal += cr_out_solver_prev.m_q_thermal;
-        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_m_dot_salt_tot;  // of last receiver
+        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_T_salt_hot;  // of last receiver
         cr_out_solver.m_component_defocus = std::min(cr_out_solver.m_component_defocus, cr_out_solver_prev.m_component_defocus);  // NEED TO WEIGHT THIS
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
@@ -357,13 +378,13 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
     for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
         // SHOULD THIS BE IN REVERSE ORDER?
-        it->off(weather, htf_state_in, cr_out_solver, sim_info);
+        it->off(weather, htf_state_in_next, cr_out_solver_prev, sim_info);
 
         cr_out_solver.m_q_startup += cr_out_solver_prev.m_q_startup;
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
         cr_out_solver.m_q_thermal += cr_out_solver_prev.m_q_thermal;
-        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_m_dot_salt_tot;  // from last receiver
+        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_T_salt_hot;  // from last receiver
         cr_out_solver.m_component_defocus = std::min(cr_out_solver.m_component_defocus, cr_out_solver_prev.m_component_defocus);  // NEED TO WEIGHT THIS
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
@@ -435,17 +456,7 @@ void C_csp_tower_collector_receiver::startup(const C_csp_weatherreader::S_output
 	inputs.m_input_operation_mode = C_csp_collector_receiver::STARTUP;
 	inputs.m_field_control = 1.0;
 
-    C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
-    C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
-
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-	    it->call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
-
-        htf_state_in_next.m_temp = cr_out_solver_prev.m_T_salt_hot;
-        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
-    }
-
-    return;
+    call(weather, htf_state_in, inputs, cr_out_solver, sim_info);
 }
 
 void C_csp_tower_collector_receiver::on(const C_csp_weatherreader::S_outputs &weather,
@@ -458,17 +469,7 @@ void C_csp_tower_collector_receiver::on(const C_csp_weatherreader::S_outputs &we
 	inputs.m_input_operation_mode = C_csp_collector_receiver::ON;
 	inputs.m_field_control = field_control;
 
-    C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
-    C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
-
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
-
-        htf_state_in_next.m_temp = cr_out_solver_prev.m_T_salt_hot;
-        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
-    }
-
-    return;
+    call(weather, htf_state_in, inputs, cr_out_solver, sim_info);
 }
 
 void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outputs &weather,
@@ -476,40 +477,28 @@ void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outp
 	C_csp_collector_receiver::S_csp_cr_est_out &est_out,
 	const C_csp_solver_sim_info &sim_info)
 {	
-    est_out.m_q_startup_avail = 0.;
-    est_out.m_q_dot_avail = 0.;
-    est_out.m_m_dot_avail = 0.;
-
 	C_csp_collector_receiver::S_csp_cr_inputs inputs;
 	inputs.m_input_operation_mode = C_csp_collector_receiver::STEADY_STATE;
 	inputs.m_field_control = 1.0;
 
-    C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
-    C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
+    C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver;
 
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
+    call(weather, htf_state_in, inputs, cr_out_solver, sim_info);
 
-   	    int mode = get_operating_state();
+   	int mode = get_operating_state();
 
-	    if( mode == C_csp_collector_receiver::ON ) {
-		    est_out.m_q_startup_avail = 0.;
-		    est_out.m_q_dot_avail += cr_out_solver_prev.m_q_thermal;			                            //[MWt]
-		    est_out.m_m_dot_avail = std::max(est_out.m_m_dot_avail, cr_out_solver_prev.m_m_dot_salt_tot);   //[kg/hr]
-		    est_out.m_T_htf_hot = cr_out_solver_prev.m_T_salt_hot;			//[C], last receiver
-	    }
-	    else {
-		    est_out.m_q_startup_avail += cr_out_solver_prev.m_q_thermal;		//[MWt]
-		    est_out.m_q_dot_avail = 0.;
-		    est_out.m_m_dot_avail = 0.;
-		    est_out.m_T_htf_hot = std::numeric_limits<double>::quiet_NaN();
-	    }
-
-        htf_state_in_next.m_temp = cr_out_solver_prev.m_T_salt_hot;
-        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
-    }
-
-    return;
+	if( mode == C_csp_collector_receiver::ON ) {
+		est_out.m_q_startup_avail = 0.;
+		est_out.m_q_dot_avail = cr_out_solver.m_q_thermal;			    //[MWt]
+		est_out.m_m_dot_avail = cr_out_solver.m_m_dot_salt_tot;         //[kg/hr]
+		est_out.m_T_htf_hot = cr_out_solver.m_T_salt_hot;		    	//[C], last receiver
+	}
+	else {
+		est_out.m_q_startup_avail = cr_out_solver.m_q_thermal;  		//[MWt]
+		est_out.m_q_dot_avail = 0.;
+		est_out.m_m_dot_avail = 0.;
+		est_out.m_T_htf_hot = std::numeric_limits<double>::quiet_NaN();
+	}
 }
 
 double C_csp_tower_collector_receiver::calculate_optical_efficiency( const C_csp_weatherreader::S_outputs &weather, const C_csp_solver_sim_info &sim )

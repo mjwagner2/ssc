@@ -255,14 +255,14 @@ void C_mspt_receiver_222::init()
 	m_LoverD = m_h_rec / m_id_tube;
 	m_RelRough = (4.5e-5) / m_id_tube;	//[-] Relative roughness of the tubes. http:www.efunda.com/formulae/fluids/roughness.cfm
 
-	if(m_is_iscc)
-	{
-		// Set cycle configuration in class
-		cycle_calcs.set_cycle_config(m_cycle_config);
+	//if(m_is_iscc)
+	//{
+	//	// Set cycle configuration in class
+	//	cycle_calcs.set_cycle_config(m_cycle_config);
 
-		// Get table limits
-		cycle_calcs.get_table_range(m_T_amb_low, m_T_amb_high, m_P_amb_low, m_P_amb_high);
-	}
+	//	// Get table limits
+	//	cycle_calcs.get_table_range(m_T_amb_low, m_T_amb_high, m_P_amb_low, m_P_amb_high);
+	//}
 
 	m_ncall = -1;
 
@@ -371,18 +371,18 @@ void C_mspt_receiver_222::call(const C_csp_weatherreader::S_outputs &weather,
 	c_p_coolant = field_htfProps.Cp(T_coolant_prop)*1000.0;						//[J/kg-K] Specific heat of the coolant
 
 	double m_dot_htf_max = m_m_dot_htf_max;
-	if( m_is_iscc )
-	{
-		if( m_ncall == 0 )
-		{
-			double T_amb_C = fmax(m_P_amb_low, fmin(m_T_amb_high, T_amb - 273.15));
-			double P_amb_bar = fmax(m_P_amb_low, fmin(m_P_amb_high, P_amb / 1.E5));
-			m_q_iscc_max = cycle_calcs.get_ngcc_data(0.0, T_amb_C, P_amb_bar, ngcc_power_cycle::E_solar_heat_max)*1.E6;	// W-th, convert from MWth
-		}
+	//if( m_is_iscc )
+	//{
+	//	if( m_ncall == 0 )
+	//	{
+	//		double T_amb_C = fmax(m_P_amb_low, fmin(m_T_amb_high, T_amb - 273.15));
+	//		double P_amb_bar = fmax(m_P_amb_low, fmin(m_P_amb_high, P_amb / 1.E5));
+	//		m_q_iscc_max = cycle_calcs.get_ngcc_data(0.0, T_amb_C, P_amb_bar, ngcc_power_cycle::E_solar_heat_max)*1.E6;	// W-th, convert from MWth
+	//	}
 
-		double m_dot_iscc_max = m_q_iscc_max / (c_p_coolant*(m_T_salt_hot_target - T_salt_cold_in));		// [kg/s]
-		m_dot_htf_max = fmin(m_m_dot_htf_max, m_dot_iscc_max);
-	}
+	//	double m_dot_iscc_max = m_q_iscc_max / (c_p_coolant*(m_T_salt_hot_target - T_salt_cold_in));		// [kg/s]
+	//	m_dot_htf_max = fmin(m_m_dot_htf_max, m_dot_iscc_max);
+	//}
 
 	double q_abs_sum = 0.0;
 	double err_od = 999.0;	// Reset error before iteration

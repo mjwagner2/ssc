@@ -41,26 +41,39 @@ public:
 	enum
     {
         E_FIELD_Q_DOT_INC,          //[MWt] Field incident thermal power
-        E_FIELD_ETA_OPT,            //[-] Optical efficiency including receiver refl
+        E_FIELD_ETA_OPT,            //[-] Optical efficiency including Tower refl
         E_FIELD_ADJUST,             //[-] Field adjustment factor
         
-        E_Q_DOT_INC,                //[MWt] Receiver incident thermal power
-        E_ETA_THERMAL,              //[-] Receiver thermal efficiency
+        E_Q_DOT_INC,                //[MWt] Tower incident thermal power
+        E_ETA_THERMAL,              //[-] Tower thermal efficiency
         E_Q_DOT_THERMAL,            //[MWt] Field incident thermal power
-        E_M_DOT_HTF,                //[kg/hr] Receiver mass flow rate
-        E_Q_DOT_STARTUP,            //[MWt] Receiver startup thermal power consumed
-        E_T_HTF_IN,                 //[C] Receiver HTF inlet temperature
-        E_T_HTF_OUT,                //[C] Receiver HTF outlet temperature
+        E_M_DOT_HTF,                //[kg/hr] Tower mass flow rate
+        E_Q_DOT_STARTUP,            //[MWt] Tower startup thermal power consumed
+        E_T_HTF_IN,                 //[C] Tower HTF inlet temperature
+        E_T_HTF_OUT,                //[C] Tower HTF outlet temperature
         E_Q_DOT_PIPE_LOSS,          //[MWt] Tower piping losses
-        E_Q_DOT_LOSS,               //[MWt] Receiver convection and radiation losses
-        E_P_HEATTRACE,              //[MWe] Receiver heat trace parasitic
-        E_T_HTF_OUT_END,            //[C] Instantaneous receiver HTF outlet temperature at the end of the time step
-        E_T_HTF_OUT_MAX,            //[C] Receiver maximum HTF outlet temperature at any point during time step
-        E_T_HTF_PANEL_OUT_MAX,      //[C] Receiver panel maximum HTF outlet temperature at any point during time step
-        E_T_WALL_INLET,             //[C] Receiver inlet wall temperature at end of time step
-        E_T_WALL_OUTLET,            //[C] Receiver inlet wall temperature at end of time step
+        E_Q_DOT_LOSS,               //[MWt] Tower convection and radiation losses
+        E_P_HEATTRACE,              //[MWe] Tower heat trace parasitic
+        E_T_HTF_OUT_END,            //[C] Instantaneous tower HTF outlet temperature at the end of the time step
+        E_T_HTF_OUT_MAX,            //[C] Tower maximum HTF outlet temperature at any point during time step
+        E_T_HTF_PANEL_OUT_MAX,      //[C] Tower panel maximum HTF outlet temperature at any point during time step
+        E_T_WALL_INLET,             //[C] Tower inlet wall temperature at end of time step
+        E_T_WALL_OUTLET,            //[C] Tower inlet wall temperature at end of time step
         E_T_RISER,                  //[C] Riser temperature at the end of the time step
-        E_T_DOWNC                   //[C] Downcomer temperature at the end of the time step
+        E_T_DOWNC,                  //[C] Downcomer temperature at the end of the time step
+
+        E_Q_DOT_INC1,               //[MWt] Receiver 1 incident thermal power
+        E_Q_DOT_INC2,               //[MWt] Receiver 2 incident thermal power
+        E_Q_DOT_INC3,               //[MWt] Receiver 3 ncident thermal power
+        E_M_DOT_HTF1,               //[kg/hr] Receiver 1 mass flow rate
+        E_M_DOT_HTF2,               //[kg/hr] Receiver 2 mass flow rate
+        E_M_DOT_HTF3,               //[kg/hr] Receiver 3 mass flow rate
+        E_T_HTF_IN1,                //[C] Receiver 1 HTF inlet temperature
+        E_T_HTF_IN2,                //[C] Receiver 2 HTF inlet temperature
+        E_T_HTF_IN3,                //[C] Receiver 3 HTF inlet temperature
+        E_T_HTF_OUT1,               //[C] Receiver 1 HTF outlet temperature
+        E_T_HTF_OUT2,               //[C] Receiver 2 HTF outlet temperature
+        E_T_HTF_OUT3,               //[C] Receiver 3 HTF outlet temperature
     };
 	
 	C_csp_reported_outputs mc_reported_outputs;

@@ -49,6 +49,19 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
 	{ C_csp_tower_collector_receiver::E_T_RISER, C_csp_reported_outputs::TS_LAST },
 	{ C_csp_tower_collector_receiver::E_T_DOWNC, C_csp_reported_outputs::TS_LAST },
 
+    { C_csp_tower_collector_receiver::E_Q_DOT_INC1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_INC2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_INC3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HTF1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HTF2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HTF3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_IN1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_IN2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_IN3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_OUT1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_OUT2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HTF_OUT3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+
 	csp_info_invalid	
 };
 
@@ -305,6 +318,25 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         T_wall_outlet = receiver_outputs.m_Twall_outlet;        // of last receiver
         if (it == collector_receivers.begin()) T_riser = receiver_outputs.m_Triser;                 // of first receiver
         T_downc = receiver_outputs.m_Tdownc;                    // of last receiver
+
+        if (it == collector_receivers.begin()) {
+            mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF1, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN1, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT1, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
+        else if (it == collector_receivers.begin() + 1) {
+            mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF2, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN2, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT2, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
+        else if (it == collector_receivers.begin() + 2) {
+            mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF3, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN3, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT3, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
     }
 
 	mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
@@ -418,6 +450,25 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         T_wall_outlet = receiver_outputs.m_Twall_outlet;        // of last receiver
         if (it == collector_receivers.begin()) T_riser = receiver_outputs.m_Triser;                 // of first receiver
         T_downc = receiver_outputs.m_Tdownc;                    // of last receiver
+
+        if (it == collector_receivers.begin()) {
+            mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF1, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN1, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT1, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
+        else if (it == collector_receivers.begin() + 1) {
+            mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF2, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN2, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT2, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
+        else if (it == collector_receivers.begin() + 2) {
+            mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HTF3, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
+            mc_reported_outputs.value(E_T_HTF_IN3, receiver_outputs.m_T_salt_cold);					//[C]
+            mc_reported_outputs.value(E_T_HTF_OUT3, receiver_outputs.m_T_salt_hot);		            //[C]
+        }
     }
 
     mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]

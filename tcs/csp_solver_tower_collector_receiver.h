@@ -25,6 +25,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "csp_solver_core.h"
 #include "csp_solver_mspt_collector_receiver.h"
+#include "csp_solver_two_tank_tes.h"
 //#include "csp_solver_pt_sf_perf_interp.h"
 //#include "csp_solver_pt_receiver.h"
 
@@ -35,6 +36,13 @@ class C_csp_tower_collector_receiver : public C_csp_collector_receiver
 
 private:
     std::vector<C_csp_mspt_collector_receiver> collector_receivers;
+    std::vector<C_heat_exchanger> hxs;
+    C_csp_two_tank_tes *tes;
+
+    HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
+    HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
+
+    std::string error_msg;                  // member string for exception messages
 
 public:
 	
@@ -74,8 +82,26 @@ public:
         E_T_HTF_OUT1,               //[C] Receiver 1 HTF outlet temperature
         E_T_HTF_OUT2,               //[C] Receiver 2 HTF outlet temperature
         E_T_HTF_OUT3,               //[C] Receiver 3 HTF outlet temperature
+        E_Q_DOT_HX1,                //[MWt] HX 1 transferred power
+        E_M_DOT_HX1,                //[kg/hr] HX 1 TES mass flow rate
+        E_T_HX_OUT1,                //[C] HX 1 TES outlet temperature
+        E_Q_DOT_HX2,                //[MWt] HX 1 transferred power
+        E_M_DOT_HX2,                //[kg/hr] HX 1 TES mass flow rate
+        E_T_HX_OUT2,                //[C] HX 1 TES outlet temperature
+        E_Q_DOT_HX3,                //[MWt] HX 1 transferred power
+        E_M_DOT_HX3,                //[kg/hr] HX 1 TES mass flow rate
+        E_T_HX_OUT3,                //[C] HX 1 TES outlet temperature
     };
 	
+    int m_field_fl;
+    util::matrix_t<double> m_field_fl_props;
+    int m_tes_fl;
+    util::matrix_t<double> m_tes_fl_props;
+    double hx_duty;
+    double m_dt_hot;
+    double T_rec_hot_des;
+    double T_hx_cold_des;       // design cold inlet temperature on storage side
+
 	C_csp_reported_outputs mc_reported_outputs;
 	
 	C_csp_tower_collector_receiver(std::vector<C_csp_mspt_collector_receiver> & collector_receivers);
@@ -93,6 +119,7 @@ public:
     virtual double get_min_power_delivery();    //MWt
 	virtual double get_tracking_power();		//MWe
 	virtual double get_col_startup_power();		//MWe-hr
+    void set_tes(C_csp_two_tank_tes *tes);
 
     virtual void off(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,

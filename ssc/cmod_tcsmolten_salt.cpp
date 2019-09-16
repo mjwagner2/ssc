@@ -137,8 +137,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
 
     // System Design
-    { SSC_INPUT,     SSC_NUMBER, "T_htf_cold_des",                     "Cold HTF inlet temperature at design conditions",                                                                                         "C",            "",                                  "System Design",                            "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "T_htf_hot_des",                      "Hot HTF outlet temperature at design conditions",                                                                                         "C",            "",                                  "System Design",                            "*",                                                                "",              ""},
+//    { SSC_INPUT,     SSC_NUMBER, "T_htf_cold_des",                     "Cold HTF inlet temperature at design conditions",                                                                                         "C",            "",                                  "System Design",                            "*",                                                                "",              ""},
+//    { SSC_INPUT,     SSC_NUMBER, "T_htf_hot_des",                      "Hot HTF outlet temperature at design conditions",                                                                                         "C",            "",                                  "System Design",                            "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "P_ref",                              "Reference output electric power at design condition",                                                                                     "MW",           "",                                  "System Design",                            "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "design_eff",                         "Power cycle efficiency at design",                                                                                                        "none",         "",                                  "System Design",                            "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "tshours",                            "Equivalent full-load thermal storage hours",                                                                                              "hr",           "",                                  "System Design",                            "*",                                                                "",              ""},
@@ -179,11 +179,21 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "startup_target_Tdiff",               "Target HTF T at end of startup - design pt hot HTF temperature",                                                                          "C",            "",                                  "Tower and Receiver",                       "?=-5.0",                                                           "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "is_rec_startup_from_T_soln",         "Begin receiver startup from solved temperature profiles?",                                                                                "",             "",                                  "Tower and Receiver",                       "?=0",                                                              "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "is_rec_enforce_min_startup",         "Always enforce minimum startup time",                                                                                                     "",             "",                                  "Tower and Receiver",                       "?=0",                                                              "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
+
     
     // TES parameters - general
+    { SSC_INPUT,     SSC_NUMBER, "store_htf",                          "Storage HTF, 17=Salt (60% NaNO3, 40% KNO3) 10=Salt (46.5% LiF 11.5% NaF 42% KF) 50=Lookup tables",                                        "",             "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_MATRIX, "store_fl_props",                     "User defined storage fluid property data",                                                                                                "-",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "tes_pump_coef",                      "Pumping power to move 1kg of HTF through tes loop",                                                                                       "kW/(kg/s)",    "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_tes_cold_des",                     "TES tank design cold temperature",                                                                                                        "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_tes_hot_des",                      "TES tank design hot temperature",                                                                                                         "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
+
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.tes.init_hot_htf_percent",    "Initial fraction of available volume that is hot",                                                                                        "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "h_tank",                             "Total height of tank (height of HTF when tank is full)",                                                                                  "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "cold_tank_max_heat",                 "Rated heater capacity for cold tank heating",                                                                                             "MW",           "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dt_hot",                             "Hot side HX approach temp",                                                                                                               "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "u_tank",                             "Loss coefficient from the tank",                                                                                                          "W/m2-K",       "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "tank_pairs",                         "Number of equivalent tank pairs",                                                                                                         "",             "",                                  "Thermal Storage",                          "*",                                                                "INTEGER",       ""},
     { SSC_INPUT,     SSC_NUMBER, "cold_tank_Thtr",                     "Minimum allowable cold tank HTF temperature",                                                                                             "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
@@ -227,6 +237,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "rad_pressuredrop",                   "Average pressure drop through a radiative panel & distribution",                                                                          "kPa",          "",                                  "RADCOOL",                                  "?=0",                                                              "",              ""},
 
     // Power Cycle Inputs
+    { SSC_INPUT,     SSC_NUMBER, "T_pc_cold_des",                      "Power cycle design cold temperature",                                                                                                     "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_pc_hot_des",                       "Power cycle design hot temperature",                                                                                                      "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "pc_config",                          "PC configuration 0=Steam Rankine (224), 1=user defined, 2=sCO2 Recompression (424)",                                                      "",             "",                                  "Power Cycle",                              "?=0",                                                              "INTEGER",       ""},
     { SSC_INPUT,     SSC_NUMBER, "pb_pump_coef",                       "Pumping power to move 1kg of HTF through PB loop",                                                                                        "kW/kg",        "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "startup_time",                       "Time needed for power block startup",                                                                                                     "hr",           "",                                  "Power Cycle",                              "*",                                                                "",              ""},
@@ -478,21 +490,27 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "T_wall_riser",                       "Tower riser wall temperature at end of timestep",                                                                                         "C",            "",                                "CR",                                         "*",                                                                "",              ""},    
     { SSC_OUTPUT,    SSC_ARRAY,  "T_wall_downcomer",                   "Tower downcomer wall temperature at end of timestep",                                                                                     "C",            "",                                "CR",                                         "*",                                                                "",              ""},    
 
-    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc1",                     "Receiver 1 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc2",                     "Receiver 2 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc3",                     "Receiver 3 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec1",                         "Receiver 1 mass flow rate",                                                                                                               "kg/s",         "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec2",                         "Receiver 2 mass flow rate",                                                                                                               "kg/s",         "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec3",                         "Receiver 3 mass flow rate",                                                                                                               "kg/s",         "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in1",                          "Receiver 1 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in2",                          "Receiver 2 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in3",                          "Receiver 3 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out1",                         "Receiver 1 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out2",                         "Receiver 2 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out3",                         "Receiver 3 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              "" },
-
-
-
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc1",                     "Receiver 1 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc2",                     "Receiver 2 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc3",                     "Receiver 3 incident thermal power",                                                                                                       "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec3",                         "Receiver 3 mass flow rate",                                                                                                               "kg/hr",        "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec1",                         "Receiver 1 mass flow rate",                                                                                                               "kg/hr",        "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec2",                         "Receiver 2 mass flow rate",                                                                                                               "kg/hr",        "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in1",                          "Receiver 1 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in2",                          "Receiver 2 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_in3",                          "Receiver 3 HTF inlet temperature",                                                                                                        "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out1",                         "Receiver 1 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out2",                         "Receiver 2 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_rec_out3",                         "Receiver 3 HTF outlet temperature",                                                                                                       "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_HX1",                          "HX 1 transferred power",                                                                                                                "MWt",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_HX2",                          "HX 2 transferred power",                                                                                                                "MWt",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_HX3",                          "HX 3 transferred power",                                                                                                                "MWt",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_HX_tes1",                      "HX 1 TES mass flow rate",                                                                                                             "kg/hr",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_HX_tes2",                      "HX 2 TES mass flow rate",                                                                                                             "kg/hr",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_HX_tes3",                      "HX 3 TES mass flow rate",                                                                                                             "kg/hr",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out1",                      "HX 1 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out2",                      "HX 2 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out3",                      "HX 3 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
 
         // Power cycle outputs
     { SSC_OUTPUT,    SSC_ARRAY,  "eta",                                "PC efficiency, gross",                                                                                                                    "",             "",                                  "",                                         "*",                                                                "",              ""},
@@ -929,8 +947,8 @@ public:
             C_pc_Rankine_indirect_224::S_params *pc = &rankine_pc.ms_params;
             pc->m_P_ref = as_double("P_ref");
             pc->m_eta_ref = as_double("design_eff");
-            pc->m_T_htf_hot_ref = as_double("T_htf_hot_des");
-            pc->m_T_htf_cold_ref = as_double("T_htf_cold_des");
+            pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
+            pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
             pc->m_cycle_max_frac = as_double("cycle_max_frac");
             pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
             pc->m_q_sby_frac = as_double("q_sby_frac");
@@ -1099,7 +1117,7 @@ public:
                 }
 
                 double _sco2_T_htf_hot_des = as_double("_sco2_T_htf_hot_des");
-                double T_htf_hot_des_input = as_double("T_htf_hot_des");
+                double T_htf_hot_des_input = as_double("T_pc_hot_des");
                 if (!std::isfinite(_sco2_T_htf_hot_des) || are_values_sig_different(_sco2_T_htf_hot_des, T_htf_hot_des_input, comp_var_tol) )
                 {
                     throw exec_error("tcsmolten_salt", util::format("The HTF hot temperature uesd to generate"
@@ -1158,13 +1176,13 @@ public:
                 C_pc_Rankine_indirect_224::S_params *pc = &rankine_pc.ms_params;
                 pc->m_P_ref = as_double("P_ref");                   //[MWe]
                 pc->m_eta_ref = as_double("design_eff");            //[-]
-                pc->m_T_htf_hot_ref = as_double("T_htf_hot_des");   //[C]
+                pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");   //[C]
                 
                 double T_htf_cold_calc = as_double("sco2ud_T_htf_cold_calc");       //[C]
-                double T_rec_htf_cold = as_double("T_htf_cold_des");                //[C]
+                double T_rec_htf_cold = as_double("T_pc_cold_des");                //[C]
                 if (T_htf_cold_calc != T_rec_htf_cold)
                 {
-                    assign("T_htf_cold_des", T_htf_cold_calc);                          //[C]
+                    assign("T_pc_cold_des", T_htf_cold_calc);                          //[C]
                     log(util::format("\nThe user input receiver design HTF cold temperature, %lg [C], was reset"
                         " to the calculated sCO2 cycle HTF cold return temperature, %lg [C]\n", T_rec_htf_cold, T_htf_cold_calc), SSC_WARNING);
                 }
@@ -1222,7 +1240,7 @@ public:
                 // System Design Parameters
                 sco2_rc_csp_par.m_hot_fl_code = as_integer("rec_htf");                  //[-]
                 sco2_rc_csp_par.mc_hot_fl_props = as_matrix("field_fl_props");          //[-]
-                sco2_rc_csp_par.m_T_htf_hot_in = as_double("T_htf_hot_des") + 273.15;   //[K] Design HTF hot temp to power cycle
+                sco2_rc_csp_par.m_T_htf_hot_in = as_double("T_pc_hot_des") + 273.15;   //[K] Design HTF hot temp to power cycle
                 sco2_rc_csp_par.m_phx_dt_hot_approach = as_double("deltaT_PHX");        //[K/C]
                 sco2_rc_csp_par.m_T_amb_des = as_double("sco2_T_amb_des") + 273.15;     //[K] Design ambient temp, convert from C
                 sco2_rc_csp_par.m_dt_mc_approach = as_double("sco2_T_approach");        //[K/C]
@@ -1340,8 +1358,8 @@ public:
                     // Get sCO2 design outputs
                     double T_htf_cold_calc = c_sco2_csp.get_design_solved()->ms_phx_des_solved.m_T_h_out;       //[K]
                     log("sCO2 design point calculations complete.", SSC_WARNING);
-                    double T_rec_htf_cold = as_double("T_htf_cold_des");            //[C]
-                    assign("T_htf_cold_des", T_htf_cold_calc - 273.15);             //[C]
+                    double T_rec_htf_cold = as_double("T_pc_cold_des");            //[C]
+                    assign("T_pc_cold_des", T_htf_cold_calc - 273.15);             //[C]
                     log(util::format("\nThe user input receiver design HTF cold temperature, %lg [C], was reset"
                         " to the calculated sCO2 cycle HTF cold return temperature, %lg [C]\n", T_rec_htf_cold, T_htf_cold_calc - 273.15), SSC_WARNING);
                     update("Preprocessing cycle off-design...", 0.0);
@@ -1439,7 +1457,7 @@ public:
                     C_pc_Rankine_indirect_224::S_params *pc = &rankine_pc.ms_params;
                     pc->m_P_ref = as_double("P_ref");
                     pc->m_eta_ref = as_double("design_eff");
-                    pc->m_T_htf_hot_ref = as_double("T_htf_hot_des");
+                    pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
                     pc->m_T_htf_cold_ref = c_sco2_csp.get_design_solved()->ms_phx_des_solved.m_T_h_out - 273.15;
                     pc->m_cycle_max_frac = as_double("cycle_max_frac");
                     pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
@@ -1594,7 +1612,6 @@ public:
         }
 
         std::unique_ptr<C_pt_receiver> receiver, receiver2, receiver3;
-        double DT = (as_double("T_htf_hot_des") - as_double("T_htf_cold_des")) / N_rec;
         if (!as_boolean("is_rec_model_trans") && !as_boolean("is_rec_startup_trans")) {
             //std::unique_ptr<C_mspt_receiver_222> ss_receiver = std::make_unique<C_mspt_receiver_222>();   // new to C++14
             std::unique_ptr<C_mspt_receiver_222> ss_receiver = std::unique_ptr<C_mspt_receiver_222>(new C_mspt_receiver_222());   // steady-state receiver
@@ -1616,16 +1633,13 @@ public:
             ss_receiver->m_pipe_length_mult = as_double("piping_length_mult");      //[-]
             ss_receiver->m_n_flux_x = as_integer("n_flux_x");
             ss_receiver->m_n_flux_y = as_integer("n_flux_y");
-            ss_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des") - DT * (N_rec - 1);
+            ss_receiver->m_T_salt_hot_target = as_double("T_rec_hot_des");
             ss_receiver->m_hel_stow_deploy = as_double("hel_stow_deploy");
             ss_receiver->m_is_iscc = false;    // Set parameters that were set with TCS defaults
 
             // Should make a factory method instead of doing this:
             std::unique_ptr<C_mspt_receiver_222> ss_receiver2{ new C_mspt_receiver_222{*ss_receiver} };
             std::unique_ptr<C_mspt_receiver_222> ss_receiver3{ new C_mspt_receiver_222{*ss_receiver} };
-
-            ss_receiver2->m_T_salt_hot_target = ss_receiver->m_T_salt_hot_target + DT;
-            ss_receiver3->m_T_salt_hot_target = ss_receiver2->m_T_salt_hot_target + DT;
             receiver = std::move(ss_receiver);
             receiver2 = std::move(ss_receiver2);
             receiver3 = std::move(ss_receiver3);
@@ -1651,7 +1665,7 @@ public:
             trans_receiver->m_pipe_length_mult = as_double("piping_length_mult");       //[-]
             trans_receiver->m_n_flux_x = as_integer("n_flux_x");
             trans_receiver->m_n_flux_y = as_integer("n_flux_y");
-            trans_receiver->m_T_salt_hot_target = as_double("T_htf_hot_des") - DT * (N_rec - 1);
+            trans_receiver->m_T_salt_hot_target = as_double("T_rec_hot_des");
             trans_receiver->m_hel_stow_deploy = as_double("hel_stow_deploy");
             trans_receiver->m_is_iscc = false;    // Set parameters that were set with TCS defaults
 
@@ -1667,8 +1681,8 @@ public:
             trans_receiver->m_heat_trace_power = as_double("heat_trace_power"); //[kW/m]
             trans_receiver->m_tube_flux_preheat = as_double("preheat_flux");        //[kW/m2]
             trans_receiver->m_flux_ramp_time = as_double("startup_ramp_time");      //[hr]
-            trans_receiver->m_preheat_target = as_double("T_htf_cold_des") + as_double("preheat_target_Tdiff");
-            trans_receiver->m_startup_target = as_double("T_htf_hot_des") + as_double("startup_target_Tdiff");
+            trans_receiver->m_preheat_target = as_double("T_rec_cold_des") + as_double("preheat_target_Tdiff");
+            trans_receiver->m_startup_target = as_double("T_rec_hot_des") + as_double("startup_target_Tdiff");
             trans_receiver->m_initial_temperature = 5.0; //[C]
 
             trans_receiver->m_is_startup_from_solved_profile = as_boolean("is_rec_startup_from_T_soln");
@@ -1684,13 +1698,6 @@ public:
 
             std::unique_ptr<C_mspt_receiver> trans_receiver2{ new C_mspt_receiver{*trans_receiver} };
             std::unique_ptr<C_mspt_receiver> trans_receiver3{ new C_mspt_receiver{*trans_receiver} };
-
-            trans_receiver2->m_T_salt_hot_target = trans_receiver->m_T_salt_hot_target + DT;
-            trans_receiver2->m_preheat_target = trans_receiver->m_preheat_target + DT;
-            trans_receiver2->m_startup_target = trans_receiver->m_startup_target + DT;
-            trans_receiver3->m_T_salt_hot_target = trans_receiver2->m_T_salt_hot_target + DT;
-            trans_receiver3->m_preheat_target = trans_receiver2->m_preheat_target + DT;
-            trans_receiver3->m_startup_target = trans_receiver2->m_startup_target + DT;
             receiver = std::move(trans_receiver);
             receiver2 = std::move(trans_receiver2);
             receiver3 = std::move(trans_receiver3);
@@ -1698,12 +1705,8 @@ public:
         //steady-state or transient receiver;
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = as_double("epsilon");
-        receiver->m_T_htf_hot_des = as_double("T_htf_hot_des") - DT * (N_rec - 1);          //[C]
-        receiver2->m_T_htf_hot_des = receiver->m_T_htf_hot_des + DT;
-        receiver3->m_T_htf_hot_des = receiver2->m_T_htf_hot_des + DT;
-        receiver->m_T_htf_cold_des = as_double("T_htf_cold_des");                           //[C]
-        receiver2->m_T_htf_cold_des = receiver->m_T_htf_cold_des + DT;
-        receiver3->m_T_htf_cold_des = receiver2->m_T_htf_cold_des + DT;
+        receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
+        receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
         receiver->m_q_rec_des = receiver2->m_q_rec_des = receiver3->m_q_rec_des = (as_double("P_ref") / N_rec)/as_double("design_eff")*as_double("solarm");
         receiver->m_rec_su_delay = receiver2->m_rec_su_delay = receiver3->m_rec_su_delay = as_double("rec_su_delay");
@@ -1729,6 +1732,15 @@ public:
         // Instantiate tower
         std::vector<C_csp_mspt_collector_receiver> collector_receivers{ collector_receiver, collector_receiver2, collector_receiver3 };
         C_csp_tower_collector_receiver tower(collector_receivers);
+        tower.m_field_fl = as_integer("rec_htf");
+        tower.m_field_fl_props = as_matrix("field_fl_props");
+        tower.m_tes_fl = as_integer("store_htf");
+        tower.m_tes_fl_props = as_matrix("store_fl_props");
+        tower.hx_duty = as_double("P_ref") / as_double("design_eff") * 1.E6;  //[Wt], indiv. HX duty = q_pb_design
+        tower.m_dt_hot = as_double("dt_hot");                    //[C]
+        tower.T_rec_hot_des = as_double("T_rec_hot_des");        //[C]
+        tower.T_hx_cold_des = as_double("T_tes_cold_des");       //[C]
+
 
         // *******************************************************
         // *******************************************************
@@ -1770,15 +1782,25 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HTF_OUT1, allocate("T_rec_out1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HTF_OUT2, allocate("T_rec_out2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HTF_OUT3, allocate("T_rec_out3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_HX1, allocate("q_dot_HX1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_HX2, allocate("q_dot_HX2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_HX3, allocate("q_dot_HX3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_M_DOT_HX1, allocate("m_dot_HX_tes1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_M_DOT_HX2, allocate("m_dot_HX_tes2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_M_DOT_HX3, allocate("m_dot_HX_tes3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT1, allocate("T_HX_tes_out1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT2, allocate("T_HX_tes_out2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT3, allocate("T_HX_tes_out3", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_tes storage;
+        tower.set_tes(&storage);        // give storage reference to tower
         C_csp_two_tank_tes::S_params *tes = &storage.ms_params;
         tes->m_field_fl = as_integer("rec_htf");
         tes->m_field_fl_props = as_matrix("field_fl_props");
-        tes->m_tes_fl = as_integer("rec_htf");
-        tes->m_tes_fl_props = as_matrix("field_fl_props");
-        tes->m_is_hx = false;                                   // MSPT assumes direct storage, so no user input required here: hardcode = false
+        tes->m_tes_fl = as_integer("store_htf");
+        tes->m_tes_fl_props = as_matrix("store_fl_props");
+        tes->m_is_hx = true;                                   // hardcode = true
         tes->m_W_dot_pc_design = as_double("P_ref");        //[MWe]
         tes->m_eta_pc = as_double("design_eff");                //[-]
         tes->m_solarm = as_double("solarm");
@@ -1790,14 +1812,16 @@ public:
         tes->m_hot_tank_max_heat = as_double("hot_tank_max_heat");
         tes->m_cold_tank_Thtr = as_double("cold_tank_Thtr");
         tes->m_cold_tank_max_heat = as_double("cold_tank_max_heat");
-        tes->m_dt_hot = 0.0;                                // MSPT assumes direct storage, so no user input here: hardcode = 0.0
-        tes->m_T_field_in_des = as_double("T_htf_cold_des");
-        tes->m_T_field_out_des = as_double("T_htf_hot_des");
-        tes->m_T_tank_hot_ini = as_double("T_htf_hot_des");
-        tes->m_T_tank_cold_ini = as_double("T_htf_cold_des");
+        tes->m_dt_hot = as_double("dt_hot");                    //[C]
+        tes->m_T_field_in_des = as_double("T_tes_cold_des");
+        tes->m_T_field_out_des = as_double("T_tes_hot_des");
+        tes->m_T_tank_hot_ini = as_double("T_tes_hot_des");
+        tes->m_T_tank_cold_ini = as_double("T_tes_cold_des");
         tes->m_h_tank_min = as_double("h_tank_min");
         tes->m_f_V_hot_ini = as_double("csp.pt.tes.init_hot_htf_percent");
         tes->m_htf_pump_coef = as_double("pb_pump_coef");
+        tes->m_tes_pump_coef = as_double("tes_pump_coef");             //[kWe/kg/s]
+        tes->eta_pump = as_double("eta_pump");                  //[-]
 
 
         // TOU parameters

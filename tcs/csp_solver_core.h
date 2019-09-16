@@ -975,6 +975,7 @@ private:
 	double m_T_htf_cold_des;			//[K]
 	double m_P_cold_des;				//[kPa]
 	double m_x_cold_des;				//[-]
+    double m_rec_T_htf_hot_des;         //[K]
 	double m_q_dot_rec_des;				//[MW]
 	double m_A_aperture;				//[m2]
 

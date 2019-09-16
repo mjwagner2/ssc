@@ -129,7 +129,9 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
 int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/, double *diff_T_htf_hot /*-*/)
 {
-	// Call the power cycle in STARTUP_CONTROLLED mode
+	// T_htf_hot is the temperature of the hot tank
+    
+    // Call the power cycle in STARTUP_CONTROLLED mode
 	mpc_csp_solver->mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr]
 	mpc_csp_solver->mc_pc_htf_state_in.m_temp = T_htf_hot;		//[C] convert from K
 	mpc_csp_solver->mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;

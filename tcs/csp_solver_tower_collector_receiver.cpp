@@ -61,6 +61,15 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_T_HTF_OUT1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_T_HTF_OUT2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_T_HTF_OUT3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_HX1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_HX2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_HX3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HX1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HX2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_HX3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HX_OUT1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HX_OUT2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_T_HX_OUT3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -69,6 +78,7 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
     collector_receivers(collector_receivers)
 {
 	mc_reported_outputs.construct(S_output_info);
+    hxs.assign(collector_receivers.size(), C_heat_exchanger());
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -77,27 +87,94 @@ C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
 void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 				C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
 {
+    // Declare instance of fluid class for FIELD fluid
+    // Set fluid number and copy over fluid matrix if it makes sense
+    if (m_field_fl != HTFProperties::User_defined && m_field_fl < HTFProperties::End_Library_Fluids)
+    {
+        if (!mc_field_htfProps.SetFluid(m_field_fl))
+        {
+            throw(C_csp_exception("Field HTF code is not recognized", "Tower Initialization"));
+        }
+    }
+    else if (m_field_fl == HTFProperties::User_defined)
+    {
+        int n_rows = (int)m_field_fl_props.nrows();
+        int n_cols = (int)m_field_fl_props.ncols();
+        if (n_rows > 2 && n_cols == 7)
+        {
+            if (!mc_field_htfProps.SetUserDefinedFluid(m_field_fl_props))
+            {
+                error_msg = util::format(mc_field_htfProps.UserFluidErrMessage(), n_rows, n_cols);
+                throw(C_csp_exception(error_msg, "Tower Initialization"));
+            }
+        }
+        else
+        {
+            error_msg = util::format("The user defined field HTF table must contain at least 3 rows and exactly 7 columns. The current table contains %d row(s) and %d column(s)", n_rows, n_cols);
+            throw(C_csp_exception(error_msg, "Tower Initialization"));
+        }
+    }
+    else
+    {
+        throw(C_csp_exception("Field HTF code is not recognized", "Tower Initialization"));
+    }
+
+    // Declare instance of fluid class for STORAGE fluid.
+    // Set fluid number and copy over fluid matrix if it makes sense.
+    if (m_tes_fl != HTFProperties::User_defined && m_tes_fl < HTFProperties::End_Library_Fluids)
+    {
+        if (!mc_store_htfProps.SetFluid(m_tes_fl))
+        {
+            throw(C_csp_exception("Storage HTF code is not recognized", "Tower Initialization"));
+        }
+    }
+    else if (m_tes_fl == HTFProperties::User_defined)
+    {
+        int n_rows = (int)m_tes_fl_props.nrows();
+        int n_cols = (int)m_tes_fl_props.ncols();
+        if (n_rows > 2 && n_cols == 7)
+        {
+            if (!mc_store_htfProps.SetUserDefinedFluid(m_tes_fl_props))
+            {
+                error_msg = util::format(mc_store_htfProps.UserFluidErrMessage(), n_rows, n_cols);
+                throw(C_csp_exception(error_msg, "Tower Initialization"));
+            }
+        }
+        else
+        {
+            error_msg = util::format("The user defined storage HTF table must contain at least 3 rows and exactly 7 columns. The current table contains %d row(s) and %d column(s)", n_rows, n_cols);
+            throw(C_csp_exception(error_msg, "Tower Initialization"));
+        }
+    }
+    else
+    {
+        throw(C_csp_exception("Storage HTF code is not recognized", "Tower Initialization"));
+    }
+
+    T_rec_hot_des += 273.15;    //[K] convert from C
+    T_hx_cold_des += 273.15;    //[K] convert from C
+
     C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
     double q_dot_rec_des = 0.;
     double A_aper_total = 0.;
     double dP_sf = 0.;
 
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->init(init_inputs, _solved_params);
+    for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
+        collector_receivers.at(i).init(init_inputs, _solved_params);
         
-        if (it == collector_receivers.begin()) {
+        if (i == 0) {
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
             solved_params.m_P_cold_des = _solved_params.m_P_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
         }
-        //solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver, but not used
         q_dot_rec_des += _solved_params.m_q_dot_rec_des;
         A_aper_total += _solved_params.m_A_aper_total;
         dP_sf += _solved_params.m_dP_sf;
         
-        // init HX here -> change iterator in for loop to an integer for also traversing HX vector
+        hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
     }
 
+    solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver
     solved_params.m_q_dot_rec_des = q_dot_rec_des;
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
@@ -229,6 +306,11 @@ double C_csp_tower_collector_receiver::get_col_startup_power()  //MWe-hr
     return startup_power;
 }
 
+void C_csp_tower_collector_receiver::set_tes(C_csp_two_tank_tes * tes)
+{
+    this->tes = tes;
+}
+
 
 void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	const C_csp_solver_htf_1state &htf_state_in,
@@ -273,18 +355,13 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
-
-        // DO THESE LATER
-        // pass outputs to HX model
-        // set HX outputs as the inputs
+    for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
+        collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
 
         cr_out_solver.m_q_startup += cr_out_solver_prev.m_q_startup;
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
         cr_out_solver.m_q_thermal += cr_out_solver_prev.m_q_thermal;
-        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_T_salt_hot;  // of last receiver
         cr_out_solver.m_component_defocus = std::min(cr_out_solver.m_component_defocus, cr_out_solver_prev.m_component_defocus);  // NEED TO WEIGHT THIS
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
@@ -293,49 +370,71 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
-        htf_state_in_next.m_temp = cr_out_solver_prev.m_T_salt_hot;
+        double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
+            eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+
+        // Update tanks -> ASSUMING THE COLD TANK CAN TAKE ALL THE CHARGE 
+        tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
+        double T_cold_tes_K;
+        C_csp_tes::S_csp_tes_outputs tes_outputs;
+        tes->charge(sim_info.ms_ts.m_step, weather.m_tdry + 273.15, m_dot_tes, T_hot_tes_K, T_cold_tes_K, tes_outputs);
+        tes->ms_params.m_is_hx = true;
+
+        cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // of last receiver
+
+        htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
         htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
 
-        C_pt_sf_perf_interp::S_outputs field_outputs = it->get_field_outputs();
-        C_pt_receiver::S_outputs receiver_outputs = it->get_receiver_outputs();
+        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
+        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
         q_dot_field_inc += field_outputs.m_q_dot_field_inc;
-        eta_weighted_sum += field_outputs.m_eta_field * it->get_collector_area();
-        sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * it->get_collector_area();
+        eta_weighted_sum += field_outputs.m_eta_field * collector_receivers.at(i).get_collector_area();
+        sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * collector_receivers.at(i).get_collector_area();
         q_dot_rec_inc += receiver_outputs.m_q_dot_rec_inc;
         q_losses += (1 - receiver_outputs.m_eta_therm) * receiver_outputs.m_q_dot_rec_inc;
         q_thermal += receiver_outputs.m_Q_thermal;
         m_dot_salt_tot = std::max(receiver_outputs.m_m_dot_salt_tot, m_dot_salt_tot);
         q_dot_startup += receiver_outputs.m_q_startup / (receiver_outputs.m_time_required_su / 3600.);
         T_htf_in = htf_state_in.m_temp;
-        T_htf_out = receiver_outputs.m_T_salt_hot;              // of last receiver
+        T_htf_out = T_cold_rec_K - 273.15;              // of last receiver
         q_dot_piping_loss += receiver_outputs.m_q_dot_piping_loss;
         q_dot_loss += receiver_outputs.m_q_rad_sum + receiver_outputs.m_q_conv_sum;
         q_heattrace += receiver_outputs.m_q_heattrace / (receiver_outputs.m_time_required_su / 3600.);
-        T_htf_out_end = receiver_outputs.m_inst_T_salt_hot;     // of last receiver
-        T_htf_out_max = receiver_outputs.m_max_T_salt_hot;      // of last receiver
+        T_htf_out_end = T_cold_rec_K - 273.15;     // of last receiver
+        T_htf_out_max = T_cold_rec_K - 273.15;      // of last receiver
         T_htf_panel_out_max = std::max(receiver_outputs.m_max_rec_tout, T_htf_panel_out_max);
-        if (it == collector_receivers.begin()) T_wall_inlet = receiver_outputs.m_Twall_inlet;       // of first receiver
+        if (i == 0) T_wall_inlet = receiver_outputs.m_Twall_inlet;       // of first receiver
         T_wall_outlet = receiver_outputs.m_Twall_outlet;        // of last receiver
-        if (it == collector_receivers.begin()) T_riser = receiver_outputs.m_Triser;                 // of first receiver
-        T_downc = receiver_outputs.m_Tdownc;                    // of last receiver
+        if (i == 0) T_riser = receiver_outputs.m_Triser;                 // of first receiver
+        T_downc = T_cold_rec_K - 273.15;                    // of last receiver
 
-        if (it == collector_receivers.begin()) {
+        if (i == 0) {
             mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF1, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN1, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT1, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX1, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
         }
-        else if (it == collector_receivers.begin() + 1) {
+        else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF2, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN2, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT2, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX2, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
         }
-        else if (it == collector_receivers.begin() + 2) {
+        else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF3, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN3, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT3, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX3, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
         }
     }
 
@@ -408,15 +507,15 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
+    
+    for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         // SHOULD THIS BE IN REVERSE ORDER?
-        it->off(weather, htf_state_in_next, cr_out_solver_prev, sim_info);
+        collector_receivers.at(i).off(weather, htf_state_in_next, cr_out_solver_prev, sim_info);
 
         cr_out_solver.m_q_startup += cr_out_solver_prev.m_q_startup;
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
         cr_out_solver.m_q_thermal += cr_out_solver_prev.m_q_thermal;
-        cr_out_solver.m_T_salt_hot = cr_out_solver_prev.m_T_salt_hot;  // from last receiver
         cr_out_solver.m_component_defocus = std::min(cr_out_solver.m_component_defocus, cr_out_solver_prev.m_component_defocus);  // NEED TO WEIGHT THIS
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
@@ -425,49 +524,70 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
-        htf_state_in_next.m_temp = cr_out_solver_prev.m_T_salt_hot;
+        double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
+            eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+
+        // Update tanks
+        tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
+        C_csp_tes::S_csp_tes_outputs tes_outputs;
+        tes->idle(sim_info.ms_ts.m_step, weather.m_tdry + 273.15, tes_outputs);
+        tes->ms_params.m_is_hx = true;
+
+        cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // from last receiver
+
+        htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
         htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
 
-        C_pt_sf_perf_interp::S_outputs field_outputs = it->get_field_outputs();
-        C_pt_receiver::S_outputs receiver_outputs = it->get_receiver_outputs();
+        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
+        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
         q_dot_field_inc += field_outputs.m_q_dot_field_inc;
-        eta_weighted_sum += field_outputs.m_eta_field * it->get_collector_area();
-        sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * it->get_collector_area();
+        eta_weighted_sum += field_outputs.m_eta_field * collector_receivers.at(i).get_collector_area();
+        sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * collector_receivers.at(i).get_collector_area();
         q_dot_rec_inc += receiver_outputs.m_q_dot_rec_inc;
         q_losses += (1 - receiver_outputs.m_eta_therm) * receiver_outputs.m_q_dot_rec_inc;
         q_thermal += receiver_outputs.m_Q_thermal;
         m_dot_salt_tot = std::max(receiver_outputs.m_m_dot_salt_tot, m_dot_salt_tot);
         q_dot_startup += receiver_outputs.m_q_startup / (receiver_outputs.m_time_required_su / 3600.);
         T_htf_in = htf_state_in.m_temp;
-        T_htf_out = receiver_outputs.m_T_salt_hot;              // of last receiver
+        T_htf_out = T_cold_rec_K - 273.15;              // of last receiver
         q_dot_piping_loss += receiver_outputs.m_q_dot_piping_loss;
         q_dot_loss += receiver_outputs.m_q_rad_sum + receiver_outputs.m_q_conv_sum;
         q_heattrace += receiver_outputs.m_q_heattrace / (receiver_outputs.m_time_required_su / 3600.);
-        T_htf_out_end = receiver_outputs.m_inst_T_salt_hot;     // of last receiver
-        T_htf_out_max = receiver_outputs.m_max_T_salt_hot;      // of last receiver
+        T_htf_out_end = T_cold_rec_K - 273.15;     // of last receiver
+        T_htf_out_max = T_cold_rec_K - 273.15;      // of last receiver
         T_htf_panel_out_max = std::max(receiver_outputs.m_max_rec_tout, T_htf_panel_out_max);
-        if (it == collector_receivers.begin()) T_wall_inlet = receiver_outputs.m_Twall_inlet;       // of first receiver
+        if (i == 0) T_wall_inlet = receiver_outputs.m_Twall_inlet;       // of first receiver
         T_wall_outlet = receiver_outputs.m_Twall_outlet;        // of last receiver
-        if (it == collector_receivers.begin()) T_riser = receiver_outputs.m_Triser;                 // of first receiver
-        T_downc = receiver_outputs.m_Tdownc;                    // of last receiver
+        if (i == 0) T_riser = receiver_outputs.m_Triser;                 // of first receiver
+        T_downc = T_cold_rec_K - 273.15;                    // of last receiver
 
-        if (it == collector_receivers.begin()) {
+        if (i == 0) {
             mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF1, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN1, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT1, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX1, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
         }
-        else if (it == collector_receivers.begin() + 1) {
+        else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF2, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN2, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT2, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX2, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
         }
-        else if (it == collector_receivers.begin() + 2) {
+        else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
             mc_reported_outputs.value(E_M_DOT_HTF3, receiver_outputs.m_m_dot_salt_tot);	            //[kg/hr]
             mc_reported_outputs.value(E_T_HTF_IN3, receiver_outputs.m_T_salt_cold);					//[C]
             mc_reported_outputs.value(E_T_HTF_OUT3, receiver_outputs.m_T_salt_hot);		            //[C]
+            mc_reported_outputs.value(E_Q_DOT_HX3, q_trans);		                                //[MWt]
+            mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
+            mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
         }
     }
 
@@ -599,8 +719,9 @@ double C_csp_tower_collector_receiver::calculate_thermal_efficiency_approx( cons
 
 void C_csp_tower_collector_receiver::converged()
 {
-    for (std::vector<C_csp_mspt_collector_receiver>::iterator it = collector_receivers.begin(); it != collector_receivers.end(); ++it) {
-        it->converged();
+    for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
+        collector_receivers.at(i).converged();
+        hxs.at(i).converged();
     }
 
 	mc_reported_outputs.set_timestep_outputs();

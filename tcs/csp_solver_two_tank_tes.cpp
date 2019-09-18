@@ -2543,8 +2543,8 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         double duty_ht = m_q_pb_design;		//[W] Only discharges direct to power cycle
         double duty_lt = 0.75 * duty_ht;
 
-        ht_hx.init(mc_field_htfProps, mc_store_htfProps, duty_ht, ms_params.m_dt_hot, ms_params.m_T_ht_in_des, T_ht_out_des);
-        lt_hx.init(mc_field_htfProps, mc_store_htfProps, duty_lt, ms_params.m_dt_hot, ms_params.m_T_lt_in_des, T_lt_out_des);
+        ht_hx.init(mc_field_htfProps, mc_store_htfProps, duty_ht, ms_params.m_dt_hot, ms_params.m_T_tes_hot_des, ms_params.m_T_tes_warm_des);
+        lt_hx.init(mc_field_htfProps, mc_store_htfProps, duty_lt, ms_params.m_dt_hot, ms_params.m_T_tes_warm_des, ms_params.m_T_tes_cold_des);
     }
 
     // Do we need to define minimum and maximum thermal powers to/from storage?

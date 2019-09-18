@@ -187,9 +187,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "store_htf",                          "Storage HTF, 17=Salt (60% NaNO3, 40% KNO3) 10=Salt (46.5% LiF 11.5% NaF 42% KF) 50=Lookup tables",                                        "",             "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_MATRIX, "store_fl_props",                     "User defined storage fluid property data",                                                                                                "-",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "tes_pump_coef",                      "Pumping power to move 1kg of HTF through tes loop",                                                                                       "kW/(kg/s)",    "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "T_tes_cold_des",                     "TES tank design cold temperature",                                                                                                        "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_tes_hot_des",                      "TES tank design hot temperature",                                                                                                         "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
-
+    { SSC_INPUT,     SSC_NUMBER, "T_tes_warm_des",                     "TES (virtual) tank design warm temperature, between the high-temp and low-temp HXs",                                                      "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_tes_cold_des",                     "TES tank design cold temperature",                                                                                                        "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.tes.init_hot_htf_percent",    "Initial fraction of available volume that is hot",                                                                                        "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "h_tank",                             "Total height of tank (height of HTF when tank is full)",                                                                                  "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "cold_tank_max_heat",                 "Rated heater capacity for cold tank heating",                                                                                             "MW",           "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
@@ -1793,9 +1793,9 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT3, allocate("T_HX_tes_out3", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
-        C_csp_two_tank_tes storage;
+        C_csp_two_tank_two_hx_tes storage;
         tower.set_tes(&storage);        // give storage reference to tower
-        C_csp_two_tank_tes::S_params *tes = &storage.ms_params;
+        C_csp_two_tank_two_hx_tes::S_params *tes = &storage.ms_params;
         tes->m_field_fl = as_integer("rec_htf");
         tes->m_field_fl_props = as_matrix("field_fl_props");
         tes->m_tes_fl = as_integer("store_htf");
@@ -1813,8 +1813,11 @@ public:
         tes->m_cold_tank_Thtr = as_double("cold_tank_Thtr");
         tes->m_cold_tank_max_heat = as_double("cold_tank_max_heat");
         tes->m_dt_hot = as_double("dt_hot");                    //[C]
-        tes->m_T_field_in_des = as_double("T_tes_cold_des");
-        tes->m_T_field_out_des = as_double("T_tes_hot_des");
+        tes->m_T_tes_hot_des = as_double("T_tes_hot_des");
+        tes->m_T_tes_warm_des = as_double("T_tes_warm_des");
+        tes->m_T_tes_cold_des = as_double("T_tes_cold_des");
+        tes->m_T_ht_in_des = as_double("T_rec_cold_des");       //[C]  TES high-temp HX HTF inlet temperature on field side opposite particles
+        tes->m_T_lt_in_des = as_double("T_pc_cold_des");        //[C]  TES low-temp HX HTF inlet temperature on power cycle side opposite particles
         tes->m_T_tank_hot_ini = as_double("T_tes_hot_des");
         tes->m_T_tank_cold_ini = as_double("T_tes_cold_des");
         tes->m_h_tank_min = as_double("h_tank_min");

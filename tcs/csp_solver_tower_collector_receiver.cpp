@@ -306,7 +306,7 @@ double C_csp_tower_collector_receiver::get_col_startup_power()  //MWe-hr
     return startup_power;
 }
 
-void C_csp_tower_collector_receiver::set_tes(C_csp_two_tank_tes * tes)
+void C_csp_tower_collector_receiver::set_tes(C_csp_two_tank_two_hx_tes * tes)
 {
     this->tes = tes;
 }

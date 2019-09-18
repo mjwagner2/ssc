@@ -499,6 +499,202 @@ public:
         double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating);
 };
 
+class C_csp_two_tank_two_hx_tes : public C_csp_tes
+{
+private:
+
+    HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
+    HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
+
+    C_heat_exchanger lt_hx;                 // Low-temperature heat exchanger
+    C_heat_exchanger ht_hx;                 // High-temperature heat exchanger
+
+    //Storage_HX mc_hx_storage;				// Instance of Storage_HX class for heat exchanger between storage and field HTFs
+
+    C_storage_tank mc_cold_tank;			// Instance of storage tank class for the cold tank
+    C_storage_tank mc_hot_tank;				// Instance of storage tank class for the hot tank	
+    C_storage_tank mc_warm_tank;			// Instance of storage tank class for the virtual middle tank
+
+    // member string for exception messages
+    std::string error_msg;
+
+    // Timestep data
+    double m_m_dot_tes_dc_max;  //[kg/s] TES discharge available from the SYSTEM (field side of HX if there is one)
+    double m_m_dot_tes_ch_max;  //[kg/s] TES charge that can be sent to the SYSTEM (field side of HX if there is one)
+
+    // Member data
+    bool m_is_tes;
+    double m_vol_tank;			//[m3] volume of *one temperature*, i.e. vol_tank = total cold storage = total hot storage
+    double m_V_tank_active;		//[m^3] available volume (considering h_min) of *one temperature*
+    double m_q_pb_design;		//[Wt] thermal power to power cycle at design
+    double m_V_tank_hot_ini;	//[m^3] Initial volume in hot storage tank
+
+
+    // Monotonic equation solvers
+    class C_MEQ_indirect_tes_discharge : public C_monotonic_equation
+    {
+    private:
+        C_csp_two_tank_two_hx_tes *mpc_csp_two_tank_two_hx_tes;
+        double m_timestep;
+        double m_T_amb;
+        double m_T_cold_field;
+        double m_m_dot_field;
+
+    public:
+        C_MEQ_indirect_tes_discharge(C_csp_two_tank_two_hx_tes *pc_csp_two_tank_tes, double timestep, double T_amb,
+            double T_cold_field, double m_dot_field)
+        {
+            mpc_csp_two_tank_two_hx_tes = pc_csp_two_tank_tes;
+            m_timestep = timestep;
+            m_T_amb = T_amb;
+            m_T_cold_field = T_cold_field;
+            m_m_dot_field = m_dot_field;
+        }
+
+        virtual int operator()(double m_dot_tank /*kg/s*/, double *m_dot_bal /*-*/);
+    };
+
+public:
+
+    //bool is_lt_hx;                          // are the inputs for the low temperature HX? (false = high temp HX)
+
+    // Class to save messages for up stream classes
+    C_csp_messages mc_csp_messages;
+
+    struct S_params
+    {
+        int m_field_fl;
+        util::matrix_t<double> m_field_fl_props;
+
+        int m_tes_fl;
+        util::matrix_t<double> m_tes_fl_props;
+
+        bool m_is_hx;
+
+        double m_W_dot_pc_design;   //[MWe] Design point gross power cycle output
+        double m_eta_pc;            //[-] Design point power cycle thermal efficiency
+        double m_solarm;			//[-] solar multiple
+        double m_ts_hours;			//[hr] hours of storage at design power cycle operation		
+        double m_h_tank;			//[m] tank height
+        double m_u_tank;			//[W/m^2-K]
+        int m_tank_pairs;			//[-]
+        double m_hot_tank_Thtr;		//[C] convert to K in init()
+        double m_hot_tank_max_heat;	//[MW]
+        double m_cold_tank_Thtr;	//[C] convert to K in init()
+        double m_cold_tank_max_heat;//[MW]
+        double m_dt_hot;			//[C] Temperature difference across heat exchanger - assume hot and cold deltaTs are equal
+        double m_T_tes_hot_des; 	//[C] convert to K in init()
+        double m_T_tes_warm_des;    //[C] convert to K in init()
+        double m_T_tes_cold_des;	//[C] convert to K in init()
+        double m_T_ht_in_des;       //[C] convert to K in init()
+        double m_T_lt_in_des;       //[C] convert to K in init()
+        double m_dP_field_des;      //[bar] Total field pressure drop at design
+        double m_T_tank_hot_ini;	//[C] Initial temperature in hot storage tank
+        double m_T_tank_cold_ini;	//[C] Initial temperature in cold storage cold
+        double m_h_tank_min;		//[m] Minimum allowable HTF height in storage tank
+        double m_f_V_hot_ini;       //[%] Initial fraction of available volume that is hot
+        double m_htf_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through power cycle
+        double m_tes_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through tes loop
+        double eta_pump;            //[-] Pump efficiency, for newer pumping calculations
+        bool tanks_in_parallel;     //[-] Whether the tanks are in series or parallel with the solar field. Series means field htf must go through storage tanks.
+        bool has_hot_tank_bypass;   //[-] True if the bypass valve causes the field htf to bypass just the hot tank and enter the cold tank before flowing back to the field.
+        double T_tank_hot_inlet_min; //[C] Minimum field htf temperature that may enter the hot tank
+        double V_tes_des;           //[m/s] Design-point velocity for sizing the diameters of the TES piping
+        bool custom_tes_p_loss;     //[-] True if the TES piping losses should be calculated using the TES pipe lengths and minor loss coeffs, false if using the pumping loss parameters
+        bool custom_tes_pipe_sizes;               //[-] True if the TES diameters and wall thicknesses parameters should be used instead of calculating them
+        util::matrix_t<double> k_tes_loss_coeffs; //[-] Combined minor loss coefficients of the fittings and valves in the collection (including bypass) and generation loops in the TES 
+        util::matrix_t<double> tes_diams;         //[m] Imported inner diameters for the TES piping as read from the modified output files
+        util::matrix_t<double> tes_wallthicks;    //[m] Imported wall thicknesses for the TES piping as read from the modified output files
+        util::matrix_t<double> tes_lengths;       //[m] Imported lengths for the TES piping as read from the modified output files
+        bool calc_design_pipe_vals;               //[-] Should the HTF state be calculated at design conditions
+        double pipe_rough;                        //[m] Pipe roughness
+        double DP_SGS;                            //[bar] Pressure drop within the steam generator
+
+
+
+        S_params()
+        {
+            m_field_fl = m_tes_fl = m_tank_pairs = -1;
+            m_is_hx = true;
+            tanks_in_parallel = true;
+            has_hot_tank_bypass = true;
+            custom_tes_p_loss = false;
+            custom_tes_pipe_sizes = false;
+            calc_design_pipe_vals = true;
+
+            m_ts_hours = 0.0;		//[hr] Default to 0 so that if storage isn't defined, simulation won't crash
+
+            m_W_dot_pc_design = m_eta_pc = m_solarm = m_h_tank = m_u_tank = m_hot_tank_Thtr = m_hot_tank_max_heat = m_cold_tank_Thtr =
+                m_cold_tank_max_heat = m_dt_hot = m_T_tes_hot_des = m_T_tes_warm_des = m_T_tes_cold_des = m_T_ht_in_des = m_T_lt_in_des =
+                m_dP_field_des = m_T_tank_hot_ini = m_T_tank_cold_ini = m_h_tank_min = m_f_V_hot_ini = m_htf_pump_coef = m_tes_pump_coef =
+                eta_pump = T_tank_hot_inlet_min = V_tes_des = pipe_rough = DP_SGS = std::numeric_limits<double>::quiet_NaN();
+
+            k_tes_loss_coeffs.resize_fill(11, 0.);
+            tes_diams.resize_fill(1, -1.);
+            tes_wallthicks.resize_fill(1, -1.);
+            double vals1[11] = { 0., 90., 100., 120., 0., 0., 0., 0., 80., 120., 80. };
+            tes_lengths.assign(vals1, 11);
+        }
+    };
+
+    S_params ms_params;
+
+    C_csp_two_tank_two_hx_tes();
+
+    ~C_csp_two_tank_two_hx_tes() {};
+
+    virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
+
+    double pipe_vol_tot;	                     //[m^3]
+    util::matrix_t<double> pipe_v_dot_rel;       //[-]
+    util::matrix_t<double> pipe_diams;           //[m^3]
+    util::matrix_t<double> pipe_wall_thk;        //[m]
+    util::matrix_t<double> pipe_lengths;         //[m]
+    util::matrix_t<double> pipe_m_dot_des;       //[kg/s]
+    util::matrix_t<double> pipe_vel_des;         //[m/s]
+    util::matrix_t<double> pipe_T_des;           //[C]
+    util::matrix_t<double> pipe_P_des;           //[bar]
+    double P_in_des;                             //[bar] Pressure at the inlet to the TES, at the field side
+
+    virtual bool does_tes_exist();
+
+    virtual double get_hot_temp();
+
+    virtual double get_cold_temp();
+
+    virtual double get_initial_charge_energy(); //MWh
+
+    virtual double get_min_charge_energy(); //MWh
+
+    virtual double get_max_charge_energy(); //MWh
+
+    virtual double get_degradation_rate();  // s^-1
+
+    virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est);
+
+    virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est);
+
+    void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual void charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual void idle(double timestep, double T_amb, C_csp_tes::S_csp_tes_outputs &outputs);
+
+    virtual void converged();
+
+    virtual int pressure_drops(double m_dot_sf, double m_dot_pb,
+        double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating,
+        double &P_drop_col, double &P_drop_gen);
+
+    virtual double pumping_power(double m_dot_sf, double m_dot_pb, double m_dot_tank,
+        double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating);
+};
 
 void two_tank_tes_sizing(HTFProperties &tes_htf_props, double Q_tes_des /*MWt-hr*/, double T_tes_hot /*K*/,
 		double T_tes_cold /*K*/, double h_min /*m*/, double h_tank /*m*/, int tank_pairs /*-*/, double u_tank /*W/m^2-K*/,

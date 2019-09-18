@@ -2427,3 +2427,787 @@ int C_csp_two_tank_tes::C_MEQ_indirect_tes_charge::operator()(double m_dot_tank 
     return 0;
 }
 
+C_csp_two_tank_two_hx_tes::C_csp_two_tank_two_hx_tes()
+{
+    m_vol_tank = m_V_tank_active = m_q_pb_design = m_V_tank_hot_ini = std::numeric_limits<double>::quiet_NaN();
+
+    m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
+}
+
+void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs)
+{
+    if (!(ms_params.m_ts_hours > 0.0))
+    {
+        m_is_tes = false;
+        return;		// No storage!
+    }
+
+    m_is_tes = true;
+
+    // Declare instance of fluid class for FIELD fluid
+    // Set fluid number and copy over fluid matrix if it makes sense
+    if (ms_params.m_field_fl != HTFProperties::User_defined && ms_params.m_field_fl < HTFProperties::End_Library_Fluids)
+    {
+        if (!mc_field_htfProps.SetFluid(ms_params.m_field_fl))
+        {
+            throw(C_csp_exception("Field HTF code is not recognized", "Two Tank TES Initialization"));
+        }
+    }
+    else if (ms_params.m_field_fl == HTFProperties::User_defined)
+    {
+        int n_rows = (int)ms_params.m_field_fl_props.nrows();
+        int n_cols = (int)ms_params.m_field_fl_props.ncols();
+        if (n_rows > 2 && n_cols == 7)
+        {
+            if (!mc_field_htfProps.SetUserDefinedFluid(ms_params.m_field_fl_props))
+            {
+                error_msg = util::format(mc_field_htfProps.UserFluidErrMessage(), n_rows, n_cols);
+                throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+            }
+        }
+        else
+        {
+            error_msg = util::format("The user defined field HTF table must contain at least 3 rows and exactly 7 columns. The current table contains %d row(s) and %d column(s)", n_rows, n_cols);
+            throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+        }
+    }
+    else
+    {
+        throw(C_csp_exception("Field HTF code is not recognized", "Two Tank TES Initialization"));
+    }
+
+
+    // Declare instance of fluid class for STORAGE fluid.
+    // Set fluid number and copy over fluid matrix if it makes sense.
+    if (ms_params.m_tes_fl != HTFProperties::User_defined && ms_params.m_tes_fl < HTFProperties::End_Library_Fluids)
+    {
+        if (!mc_store_htfProps.SetFluid(ms_params.m_tes_fl))
+        {
+            throw(C_csp_exception("Storage HTF code is not recognized", "Two Tank TES Initialization"));
+        }
+    }
+    else if (ms_params.m_tes_fl == HTFProperties::User_defined)
+    {
+        int n_rows = (int)ms_params.m_tes_fl_props.nrows();
+        int n_cols = (int)ms_params.m_tes_fl_props.ncols();
+        if (n_rows > 2 && n_cols == 7)
+        {
+            if (!mc_store_htfProps.SetUserDefinedFluid(ms_params.m_tes_fl_props))
+            {
+                error_msg = util::format(mc_store_htfProps.UserFluidErrMessage(), n_rows, n_cols);
+                throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+            }
+        }
+        else
+        {
+            error_msg = util::format("The user defined storage HTF table must contain at least 3 rows and exactly 7 columns. The current table contains %d row(s) and %d column(s)", n_rows, n_cols);
+            throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+        }
+    }
+    else
+    {
+        throw(C_csp_exception("Storage HTF code is not recognized", "Two Tank TES Initialization"));
+    }
+
+    bool is_hx_calc = true;
+
+
+    // Calculate thermal power to PC at design
+    m_q_pb_design = ms_params.m_W_dot_pc_design / ms_params.m_eta_pc*1.E6;	//[Wt]
+
+    // Convert parameter units
+    ms_params.m_hot_tank_Thtr += 273.15;		//[K] convert from C
+    ms_params.m_cold_tank_Thtr += 273.15;		//[K] convert from C
+    ms_params.m_T_tes_hot_des += 273.15;	    //[K] convert from C
+    ms_params.m_T_tes_warm_des += 273.15;	    //[K] convert from C
+    ms_params.m_T_tes_cold_des += 273.15;	    //[K] convert from C
+    ms_params.m_T_ht_in_des += 273.15;	        //[K] convert from C
+    ms_params.m_T_lt_in_des += 273.15;	        //[K] convert from C
+    ms_params.m_T_tank_hot_ini += 273.15;		//[K] convert from C
+    ms_params.m_T_tank_cold_ini += 273.15;		//[K] convert from C
+
+
+    double Q_tes_des = m_q_pb_design / 1.E6 * ms_params.m_ts_hours;		//[MWt-hr] TES thermal capacity at design
+
+    double d_tank_temp = std::numeric_limits<double>::quiet_NaN();
+    double q_dot_loss_temp = std::numeric_limits<double>::quiet_NaN();
+    two_tank_tes_sizing(mc_store_htfProps, Q_tes_des, ms_params.m_T_tes_hot_des, ms_params.m_T_tes_cold_des,
+        ms_params.m_h_tank_min, ms_params.m_h_tank, ms_params.m_tank_pairs, ms_params.m_u_tank,
+        m_V_tank_active, m_vol_tank, d_tank_temp, q_dot_loss_temp);
+
+    double T_ht_out_des = ms_params.m_T_tes_hot_des - ms_params.m_dt_hot;
+    double T_lt_out_des = ms_params.m_T_tes_hot_des - ms_params.m_dt_hot;
+
+    if (ms_params.m_ts_hours > 0.0)
+    {
+        double duty_ht = m_q_pb_design;		//[W] Only discharges direct to power cycle
+        double duty_lt = 0.75 * duty_ht;
+
+        ht_hx.init(mc_field_htfProps, mc_store_htfProps, duty_ht, ms_params.m_dt_hot, ms_params.m_T_ht_in_des, T_ht_out_des);
+        lt_hx.init(mc_field_htfProps, mc_store_htfProps, duty_lt, ms_params.m_dt_hot, ms_params.m_T_lt_in_des, T_lt_out_des);
+    }
+
+    // Do we need to define minimum and maximum thermal powers to/from storage?
+    // The 'duty' definition should allow the tanks to accept whatever the field and/or power cycle can provide...
+
+    // Calculate initial storage values
+    double V_inactive = m_vol_tank - m_V_tank_active;
+    double V_hot_ini = ms_params.m_f_V_hot_ini*0.01*m_V_tank_active + V_inactive;			//[m^3]
+    double V_cold_ini = (1.0 - ms_params.m_f_V_hot_ini*0.01)*m_V_tank_active + V_inactive;	//[m^3]
+
+    double T_hot_ini = ms_params.m_T_tank_hot_ini;		//[K]
+    double T_cold_ini = ms_params.m_T_tank_cold_ini;	//[K]
+
+    // Initialize hot, virtual warm, and cold tanks
+    // Hot tank
+    mc_hot_tank.init(mc_store_htfProps, m_vol_tank, ms_params.m_h_tank, ms_params.m_h_tank_min,
+        ms_params.m_u_tank, ms_params.m_tank_pairs, ms_params.m_hot_tank_Thtr, ms_params.m_hot_tank_max_heat,
+        V_hot_ini, T_hot_ini);
+    // Virtual warm tank
+    mc_warm_tank.init(mc_store_htfProps, m_vol_tank, ms_params.m_h_tank, ms_params.m_h_tank_min,
+        0., ms_params.m_tank_pairs, 0., 0.,
+        0., T_hot_ini);
+    // Cold tank
+    mc_cold_tank.init(mc_store_htfProps, m_vol_tank, ms_params.m_h_tank, ms_params.m_h_tank_min,
+        ms_params.m_u_tank, ms_params.m_tank_pairs, ms_params.m_cold_tank_Thtr, ms_params.m_cold_tank_max_heat,
+        V_cold_ini, T_cold_ini);
+
+    // Size TES piping and output values
+    if (ms_params.custom_tes_pipe_sizes &&
+        (ms_params.tes_diams.ncells() != N_tes_pipe_sections ||
+            ms_params.tes_wallthicks.ncells() != N_tes_pipe_sections)) {
+        error_msg = "The number of custom TES pipe sections is not correct.";
+        throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+    }
+    double rho_avg = mc_field_htfProps.dens((ms_params.m_T_lt_in_des + T_ht_out_des) / 2, 9 / 1.e-5);
+    double cp_avg = mc_field_htfProps.Cp((ms_params.m_T_lt_in_des + T_ht_out_des) / 2);
+    double m_dot_pb_design = ms_params.m_W_dot_pc_design * 1.e3 /   // convert MWe to kWe for cp [kJ/kg-K]
+        (ms_params.m_eta_pc * cp_avg * (T_ht_out_des - ms_params.m_T_lt_in_des));
+    if (size_tes_piping(ms_params.V_tes_des, ms_params.tes_lengths, rho_avg,
+        m_dot_pb_design, ms_params.m_solarm, ms_params.tanks_in_parallel,     // Inputs
+        this->pipe_vol_tot, this->pipe_v_dot_rel, this->pipe_diams,
+        this->pipe_wall_thk, this->pipe_m_dot_des, this->pipe_vel_des,        // Outputs
+        ms_params.custom_tes_pipe_sizes)) {
+
+        error_msg = "TES piping sizing failed";
+        throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+    }
+
+    if (ms_params.calc_design_pipe_vals) {
+        if (size_tes_piping_TandP(mc_field_htfProps, ms_params.m_T_lt_in_des, T_ht_out_des,
+            init_inputs.P_to_cr_at_des * 1.e5, ms_params.DP_SGS * 1.e5, // bar to Pa
+            ms_params.tes_lengths, ms_params.k_tes_loss_coeffs, ms_params.pipe_rough, ms_params.tanks_in_parallel,
+            this->pipe_diams, this->pipe_vel_des,
+            this->pipe_T_des, this->pipe_P_des,
+            this->P_in_des)) {        // Outputs
+
+            error_msg = "TES piping design temperature and pressure calculation failed";
+            throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
+        }
+        // Adjust first two pressures after field pumps, because the field inlet pressure used above was
+        // not yet corrected for the section in the TES/PB before the hot tank
+        double DP_before_hot_tank = this->pipe_P_des.at(3);        // first section before hot tank
+        this->pipe_P_des.at(1) += DP_before_hot_tank;
+        this->pipe_P_des.at(2) += DP_before_hot_tank;
+
+        //value(O_p_des_sgs_1, DP_before_hot_tank);           // for adjusting field design pressures
+    }
+}
+
+bool C_csp_two_tank_two_hx_tes::does_tes_exist()
+{
+    return m_is_tes;
+}
+
+double C_csp_two_tank_two_hx_tes::get_hot_temp()
+{
+    return mc_hot_tank.get_m_T_prev();	//[K]
+}
+
+double C_csp_two_tank_two_hx_tes::get_cold_temp()
+{
+    return mc_cold_tank.get_m_T_prev();	//[K]
+}
+
+double C_csp_two_tank_two_hx_tes::get_initial_charge_energy()
+{
+    //MWh
+    return m_q_pb_design * ms_params.m_ts_hours * m_V_tank_hot_ini / m_vol_tank * 1.e-6;
+}
+
+double C_csp_two_tank_two_hx_tes::get_min_charge_energy()
+{
+    return 0.;  //MWh
+}
+
+double C_csp_two_tank_two_hx_tes::get_max_charge_energy()
+{
+    return m_q_pb_design * ms_params.m_ts_hours / 1.e6;     //MWh
+}
+
+double C_csp_two_tank_two_hx_tes::get_degradation_rate()
+{
+    //calculates an approximate "average" tank heat loss rate based on some assumptions. Good for simple optimization performance projections.
+    double d_tank = sqrt(m_vol_tank / ((double)ms_params.m_tank_pairs * ms_params.m_h_tank * 3.14159));
+    double e_loss = ms_params.m_u_tank * 3.14159 * ms_params.m_tank_pairs * d_tank * (ms_params.m_T_tes_cold_des + ms_params.m_T_tes_hot_des - 576.3)*1.e-6;  //MJ/s  -- assumes full area for loss, Tamb = 15C
+    return e_loss / (m_q_pb_design * ms_params.m_ts_hours * 3600.); //s^-1  -- fraction of heat loss per second based on full charge
+}
+
+void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
+{
+    // This is just looking at the high-temp (HT) HX
+    // T_cold_K is the temperature entering the HT_HX on the 'field' side opposite the storage media
+    // T_hot_field_est is the temperature leaving the HT_HX on the 'field' side opposite the storage media
+
+    double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
+
+    double m_dot_tank_disch_avail = mc_hot_tank.m_dot_available(f_storage, step_s);	//[kg/s]
+
+    if (m_dot_tank_disch_avail == 0) {
+        q_dot_dc_est = 0.;
+        m_dot_field_est = 0.;
+        T_hot_field_est = std::numeric_limits<double>::quiet_NaN();
+        return;
+    }
+
+    double T_hot_ini = mc_hot_tank.get_m_T_prev();		//[K]
+
+    double eff, T_warm_tes;
+    eff = T_warm_tes = std::numeric_limits<double>::quiet_NaN();
+    ht_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, eff, T_warm_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+
+    m_m_dot_tes_dc_max = m_dot_field_est;		//[kg/s]
+}
+
+void C_csp_two_tank_two_hx_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
+{
+    // This is just looking at the hot and cold tanks in a direct configuration
+    // T_hot_K is the temperature of the storage media entering the hot tank
+    // T_cold_field_est is the temperature of the storage media leaving the cold tank
+
+    double f_ch_storage = 0.0;	// for now, hardcode such that storage always completely charges
+
+    double m_dot_tank_charge_avail = mc_cold_tank.m_dot_available(f_ch_storage, step_s);	//[kg/s]
+
+    double T_cold_ini = mc_cold_tank.get_m_T_prev();	//[K]
+
+    double cp_T_avg = mc_store_htfProps.Cp(0.5*(T_cold_ini + T_hot_K));	//[kJ/kg-K] spec heat at average temperature during charging from cold to hot
+
+    q_dot_ch_est = m_dot_tank_charge_avail * cp_T_avg * (T_hot_K - T_cold_ini) *1.E-3;	//[MW]
+    m_dot_field_est = m_dot_tank_charge_avail;
+    T_cold_field_est = T_cold_ini;
+
+    m_m_dot_tes_ch_max = m_dot_field_est;		//[kg/s]
+}
+
+void C_csp_two_tank_two_hx_tes::discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double & T_htf_warm_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average warm discharge temperature and mass flow rate of the virtual warm tank during FULL DISCHARGE.
+    // This is out of the field side of the low-temp heat exchanger (LT_HX), opposite the tank (or 'TES') side
+
+    // Inputs are:
+    // 1) Temperature of the HTF into the LT_HX on the 'field' side opposite the storage media.
+    // Outputs are:
+    // 1) Temperature of the HTF out of the LT_HX on the 'field' side opposite the storage media.
+    // 2) Mass flow of the HTF through the LT_HX on the 'field' side opposite the storage media.
+
+    double q_heater_cold, q_heater_warm, q_dot_loss_cold, q_dot_loss_warm, T_cold_ave, T_warm_ave, m_dot_field, T_field_cold_in, T_field_warm_out, m_dot_tank, T_cold_tank_in;
+    q_heater_cold = q_heater_warm = q_dot_loss_cold = q_dot_loss_warm = T_cold_ave = T_warm_ave = m_dot_field = T_field_cold_in = T_field_warm_out = m_dot_tank = T_cold_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+    m_dot_tank = mc_warm_tank.m_dot_available(0.0, timestep);                // [kg/s] maximum tank mass flow for this timestep duration
+
+    mc_warm_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb,       // get average warm tank temperature over timestep
+        T_warm_ave, q_heater_warm, q_dot_loss_warm);
+
+    T_field_cold_in = T_htf_cold_in;
+
+    double eff, q_trans;
+    eff = q_trans = std::numeric_limits<double>::quiet_NaN();
+    lt_hx.hx_discharge_mdot_tes(T_warm_ave, m_dot_tank, T_field_cold_in,
+        eff, T_cold_tank_in, T_field_warm_out, q_trans, m_dot_field);
+
+    mc_cold_tank.energy_balance(timestep, m_dot_tank, 0.0, T_cold_tank_in, T_amb,
+        T_cold_ave, q_heater_cold, q_dot_loss_cold);
+
+    outputs.m_q_heater = q_heater_cold + q_heater_warm;
+    outputs.m_m_dot = m_dot_tank;
+    outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
+    T_htf_warm_out = T_field_warm_out;
+    m_dot_htf_out = m_dot_field;
+    outputs.m_q_dot_loss = q_dot_loss_cold + q_dot_loss_warm;
+    outputs.m_q_dot_ch_from_htf = 0.0;
+    outputs.m_T_hot_ave = T_warm_ave;
+    outputs.m_T_cold_ave = T_cold_ave;
+    outputs.m_T_hot_final = mc_warm_tank.get_m_T_calc();
+    outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_warm_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_dc_to_htf = m_dot_htf_out * cp_htf_ave*(T_htf_warm_out - T_htf_cold_in) / 1000.0;		//[MWt]
+}
+
+
+void C_csp_two_tank_two_hx_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average hot discharge temperature and mass flow rate of the TES system during FULL DISCHARGE.
+    // This is out of the field side of the high-temp heat exchanger (HT_HX), opposite the tank (or 'TES') side
+
+    // Inputs are:
+    // 1) Temperature of the HTF into the HT_HX on the 'field' side opposite the storage media.
+    // Outputs are:
+    // 1) Temperature of the HTF out of the HT_HX on the 'field' side opposite the storage media.
+    // 2) Mass flow of the HTF through the HT_HX on the 'field' side opposite the storage media.
+
+    double q_heater_warm, q_heater_hot, q_dot_loss_warm, q_dot_loss_hot, T_warm_ave, T_hot_ave, m_dot_field, T_field_cold_in, T_field_hot_out, m_dot_tank, T_warm_tank_in;
+    q_heater_warm = q_heater_hot = q_dot_loss_warm = q_dot_loss_hot = T_warm_ave = T_hot_ave = m_dot_field = T_field_cold_in = T_field_hot_out = m_dot_tank = T_warm_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+    m_dot_tank = mc_hot_tank.m_dot_available(0.0, timestep);                // [kg/s] maximum tank mass flow for this timestep duration
+
+    mc_hot_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb,       // get average hot tank temperature over timestep
+        T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    T_field_cold_in = T_htf_cold_in;
+
+    double eff, q_trans;
+    eff = q_trans = std::numeric_limits<double>::quiet_NaN();
+    ht_hx.hx_discharge_mdot_tes(T_hot_ave, m_dot_tank, T_field_cold_in,
+        eff, T_warm_tank_in, T_field_hot_out, q_trans, m_dot_field);
+
+    mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb,
+        T_warm_ave, q_heater_warm, q_dot_loss_warm);
+
+    outputs.m_q_heater = q_heater_hot + q_heater_warm;
+    outputs.m_m_dot = m_dot_tank;
+    outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
+    T_htf_hot_out = T_field_hot_out;
+    m_dot_htf_out = m_dot_field;
+    outputs.m_q_dot_loss = q_dot_loss_hot + q_dot_loss_warm;
+    outputs.m_q_dot_ch_from_htf = 0.0;
+    outputs.m_T_hot_ave = T_hot_ave;
+    outputs.m_T_cold_ave = T_warm_ave;
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();
+    outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_dc_to_htf = m_dot_htf_out * cp_htf_ave*(T_htf_hot_out - T_htf_cold_in) / 1000.0;		//[MWt]
+}
+
+bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average hot discharge temperature of the TES system.
+    // This is out of the field side of the high-temp heat exchanger (HT_HX), opposite the tank (or 'TES') side,
+
+    // The method returns FALSE if the system output (same as input) mass flow rate is greater than that available
+
+    // Inputs are:
+    // 1) Mass flow of the HTF through the HT_HX on the 'field' side opposite the storage media.
+    // 2) Temperature of the HTF into the HT_HX on the 'field' side opposite the storage media.
+
+    if (m_dot_htf_in > m_m_dot_tes_dc_max)      // mass flow in = mass flow out
+    {
+        outputs.m_q_heater = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_m_dot = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_W_dot_rhtf_pump = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_loss = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_dc_to_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_ch_from_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_final = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_final = std::numeric_limits<double>::quiet_NaN();
+
+        return false;
+    }
+
+    double q_heater_warm, q_heater_hot, q_dot_loss_warm, q_dot_loss_hot, T_warm_ave, T_hot_ave, m_dot_field, T_field_cold_in, T_field_hot_out, m_dot_tank, T_warm_tank_in;
+    q_heater_warm = q_heater_hot = q_dot_loss_warm = q_dot_loss_hot = T_warm_ave = T_hot_ave = m_dot_field = T_field_cold_in = T_field_hot_out = m_dot_tank = T_warm_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+    // Iterate between field htf - hx - and storage
+    m_dot_field = m_dot_htf_in;
+    T_field_cold_in = T_htf_cold_in;
+    C_MEQ_indirect_tes_discharge c_tes_disch(this, timestep, T_amb, T_field_cold_in, m_dot_field);
+    C_monotonic_eq_solver c_tes_disch_solver(c_tes_disch);
+
+    // Set up solver for tank mass flow
+    double m_dot_tank_lower = 0;
+    double m_dot_tank_upper = mc_hot_tank.m_dot_available(0.0, timestep);
+    c_tes_disch_solver.settings(1.E-3, 50, m_dot_tank_lower, m_dot_tank_upper, false);
+
+    // Guess tank mass flows
+    double T_tank_guess_1, m_dot_tank_guess_1, T_tank_guess_2, m_dot_tank_guess_2;
+    T_tank_guess_1 = m_dot_tank_guess_1 = T_tank_guess_2 = m_dot_tank_guess_2 = std::numeric_limits<double>::quiet_NaN();
+    double eff_guess, T_hot_field_guess, T_warm_tes_guess, q_trans_guess;
+    eff_guess = T_hot_field_guess = T_warm_tes_guess = q_trans_guess = std::numeric_limits<double>::quiet_NaN();
+
+    T_tank_guess_1 = mc_hot_tank.get_m_T_prev();                                // the highest possible tank temp and thus highest resulting mass flow
+    ht_hx.hx_discharge_mdot_field(T_field_cold_in, m_dot_field, T_tank_guess_1,
+        eff_guess, T_hot_field_guess, T_warm_tes_guess, q_trans_guess, m_dot_tank_guess_1);
+
+    double T_s, mCp, Q_u, L_s, UA;
+    T_s = mc_hot_tank.get_m_T_prev();
+    mCp = mc_hot_tank.calc_mass_at_prev() * mc_hot_tank.calc_cp_at_prev();  // [J/K]
+    Q_u = 0.;   // [W]
+    //L_s = mc_hot_tank.m_dot_available(0.0, timestep) * mc_hot_tank.calc_enth_at_prev();       // maybe use this instead?
+    L_s = m_dot_tank_guess_1 * mc_hot_tank.calc_enth_at_prev();  // [W]  using highest mass flow, calculated from the first guess
+    UA = mc_hot_tank.get_m_UA();
+    T_tank_guess_2 = T_s + timestep / mCp * (Q_u - L_s - UA * (T_s - T_amb));   // tank energy balance, giving the lowest estimated tank temp due to L_s choice
+    ht_hx.hx_discharge_mdot_field(T_field_cold_in, m_dot_field, T_tank_guess_2,
+        eff_guess, T_hot_field_guess, T_warm_tes_guess, q_trans_guess, m_dot_tank_guess_2);
+
+    // Constrain guesses to within limits
+    m_dot_tank_guess_1 = fmax(m_dot_tank_lower, fmin(m_dot_tank_guess_1, m_dot_tank_upper));
+    m_dot_tank_guess_2 = fmax(m_dot_tank_lower, fmin(m_dot_tank_guess_2, m_dot_tank_upper));
+
+    bool m_dot_solved = false;
+    if (m_dot_tank_guess_1 == m_dot_tank_guess_2) {
+        // First try if guess solves
+        double m_dot_bal = std::numeric_limits<double>::quiet_NaN();
+        int m_dot_bal_code = c_tes_disch_solver.test_member_function(m_dot_tank_guess_1, &m_dot_bal);
+
+        if (m_dot_bal < 1.E-3) {
+            m_dot_tank = m_dot_tank_guess_1;
+            m_dot_solved = true;
+        }
+        else {
+            // Adjust guesses so they're different
+            if (m_dot_tank_guess_1 == m_dot_tank_upper) {
+                m_dot_tank_guess_2 -= 0.01*(m_dot_tank_upper - m_dot_tank_lower);
+            }
+            else {
+                m_dot_tank_guess_1 = fmin(m_dot_tank_upper, m_dot_tank_guess_1 + 0.01*(m_dot_tank_upper - m_dot_tank_lower));
+            }
+        }
+    }
+    else if (m_dot_tank_guess_1 == 0 || m_dot_tank_guess_2 == 0) {
+        // Try a 0 guess
+        double m_dot_bal = std::numeric_limits<double>::quiet_NaN();
+        int m_dot_bal_code = c_tes_disch_solver.test_member_function(0., &m_dot_bal);
+
+        if (m_dot_bal < 1.E-3) {
+            m_dot_tank = 0.;
+            m_dot_solved = true;
+        }
+        else {
+            // Adjust 0 guess to avoid divide by 0 errors
+            m_dot_tank_guess_2 = fmax(m_dot_tank_guess_1, m_dot_tank_guess_2);
+            m_dot_tank_guess_1 = 1.e-3;
+        }
+    }
+
+    if (!m_dot_solved) {
+        // Solve for required tank mass flow
+        double tol_solved;
+        tol_solved = std::numeric_limits<double>::quiet_NaN();
+        int iter_solved = -1;
+
+        try
+        {
+            int m_dot_bal_code = c_tes_disch_solver.solve(m_dot_tank_guess_1, m_dot_tank_guess_2, -1.E-3, m_dot_tank, tol_solved, iter_solved);
+        }
+        catch (C_csp_exception)
+        {
+            throw(C_csp_exception("Failed to find a solution for the hot tank mass flow"));
+        }
+
+        if (std::isnan(m_dot_tank)) {
+            throw(C_csp_exception("Failed to converge on a valid tank mass flow."));
+        }
+    }
+
+    // The other needed outputs are not all saved in member variables so recalculate here
+    mc_hot_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    double eff, q_trans;
+    eff = q_trans = std::numeric_limits<double>::quiet_NaN();
+    ht_hx.hx_discharge_mdot_field(T_field_cold_in, m_dot_field, T_hot_ave,
+        eff, T_field_hot_out, T_warm_tank_in, q_trans, m_dot_tank);
+
+    mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb, T_warm_ave, q_heater_warm, q_dot_loss_warm);
+
+    outputs.m_q_heater = q_heater_warm + q_heater_hot;			//[MWt]
+    outputs.m_m_dot = m_dot_tank;                               //[kg/s]
+    outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
+    T_htf_hot_out = T_field_hot_out;
+    outputs.m_q_dot_loss = q_dot_loss_warm + q_dot_loss_hot;	//[MWt]
+    outputs.m_q_dot_ch_from_htf = 0.0;		                    //[MWt]
+    outputs.m_T_hot_ave = T_hot_ave;						    //[K]
+    outputs.m_T_cold_ave = T_warm_ave;							//[K]
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
+    outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();		//[K]
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_dc_to_htf = m_dot_htf_in * cp_htf_ave*(T_htf_hot_out - T_htf_cold_in) / 1000.0;		//[MWt]
+
+    return true;
+}
+
+int C_csp_two_tank_two_hx_tes::C_MEQ_indirect_tes_discharge::operator()(double m_dot_tank /*kg/s*/, double *m_dot_bal /*-*/)
+{
+    // Call energy balance on hot tank discharge using a guess for storage-side mass flow to get average tank outlet temperature over timestep
+    double T_hot_ave, q_heater_hot, q_dot_loss_hot;
+    T_hot_ave = q_heater_hot = q_dot_loss_hot = std::numeric_limits<double>::quiet_NaN();
+    mpc_csp_two_tank_two_hx_tes->mc_hot_tank.energy_balance(m_timestep, 0.0, m_dot_tank, 0.0, m_T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    // Use average tank outlet temperature to call energy balance on heat exchanger to get storage-side mass flow
+    double eff, T_hot_field, T_warm_tes, q_trans, m_dot_tank_solved;
+    eff = T_hot_field = T_warm_tes = q_trans = std::numeric_limits<double>::quiet_NaN();
+    mpc_csp_two_tank_two_hx_tes->ht_hx.hx_discharge_mdot_field(m_T_cold_field, m_m_dot_field, T_hot_ave,
+        eff, T_hot_field, T_warm_tes, q_trans, m_dot_tank_solved);
+
+    if (m_dot_tank != 0.) {
+        *m_dot_bal = (m_dot_tank_solved - m_dot_tank) / m_dot_tank;			//[-]
+    }
+    else {
+        *m_dot_bal = m_dot_tank_solved - m_dot_tank;            			//[kg/s]  return absolute difference if 0
+    }
+
+    return 0;
+}
+
+void C_csp_two_tank_two_hx_tes::charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average cold charge return temperature and mass flow rate of the TES system during during FULL CHARGE.
+    // This is equal to the cold tank outlet temperature.
+
+    // Inputs are:
+    // 1) Temperature of the storage media directly entering the hot tank
+
+    double q_heater_cold, q_heater_hot, q_dot_loss_cold, q_dot_loss_hot, T_cold_ave, T_hot_ave, m_dot_field, T_field_cold_in, T_field_hot_out, m_dot_tank, T_hot_tank_in;
+    q_heater_cold = q_heater_hot = q_dot_loss_cold = q_dot_loss_hot = T_cold_ave = T_hot_ave = m_dot_field = T_field_cold_in = T_field_hot_out = m_dot_tank = T_hot_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+    m_dot_tank = mc_cold_tank.m_dot_available(0.0, timestep);               // [kg/s] maximum tank mass flow for this timestep duration
+
+    mc_cold_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb,      // get average cold tank temperature over timestep
+        T_cold_ave, q_heater_cold, q_dot_loss_cold);
+
+    // Get hot tank inlet temperature
+    T_hot_tank_in = T_htf_hot_in;
+    m_dot_field = m_dot_tank;
+
+    mc_hot_tank.energy_balance(timestep, m_dot_tank, 0.0, T_hot_tank_in, T_amb,
+        T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    outputs.m_q_heater = q_heater_hot + q_heater_cold;
+    outputs.m_m_dot = m_dot_tank;
+    outputs.m_W_dot_rhtf_pump = 0;                          //[MWe] Just tank-to-tank pumping power
+    T_htf_cold_out = T_cold_ave;
+    m_dot_htf_out = m_dot_tank;
+    outputs.m_q_dot_loss = q_dot_loss_hot + q_dot_loss_cold;
+    outputs.m_q_dot_dc_to_htf = 0.0;
+    outputs.m_T_hot_ave = T_hot_ave;
+    outputs.m_T_cold_ave = T_cold_ave;
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();
+    outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_hot_in + T_htf_cold_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_ch_from_htf = m_dot_htf_out * cp_htf_ave*(T_htf_hot_in - T_htf_cold_out) / 1000.0;		//[MWt]
+}
+
+bool C_csp_two_tank_two_hx_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average cold charge return temperature of the TES system.
+    // This is equal to the cold tank outlet temperature.
+
+    // The method returns FALSE if the system input mass flow rate is greater than the allowable charge 
+
+    // Inputs are:
+    // 1) Mass flow rate of storage media directly entering the hot tank
+    // 2) Temperature of the storage media directly entering the hot tank
+
+    if (m_dot_htf_in > m_m_dot_tes_ch_max)
+    {
+        outputs.m_q_heater = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_m_dot = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_W_dot_rhtf_pump = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_loss = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_dc_to_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_ch_from_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_final = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_final = std::numeric_limits<double>::quiet_NaN();
+
+        return false;
+    }
+
+    double q_heater_cold, q_heater_hot, q_dot_loss_cold, q_dot_loss_hot, T_cold_ave, T_hot_ave, m_dot_field, T_field_hot_in, T_field_cold_out, m_dot_tank, T_hot_tank_in;
+    q_heater_cold = q_heater_hot = q_dot_loss_cold = q_dot_loss_hot = T_cold_ave = T_hot_ave = m_dot_field = T_field_hot_in = T_field_cold_out = m_dot_tank = T_hot_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+    // If no heat exchanger, no iteration is required between the heat exchanger and storage tank models
+    m_dot_field = m_dot_tank = m_dot_htf_in;
+    T_field_hot_in = T_hot_tank_in = T_htf_hot_in;
+
+    // Call energy balance on cold tank discharge to get average outlet temperature over timestep
+    mc_cold_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb, T_cold_ave, q_heater_cold, q_dot_loss_cold);
+
+    // Call energy balance on hot tank charge to track tank mass and temperature
+    mc_hot_tank.energy_balance(timestep, m_dot_tank, 0.0, T_hot_tank_in, T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    outputs.m_q_heater = q_heater_cold + q_heater_hot;			//[MWt]
+    outputs.m_m_dot = m_dot_tank;                               //[kg/s]
+    outputs.m_W_dot_rhtf_pump = 0;                          //[MWe] Just tank-to-tank pumping power
+    T_htf_cold_out = T_cold_ave;
+    outputs.m_q_dot_loss = q_dot_loss_cold + q_dot_loss_hot;	//[MWt]
+    outputs.m_q_dot_dc_to_htf = 0.0;							//[MWt]
+    outputs.m_T_hot_ave = T_hot_ave;							//[K]
+    outputs.m_T_cold_ave = T_cold_ave;  						//[K]
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
+    outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();		//[K]
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_hot_in + T_htf_cold_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_ch_from_htf = m_dot_htf_in * cp_htf_ave*(T_htf_hot_in - T_htf_cold_out) / 1000.0;		//[MWt]
+
+    return true;
+}
+
+void C_csp_two_tank_two_hx_tes::idle(double timestep, double T_amb, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    double T_hot_ave, q_hot_heater, q_dot_hot_loss;
+    T_hot_ave = q_hot_heater = q_dot_hot_loss = std::numeric_limits<double>::quiet_NaN();
+
+    mc_hot_tank.energy_balance(timestep, 0.0, 0.0, 0.0, T_amb, T_hot_ave, q_hot_heater, q_dot_hot_loss);
+
+    double T_warm_ave, q_warm_heater, q_dot_warm_loss;
+    T_warm_ave = q_warm_heater = q_dot_warm_loss = std::numeric_limits<double>::quiet_NaN();
+
+    mc_warm_tank.energy_balance(timestep, 0.0, 0.0, 0.0, T_amb, T_warm_ave, q_warm_heater, q_dot_warm_loss);
+
+    double T_cold_ave, q_cold_heater, q_dot_cold_loss;
+    T_cold_ave = q_cold_heater = q_dot_cold_loss = std::numeric_limits<double>::quiet_NaN();
+
+    mc_cold_tank.energy_balance(timestep, 0.0, 0.0, 0.0, T_amb, T_cold_ave, q_cold_heater, q_dot_cold_loss);
+
+    outputs.m_q_heater = q_cold_heater + q_hot_heater;			//[MJ]
+    outputs.m_m_dot = 0.0;                                      //[kg/s]
+    outputs.m_W_dot_rhtf_pump = 0.0;							//[MWe]
+    outputs.m_q_dot_loss = q_dot_cold_loss + q_dot_hot_loss;	//[MW]
+
+    outputs.m_T_hot_ave = T_hot_ave;							//[K]
+    outputs.m_T_cold_ave = T_cold_ave;							//[K]
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
+    outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();		//[K]
+
+    outputs.m_q_dot_ch_from_htf = 0.0;		//[MWt]
+    outputs.m_q_dot_dc_to_htf = 0.0;		//[MWt]
+}
+
+void C_csp_two_tank_two_hx_tes::converged()
+{
+    mc_cold_tank.converged();
+    mc_warm_tank.converged();
+    mc_hot_tank.converged();
+    ht_hx.converged();
+    lt_hx.converged();
+
+    // The max charge and discharge flow rates should be set at the beginning of each timestep
+    //   during the q_dot_xx_avail_est calls
+    m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
+}
+
+int C_csp_two_tank_two_hx_tes::pressure_drops(double m_dot_sf, double m_dot_pb,
+    double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating,
+    double &P_drop_col, double &P_drop_gen)
+{
+    const std::size_t num_sections = 11;          // total number of col. + gen. sections
+    const std::size_t bypass_section = 4;         // bypass section index
+    const std::size_t gen_first_section = 5;      // first generation section index in combined col. gen. loops
+    const double P_hi = 17 / 1.e-5;               // downstream SF pump pressure [Pa]
+    const double P_lo = 1 / 1.e-5;                // atmospheric pressure [Pa]
+    double P, T, rho, v_dot, vel;                 // htf properties
+    double Area;                                  // cross-sectional pipe area
+    double v_dot_sf, v_dot_pb;                    // solar field and power block vol. flow rates
+    double k;                                     // effective minor loss coefficient
+    double Re, ff;
+    double v_dot_ref;
+    double DP_SGS;
+    std::vector<double> P_drops(num_sections, 0.0);
+
+    util::matrix_t<double> L = this->ms_params.tes_lengths;
+    util::matrix_t<double> D = this->pipe_diams;
+    util::matrix_t<double> k_coeffs = this->ms_params.k_tes_loss_coeffs;
+    util::matrix_t<double> v_dot_rel = this->pipe_v_dot_rel;
+    m_dot_pb > 0 ? DP_SGS = this->ms_params.DP_SGS * 1.e5 : DP_SGS = 0.;
+    v_dot_sf = m_dot_sf / this->mc_field_htfProps.dens((T_sf_in + T_sf_out) / 2, (P_hi + P_lo) / 2);
+    v_dot_pb = m_dot_pb / this->mc_field_htfProps.dens((T_pb_in + T_pb_out) / 2, P_lo);
+
+    for (std::size_t i = 0; i < num_sections; i++) {
+        if (L.at(i) > 0 && D.at(i) > 0) {
+            (i > 0 && i < 3) ? P = P_hi : P = P_lo;
+            if (i < 3) T = T_sf_in;                                                       // 0, 1, 2
+            if (i == 3 || i == 4) T = T_sf_out;                                           // 3, 4
+            if (i >= gen_first_section && i < gen_first_section + 4) T = T_pb_in;         // 5, 6, 7, 8
+            if (i == gen_first_section + 4) T = (T_pb_in + T_pb_out) / 2.;                // 9
+            if (i == gen_first_section + 5) T = T_pb_out;                                 // 10
+            i < gen_first_section ? v_dot_ref = v_dot_sf : v_dot_ref = v_dot_pb;
+            v_dot = v_dot_rel.at(i) * v_dot_ref;
+            Area = CSP::pi * pow(D, 2) / 4.;
+            vel = v_dot / Area;
+            rho = this->mc_field_htfProps.dens(T, P);
+            Re = this->mc_field_htfProps.Re(T, P, vel, D.at(i));
+            ff = CSP::FrictionFactor(this->ms_params.pipe_rough / D.at(i), Re);
+            if (i != bypass_section || recirculating) {
+                P_drops.at(i) += CSP::MajorPressureDrop(vel, rho, ff, L.at(i), D.at(i));
+                P_drops.at(i) += CSP::MinorPressureDrop(vel, rho, k_coeffs.at(i));
+            }
+        }
+    }
+
+    P_drop_col = std::accumulate(P_drops.begin(), P_drops.begin() + gen_first_section, 0.0);
+    P_drop_gen = DP_SGS + std::accumulate(P_drops.begin() + gen_first_section, P_drops.end(), 0.0);
+
+    return 0;
+}
+
+double C_csp_two_tank_two_hx_tes::pumping_power(double m_dot_sf, double m_dot_pb, double m_dot_tank,
+    double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating)
+{
+    double htf_pump_power = 0.;
+    double rho_sf, rho_pb;
+    double DP_col, DP_gen;
+    double tes_pump_coef = this->ms_params.m_tes_pump_coef;
+    double pb_pump_coef = this->ms_params.m_htf_pump_coef;
+    double eta_pump = this->ms_params.eta_pump;
+
+    if (this->ms_params.custom_tes_p_loss) {
+        double rho_sf, rho_pb;
+        double DP_col, DP_gen;
+        this->pressure_drops(m_dot_sf, m_dot_pb, T_sf_in, T_sf_out, T_pb_in, T_pb_out, recirculating,
+            DP_col, DP_gen);
+        rho_sf = this->mc_field_htfProps.dens((T_sf_in + T_sf_out) / 2., 8e5);
+        rho_pb = this->mc_field_htfProps.dens((T_pb_in + T_pb_out) / 2., 1e5);
+        if (this->ms_params.m_is_hx) {
+            // TODO - replace tes_pump_coef with a pump efficiency. Maybe utilize unused coefficients specified for the
+            //  series configuration, namely the SGS Pump suction header to Individual SGS pump inlet and the additional
+            //  two immediately downstream
+            htf_pump_power = tes_pump_coef * m_dot_tank / 1000 +
+                (DP_col * m_dot_sf / (rho_sf * eta_pump) + DP_gen * m_dot_pb / (rho_pb * eta_pump)) / 1e6;   //[MW]
+        }
+        else {
+            htf_pump_power = (DP_col * m_dot_sf / (rho_sf * eta_pump) + DP_gen * m_dot_pb / (rho_pb * eta_pump)) / 1e6;   //[MW]
+        }
+    }
+    else {    // original methods
+        if (this->ms_params.m_is_hx) {
+            htf_pump_power = (tes_pump_coef*m_dot_tank + pb_pump_coef * (fabs(m_dot_pb - m_dot_sf) + m_dot_pb)) / 1000.0;	//[MW]
+        }
+        else {
+            if (this->ms_params.tanks_in_parallel) {
+                htf_pump_power = pb_pump_coef * (fabs(m_dot_pb - m_dot_sf) + m_dot_pb) / 1000.0;	//[MW]
+            }
+            else {
+                htf_pump_power = pb_pump_coef * m_dot_pb / 1000.0;	//[MW]
+            }
+        }
+    }
+
+    return htf_pump_power;
+}

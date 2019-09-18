@@ -37,7 +37,7 @@ class C_csp_tower_collector_receiver : public C_csp_collector_receiver
 private:
     std::vector<C_csp_mspt_collector_receiver> collector_receivers;
     std::vector<C_heat_exchanger> hxs;
-    C_csp_two_tank_tes *tes;
+    C_csp_two_tank_two_hx_tes *tes;
 
     HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
@@ -119,7 +119,7 @@ public:
     virtual double get_min_power_delivery();    //MWt
 	virtual double get_tracking_power();		//MWe
 	virtual double get_col_startup_power();		//MWe-hr
-    void set_tes(C_csp_two_tank_tes *tes);
+    void set_tes(C_csp_two_tank_two_hx_tes *tes);
 
     virtual void off(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,

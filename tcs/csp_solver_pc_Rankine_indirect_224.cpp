@@ -451,6 +451,7 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	solved_params.m_cutoff_frac = ms_params.m_cycle_cutoff_frac;	//[-]
 	solved_params.m_sb_frac = ms_params.m_q_sby_frac;				//[-]
 	solved_params.m_T_htf_hot_ref = ms_params.m_T_htf_hot_ref;			//[C]
+    solved_params.m_T_htf_cold_ref = ms_params.m_T_htf_cold_ref;		//[C]
 
 	// Calculate design point HTF mass flow rate
 	// double c_htf = mc_pc_htfProps.Cp(physics::CelciusToKelvin((ms_params.m_T_htf_hot_ref + ms_params.m_T_htf_cold_ref) / 2.0));		//[kJ/kg-K]

@@ -487,6 +487,7 @@ void C_csp_solver::init()
 	m_cycle_cutoff_frac = pc_solved_params.m_cutoff_frac;				//[-]
 	m_cycle_sb_frac_des = pc_solved_params.m_sb_frac;					//[-]
 	m_cycle_T_htf_hot_des = pc_solved_params.m_T_htf_hot_ref + 273.15;	//[K] convert from C
+    m_cycle_T_htf_cold_des = pc_solved_params.m_T_htf_cold_ref + 273.15; //[K] convert from C
 	m_m_dot_pc_des = pc_solved_params.m_m_dot_design;					//[kg/hr]
 				
 	m_m_dot_pc_min = 0.0 * pc_solved_params.m_m_dot_min;		//[kg/hr]
@@ -3863,7 +3864,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				c_solver.settings(1.E-3, 50, 0, std::numeric_limits<double>::quiet_NaN(), false);
 
 				// Solve for cold temperature
-				double T_cold_guess_low = m_T_htf_cold_des - 273.15;	//[C]
+                double T_cold_guess_low = m_cycle_T_htf_cold_des - 273.15;	//[C]
 				double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
 
 				double T_cold_solved, tol_solved;

@@ -129,7 +129,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
 int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/, double *diff_T_htf_hot /*-*/)
 {
-	// T_htf_hot is the temperature of the hot tank
+	// T_htf_hot is...
     
     // Call the power cycle in STARTUP_CONTROLLED mode
 	mpc_csp_solver->mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr]
@@ -154,7 +154,7 @@ int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/
 	// Solve TES discharge
 	double T_htf_hot_calc = std::numeric_limits<double>::quiet_NaN();
 	double T_htf_cold = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold;		//[C]
-	bool is_dc_solved = mpc_csp_solver->mc_tes.discharge(m_time_pc_su, 
+	bool is_dc_solved = mpc_csp_solver->mc_tes.discharge_both(m_time_pc_su, 
 											mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15, 
 											m_dot_pc,
 											T_htf_cold + 273.15,
@@ -189,7 +189,7 @@ int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/
 int C_csp_solver::C_mono_eq_pc_target_tes_dc__m_dot::operator()(double m_dot_htf /*kg/hr*/, double *q_dot_pc /*MWt*/)
 {
 	double T_htf_hot = std::numeric_limits<double>::quiet_NaN();
-	bool is_tes_success = mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+	bool is_tes_success = mpc_csp_solver->mc_tes.discharge_both(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
 												mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
 												m_dot_htf / 3600.0,
 												m_T_htf_cold + 273.15,

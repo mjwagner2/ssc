@@ -581,6 +581,7 @@ public:
 		double m_cutoff_frac;		//[-]
 		double m_sb_frac;			//[-]
 		double m_T_htf_hot_ref;		//[C]
+        double m_T_htf_cold_ref;    //[C]
 		double m_m_dot_design;		//[kg/hr]
 		double m_m_dot_max;			//[kg/hr]
 		double m_m_dot_min;			//[kg/hr]
@@ -715,11 +716,17 @@ public:
 
     virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) = 0;
 	
+    virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) = 0;
+
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est) = 0;
 
 	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+
+    virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 	
 	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+
+    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
 	virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
@@ -987,6 +994,7 @@ private:
 	double m_cycle_cutoff_frac;			//[-]
 	double m_cycle_sb_frac_des;			//[-]
 	double m_cycle_T_htf_hot_des;		//[K]
+    double m_cycle_T_htf_cold_des;      //[K]
 	double m_cycle_P_hot_des;			//[kPa]
 	double m_cycle_x_hot_des;			//[-]
 	double m_m_dot_pc_des;				//[kg/hr]

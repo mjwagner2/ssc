@@ -502,6 +502,11 @@ void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, d
 	m_m_dot_tes_dc_max = m_dot_tank_disch_avail * step_s;		//[kg/s]
 }
 
+void C_csp_stratified_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est)
+{
+    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+}
+
 void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
 {
 	double f_ch_storage = 0.0;	// for now, hardcode such that storage always completely charges
@@ -579,6 +584,11 @@ void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*
 
 }
 
+void C_csp_stratified_tes::discharge_full_both(double timestep, double T_amb, double T_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
+{
+    discharge_full(timestep, T_amb, T_htf_cold_in, T_htf_hot_out, m_dot_htf_out, outputs);
+}
+
 bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the hot discharge temperature on the HX side (if applicable). If no heat exchanger (direct storage),
@@ -641,6 +651,11 @@ bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, 
 	outputs.m_q_dot_ch_from_htf = 0.0;		//[MWt]
 
 	return true;
+}
+
+bool C_csp_stratified_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
+{
+    return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
 }
 
 bool C_csp_stratified_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)

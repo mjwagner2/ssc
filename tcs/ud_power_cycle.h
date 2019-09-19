@@ -42,7 +42,10 @@ private:
 		i_W_dot_gross = 0,
 		i_Q_dot_HTF,
 		i_W_dot_cooling,
-		i_m_dot_water
+		i_m_dot_water,
+        i_phx_deltaT,
+        i_P_co2,
+        i_m_dot_co2
 	};
 
 	// Lookup table with dependent variables corresponding to parametric on independent variable T_htf_hot [C] (first column)
@@ -108,6 +111,13 @@ public:
 	double get_W_dot_cooling_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
 
 	double get_m_dot_water_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);	
+
+    double get_phx_deltaT_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    double get_P_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    double get_m_dot_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
 };
 
 class C_od_pc_function

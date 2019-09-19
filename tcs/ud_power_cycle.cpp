@@ -151,16 +151,17 @@ void C_ud_power_cycle::init(const util::matrix_t<double> & T_htf_ind, double T_h
 	// ************************************************************************
 
 	// Calculate main effects of each independent variable at its upper and lower levels
-	m_ME_T_htf_low.resize(4);
-	m_ME_T_htf_high.resize(4);
+    int n_dep_vars = 7;
+	m_ME_T_htf_low.resize(n_dep_vars);
+	m_ME_T_htf_high.resize(n_dep_vars);
 
-	m_ME_T_amb_low.resize(4);
-	m_ME_T_amb_high.resize(4);
+	m_ME_T_amb_low.resize(n_dep_vars);
+	m_ME_T_amb_high.resize(n_dep_vars);
 
-	m_ME_m_dot_htf_low.resize(4);
-	m_ME_m_dot_htf_high.resize(4);
+	m_ME_m_dot_htf_low.resize(n_dep_vars);
+	m_ME_m_dot_htf_high.resize(n_dep_vars);
 
-	for(int i = 0; i < 4; i++)
+	for(int i = 0; i < n_dep_vars; i++)
 	{
 		int i_col = i*3+2;
 
@@ -180,12 +181,13 @@ void C_ud_power_cycle::init(const util::matrix_t<double> & T_htf_ind, double T_h
 	int n_m_dot_htf_runs = mc_m_dot_htf_ind.get_number_of_rows();
 
 	// 2 interaction effects (upper and lower) for each output
-	util::matrix_t<double> T_htf_int_on_T_amb(n_T_amb_runs, 9);
-	util::matrix_t<double> T_amb_int_on_m_dot_htf(n_m_dot_htf_runs, 9);
-	util::matrix_t<double> m_dot_htf_int_on_T_htf(n_T_htf_runs, 9);
+    int n_tot_int_effects = n_dep_vars*2 + 1;
+	util::matrix_t<double> T_htf_int_on_T_amb(n_T_amb_runs, n_tot_int_effects);
+	util::matrix_t<double> T_amb_int_on_m_dot_htf(n_m_dot_htf_runs, n_tot_int_effects);
+	util::matrix_t<double> m_dot_htf_int_on_T_htf(n_T_htf_runs, n_tot_int_effects);
 	
 	// Calculate interaction effects
-	for(int i = 0; i < 4; i++)
+	for(int i = 0; i < n_dep_vars; i++)
 	{
 		// T_HTF interaction on ambient temperature
 		for(int j = 0; j < n_T_amb_runs; j++)
@@ -302,6 +304,36 @@ double C_ud_power_cycle::get_m_dot_water_ND(double T_htf_hot /*C*/, double T_amb
 	return get_interpolated_ND_output(i_m_dot_water, T_htf_hot, T_amb, m_dot_htf_ND);
 
 	// Also, maybe want to check parameters against max/min, or if extrapolating, or something?
+}
+
+double C_ud_power_cycle::get_phx_deltaT_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
+{
+    // This call needs to define which columns to search
+    // Then use 'get_interpolated_ND_output' to get ND total effect
+
+    return get_interpolated_ND_output(i_phx_deltaT, T_htf_hot, T_amb, m_dot_htf_ND);
+
+    // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
+}
+
+double C_ud_power_cycle::get_P_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
+{
+    // This call needs to define which columns to search
+    // Then use 'get_interpolated_ND_output' to get ND total effect
+
+    return get_interpolated_ND_output(i_P_co2, T_htf_hot, T_amb, m_dot_htf_ND);
+
+    // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
+}
+
+double C_ud_power_cycle::get_m_dot_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
+{
+    // This call needs to define which columns to search
+    // Then use 'get_interpolated_ND_output' to get ND total effect
+
+    return get_interpolated_ND_output(i_m_dot_co2, T_htf_hot, T_amb, m_dot_htf_ND);
+
+    // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
 }
 
 double C_ud_power_cycle::get_interpolated_ND_output(int i_ME /*M.E. table index*/, 

@@ -151,7 +151,7 @@ void C_ud_power_cycle::init(const util::matrix_t<double> & T_htf_ind, double T_h
 	// ************************************************************************
 
 	// Calculate main effects of each independent variable at its upper and lower levels
-    int n_dep_vars = 7;
+    int n_dep_vars = 8;
 	m_ME_T_htf_low.resize(n_dep_vars);
 	m_ME_T_htf_high.resize(n_dep_vars);
 
@@ -316,12 +316,12 @@ double C_ud_power_cycle::get_phx_deltaT_ND(double T_htf_hot /*C*/, double T_amb 
     // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
 }
 
-double C_ud_power_cycle::get_P_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
+double C_ud_power_cycle::get_P_phx_in_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
 {
     // This call needs to define which columns to search
     // Then use 'get_interpolated_ND_output' to get ND total effect
 
-    return get_interpolated_ND_output(i_P_co2, T_htf_hot, T_amb, m_dot_htf_ND);
+    return get_interpolated_ND_output(i_P_phx_in_co2, T_htf_hot, T_amb, m_dot_htf_ND);
 
     // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
 }
@@ -332,6 +332,16 @@ double C_ud_power_cycle::get_m_dot_co2_ND(double T_htf_hot /*C*/, double T_amb /
     // Then use 'get_interpolated_ND_output' to get ND total effect
 
     return get_interpolated_ND_output(i_m_dot_co2, T_htf_hot, T_amb, m_dot_htf_ND);
+
+    // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
+}
+
+double C_ud_power_cycle::get_P_phx_out_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/)
+{
+    // This call needs to define which columns to search
+    // Then use 'get_interpolated_ND_output' to get ND total effect
+
+    return get_interpolated_ND_output(i_P_phx_out_co2, T_htf_hot, T_amb, m_dot_htf_ND);
 
     // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
 }

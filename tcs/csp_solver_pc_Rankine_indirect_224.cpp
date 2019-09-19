@@ -1077,7 +1077,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
             // Need to apply reference values here...
             double phx_deltaT_ND = mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
 
-            double P_co2_ND = mc_user_defined_pc.get_P_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
+            double P_phx_in_co2_ND = mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
 
             double m_dot_co2_ND = mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
 
@@ -1931,8 +1931,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
     const int col_W_h2o = 5;
     const int col_m_h2o = 6;
     const int col_phx_deltaT = 7;
-    const int col_P_co2 = 8;
+    const int col_P_phx_in_co2 = 8;
     const int col_m_dot_co2 = 9;
+    const int col_P_phx_out_co2 = 10;
 
     // check for minimum length
     if (cmbd_ind.nrows() < 2) throw(C_csp_exception("Not enough UDPC table rows", "UDPC Table Importation"));
@@ -2016,7 +2017,7 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
     //    cmbd_tbl.end());    // use lamba function as predicate function to disregard response values when testing for uniqueness
 
     // start generating three tables
-    const int ncols = 22;
+    const int ncols = 25;
     T_htf_ind.resize_fill(n_T_htf_series, ncols, 0.);  // subtract 1 for design value
     m_dot_ind.resize_fill(n_m_dot_series, ncols, 0.);  // subtract 1 for design value
     T_amb_ind.resize_fill(n_T_amb_series, ncols, 0.);  // subtract 1 for design value
@@ -2040,8 +2041,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 7);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 10);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 13);
-            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 16);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 16);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 19);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 22);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2068,8 +2070,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 9);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 12);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 15);
-            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 18);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 18);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 21);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 24);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2096,8 +2099,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 7);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 10);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 13);
-            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 16);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 16);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 19);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 22);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2124,8 +2128,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 9);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 12);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 15);
-            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 18);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 18);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 21);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 24);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2152,8 +2157,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 7);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 10);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 13);
-            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 16);
+            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 16);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 19);
+            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 22);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2184,8 +2190,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 9);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 12);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 15);
-            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 18);
+            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 18);
             T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 21);
+            T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 24);
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
         }
@@ -2216,8 +2223,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 8);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 11);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 14);
-            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 17);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 17);
             T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 20);
+            T_htf_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 23);
             if (cmbd_tbl.at(vec_row).at(col_T_htf) == T_htf_des) { design_gotten = true; }
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
@@ -2245,8 +2253,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 8);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 11);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 14);
-            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 17);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 17);
             m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 20);
+            m_dot_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 23);
             if (cmbd_tbl.at(vec_row).at(col_m_dot) == m_dot_des) { design_gotten = true; }
             mat_row++;
             cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
@@ -2269,8 +2278,9 @@ int C_pc_Rankine_indirect_224::split_ind_tbl(util::matrix_t<double> &cmbd_ind, u
         T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_W_h2o), mat_row, 8);
         T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_h2o), mat_row, 11);
         T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_phx_deltaT), mat_row, 14);
-        T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_co2), mat_row, 17);
+        T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_in_co2), mat_row, 17);
         T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_m_dot_co2), mat_row, 20);
+        T_amb_ind.set_value(cmbd_tbl.at(vec_row).at(col_P_phx_out_co2), mat_row, 23);
         mat_row++;
         cmbd_tbl.erase(cmbd_tbl.begin() + vec_row);
     }

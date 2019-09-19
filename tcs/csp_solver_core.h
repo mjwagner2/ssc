@@ -444,6 +444,8 @@ public:
 		double m_T_salt_hot;			//[C] Hot HTF from receiver
 		double m_component_defocus;		//[-] Defocus applied by component model to stay within mass flow or other constraints
         bool m_is_recirculating;        //[-] Is field/receiver recirculating?
+        double m_m_dot_store_tot;       //[kg/hr] Storage media mass flow rate
+        double m_T_store_hot;           //[C] Hot storage media, weighted average
 			
 		// These are used for the parasitic class call(), so could be zero...
 		double m_E_fp_total;			//[MW] Solar field freeze protection power

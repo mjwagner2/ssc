@@ -325,6 +325,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     cr_out_solver.m_q_thermal = 0.;
     cr_out_solver.m_component_defocus = 1.;
     cr_out_solver.m_is_recirculating = false;
+    cr_out_solver.m_m_dot_store_tot = 0.;
+    cr_out_solver.m_T_store_hot = 0.;
     cr_out_solver.m_E_fp_total = 0.;
     cr_out_solver.m_W_dot_col_tracking = 0.;
     cr_out_solver.m_W_dot_htf_pump = 0.;
@@ -351,6 +353,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     double T_wall_outlet = std::numeric_limits<double>::quiet_NaN();
     double T_riser = std::numeric_limits<double>::quiet_NaN();
     double T_downc = std::numeric_limits<double>::quiet_NaN();
+    double T_store_hot_weighted_sum = 0.;
    
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
@@ -373,6 +376,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+
+        cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
+        T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
 
         // Update tanks -> ASSUMING THE COLD TANK CAN TAKE ALL THE CHARGE 
         tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
@@ -438,6 +444,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         }
     }
 
+    cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+
 	mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     double collector_areas = get_collector_area();
 	mc_reported_outputs.value(E_FIELD_ETA_OPT, eta_weighted_sum / collector_areas);			        //[-]
@@ -477,6 +485,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     cr_out_solver.m_q_thermal = 0.;
     cr_out_solver.m_component_defocus = 1.;
     cr_out_solver.m_is_recirculating = false;
+    cr_out_solver.m_m_dot_store_tot = 0.;
+    cr_out_solver.m_T_store_hot = 0.;
     cr_out_solver.m_E_fp_total = 0.;
     cr_out_solver.m_W_dot_col_tracking = 0.;
     cr_out_solver.m_W_dot_htf_pump = 0.;
@@ -503,6 +513,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     double T_wall_outlet = std::numeric_limits<double>::quiet_NaN();
     double T_riser = std::numeric_limits<double>::quiet_NaN();
     double T_downc = std::numeric_limits<double>::quiet_NaN();
+    double T_store_hot_weighted_sum = 0.;
 
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
@@ -527,6 +538,9 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+
+        cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
+        T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
 
         // Update tanks
         tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
@@ -590,6 +604,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
         }
     }
+
+    cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
     mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     double collector_areas = get_collector_area();

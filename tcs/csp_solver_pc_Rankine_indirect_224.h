@@ -26,6 +26,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_util.h"
 #include "csp_solver_core.h"
 
+#include "CO2_properties.h"
+
 #include "lib_util.h"
 #include "htf_props.h"
 
@@ -124,7 +126,9 @@ public:
 		E_M_DOT_HTF_REF		//[kg/hr] HTF mass flow rate at design
 	};
 
-	C_csp_reported_outputs mc_reported_outputs;
+    CO2_state mc_co2_props;
+
+    C_csp_reported_outputs mc_reported_outputs;
 
 	// Class to save messages for up stream classes
 	C_csp_messages mc_csp_messages;
@@ -159,7 +163,11 @@ public:
 		double m_eta_ref;			//[%] design conversion efficiency
 		double m_T_htf_hot_ref;		//[C] design HTF inlet temperature
 		double m_T_htf_cold_ref;	//[C] design HTF output temperature
-		double m_cycle_max_frac;	//[-] Maximum turbine over-design operation fraction
+		
+        double m_P_phx_in_co2_des;  //[MPa] design inlet pressure to PHX
+        double m_P_turb_in_co2_des; //[MPa] design turbine inlet pressure to turbine
+
+        double m_cycle_max_frac;	//[-] Maximum turbine over-design operation fraction
 		double m_cycle_cutoff_frac;	//[-] Minimum turbine operation fraction
 		double m_q_sby_frac;		//[-] fraction of thermal power required for standby mode
 		double m_startup_time;		//[hr] time needed for power block startup
@@ -210,7 +218,9 @@ public:
 
 		S_params()
 		{
-			m_P_ref = m_eta_ref = m_T_htf_hot_ref = m_T_htf_cold_ref = m_dT_cw_ref = m_T_amb_des =
+			m_P_ref = m_eta_ref = m_T_htf_hot_ref = m_T_htf_cold_ref = 
+                m_P_phx_in_co2_des = m_P_turb_in_co2_des =
+                m_dT_cw_ref = m_T_amb_des =
 				m_q_sby_frac = m_P_boil = m_startup_time = m_startup_frac = m_T_approach = m_T_ITD_des =
 				m_P_cond_ratio = m_pb_bd_frac = m_P_cond_min = m_htf_pump_coef = std::numeric_limits<double>::quiet_NaN();
 

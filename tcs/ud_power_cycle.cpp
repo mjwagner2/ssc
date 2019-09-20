@@ -311,7 +311,7 @@ double C_ud_power_cycle::get_phx_deltaT_ND(double T_htf_hot /*C*/, double T_amb 
     // This call needs to define which columns to search
     // Then use 'get_interpolated_ND_output' to get ND total effect
 
-    return get_interpolated_ND_output(i_phx_deltaT, T_htf_hot, T_amb, m_dot_htf_ND);
+    return get_interpolated_ND_output(i_T_phx_cold, T_htf_hot, T_amb, m_dot_htf_ND);
 
     // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
 }

@@ -428,8 +428,29 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 
 	ms_params.m_P_ref *= 1000.0;		//[kW] convert from MW
 	m_q_dot_design = ms_params.m_P_ref / 1000.0 / ms_params.m_eta_ref;	//[MWt]
-	m_m_dot_design = m_q_dot_design*1000.0 / (m_cp_htf_design*((ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)))*3600.0;		//[kg/hr]
-	m_m_dot_min = ms_params.m_cycle_cutoff_frac*m_m_dot_design;		//[kg/hr]
+    m_m_dot_design = m_q_dot_design*1000.0 / (m_cp_htf_design*((ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)))*3600.0;		//[kg/hr]
+    
+    // *** Example parameters ***
+    // ms_params.m_T_htf_cold_ref = 516.28;
+    // ms_params.m_T_htf_hot_ref = 700.0;
+    // ms_params.m_P_phx_in_co2_des = 24.75;       //[MPa]
+    // ms_params.m_P_turb_in_co2_des = 24.63;      //[MPa]
+    // **************************
+    int err_hot = CO2_TP(ms_params.m_T_htf_hot_ref, ms_params.m_P_turb_in_co2_des*1.E3, &mc_co2_props);
+    if (err_hot != 0)
+    {
+        throw(C_csp_exception("Error calculating hot design point Co2 props", "CO2 224 implementation"));
+    }
+    double h_turb_in_des = mc_co2_props.enth;       //[kJ/kg]
+    int err_cold = CO2_TP(ms_params.m_T_htf_cold_ref, ms_params.m_P_phx_in_co2_des*1.E3, &mc_co2_props);
+    if (err_cold != 0)
+    {
+        throw(C_csp_exception("Error calculating cold design point Co2 props", "CO2 224 implementation"));
+    }
+    double h_phx_in_co2_des = mc_co2_props.enth;    //[kJ/kg]
+    m_m_dot_design = m_q_dot_design * 1.E3 / (h_turb_in_des - h_phx_in_co2_des);        //[kg/s]
+
+    m_m_dot_min = ms_params.m_cycle_cutoff_frac*m_m_dot_design;		//[kg/hr]
 	m_m_dot_max = ms_params.m_cycle_max_frac*m_m_dot_design;		//[kg/hr]
 
 	// 8.30.2010 :: Calculate the startup energy needed
@@ -1075,14 +1096,30 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 			m_dot_water_cooling = ms_params.m_m_dot_water_des*mc_user_defined_pc.get_m_dot_water_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/hr]
 
             // Need to apply reference values here...
-            double phx_deltaT_ND = mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
+            double deltaT_phx_co2 = (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)*mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[C]
 
-            double P_phx_in_co2_ND = mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
+            T_htf_cold = ms_params.m_T_htf_hot_ref - deltaT_phx_co2;
 
-            double m_dot_co2_ND = mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[-]
+            double P_phx_in_co2 = ms_params.m_P_phx_in_co2_des*mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MPa]
+
+            double P_turb_in_co2 = ms_params.m_P_turb_in_co2_des*mc_user_defined_pc.get_P_phx_out_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);  //[MPa]
+
+            double m_dot_co2_ND__lookup = m_m_dot_design*mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/s]
+
+            int err_co2_in = CO2_TP(T_htf_hot + 273.15, P_turb_in_co2*1.E3, &mc_co2_props);
+            
+            double h_t_in = mc_co2_props.enth;      //[kJ/kg]
+
+            int err_co2_out = CO2_TP(T_htf_cold + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
+
+            double h_phx_in = mc_co2_props.enth;    //[kJ/kg]
+
+            m_dot_htf = q_dot_htf * 1.E3 / (h_t_in - h_phx_in);     //[kg/s]
+
+            eta = P_cycle / 1.E3 / q_dot_htf;		//[-]
 
 			// Check power cycle outputs to be sure that they are reasonable. If not, return zeros
-			if( ((eta > 1.0) || (eta < 0.0)) || ((T_htf_cold > T_htf_hot) || (T_htf_cold < ms_params.m_T_htf_cold_ref - 100.0)) )
+			if( ((eta > 1.0) || (eta < 0.0)) || err_co2_in != 0 || ((T_htf_cold > T_htf_hot) || (T_htf_cold < ms_params.m_T_htf_cold_ref - 100.0)) )
 			{
 				P_cycle = 0.0;
 				eta = 0.0;
@@ -1097,10 +1134,10 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 			else
 			{
 				// Calculate other important metrics
-				eta = P_cycle / 1.E3 / q_dot_htf;		//[-]
+				//eta = P_cycle / 1.E3 / q_dot_htf;		//[-]
 
 				// Want to iterate to fine more accurate cp_htf?
-				T_htf_cold = T_htf_hot - q_dot_htf / (m_dot_htf / 3600.0*m_cp_htf_design / 1.E3);		//[MJ/s * hr/kg * s/hr * kg-K/kJ * MJ/kJ] = C/K
+				// T_htf_cold = T_htf_hot - q_dot_htf / (m_dot_htf / 3600.0*m_cp_htf_design / 1.E3);		//[MJ/s * hr/kg * s/hr * kg-K/kJ * MJ/kJ] = C/K
 
 				was_method_successful = true;
 			}

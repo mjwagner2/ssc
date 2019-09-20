@@ -180,6 +180,7 @@ public:
 
 		// Steam Rankine or User-Defined
 		bool m_is_user_defined_pc;				//[-] True: user-defined power cycle, False: Built-in Rankine Cycle model
+        bool m_is_udpc_co2;
 
 			// Parameters that have different SSCINPUT names for Rankine Cycle and User Defined Cycle
 		double m_dT_cw_ref;			//[C] design temp difference between cooling water inlet/outlet
@@ -228,6 +229,7 @@ public:
 
 			// Initialize parameters for user-defined power cycle
 			m_is_user_defined_pc = false;
+            m_is_udpc_co2 = true;
 			
 			m_T_htf_low = m_T_htf_high =
 				m_T_amb_low = m_T_amb_high =

@@ -276,6 +276,10 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_MATRIX, "ud_m_dot_htf_ind_od",                "Off design table of user-defined power cycle performance formed from parametric on m_dot_htf [ND]",                                       "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              ""},
     { SSC_INPUT,     SSC_MATRIX, "ud_ind_od",                          "Off design user-defined power cycle performance as function of T_htf, m_dot_htf [ND], and T_amb",                                         "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              ""},
 
+    // Direct CO2 User Defined
+    { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "MPa",          "",                                  "User Defined Power cycle",                 "pc_config=1",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_des",                  "CO2 turbine inlet pressure",                                                                                                              "MPa",          "",                                  "User Defined Power cycle",                 "pc_config=1",                                                      "",              ""},
+
 // sCO2 Powerblock (type 424) inputs
     { SSC_INPUT,     SSC_NUMBER, "sco2_cycle_config",                  "SCO2 cycle configuration, 1=recompression, 2=partial cooling",                                                                            "",             "",                                  "SCO2 Cycle",                               "pc_config=2",                                                      "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "eta_c",                              "Isentropic efficiency of compressor(s)",                                                                                                  "",             "",                                  "SCO2 Cycle",                               "pc_config=2",                                                      "",              ""},
@@ -949,6 +953,10 @@ public:
             pc->m_eta_ref = as_double("design_eff");
             pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
             pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
+
+            pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des");
+            pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des");
+
             pc->m_cycle_max_frac = as_double("cycle_max_frac");
             pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
             pc->m_q_sby_frac = as_double("q_sby_frac");

@@ -430,25 +430,28 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	m_q_dot_design = ms_params.m_P_ref / 1000.0 / ms_params.m_eta_ref;	//[MWt]
     m_m_dot_design = m_q_dot_design*1000.0 / (m_cp_htf_design*((ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)))*3600.0;		//[kg/hr]
     
-    // *** Example parameters ***
-    // ms_params.m_T_htf_cold_ref = 516.28;
-    // ms_params.m_T_htf_hot_ref = 700.0;
-    // ms_params.m_P_phx_in_co2_des = 24.75;       //[MPa]
-    // ms_params.m_P_turb_in_co2_des = 24.63;      //[MPa]
-    // **************************
-    int err_hot = CO2_TP(ms_params.m_T_htf_hot_ref, ms_params.m_P_turb_in_co2_des*1.E3, &mc_co2_props);
-    if (err_hot != 0)
+    if (ms_params.m_is_udpc_co2)
     {
-        throw(C_csp_exception("Error calculating hot design point Co2 props", "CO2 224 implementation"));
+        // *** Example parameters ***
+        // ms_params.m_T_htf_cold_ref = 516.28;
+        // ms_params.m_T_htf_hot_ref = 700.0;
+        // ms_params.m_P_phx_in_co2_des = 24.75;       //[MPa]
+        // ms_params.m_P_turb_in_co2_des = 24.63;      //[MPa]
+        // **************************
+        int err_hot = CO2_TP(ms_params.m_T_htf_hot_ref, ms_params.m_P_turb_in_co2_des*1.E3, &mc_co2_props);
+        if (err_hot != 0)
+        {
+            throw(C_csp_exception("Error calculating hot design point Co2 props", "CO2 224 implementation"));
+        }
+        double h_turb_in_des = mc_co2_props.enth;       //[kJ/kg]
+        int err_cold = CO2_TP(ms_params.m_T_htf_cold_ref, ms_params.m_P_phx_in_co2_des*1.E3, &mc_co2_props);
+        if (err_cold != 0)
+        {
+            throw(C_csp_exception("Error calculating cold design point Co2 props", "CO2 224 implementation"));
+        }
+        double h_phx_in_co2_des = mc_co2_props.enth;    //[kJ/kg]
+        m_m_dot_design = m_q_dot_design * 1.E3 / (h_turb_in_des - h_phx_in_co2_des);        //[kg/s]
     }
-    double h_turb_in_des = mc_co2_props.enth;       //[kJ/kg]
-    int err_cold = CO2_TP(ms_params.m_T_htf_cold_ref, ms_params.m_P_phx_in_co2_des*1.E3, &mc_co2_props);
-    if (err_cold != 0)
-    {
-        throw(C_csp_exception("Error calculating cold design point Co2 props", "CO2 224 implementation"));
-    }
-    double h_phx_in_co2_des = mc_co2_props.enth;    //[kJ/kg]
-    m_m_dot_design = m_q_dot_design * 1.E3 / (h_turb_in_des - h_phx_in_co2_des);        //[kg/s]
 
     m_m_dot_min = ms_params.m_cycle_cutoff_frac*m_m_dot_design;		//[kg/hr]
 	m_m_dot_max = ms_params.m_cycle_max_frac*m_m_dot_design;		//[kg/hr]
@@ -862,6 +865,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	int radcool_cntrl=0;
 	P_cycle = eta = T_htf_cold = m_dot_demand = m_dot_htf_ref = m_dot_water_cooling = W_cool_par = f_hrsys = P_cond = T_cond_out=T_rad_out= std::numeric_limits<double>::quiet_NaN();
 	
+    double P_phx_in_co2 = std::numeric_limits<double>::quiet_NaN(); //[MPa]
 
 	// 4.15.15 twn: hardcode these so they don't have to be passed into call(). Mode is always = 2 for CSP simulations
 	int mode = 2;
@@ -920,6 +924,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;		
 		eta = 0.0;									
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+        P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 		
 		// *****
 		m_dot_demand = 0.0;
@@ -1095,31 +1100,39 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
 			m_dot_water_cooling = ms_params.m_m_dot_water_des*mc_user_defined_pc.get_m_dot_water_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/hr]
 
-            // Need to apply reference values here...
-            double deltaT_phx_co2 = (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)*mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[C]
+            int err_co2_in = 0;
+            int err_co2_out = 0;
+            if (ms_params.m_is_udpc_co2)
+            {
+                double deltaT_phx_co2 = (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)*mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[C]
 
-            T_htf_cold = ms_params.m_T_htf_hot_ref - deltaT_phx_co2;
+                T_htf_cold = ms_params.m_T_htf_hot_ref - deltaT_phx_co2;
 
-            double P_phx_in_co2 = ms_params.m_P_phx_in_co2_des*mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MPa]
+                P_phx_in_co2 = ms_params.m_P_phx_in_co2_des*mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MPa]
 
-            double P_turb_in_co2 = ms_params.m_P_turb_in_co2_des*mc_user_defined_pc.get_P_phx_out_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);  //[MPa]
+                double P_turb_in_co2 = ms_params.m_P_turb_in_co2_des*mc_user_defined_pc.get_P_phx_out_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);  //[MPa]
 
-            double m_dot_co2_ND__lookup = m_m_dot_design*mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/s]
+                double m_dot_co2_ND__lookup = m_m_dot_design * mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/s]
 
-            int err_co2_in = CO2_TP(T_htf_hot + 273.15, P_turb_in_co2*1.E3, &mc_co2_props);
-            
-            double h_t_in = mc_co2_props.enth;      //[kJ/kg]
+                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_turb_in_co2*1.E3, &mc_co2_props);
 
-            int err_co2_out = CO2_TP(T_htf_cold + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
+                double h_t_in = mc_co2_props.enth;      //[kJ/kg]
 
-            double h_phx_in = mc_co2_props.enth;    //[kJ/kg]
+                err_co2_out = CO2_TP(T_htf_cold + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
 
-            m_dot_htf = q_dot_htf * 1.E3 / (h_t_in - h_phx_in);     //[kg/s]
+                double h_phx_in = mc_co2_props.enth;    //[kJ/kg]
+
+                m_dot_htf = q_dot_htf * 1.E3 / (h_t_in - h_phx_in);     //[kg/s]
+            }
+            else
+            {
+                T_htf_cold = T_htf_hot - q_dot_htf / (m_dot_htf / 3600.0*m_cp_htf_design / 1.E3);
+            }
 
             eta = P_cycle / 1.E3 / q_dot_htf;		//[-]
 
 			// Check power cycle outputs to be sure that they are reasonable. If not, return zeros
-			if( ((eta > 1.0) || (eta < 0.0)) || err_co2_in != 0 || ((T_htf_cold > T_htf_hot) || (T_htf_cold < ms_params.m_T_htf_cold_ref - 100.0)) )
+			if( ((eta > 1.0) || (eta < 0.0)) || err_co2_in != 0 || err_co2_out != 0 || ((T_htf_cold > T_htf_hot) || (T_htf_cold < ms_params.m_T_htf_cold_ref - 100.0)) )
 			{
 				P_cycle = 0.0;
 				eta = 0.0;
@@ -1179,6 +1192,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 			P_cycle = 0.0;
 			eta = 0.0;
 			T_htf_cold = ms_params.m_T_htf_cold_ref;
+            P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 		
 			m_dot_demand = m_dot_sby;
 			m_dot_st_bd = 0.0;
@@ -1219,6 +1233,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;
 		eta = 0.0;
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+        P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 	
 		m_dot_demand = 0.0;
 		m_dot_water_cooling = 0.0;
@@ -1370,6 +1385,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;
 		eta = 0.0;
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+        P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 	
 		m_dot_htf = m_dot_htf_req_kg_s;		//[kg/hr]
 		//m_dot_demand = m_dot_htf_required*3600.0;		//[kg/hr], convert from kg/s
@@ -1519,6 +1535,8 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	out_solver.m_m_dot_htf = m_dot_htf;					//[kg/hr] Actual HTF flow rate passing through the power cycle
 	mc_reported_outputs.value(E_M_DOT_HTF,m_dot_htf);	//[kg/hr] Actual HTF flow rate passing through the power cycle
 	
+    out_solver.m_P_phx_in = P_phx_in_co2;       //[MPa]
+
 	//out_report.m_m_dot_htf_ref = m_dot_htf_ref;		//[kg/hr] Calculated reference HTF flow rate at design
 	mc_reported_outputs.value(E_M_DOT_HTF_REF, m_dot_htf_ref);	//[kg/hr]
 	out_solver.m_W_cool_par = W_cool_par+W_radpump;				//[MWe] Cooling system parasitic load

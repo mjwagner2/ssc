@@ -607,6 +607,8 @@ public:
 		double m_T_htf_cold;		//[C] Heat transfer fluid outlet temperature
 		double m_q_dot_htf;			//[MWt] Thermal power from HTF (= thermal power into cycle)
 		double m_m_dot_htf;			//[kg/hr] Actual HTF flow rate passing through the power cycle
+        
+        double m_P_phx_in;          //[MPa]
 
 			// Parasitics, plant net power equation
 		double m_W_dot_htf_pump;	//[MWe] HTF pumping power
@@ -617,6 +619,7 @@ public:
 		S_csp_pc_out_solver()
 		{
 			m_time_required_su = m_P_cycle = m_T_htf_cold = m_q_dot_htf = m_m_dot_htf =
+                m_P_phx_in =
 				m_W_dot_htf_pump = m_W_cool_par = std::numeric_limits<double>::quiet_NaN();
 
 			m_was_method_successful = false;

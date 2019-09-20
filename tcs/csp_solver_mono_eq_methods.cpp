@@ -22,6 +22,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "csp_solver_core.h"
 #include "numeric_solvers.h"
+#include "CO2_properties.h"
 #include <cmath>
 #include <math.h>
 #include <algorithm>
@@ -128,9 +129,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 }
 
 int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/, double *diff_T_htf_hot /*-*/)
-{
-	// T_htf_hot is...
-    
+{   
     // Call the power cycle in STARTUP_CONTROLLED mode
 	mpc_csp_solver->mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr]
 	mpc_csp_solver->mc_pc_htf_state_in.m_temp = T_htf_hot;		//[C] convert from K
@@ -247,7 +246,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_dc__T_cold::operator()(double T_htf_co
 	double q_dot_tes_dc_max, m_dot_tes_dc_max, T_htf_hot_dc_max;
 	q_dot_tes_dc_max = m_dot_tes_dc_max = T_htf_hot_dc_max = std::numeric_limits<double>::quiet_NaN();
 
-	mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15,
+	mpc_csp_solver->mc_tes.discharge_avail_est_both(T_htf_cold + 273.15,
 										mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
 										q_dot_tes_dc_max,
 										m_dot_tes_dc_max,
@@ -369,7 +368,7 @@ int C_csp_solver::C_mono_eq_pc_match_tes_empty::operator()(double T_htf_cold /*C
 	// First, get the maximum possible mass flow rate from a full TES discharge
 	double T_htf_tes_hot, m_dot_tes_dc;
 	T_htf_tes_hot = m_dot_tes_dc = std::numeric_limits<double>::quiet_NaN();
-	mpc_csp_solver->mc_tes.discharge_full(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+	mpc_csp_solver->mc_tes.discharge_full_both(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
 							mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
 							T_htf_cold + 273.15,
 							T_htf_tes_hot, 
@@ -1426,7 +1425,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_m_dot_max__tes_off__defocus::operator()(double
 	c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
 	// Solve for cold temperature
-	double T_cold_guess_low = mpc_csp_solver->m_T_htf_pc_cold_est - 10.0;	//[C]
+	double T_cold_guess_low = mpc_csp_solver->m_T_htf_pc_cold_est + 50.0;	//[C]  This is the guessed temperature after the LT HX
 	double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
 
 	double T_cold_solved, tol_solved;
@@ -1471,7 +1470,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_m_dot_max__tes_off__defocus::operator()(double
 
 int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
-	// Solve the receiver model with T_htf_cold
+	// Solve the tower model with T_htf_cold from the LT HX
 	mpc_csp_solver->mc_cr_htf_state_in.m_temp = T_htf_cold;		//[C]
 
 	mpc_csp_solver->mc_collector_receiver.on(mpc_csp_solver->mc_weather.ms_outputs,
@@ -1488,13 +1487,67 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 	}
 
 	// Get receiver HTF outputs
-	double m_dot_receiver = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
-	double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;		//[C]
+	double m_dot_rec_out = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
+	double T_htf_rec_out = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15;	//[K]
+    double P_rec_out = mpc_csp_solver->mc_cr_htf_state_in.m_pres - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double m_dot_store_in = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;    //[kg/hr]
+    double T_store_in = mpc_csp_solver->mc_cr_out_solver.m_T_store_hot + 273.15;   //[K]
+
+    // Charge storage
+    double T_cold_tes_K;
+    C_csp_tes::S_csp_tes_outputs tes_outputs;
+    mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+                                    mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+                                    m_dot_store_in / 3600.,
+                                    T_store_in,
+                                    T_cold_tes_K,
+                                    tes_outputs);
+
+    // Recombine excess mass flow from the power cycle
+    double T_htf_hx_in;     //[K]
+    double m_dot_rec_in = mpc_csp_solver->mc_cr_htf_state_in.m_m_dot * 3600.;   //[kg/hr]
+    if (m_dot_rec_in > m_dot_rec_out) {
+        double T_htf_rec_in = T_htf_cold + 273.15;                              //[K]
+        double P_rec_in = mpc_csp_solver->mc_cr_htf_state_in.m_pres;            //[kPa]
+        double m_dot_bypassed = m_dot_rec_in - m_dot_rec_out;                   //[kg/hr]
+
+        // get enthalpy, assume sCO2 HTF
+        CO2_state co2_props;
+        int prop_error_code = CO2_TP(T_htf_rec_in, P_rec_in, &co2_props);
+        double h_in = co2_props.enth;
+        double h_out = h_in;
+        prop_error_code = CO2_PH(P_rec_out, h_out, &co2_props);
+        double T_htf_bypassed = co2_props.temp; //[K]
+
+        T_htf_hx_in = (T_htf_rec_out * m_dot_rec_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_rec_out + m_dot_bypassed);  // [K]  mix streams to get HX inlet temp
+    }
+    else {
+        T_htf_hx_in = T_htf_rec_out;      //[K]
+    }
+    double m_dot_hx_in = m_dot_rec_in;  //[kg/hr]  don't let receiver create mass
+
+
+    // Solve the HT HX using a steady-state storage media mass flow, equal to the receiver storage media mass flow
+    double T_htf_hx_out;
+    mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+                                    mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+                                    m_dot_hx_in / 3600.,
+                                    T_htf_hx_in,
+                                    T_htf_hx_out,
+                                    tes_outputs);
+
+    double m_dot_store_out = tes_outputs.m_m_dot * 3600.;   //[kg/hr]
+    if (m_dot_store_in > m_dot_store_out) {
+        // need to defocus
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -2;
+    }
+
 
 	// Solve the PC performance at MAX PC HTF FLOW RATE
 	// Need to do this to get back PC T_htf_cold
 	// HTF State
-	mpc_csp_solver->mc_pc_htf_state_in.m_temp = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;	//[C]
+	mpc_csp_solver->mc_pc_htf_state_in.m_temp = T_htf_hx_out - 273.15;	//[C]
 	// Inputs
 	mpc_csp_solver->mc_pc_inputs.m_m_dot = mpc_csp_solver->m_m_dot_pc_max;				//[kg/hr]
 	mpc_csp_solver->mc_pc_inputs.m_standby_control = m_pc_mode;		//[-]
@@ -1512,11 +1565,23 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 		return -2;
 	}
 
-	// Get power cycle HTF return temperature...
-	double T_htf_pc_cold = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold;		//[C]
+	// Get power cycle HTF return state
+	double T_htf_pc_out = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold + 273.15;		//[K]
+    double m_dot_pc_out = mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf;                 //[kg/hr]
+    double P_pc_out = mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1000.;              //[kPa]
+
+    // Discharge virtual warm tank through LT HX
+    mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_dot_pc_out / 3600.,
+        T_htf_pc_out,
+        T_htf_hx_out,
+        tes_outputs);
+
+    // HX PRESSURE DROPS??
 
 	//Calculate diff_T_htf_cold
-	*diff_T_htf_cold = (T_htf_pc_cold - T_htf_cold) / T_htf_cold;		//[-]
+	*diff_T_htf_cold = ((T_htf_hx_out - 273.15) - T_htf_cold) / T_htf_cold;		//[-]
 
 	return 0;
 }

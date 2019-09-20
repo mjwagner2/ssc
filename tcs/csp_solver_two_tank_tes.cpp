@@ -1103,6 +1103,11 @@ bool C_csp_two_tank_tes::discharge_both(double timestep, double T_amb, double m_
     return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
 }
 
+void C_csp_two_tank_tes::discharge_full_lt(double timestep, double T_amb, double T_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
+{
+    return;
+}
+
 bool C_csp_two_tank_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the timestep-average cold charge return temperature of the TES system. This is out of the field side of the heat exchanger (HX), opposite the tank (or 'TES') side,
@@ -2112,6 +2117,11 @@ bool C_csp_cold_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double
 bool C_csp_cold_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
     return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
+}
+
+void C_csp_cold_tes::discharge_full_lt(double timestep, double T_amb, double T_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
+{
+    return;
 }
 
 bool C_csp_cold_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)

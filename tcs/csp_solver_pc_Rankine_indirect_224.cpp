@@ -430,7 +430,7 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	m_q_dot_design = ms_params.m_P_ref / 1000.0 / ms_params.m_eta_ref;	//[MWt]
     m_m_dot_design = m_q_dot_design*1000.0 / (m_cp_htf_design*((ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)))*3600.0;		//[kg/hr]
     
-    if (ms_params.m_is_udpc_co2)
+    if (ms_params.m_is_user_defined_pc && ms_params.m_is_udpc_co2)
     {
         // *** Example parameters ***
         // ms_params.m_T_htf_cold_ref = 516.28;

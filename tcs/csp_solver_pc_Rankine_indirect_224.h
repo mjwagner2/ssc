@@ -229,7 +229,7 @@ public:
 
 			// Initialize parameters for user-defined power cycle
 			m_is_user_defined_pc = false;
-            m_is_udpc_co2 = true;
+            m_is_udpc_co2 = false;
 			
 			m_T_htf_low = m_T_htf_high =
 				m_T_amb_low = m_T_amb_high =

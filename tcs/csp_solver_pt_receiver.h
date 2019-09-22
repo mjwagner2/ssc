@@ -51,9 +51,9 @@
 #define __csp_solver_pt_receiver_
 
 #include "csp_solver_util.h"
-
 #include "htf_props.h"
 #include "csp_solver_core.h"
+#include "CO2_properties.h"
 
 class C_pt_receiver
 {
@@ -168,7 +168,7 @@ public:
 
 protected:
     C_pt_receiver();
-    HTFProperties field_htfProps;       // heat transfer fluid properties
+    sco2Properties field_htfProps;       // heat transfer fluid properties
     HTFProperties tube_material;		// receiver tube material
     HTFProperties ambient_air;			// ambient air properties
 

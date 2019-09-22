@@ -83,6 +83,8 @@ For more information, contact Northland Numerics at: support@nnumerics.com
 #ifndef FIT_CO2_H_INCLUDED
 #define FIT_CO2_H_INCLUDED
 
+#include "htf_props.h"
+
 typedef struct CO2_info
     {
     double molar_mass;        // molar mass of fluid (kg/kmol)
@@ -114,6 +116,35 @@ typedef struct CO2_state
     double sat_liq_dens;  // saturated liquid density (kg/m3)
     }
     CO2_state;
+
+class sco2Properties : public HTFProperties
+{
+public:
+    sco2Properties();
+
+    CO2_info co2_info;
+    CO2_state co2_state;
+
+    double P_kPa_default = 22.e3;
+
+    virtual double Cp(double T_K);    //[kJ/kg-K]
+    virtual double dens(double T_K, double P);
+    virtual double visc(double T_K);
+    virtual double cond(double T_K);
+    virtual double Cv(double T_K);
+    virtual double kin_visc(double T_K, double P);
+    virtual double therm_diff(double T_K, double P);
+    virtual double Pr(double T_K, double P);
+    virtual double Re(double T_K, double P, double vel, double d);
+    virtual double temp(double H);
+    virtual double enth(double T_K);
+
+    virtual double temp_lookup(double enth /*kJ/kg*/);
+    virtual double enth_lookup(double temp /*K*/);
+
+    virtual double Cp_ave(double T_cold_K, double T_hot_K, int n_points);
+    //virtual bool equals(sco2Properties *comp_class);
+};
 
 // Information functions.
 const char * CO2_error_message( int error_code );

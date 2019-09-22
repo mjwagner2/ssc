@@ -33,7 +33,7 @@ void C_heat_exchanger::init(const HTFProperties &fluid_field, const HTFPropertie
 {
 	// Counter flow heat exchanger
 
-    mc_field_htfProps = fluid_field;
+    mc_field_htfProps_old = fluid_field;
     mc_store_htfProps = fluid_store;
 
 		// Design should provide field/pc side design temperatures
@@ -71,6 +71,58 @@ void C_heat_exchanger::init(const HTFProperties &fluid_field, const HTFPropertie
 		NTU = m_eff_des / (1. - m_eff_des);
 
 	m_UA_des = NTU * c_dot_min;		//[W/K]
+
+    m_T_hot_field_prev = m_T_hot_field_calc = T_h_in_des;
+    m_T_cold_field_prev = m_T_cold_field_calc = T_h_out_des;
+    m_m_dot_field_prev = m_m_dot_field_calc = m_dot_h;
+    m_T_hot_tes_prev = m_T_hot_tes_calc = T_c_out;
+    m_T_cold_tes_prev = m_T_cold_tes_calc = T_c_in;
+    m_m_dot_tes_prev = m_m_dot_tes_calc = m_dot_c;
+}
+
+void C_heat_exchanger::init(const sco2Properties &fluid_field, const HTFProperties &fluid_store, double q_transfer_des /*W*/,
+    double dt_des, double T_h_in_des /*K*/, double T_h_out_des /*K*/)
+{
+    // Counter flow heat exchanger
+
+    mc_field_htfProps = fluid_field;
+    mc_store_htfProps = fluid_store;
+
+    // Design should provide field/pc side design temperatures
+    double T_ave = (T_h_in_des + T_h_out_des) / 2.0;		//[K] Average hot side temperature
+    double c_h = mc_field_htfProps.Cp(T_ave)*1000.0;		//[J/kg-K] Spec heat of hot side fluid at hot side average temperature, convert from [kJ/kg-K]
+    double c_c = mc_store_htfProps.Cp(T_ave)*1000.0;		//[J/kg-K] Spec heat of cold side fluid at hot side average temperature (estimate, but should be close)
+        // HX inlet and outlet temperatures
+    double T_c_out = T_h_in_des - dt_des;
+    double T_c_in = T_h_out_des - dt_des;
+    // Mass flow rates
+    double m_dot_h = q_transfer_des / (c_h*(T_h_in_des - T_h_out_des));	//[kg/s]
+    double m_dot_c = q_transfer_des / (c_c*(T_c_out - T_c_in));			//[kg/s]
+    m_m_dot_des_ave = 0.5*(m_dot_h + m_dot_c);		//[kg/s]
+        // Capacitance rates
+    double c_dot_h = m_dot_h * c_h;				//[W/K]
+    double c_dot_c = m_dot_c * c_c;				//[W/K]
+    double c_dot_max = fmax(c_dot_h, c_dot_c);	//[W/K]
+    double c_dot_min = fmin(c_dot_h, c_dot_c);	//[W/K]
+    double cr = c_dot_min / c_dot_max;			//[-]
+        // Maximum possible energy flow rate
+    double q_max = c_dot_min * (T_h_in_des - T_c_in);	//[W]
+        // Effectiveness
+    m_eff_des = q_transfer_des / q_max;
+
+    // Check for realistic conditions
+    if (cr > 1.0 || cr < 0.0)
+    {
+        throw(C_csp_exception("Heat exchanger design calculations failed", ""));
+    }
+
+    double NTU = std::numeric_limits<double>::quiet_NaN();
+    if (cr < 1.0)
+        NTU = log((1. - m_eff_des * cr) / (1. - m_eff_des)) / (1. - cr);
+    else
+        NTU = m_eff_des / (1. - m_eff_des);
+
+    m_UA_des = NTU * c_dot_min;		//[W/K]
 
     m_T_hot_field_prev = m_T_hot_field_calc = T_h_in_des;
     m_T_cold_field_prev = m_T_cold_field_calc = T_h_out_des;

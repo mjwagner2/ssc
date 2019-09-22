@@ -87,24 +87,24 @@ public:
 	bool SetUserDefinedFluid( const util::matrix_t<double> &table );
 	bool SetUserDefinedFluid(const util::matrix_t<double> &table, bool calc_temp_enth_table);
 
-	double Cp( double T_K );    //[kJ/kg-K]
-	double dens( double T_K, double P );
-	double visc( double T_K );
-	double cond( double T_K );
-	double Cv( double T_K );
-	double kin_visc( double T_K, double P );
-	double therm_diff( double T_K, double P );
-	double Pr( double T_K, double P );
-	double Re( double T_K, double P, double vel, double d );
-	double temp( double H );
-	double enth( double T_K );
+	virtual double Cp( double T_K );    //[kJ/kg-K]
+	virtual double dens( double T_K, double P );
+	virtual double visc( double T_K );
+	virtual double cond( double T_K );
+	virtual double Cv( double T_K );
+	virtual double kin_visc( double T_K, double P );
+	virtual double therm_diff( double T_K, double P );
+	virtual double Pr( double T_K, double P );
+	virtual double Re( double T_K, double P, double vel, double d );
+	virtual double temp( double H );
+	virtual double enth( double T_K );
 
-	double temp_lookup( double enth /*kJ/kg*/ );
-	double enth_lookup( double temp /*K*/ );
+	virtual double temp_lookup( double enth /*kJ/kg*/ );
+	virtual double enth_lookup( double temp /*K*/ );
 
 	// 12.11.15 twn: Add method to calculate Cp as average of values throughout temperature range
 	//               rather than at the range's midpoint
-	double Cp_ave(double T_cold_K, double T_hot_K, int n_points);
+	virtual double Cp_ave(double T_cold_K, double T_hot_K, int n_points);
 
 	const util::matrix_t<double> *get_prop_table();
 	//bool equals(const util::matrix_t<double> *comp_table);

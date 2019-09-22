@@ -26,6 +26,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_core.h"
 #include "csp_solver_mspt_collector_receiver.h"
 #include "csp_solver_two_tank_tes.h"
+#include "CO2_properties.h"
 //#include "csp_solver_pt_sf_perf_interp.h"
 //#include "csp_solver_pt_receiver.h"
 
@@ -39,7 +40,7 @@ private:
     std::vector<C_heat_exchanger> hxs;
     C_csp_two_tank_two_hx_tes *tes;
 
-    HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
+    sco2Properties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
 
     std::string error_msg;                  // member string for exception messages

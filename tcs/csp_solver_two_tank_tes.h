@@ -25,15 +25,16 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "csp_solver_core.h"
 #include "csp_solver_util.h"
-
 #include "sam_csp_util.h"
+#include "CO2_properties.h"
 
 const int N_tes_pipe_sections = 11;
 
 class C_heat_exchanger
 {
 private:
-	HTFProperties mc_field_htfProps;
+	sco2Properties mc_field_htfProps;
+    HTFProperties mc_field_htfProps_old;
 	HTFProperties mc_store_htfProps;
 
 	double m_m_dot_des_ave;		    //[kg/s] Average (field and storage sides) mass flow rate
@@ -65,6 +66,9 @@ public:
 
 	void init(const HTFProperties &fluid_field, const HTFProperties &fluid_store, double q_transfer_des,
 		double dt_des, double T_h_in_des, double T_h_out_des);
+
+    void init(const sco2Properties &fluid_field, const HTFProperties &fluid_store, double q_transfer_des,
+        double dt_des, double T_h_in_des, double T_h_out_des);
 
 	void hx_charge_mdot_tes(double T_cold_tes, double m_dot_tes, double T_hot_field, 
 		double &eff, double &T_hot_tes, double &T_cold_field, double &q_trans, double &m_dot_field);
@@ -519,7 +523,7 @@ class C_csp_two_tank_two_hx_tes : public C_csp_tes
 {
 private:
 
-    HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
+    sco2Properties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
 
     C_heat_exchanger lt_hx;                 // Low-temperature heat exchanger

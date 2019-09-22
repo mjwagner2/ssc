@@ -30,7 +30,92 @@ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMA
 ***************************************************************************************************/
 
 #include <math.h>
+#include "csp_solver_util.h"
 #include "CO2_properties.h"
+
+sco2Properties::sco2Properties() {}
+
+double sco2Properties::Cp(double T_K) {
+    int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+
+    return co2_state.cp;    //[kJ/kg-K]
+}
+
+double sco2Properties::dens(double T_K, double P_Pa) {
+    int prop_error_code = CO2_TP(T_K, P_Pa * 1.e-3, &co2_state);
+
+    return co2_state.dens; //[kg/m3]
+}
+
+double sco2Properties::visc(double T_K) {
+    int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+    double dens = co2_state.dens;
+
+    return CO2_visc(dens, T_K);  //[uPa-s]
+}
+
+double sco2Properties::cond(double T_K) {
+    int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+    double dens = co2_state.dens;
+
+    return CO2_cond(dens, T_K); //[W/m-K]
+}
+
+double sco2Properties::Cv(double T_K) {
+    int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+
+    return co2_state.cv; //[kJ/kg-K]
+}
+
+double sco2Properties::kin_visc(double T_K, double P_Pa) {
+    throw(C_csp_exception("sCO2 kinematic viscosity not supported", ""));
+}
+
+double sco2Properties::therm_diff(double T_K, double P_Pa) {
+    throw(C_csp_exception("sCO2 thermal diffusivity not supported", ""));
+}
+
+double sco2Properties::Pr(double T_K, double P_Pa) {
+    throw(C_csp_exception("sCO2 Prandtl number not supported", ""));
+}
+
+double sco2Properties::Re(double T_K, double P, double vel, double d) {
+{
+    // Inputs: temperature [K], pressure [Pa], velocity [m/s], characteristic length [m]
+    // Outputs: Reynolds number [-]
+    double Re_num = dens(T_K, P) * vel * d / visc(T_K);
+    return Re_num;
+}
+}
+
+double sco2Properties::temp(double H) {
+    int prop_error_code = CO2_PH(P_kPa_default, H, &co2_state);
+
+    return co2_state.temp;  //[K]
+}
+
+double sco2Properties::enth(double T_K) {
+    int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+
+    return co2_state.enth;
+}
+
+double sco2Properties::temp_lookup(double enth /*kJ/kg*/) {
+    return temp(enth);
+}
+
+double sco2Properties::enth_lookup(double temp /*K*/) {
+    return enth(temp);
+}
+
+double sco2Properties::Cp_ave(double T_cold_K, double T_hot_K, int n_points) {
+    return (Cp(T_cold_K) + Cp(T_hot_K)) / 2.;
+}
+
+//bool sco2Properties::equals(sco2Properties *comp_class)
+//{
+//    return m_userTable.equals((*comp_class->get_prop_table()));
+//}
 
 using namespace N_co2_props;
 

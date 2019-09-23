@@ -523,6 +523,8 @@ class C_csp_two_tank_two_hx_tes : public C_csp_tes
 {
 private:
 
+    const double P_kPa_default = 22.e3;     // Assumed pressure of the sco2 fluid
+
     sco2Properties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
 

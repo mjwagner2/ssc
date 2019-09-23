@@ -30,6 +30,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "lib_util.h"
 #include "htf_props.h"
+#include "CO2_properties.h"
 
 #include "ud_power_cycle.h"
 #include "csp_solver_two_tank_tes.h"
@@ -63,7 +64,7 @@ private:
 
 	util::matrix_t<double> m_db;
 
-	HTFProperties mc_pc_htfProps;
+	sco2Properties mc_pc_htfProps;
 
 	// member string for exception messages
 	std::string m_error_msg;

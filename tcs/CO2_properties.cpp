@@ -42,7 +42,15 @@ double sco2Properties::Cp(double T_K) {
 }
 
 double sco2Properties::dens(double T_K, double P_Pa) {
-    int prop_error_code = CO2_TP(T_K, P_Pa * 1.e-3, &co2_state);
+    int P_kPa;
+    if (P_Pa < 7.39e6) {  // if the given pressure is less than the critical pressure
+        P_kPa = P_kPa_default;
+    }
+    else {
+        P_kPa = P_Pa * 1.e-3;
+    }
+
+    int prop_error_code = CO2_TP(T_K, P_kPa, &co2_state);
 
     return co2_state.dens; //[kg/m3]
 }
@@ -50,15 +58,17 @@ double sco2Properties::dens(double T_K, double P_Pa) {
 double sco2Properties::visc(double T_K) {
     int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
     double dens = co2_state.dens;
+    double mu = CO2_visc(dens, T_K) * 1.e-6;  //[Pa-s]
 
-    return CO2_visc(dens, T_K);  //[uPa-s]
+    return mu;
 }
 
 double sco2Properties::cond(double T_K) {
     int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
     double dens = co2_state.dens;
+    double k = CO2_cond(dens, T_K); //[W/m-K]
 
-    return CO2_cond(dens, T_K); //[W/m-K]
+    return k;
 }
 
 double sco2Properties::Cv(double T_K) {
@@ -80,12 +90,10 @@ double sco2Properties::Pr(double T_K, double P_Pa) {
 }
 
 double sco2Properties::Re(double T_K, double P, double vel, double d) {
-{
     // Inputs: temperature [K], pressure [Pa], velocity [m/s], characteristic length [m]
     // Outputs: Reynolds number [-]
     double Re_num = dens(T_K, P) * vel * d / visc(T_K);
     return Re_num;
-}
 }
 
 double sco2Properties::temp(double H) {

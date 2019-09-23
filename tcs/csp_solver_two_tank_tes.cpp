@@ -1665,9 +1665,11 @@ int size_tes_piping_TandP(HTFProperties &field_htf_props, double T_field_in, dou
 
     // Calculate Design Pressures, in Pa
     double ff;
-    double rho_avg = field_htf_props.dens((T_field_in + T_field_out) / 2, 9 / 1.e-5);
-    const double P_hi = 17 / 1.e-5;               // downstream SF pump pressure [Pa]
-    const double P_lo = 1 / 1.e-5;                // atmospheric pressure [Pa]
+    double rho_avg = field_htf_props.dens((T_field_in + T_field_out) / 2, P_field_in);
+    //const double P_hi = 17 / 1.e-5;               // downstream SF pump pressure [Pa]
+    //const double P_lo = 1 / 1.e-5;                // atmospheric pressure [Pa]
+    double P_hi = P_field_in;                     // downstream SF pump pressure [Pa]
+    double P_lo = P_field_in * 0.97;
 
     // P_10
     ff = CSP::FrictionFactor(pipe_rough, field_htf_props.Re(TES_T_des.at(10), P_lo, vel.at(10), diams.at(10)));
@@ -2672,7 +2674,7 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         error_msg = "The number of custom TES pipe sections is not correct.";
         throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
     }
-    double rho_avg = mc_field_htfProps.dens((ms_params.m_T_lt_in_des + T_ht_out_des) / 2, 9 / 1.e-5);
+    double rho_avg = mc_field_htfProps.dens((ms_params.m_T_lt_in_des + T_ht_out_des) / 2, P_kPa_default * 1.e3);
     double cp_avg = mc_field_htfProps.Cp((ms_params.m_T_lt_in_des + T_ht_out_des) / 2);
     double m_dot_pb_design = ms_params.m_W_dot_pc_design * 1.e3 /   // convert MWe to kWe for cp [kJ/kg-K]
         (ms_params.m_eta_pc * cp_avg * (T_ht_out_des - ms_params.m_T_lt_in_des));
@@ -2687,8 +2689,10 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
     }
 
     if (ms_params.calc_design_pipe_vals) {
+        double P_field_in = init_inputs.P_to_cr_at_des;  // bar
+        if (std::isnan(P_field_in)) P_field_in = P_kPa_default * 1.e-2;     // kPa to bar
         if (size_tes_piping_TandP(mc_field_htfProps, ms_params.m_T_lt_in_des, T_ht_out_des,
-            init_inputs.P_to_cr_at_des * 1.e5, ms_params.DP_SGS * 1.e5, // bar to Pa
+            P_field_in * 1.e5, ms_params.DP_SGS * 1.e5, // bar to Pa
             ms_params.tes_lengths, ms_params.k_tes_loss_coeffs, ms_params.pipe_rough, ms_params.tanks_in_parallel,
             this->pipe_diams, this->pipe_vel_des,
             this->pipe_T_des, this->pipe_P_des,

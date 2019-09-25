@@ -1713,6 +1713,7 @@ public:
         //steady-state or transient receiver;
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = as_double("epsilon");
+        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * 1.e3 * (1. - 0.5/100.);       //[kPa]
         receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
         receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");

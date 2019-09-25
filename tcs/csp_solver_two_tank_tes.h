@@ -110,19 +110,29 @@ private:
 
 public:
 
+    bool m_use_calc_vals;
+
 	C_storage_tank();
 
 	double calc_mass_at_prev();
 
+    double calc_mass();
+
     double calc_cp_at_prev();
 
+    double calc_cp();
+
     double calc_enth_at_prev();
+
+    double calc_enth();
 
     double get_m_UA();
 
 	double get_m_T_prev();
 
 	double get_m_T_calc();
+
+    double get_m_T();
 
 	double get_m_m_calc();
 
@@ -524,6 +534,8 @@ class C_csp_two_tank_two_hx_tes : public C_csp_tes
 private:
 
     const double P_kPa_default = 22.e3;     // Assumed pressure of the sco2 fluid
+    const double dP_LTHX_perc = 0.5;        // [%] HTF pressure drop in low-temp TES HX as percent of inlet pressure
+    const double dP_HTHX_perc = 1.5;        // [%] HTF pressure drop in high-temp TES HX as percent of inlet pressure
 
     sco2Properties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
@@ -601,8 +613,6 @@ private:
     };
 
 public:
-
-    //bool is_lt_hx;                          // are the inputs for the low temperature HX? (false = high temp HX)
 
     // Class to save messages for up stream classes
     C_csp_messages mc_csp_messages;
@@ -703,6 +713,8 @@ public:
     double P_in_des;                             //[bar] Pressure at the inlet to the TES, at the field side
 
     virtual bool does_tes_exist();
+
+    virtual void use_calc_vals(bool select);               // use values from the current iteration (and not from when last converged) default=false?
 
     virtual double get_hot_temp();
 

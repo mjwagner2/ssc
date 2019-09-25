@@ -157,7 +157,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
     double q_dot_rec_des = 0.;
     double A_aper_total = 0.;
-    double dP_sf = 0.;
+    double dP_sf = 0.;              //[bar]
+    double P_prev = std::numeric_limits<double>::quiet_NaN();   //[bar]
 
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
@@ -166,12 +167,20 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
             solved_params.m_P_cold_des = _solved_params.m_P_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
+            P_prev = solved_params.m_P_cold_des * 1.e-2;    //[bar]
         }
         q_dot_rec_des += _solved_params.m_q_dot_rec_des;
         A_aper_total += _solved_params.m_A_aper_total;
-        dP_sf += _solved_params.m_dP_sf;
+        //dP_sf += _solved_params.m_dP_sf;  //uncomment and comment lines below when receiver has a calculated pressure drop
+        double dP_rec = P_prev * dP_rec_perc / 100.;
+        dP_sf += dP_rec;
+        P_prev -= dP_rec;
         
         hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
+        //comment lines below when HX has a calculated pressure drop
+        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        dP_sf += dP_hx;
+        P_prev -= dP_hx;
     }
 
     solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver
@@ -358,6 +367,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
+
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
 
@@ -370,12 +380,19 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
-        cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
+        //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
+        double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
+        double dP_rec = P_prev * dP_rec_perc / 100.;
+        cr_out_solver.m_dP_sf += dP_rec;
+        P_prev -= dP_rec;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        cr_out_solver.m_dP_sf += dP_hx;
+        P_prev -= dP_hx;
 
         cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
         T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
@@ -390,7 +407,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // of last receiver
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
-        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
+        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;
+        htf_state_in_next.m_pres = P_prev * 1.e2;       //[kPa]
 
         C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
         C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
@@ -532,12 +550,19 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
-        cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
+        //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
+        double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
+        double dP_rec = P_prev * dP_rec_perc / 100.;
+        cr_out_solver.m_dP_sf += dP_rec;
+        P_prev -= dP_rec;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        cr_out_solver.m_dP_sf += dP_hx;
+        P_prev -= dP_hx;
 
         cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
         T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
@@ -551,7 +576,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // from last receiver
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
-        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;    // THIS WILL BE CONTROLLED BY A MEQ VIA VALVING
+        htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;
+        htf_state_in_next.m_pres = P_prev * 1.e2;       //[kPa]
 
         C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
         C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();

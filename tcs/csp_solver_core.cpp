@@ -499,7 +499,7 @@ void C_csp_solver::init()
     C_csp_tes::S_csp_tes_init_inputs tes_init_inputs;
     tes_init_inputs.T_to_cr_at_des = cr_solved_params.m_T_htf_cold_des;
     tes_init_inputs.T_from_cr_at_des = cr_solved_params.m_T_htf_hot_des;
-    tes_init_inputs.P_to_cr_at_des = cr_solved_params.m_dP_sf;
+    tes_init_inputs.P_to_cr_at_des = cr_solved_params.m_P_cold_des * 1.e-2;  //[bar]
 	mc_tes.init(tes_init_inputs);
 		// TOU
     mc_tou.mc_dispatch_params.m_isleapyear = mc_weather.ms_solved_params.m_leapyear;
@@ -811,7 +811,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		
 		m_T_htf_pc_cold_est = mc_pc_out_solver.m_T_htf_cold;	//[C]
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
-		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est;	//[C]
+		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 60;	//[C]
 		C_csp_collector_receiver::S_csp_cr_est_out est_out;
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,
@@ -822,7 +822,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		double m_dot_cr_on = est_out.m_m_dot_avail;		//[kg/hr]
 		double T_htf_hot_cr_on = est_out.m_T_htf_hot;	//[C]
 		if (cr_operating_state != C_csp_collector_receiver::ON) 
-            T_htf_hot_cr_on = m_rec_T_htf_hot_des - 273.15; //[C]
+            T_htf_hot_cr_on = m_T_htf_cold_des - 273.15; //[C]
 			//T_htf_hot_cr_on = m_cycle_T_htf_hot_des - 273.15;	//[C]
 
 		// Get TES operating state info at end of last time step

@@ -695,11 +695,12 @@ public:
 		double m_T_cold_ave;	    //[K]    Average cold tank temperature over timestep
 		double m_T_hot_final;	    //[K]    Hot tank temperature at end of timestep
 		double m_T_cold_final;	    //[K]    Cold tank temperature at end of timestep
+        double dP_perc;             //[%]    HTF pressure drop as percent of inlet pressure
 	
 		S_csp_tes_outputs()
 		{
 			m_q_heater = m_m_dot = m_W_dot_rhtf_pump = m_q_dot_loss = m_q_dot_dc_to_htf = m_q_dot_ch_from_htf = 
-            m_T_hot_ave = m_T_cold_ave = m_T_hot_final = m_T_cold_final = std::numeric_limits<double>::quiet_NaN();
+            m_T_hot_ave = m_T_cold_ave = m_T_hot_final = m_T_cold_final = dP_perc = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 

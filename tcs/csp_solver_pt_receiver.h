@@ -68,6 +68,7 @@ public:
     double m_epsilon;				    //[-] emissivity of the receiver panels
     double m_T_htf_hot_des;			    //[C] hot outlet HTF temperature at design, converted to [K] in init()
     double m_T_htf_cold_des;		    //[C] cold inlet HTF temperature at design, converted to [K] in init()
+    double m_P_cold_des;                //[kPa] design inlet pressure
     double m_f_rec_min;				    //[-] minimum receiver thermal output as fraction of design
     double m_q_rec_des;				    //[MW] design recever thermal output, converted to [W] in init()
     double m_rec_su_delay;			    //[hr] required startup time

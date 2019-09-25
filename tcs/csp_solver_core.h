@@ -708,6 +708,8 @@ public:
 
 	virtual bool does_tes_exist() = 0;
 
+    virtual void use_calc_vals(bool select) = 0;
+
 	virtual double get_hot_temp() = 0;
 
 	virtual double get_cold_temp() = 0;

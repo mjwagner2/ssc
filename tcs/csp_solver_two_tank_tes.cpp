@@ -840,14 +840,20 @@ bool C_csp_two_tank_tes::does_tes_exist()
 	return m_is_tes;
 }
 
+void C_csp_two_tank_tes::use_calc_vals(bool select)
+{
+    mc_hot_tank.m_use_calc_vals = select;
+    mc_cold_tank.m_use_calc_vals = select;
+}
+
 double C_csp_two_tank_tes::get_hot_temp()
 {
-	return mc_hot_tank.get_m_T_prev();	//[K]
+	return mc_hot_tank.get_m_T();	//[K]
 }
 
 double C_csp_two_tank_tes::get_cold_temp()
 {
-	return mc_cold_tank.get_m_T_prev();	//[K]
+	return mc_cold_tank.get_m_T();	//[K]
 }
 
 
@@ -901,7 +907,7 @@ void C_csp_two_tank_tes::discharge_avail_est(double T_cold_K, double step_s, dou
         return;
     }
 
-	double T_hot_ini = mc_hot_tank.get_m_T_prev();		//[K]
+	double T_hot_ini = mc_hot_tank.get_m_T();		//[K]
 
 	if(ms_params.m_is_hx)
 	{
@@ -936,7 +942,7 @@ void C_csp_two_tank_tes::charge_avail_est(double T_hot_K, double step_s, double 
 
 	double m_dot_tank_charge_avail = mc_cold_tank.m_dot_available(f_ch_storage, step_s);	//[kg/s]
 
-	double T_cold_ini = mc_cold_tank.get_m_T_prev();	//[K]
+	double T_cold_ini = mc_cold_tank.get_m_T();	//[K]
 
 	if(ms_params.m_is_hx)
 	{
@@ -1087,16 +1093,16 @@ bool C_csp_two_tank_tes::discharge(double timestep /*s*/, double T_amb /*K*/, do
         double eff_guess, T_hot_field_guess, T_cold_tes_guess, q_trans_guess;
         eff_guess = T_hot_field_guess = T_cold_tes_guess = q_trans_guess = std::numeric_limits<double>::quiet_NaN();
 
-        T_tank_guess_1 = mc_hot_tank.get_m_T_prev();                                // the highest possible tank temp and thus highest resulting mass flow
+        T_tank_guess_1 = mc_hot_tank.get_m_T();                                // the highest possible tank temp and thus highest resulting mass flow
         mc_hx.hx_discharge_mdot_field(T_field_cold_in, m_dot_field, T_tank_guess_1,
             eff_guess, T_hot_field_guess, T_cold_tes_guess, q_trans_guess, m_dot_tank_guess_1);
 
         double T_s, mCp, Q_u, L_s, UA;
-        T_s = mc_hot_tank.get_m_T_prev();
-        mCp = mc_hot_tank.calc_mass_at_prev() * mc_hot_tank.calc_cp_at_prev();  // [J/K]
+        T_s = mc_hot_tank.get_m_T();
+        mCp = mc_hot_tank.calc_mass() * mc_hot_tank.calc_cp();  // [J/K]
         Q_u = 0.;   // [W]
-        //L_s = mc_hot_tank.m_dot_available(0.0, timestep) * mc_hot_tank.calc_enth_at_prev();       // maybe use this instead?
-        L_s = m_dot_tank_guess_1 * mc_hot_tank.calc_enth_at_prev();  // [W]  using highest mass flow, calculated from the first guess
+        //L_s = mc_hot_tank.m_dot_available(0.0, timestep) * mc_hot_tank.calc_enth();       // maybe use this instead?
+        L_s = m_dot_tank_guess_1 * mc_hot_tank.calc_enth();  // [W]  using highest mass flow, calculated from the first guess
         UA = mc_hot_tank.get_m_UA();
         T_tank_guess_2 = T_s + timestep / mCp * (Q_u - L_s - UA * (T_s - T_amb));   // tank energy balance, giving the lowest estimated tank temp due to L_s choice
         mc_hx.hx_discharge_mdot_field(T_field_cold_in, m_dot_field, T_tank_guess_2,
@@ -1269,16 +1275,16 @@ bool C_csp_two_tank_tes::charge(double timestep /*s*/, double T_amb /*K*/, doubl
         double eff_guess, T_cold_field_guess, T_hot_tes_guess, q_trans_guess;
         eff_guess = T_cold_field_guess = T_hot_tes_guess = q_trans_guess = std::numeric_limits<double>::quiet_NaN();
 
-        T_tank_guess_1 = mc_cold_tank.get_m_T_prev();                                // the highest possible tank temp and thus highest resulting mass flow
+        T_tank_guess_1 = mc_cold_tank.get_m_T();                                // the highest possible tank temp and thus highest resulting mass flow
         mc_hx.hx_charge_mdot_field(T_field_hot_in, m_dot_field, T_tank_guess_1,
             eff_guess, T_cold_field_guess, T_hot_tes_guess, q_trans_guess, m_dot_tank_guess_1);
 
         double T_s, mCp, Q_u, L_s, UA;
-        T_s = mc_cold_tank.get_m_T_prev();
-        mCp = mc_cold_tank.calc_mass_at_prev() * mc_cold_tank.calc_cp_at_prev();  // [J/K]
+        T_s = mc_cold_tank.get_m_T();
+        mCp = mc_cold_tank.calc_mass() * mc_cold_tank.calc_cp();  // [J/K]
         Q_u = 0.;   // [W]
-        //L_s = mc_cold_tank.m_dot_available(0.0, timestep) * mc_cold_tank.calc_enth_at_prev();       // maybe use this instead?
-        L_s = m_dot_tank_guess_1 * mc_cold_tank.calc_enth_at_prev();  // [W]  using highest mass flow, calculated from the first guess
+        //L_s = mc_cold_tank.m_dot_available(0.0, timestep) * mc_cold_tank.calc_enth();       // maybe use this instead?
+        L_s = m_dot_tank_guess_1 * mc_cold_tank.calc_enth();  // [W]  using highest mass flow, calculated from the first guess
         UA = mc_cold_tank.get_m_UA();
         T_tank_guess_2 = T_s + timestep / mCp * (Q_u - L_s - UA * (T_s - T_amb));   // tank energy balance, giving the lowest estimated tank temp due to L_s choice
         mc_hx.hx_charge_mdot_field(T_field_hot_in, m_dot_field, T_tank_guess_2,
@@ -1951,14 +1957,20 @@ bool C_csp_cold_tes::does_tes_exist()
 	return m_is_tes;
 }
 
+void C_csp_cold_tes::use_calc_vals(bool select)
+{
+    mc_hot_tank.m_use_calc_vals = select;
+    mc_cold_tank.m_use_calc_vals = select;
+}
+
 double C_csp_cold_tes::get_hot_temp()
 {
-	return mc_hot_tank.get_m_T_prev();	//[K]
+	return mc_hot_tank.get_m_T();	//[K]
 }
 
 double C_csp_cold_tes::get_cold_temp()
 {
-	return mc_cold_tank.get_m_T_prev();	//[K]
+	return mc_cold_tank.get_m_T();	//[K]
 }
 
 
@@ -2041,7 +2053,7 @@ void C_csp_cold_tes::discharge_avail_est(double T_cold_K, double step_s, double 
 
 	double m_dot_tank_disch_avail = mc_hot_tank.m_dot_available(f_storage, step_s);	//[kg/s]
 
-	double T_hot_ini = mc_hot_tank.get_m_T_prev();		//[K]
+	double T_hot_ini = mc_hot_tank.get_m_T();		//[K]
 
 	if (ms_params.m_is_hx)
 	{
@@ -2076,7 +2088,7 @@ void C_csp_cold_tes::charge_avail_est(double T_hot_K, double step_s, double &q_d
 
 	double m_dot_tank_charge_avail = mc_cold_tank.m_dot_available(f_ch_storage, step_s);	//[kg/s]
 
-	double T_cold_ini = mc_cold_tank.get_m_T_prev();	//[K]
+	double T_cold_ini = mc_cold_tank.get_m_T();	//[K]
 
 	if (ms_params.m_is_hx)
 	{

@@ -388,6 +388,9 @@ bool C_csp_stratified_tes::does_tes_exist()
 	return m_is_tes;
 }
 
+void C_csp_stratified_tes::use_calc_vals(bool select)
+{}
+
 double C_csp_stratified_tes::get_hot_temp()
 {
 	return mc_node_one.get_m_T_prev();	//[K]

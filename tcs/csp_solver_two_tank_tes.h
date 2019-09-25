@@ -325,6 +325,8 @@ public:
     
 	virtual bool does_tes_exist();
 
+    virtual void use_calc_vals(bool select);
+
 	virtual double get_hot_temp();
 
 	virtual double get_cold_temp();
@@ -465,6 +467,8 @@ public:
 	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
 
 	virtual bool does_tes_exist();
+
+    virtual void use_calc_vals(bool select);
 
 	virtual double get_hot_temp();
 

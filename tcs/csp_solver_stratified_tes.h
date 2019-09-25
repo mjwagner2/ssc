@@ -174,6 +174,8 @@ public:
 
 	virtual bool does_tes_exist();
 
+    virtual void use_calc_vals(bool select);
+
 	virtual double get_hot_temp();
 
 	virtual double get_cold_temp();

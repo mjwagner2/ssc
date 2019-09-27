@@ -304,6 +304,7 @@ C_storage_tank::C_storage_tank()
 	m_T_htr = m_max_q_htr = std::numeric_limits<double>::quiet_NaN();
 
     m_use_calc_vals = false;
+    m_update_calc_vals = true;
 }
 
 void C_storage_tank::init(HTFProperties htf_class_in, double V_tank_one_temp, double h_tank, double h_min, double u_tank, 
@@ -327,9 +328,9 @@ void C_storage_tank::init(HTFProperties htf_class_in, double V_tank_one_temp, do
 	m_T_htr = T_htr;
 	m_max_q_htr = max_q_htr;
 
-	m_V_prev = V_ini;
-	m_T_prev = T_ini;
-	m_m_prev = calc_mass_at_prev();
+	m_V_prev = m_V_calc = V_ini;
+	m_T_prev = m_T_calc = T_ini;
+	m_m_prev = m_m_prev = calc_mass_at_prev();
 }
 
 double C_storage_tank::calc_mass_at_prev()
@@ -432,160 +433,170 @@ void C_storage_tank::converged()
 void C_storage_tank::energy_balance(double timestep /*s*/, double m_dot_in, double m_dot_out, double T_in /*K*/, double T_amb /*K*/, 
 	double &T_ave /*K*/, double & q_heater /*MW*/, double & q_dot_loss /*MW*/)
 {
-    double T_htf = get_m_T();
-    double m_htf = calc_mass();
+    // These are usually the prev but something the calc values if the flag m_use_calc_vals is true
+    double T_htf_ini = get_m_T();
+    double m_htf_ini = calc_mass();
+
+    double T_htf, m_htf, V_htf;
 
 	// Get properties from tank state at the end of last time step
-	double rho = mc_htf.dens(T_htf, 1.0);	//[kg/m^3]
-	double cp = mc_htf.Cp(T_htf)*1000.0;		//[J/kg-K] spec heat, convert from kJ/kg-K
+	double rho = mc_htf.dens(T_htf_ini, 1.0);	//[kg/m^3]
+	double cp = mc_htf.Cp(T_htf_ini)*1000.0;		//[J/kg-K] spec heat, convert from kJ/kg-K
 
 	// Calculate ending volume levels
-	m_m_calc = m_htf + timestep*(m_dot_in - m_dot_out);	//[kg] Available mass at the end of this timestep
+	m_htf = m_htf_ini + timestep*(m_dot_in - m_dot_out);	//[kg] Available mass at the end of this timestep
     double m_min, m_dot_out_adj;
     bool tank_is_empty = false;
     m_min = 0.001;                              //[kg] minimum tank mass for use in the calculations
-    if (m_m_calc < m_min) {
-        m_m_calc = m_min;
+    if (m_htf < m_min) {
+        m_htf = m_min;
         tank_is_empty = true;
-        m_dot_out_adj = m_dot_in - (m_min - m_htf) / timestep;
+        m_dot_out_adj = m_dot_in - (m_min - m_htf_ini) / timestep;
     }
     else {
         m_dot_out_adj = m_dot_out;
     }
-	m_V_calc = m_m_calc / rho;					//[m^3] Available volume at end of timestep (using initial temperature...)
+	V_htf = m_htf / rho;					//[m^3] Available volume at end of timestep (using initial temperature...)
 
     // Check for continual empty tank
-    if (m_htf <= 1e-4 && tank_is_empty == true) {
+    if (m_htf_ini <= 1e-4 && tank_is_empty == true) {
         if (m_dot_in > 0) {
-            m_T_calc = T_ave = T_in;
+            T_htf = T_ave = T_in;
         }
         else {
-            m_T_calc = T_ave = T_htf;
+            T_htf = T_ave = T_htf_ini;
         }
-        q_dot_loss = m_V_calc = m_m_calc = q_heater = 0.;
-        return;
+        q_dot_loss = V_htf = m_htf = q_heater = 0.;
     }
-
-	if( (m_dot_in - m_dot_out_adj) != 0.0 )
+    else if( (m_dot_in - m_dot_out_adj) != 0.0 )
 	{
 		double a_coef = m_dot_in*T_in + m_UA / cp*T_amb;
 		double b_coef = m_dot_in + m_UA / cp;
 		double c_coef = (m_dot_in - m_dot_out_adj);
 
-		m_T_calc = a_coef / b_coef + (T_htf - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf + 1), 0.0), -b_coef / c_coef);
-		T_ave = a_coef / b_coef + m_htf*(T_htf - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow( max( (timestep*c_coef / m_htf + 1.0), 0.0), 1.0 -b_coef/c_coef) - 1.0);
+		T_htf = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf_ini + 1), 0.0), -b_coef / c_coef);
+		T_ave = a_coef / b_coef + m_htf_ini*(T_htf_ini - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow( max( (timestep*c_coef / m_htf_ini + 1.0), 0.0), 1.0 -b_coef/c_coef) - 1.0);
 		if (timestep < 1.e-6)
-			T_ave = a_coef / b_coef + (T_htf - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf + 1.0), 0.0), -b_coef / c_coef);	// Limiting expression for small time step	
+			T_ave = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf_ini + 1.0), 0.0), -b_coef / c_coef);	// Limiting expression for small time step	
 		q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;		//[MW]
 
-		if( m_T_calc < m_T_htr )
+		if( T_htf < m_T_htr )
 		{
-				q_heater = b_coef*((m_T_htr - T_htf*pow( max( (timestep*c_coef / m_htf + 1), 0.0), -b_coef / c_coef)) /
-					(-pow( max( (timestep*c_coef / m_htf + 1), 0.0), -b_coef / c_coef) + 1)) - a_coef;
+			q_heater = b_coef*((m_T_htr - T_htf_ini*pow( max( (timestep*c_coef / m_htf_ini + 1), 0.0), -b_coef / c_coef)) /
+				(-pow( max( (timestep*c_coef / m_htf_ini + 1), 0.0), -b_coef / c_coef) + 1)) - a_coef;
 
-				q_heater = q_heater*cp;
+			q_heater = q_heater*cp;
 
-				q_heater /= 1.E6;
+			q_heater /= 1.E6;
+
+		    if( q_heater > m_max_q_htr )
+		    {
+			    q_heater = m_max_q_htr;
+		    }
+
+		    a_coef += q_heater*1.E6 / cp;
+
+		    T_htf = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf_ini + 1), 0.0), -b_coef / c_coef);
+		    T_ave = a_coef / b_coef + m_htf_ini*(T_htf_ini - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow( max( (timestep*c_coef / m_htf_ini + 1.0), 0.0), 1.0 -b_coef/c_coef) - 1.0);
+		    if (timestep < 1.e-6)
+			    T_ave = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf_ini + 1.0), 0.0), -b_coef / c_coef);  // Limiting expression for small time step	
+		    q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;		//[MW]
 		}
 		else
 		{
 			q_heater = 0.0;
-			return;
 		}
-
-		if( q_heater > m_max_q_htr )
-		{
-			q_heater = m_max_q_htr;
-		}
-
-		a_coef += q_heater*1.E6 / cp;
-
-		m_T_calc = a_coef / b_coef + (T_htf - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf + 1), 0.0), -b_coef / c_coef);
-		T_ave = a_coef / b_coef + m_htf*(T_htf - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow( max( (timestep*c_coef / m_htf + 1.0), 0.0), 1.0 -b_coef/c_coef) - 1.0);
-		if (timestep < 1.e-6)
-			T_ave = a_coef / b_coef + (T_htf - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf + 1.0), 0.0), -b_coef / c_coef);  // Limiting expression for small time step	
-		q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;		//[MW]
-
 	}
 	else	// No mass flow rate, tank is idle
 	{
-		double b_coef = m_UA / (cp*m_htf);
-		double c_coef = m_UA / (cp*m_htf) * T_amb;
+		double b_coef = m_UA / (cp*m_htf_ini);
+		double c_coef = m_UA / (cp*m_htf_ini) * T_amb;
 
-		m_T_calc = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef*timestep);
-		T_ave = c_coef/b_coef - (T_htf - c_coef/b_coef)/(b_coef*timestep)*(exp(-b_coef*timestep)-1.0);
+		T_htf = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef*timestep);
+		T_ave = c_coef/b_coef - (T_htf_ini - c_coef/b_coef)/(b_coef*timestep)*(exp(-b_coef*timestep)-1.0);
 		if (timestep < 1.e-6)
-			T_ave = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef*timestep);  // Limiting expression for small time step	
+			T_ave = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef*timestep);  // Limiting expression for small time step	
 		q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;
 
-		if( m_T_calc < m_T_htr )
+		if( T_htf < m_T_htr )
 		{
-			q_heater = (b_coef*(m_T_htr - T_htf*exp(-b_coef*timestep)) / (-exp(-b_coef*timestep) + 1.0) - c_coef)*cp*m_htf;
+			q_heater = (b_coef*(m_T_htr - T_htf_ini*exp(-b_coef*timestep)) / (-exp(-b_coef*timestep) + 1.0) - c_coef)*cp*m_htf_ini;
 			q_heater /= 1.E6;	//[MW]
+
+		    if( q_heater > m_max_q_htr )
+		    {
+			    q_heater = m_max_q_htr;
+		    }
+
+		    c_coef += q_heater*1.E6 / (cp*m_htf_ini);
+
+		    T_htf = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef*timestep);
+		    T_ave = c_coef / b_coef - (T_htf_ini - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef*timestep) - 1.0);
+		    if (timestep < 1.e-6)
+			    T_ave = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef*timestep);  // Limiting expression for small time step	
+		    q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;		//[MW]
 		}
 		else
 		{
 			q_heater = 0.0;
-			return;
 		}
-
-		if( q_heater > m_max_q_htr )
-		{
-			q_heater = m_max_q_htr;
-		}
-
-		c_coef += q_heater*1.E6 / (cp*m_htf);
-
-		m_T_calc = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef*timestep);
-		T_ave = c_coef / b_coef - (T_htf - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef*timestep) - 1.0);
-		if (timestep < 1.e-6)
-			T_ave = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef*timestep);  // Limiting expression for small time step	
-		q_dot_loss = m_UA*(T_ave - T_amb)/1.E6;		//[MW]
 	}
 
     if (tank_is_empty) {
         // set to actual values
-        m_V_calc = 0.;
-        m_m_calc = 0.;
+        V_htf = 0.;
+        m_htf = 0.;
+    }
+
+    if (m_update_calc_vals) {
+        m_T_calc = T_htf;
+        m_m_calc = m_htf;
+        m_V_calc = V_htf;
     }
 }
 
 void C_storage_tank::energy_balance_constant_mass(double timestep /*s*/, double m_dot_in, double T_in /*K*/, double T_amb /*K*/,
 	double &T_ave /*K*/, double & q_heater /*MW*/, double & q_dot_loss /*MW*/)
 {
-    double T_htf = get_m_T();
-    double m_htf = calc_mass();
+    double T_htf_ini = get_m_T();
+    double m_htf_ini = calc_mass();
+
+    double T_htf, m_htf, V_htf;
 
 	// Get properties from tank state at the end of last time step
-	double rho = mc_htf.dens(T_htf, 1.0);	//[kg/m^3]
-	double cp = mc_htf.Cp(T_htf)*1000.0;		//[J/kg-K] spec heat, convert from kJ/kg-K
+	double rho = mc_htf.dens(T_htf_ini, 1.0);	//[kg/m^3]
+	double cp = mc_htf.Cp(T_htf_ini)*1000.0;		//[J/kg-K] spec heat, convert from kJ/kg-K
 
 												// Calculate ending volume levels
-	m_m_calc = m_htf;						//[kg] Available mass at the end of this timestep, same as previous
-	m_V_calc = m_m_calc / rho;					//[m^3] Available volume at end of timestep (using initial temperature...)		
+	m_htf = m_htf_ini;						//[kg] Available mass at the end of this timestep, same as previous
+	V_htf = m_htf / rho;					//[m^3] Available volume at end of timestep (using initial temperature...)		
 
 
 	//Analytical method
-		double a_coef = m_dot_in/m_m_calc + m_UA / (m_m_calc*cp);
-		double b_coef = m_dot_in / m_m_calc*T_in + m_UA / (m_m_calc*cp)*T_amb;
+		double a_coef = m_dot_in/m_htf + m_UA / (m_htf*cp);
+		double b_coef = m_dot_in / m_htf*T_in + m_UA / (m_htf*cp)*T_amb;
 
-		m_T_calc = b_coef / a_coef - (b_coef/a_coef-T_htf)*exp(-a_coef*timestep);
-		T_ave = b_coef / a_coef - (b_coef / a_coef - T_htf)*exp(-a_coef*timestep/2); //estimate of average
+		T_htf = b_coef / a_coef - (b_coef/a_coef-T_htf_ini)*exp(-a_coef*timestep);
+		T_ave = b_coef / a_coef - (b_coef / a_coef - T_htf_ini)*exp(-a_coef*timestep/2); //estimate of average
 
-		//T_ave = a_coef / b_coef + m_htf * (T_htf - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow((timestep*c_coef / m_htf + 1.0), 1.0 - b_coef / c_coef) - 1.0);
+		//T_ave = a_coef / b_coef + m_htf_ini * (T_htf_ini - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow((timestep*c_coef / m_htf_ini + 1.0), 1.0 - b_coef / c_coef) - 1.0);
 		//q_dot_loss = m_UA * (T_ave - T_amb) / 1.E6;		//[MW]
 
 		
-
+        if (m_update_calc_vals) {
+            m_T_calc = T_htf;
+            m_m_calc = m_htf;
+            m_V_calc = V_htf;
+        }
 		
 		//Euler numerical method
-		//m_T_calc = T_htf + m_dot_in / m_m_calc * (T_in - T_htf)*timestep + m_UA / (m_m_calc*cp)*(T_amb - T_htf)*timestep;
-		//T_ave = T_htf + m_dot_in / m_m_calc * (T_in - T_htf)*timestep/2 + m_UA / (m_m_calc*cp)*(T_amb - T_htf)*timestep/2; //estimate for average
+		//T_htf = T_htf_ini + m_dot_in / m_htf * (T_in - T_htf_ini)*timestep + m_UA / (m_htf*cp)*(T_amb - T_htf_ini)*timestep;
+		//T_ave = T_htf_ini + m_dot_in / m_htf * (T_in - T_htf_ini)*timestep/2 + m_UA / (m_htf*cp)*(T_amb - T_htf_ini)*timestep/2; //estimate for average
 		
-		/*if (m_T_calc < m_T_htr)
+		/*if (T_htf < m_T_htr)
 		{
-			q_heater = b_coef * ((m_T_htr - T_htf * pow((timestep*c_coef / m_htf + 1), -b_coef / c_coef)) /
-				(-pow((timestep*c_coef / m_htf + 1), -b_coef / c_coef) + 1)) - a_coef;
+			q_heater = b_coef * ((m_T_htr - T_htf_ini * pow((timestep*c_coef / m_htf_ini + 1), -b_coef / c_coef)) /
+				(-pow((timestep*c_coef / m_htf_ini + 1), -b_coef / c_coef) + 1)) - a_coef;
 
 			q_heater = q_heater * cp;
 
@@ -604,22 +615,22 @@ void C_storage_tank::energy_balance_constant_mass(double timestep /*s*/, double 
 
 		a_coef += q_heater * 1.E6 / cp;
 
-		m_T_calc = a_coef / b_coef + (T_htf - a_coef / b_coef)*pow((timestep*c_coef / m_htf + 1), -b_coef / c_coef);
-		T_ave = a_coef / b_coef + m_htf * (T_htf - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow((timestep*c_coef / m_htf + 1.0), 1.0 - b_coef / c_coef) - 1.0);
+		T_htf = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow((timestep*c_coef / m_htf_ini + 1), -b_coef / c_coef);
+		T_ave = a_coef / b_coef + m_htf_ini * (T_htf_ini - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow((timestep*c_coef / m_htf_ini + 1.0), 1.0 - b_coef / c_coef) - 1.0);
 		q_dot_loss = m_UA * (T_ave - T_amb) / 1.E6;		//[MW]*/
 
 	
 	/*{
-		double b_coef = m_UA / (cp*m_htf);
-		double c_coef = m_UA / (cp*m_htf) * T_amb;
+		double b_coef = m_UA / (cp*m_htf_ini);
+		double c_coef = m_UA / (cp*m_htf_ini) * T_amb;
 
-		m_T_calc = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef * timestep);
-		T_ave = c_coef / b_coef - (T_htf - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef * timestep) - 1.0);
+		T_htf = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef * timestep);
+		T_ave = c_coef / b_coef - (T_htf_ini - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef * timestep) - 1.0);
 		q_dot_loss = m_UA * (T_ave - T_amb) / 1.E6;
 
-		if (m_T_calc < m_T_htr)
+		if (T_htf < m_T_htr)
 		{
-			q_heater = (b_coef*(m_T_htr - T_htf * exp(-b_coef * timestep)) / (-exp(-b_coef * timestep) + 1.0) - c_coef)*cp*m_htf;
+			q_heater = (b_coef*(m_T_htr - T_htf_ini * exp(-b_coef * timestep)) / (-exp(-b_coef * timestep) + 1.0) - c_coef)*cp*m_htf_ini;
 			q_heater /= 1.E6;	//[MW]
 		}
 		else
@@ -633,10 +644,10 @@ void C_storage_tank::energy_balance_constant_mass(double timestep /*s*/, double 
 			q_heater = m_max_q_htr;
 		}
 
-		c_coef += q_heater * 1.E6 / (cp*m_htf);
+		c_coef += q_heater * 1.E6 / (cp*m_htf_ini);
 
-		m_T_calc = c_coef / b_coef + (T_htf - c_coef / b_coef)*exp(-b_coef * timestep);
-		T_ave = c_coef / b_coef - (T_htf - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef * timestep) - 1.0);
+		T_htf = c_coef / b_coef + (T_htf_ini - c_coef / b_coef)*exp(-b_coef * timestep);
+		T_ave = c_coef / b_coef - (T_htf_ini - c_coef / b_coef) / (b_coef*timestep)*(exp(-b_coef * timestep) - 1.0);
 		q_dot_loss = m_UA * (T_ave - T_amb) / 1.E6;		//[MW]
 	}*/
 }
@@ -846,6 +857,12 @@ void C_csp_two_tank_tes::use_calc_vals(bool select)
     mc_cold_tank.m_use_calc_vals = select;
 }
 
+void C_csp_two_tank_tes::update_calc_vals(bool select)
+{
+    mc_hot_tank.m_update_calc_vals = select;
+    mc_cold_tank.m_update_calc_vals = select;
+}
+
 double C_csp_two_tank_tes::get_hot_temp()
 {
 	return mc_hot_tank.get_m_T();	//[K]
@@ -884,6 +901,11 @@ double C_csp_two_tank_tes::get_max_charge_energy()
 
  //   return e_max;
     return m_q_pb_design * ms_params.m_ts_hours / 1.e6;
+}
+
+void C_csp_two_tank_tes::set_max_charge_flow(double m_dot_max)
+{
+    m_m_dot_tes_ch_max = m_dot_max;
 }
 
 double C_csp_two_tank_tes::get_degradation_rate()  
@@ -1963,6 +1985,12 @@ void C_csp_cold_tes::use_calc_vals(bool select)
     mc_cold_tank.m_use_calc_vals = select;
 }
 
+void C_csp_cold_tes::update_calc_vals(bool select)
+{
+    mc_hot_tank.m_update_calc_vals = select;
+    mc_cold_tank.m_update_calc_vals = select;
+}
+
 double C_csp_cold_tes::get_hot_temp()
 {
 	return mc_hot_tank.get_m_T();	//[K]
@@ -2037,6 +2065,11 @@ double C_csp_cold_tes::get_max_charge_energy()
 
 	//   return e_max;
 	return m_q_pb_design * ms_params.m_ts_hours / 1.e6;
+}
+
+void C_csp_cold_tes::set_max_charge_flow(double m_dot_max)
+{
+    m_m_dot_tes_ch_max = m_dot_max;
 }
 
 double C_csp_cold_tes::get_degradation_rate()
@@ -2720,8 +2753,8 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         V_hot_ini, T_hot_ini);
     // Virtual warm tank
     mc_warm_tank.init(mc_store_htfProps, m_vol_tank, ms_params.m_h_tank, ms_params.m_h_tank_min,
-        0., ms_params.m_tank_pairs, 0., 0.,
-        0., T_hot_ini);
+        1.e-6, ms_params.m_tank_pairs, 0., 0.,
+        m_vol_tank * ms_params.m_h_tank_min / ms_params.m_h_tank, T_hot_ini);  // make the initial volume equal to the minimum volume, so basically empty but avoids temp calc errors
     // Cold tank
     mc_cold_tank.init(mc_store_htfProps, m_vol_tank, ms_params.m_h_tank, ms_params.m_h_tank_min,
         ms_params.m_u_tank, ms_params.m_tank_pairs, ms_params.m_cold_tank_Thtr, ms_params.m_cold_tank_max_heat,
@@ -2783,6 +2816,13 @@ void C_csp_two_tank_two_hx_tes::use_calc_vals(bool select)
     mc_cold_tank.m_use_calc_vals = select;
 }
 
+void C_csp_two_tank_two_hx_tes::update_calc_vals(bool select)
+{
+    mc_hot_tank.m_update_calc_vals = select;
+    mc_warm_tank.m_update_calc_vals = select;
+    mc_cold_tank.m_update_calc_vals = select;
+}
+
 double C_csp_two_tank_two_hx_tes::get_hot_temp()
 {
     return mc_hot_tank.get_m_T();	//[K]
@@ -2808,6 +2848,11 @@ double C_csp_two_tank_two_hx_tes::get_min_charge_energy()
 double C_csp_two_tank_two_hx_tes::get_max_charge_energy()
 {
     return m_q_pb_design * ms_params.m_ts_hours / 1.e6;     //MWh
+}
+
+void C_csp_two_tank_two_hx_tes::set_max_charge_flow(double m_dot_max)
+{
+    m_m_dot_tes_ch_max = m_dot_max;
 }
 
 double C_csp_two_tank_two_hx_tes::get_degradation_rate()
@@ -3101,6 +3146,7 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
     m_dot_tank_guess_1 = fmax(m_dot_tank_lower, fmin(m_dot_tank_guess_1, m_dot_tank_upper));
     m_dot_tank_guess_2 = fmax(m_dot_tank_lower, fmin(m_dot_tank_guess_2, m_dot_tank_upper));
 
+    update_calc_vals(false);    // the calc values from the previous charge() need to be preserved through the following iterations
     bool m_dot_solved = false;
     if (m_dot_tank_guess_1 == m_dot_tank_guess_2) {
         // First try if guess solves
@@ -3156,6 +3202,7 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
             throw(C_csp_exception("Failed to converge on a valid tank mass flow."));
         }
     }
+    update_calc_vals(true);
 
     // The other needed outputs are not all saved in member variables so recalculate here
     mc_hot_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
@@ -3198,7 +3245,7 @@ bool C_csp_two_tank_two_hx_tes::discharge_both(double timestep /*s*/, double T_a
     // 1) Mass flow of the HTF through the LT_HX and HT_HX on the 'field' side opposite the storage media.
     // 2) Temperature of the HTF into the LT_HX on the 'field' side opposite the storage media.
 
-    if (m_dot_htf_in > m_m_dot_tes_dc_max)      // mass flow in = mass flow out
+    if (m_dot_htf_in > m_m_dot_tes_dc_max || std::isnan(m_m_dot_tes_dc_max))      // mass flow in = mass flow out
     {
         outputs.m_q_heater = std::numeric_limits<double>::quiet_NaN();
         outputs.m_m_dot = std::numeric_limits<double>::quiet_NaN();
@@ -3438,7 +3485,7 @@ bool C_csp_two_tank_two_hx_tes::charge(double timestep /*s*/, double T_amb /*K*/
     // 1) Mass flow rate of storage media directly entering the hot tank
     // 2) Temperature of the storage media directly entering the hot tank
 
-    if (m_dot_htf_in > m_m_dot_tes_ch_max)
+    if (m_dot_htf_in > m_m_dot_tes_ch_max || std::isnan(m_m_dot_tes_ch_max))
     {
         outputs.m_q_heater = std::numeric_limits<double>::quiet_NaN();
         outputs.m_m_dot = std::numeric_limits<double>::quiet_NaN();

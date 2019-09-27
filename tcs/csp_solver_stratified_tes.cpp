@@ -391,6 +391,9 @@ bool C_csp_stratified_tes::does_tes_exist()
 void C_csp_stratified_tes::use_calc_vals(bool select)
 {}
 
+void C_csp_stratified_tes::update_calc_vals(bool select)
+{}
+
 double C_csp_stratified_tes::get_hot_temp()
 {
 	return mc_node_one.get_m_T_prev();	//[K]
@@ -465,6 +468,11 @@ double C_csp_stratified_tes::get_max_charge_energy()
 
 	//   return e_max;
 	return m_q_pb_design * ms_params.m_ts_hours / 1.e6;
+}
+
+void C_csp_stratified_tes::set_max_charge_flow(double m_dot_max)
+{
+    m_m_dot_tes_ch_max = m_dot_max;
 }
 
 double C_csp_stratified_tes::get_degradation_rate()

@@ -710,6 +710,8 @@ public:
 
     virtual void use_calc_vals(bool select) = 0;
 
+    virtual void update_calc_vals(bool select) = 0;
+
 	virtual double get_hot_temp() = 0;
 
 	virtual double get_cold_temp() = 0;
@@ -719,6 +721,8 @@ public:
     virtual double get_min_charge_energy() = 0; //MWh
 
     virtual double get_max_charge_energy() = 0; //MWh
+
+    virtual void set_max_charge_flow(double m_dot_max) = 0;   //kg/s
 
     virtual double get_degradation_rate() = 0;  // s^-1
 

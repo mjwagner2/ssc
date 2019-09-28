@@ -1187,16 +1187,18 @@ public:
 		double m_P_field_in;			//[kPa]
 		double m_x_field_in;			//[-]
 		double m_field_control_in;		//[-]
+        double m_m_dot;                 //[kg/hr]
 
 	public:
 		C_mono_eq_cr_to_pc_to_cr(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
-			double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/)
+			double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/, double m_dot /*kg/hr*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
 			m_pc_mode = pc_mode;
 			m_P_field_in = P_field_in;
 			m_x_field_in = x_field_in;
 			m_field_control_in = field_control_in;
+            m_m_dot = m_dot;
 		}
 		
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
@@ -1656,6 +1658,29 @@ public:
 
 		virtual int operator()(double defocus /*-*/, double *diff_m_dot /*-*/);
 	};
+
+    class C_mono_eq_cr_to_pc_to_cr_m_dot : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        int m_pc_mode;		//[-]
+        double m_P_field_in;			//[kPa]
+        double m_x_field_in;			//[-]
+        double m_field_control_in;		//[-]
+
+    public:
+        C_mono_eq_cr_to_pc_to_cr_m_dot(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
+            double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;
+            m_P_field_in = P_field_in;
+            m_x_field_in = x_field_in;
+            m_field_control_in = field_control_in;
+        }
+
+        virtual int operator()(double m_dot /*kg/hr*/, double *m_dot_bal /*-*/);
+    };
 
 };
 

@@ -1952,7 +1952,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					{
 						// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_RM_HI__TES_OFF here
 
-						C_mono_eq_cr_to_pc_to_cr c_eq(this, pc_mode, m_P_cold_des, -1, defocus_guess);
+						C_mono_eq_cr_to_pc_to_cr c_eq(this, pc_mode, m_P_cold_des, -1, defocus_guess, m_m_dot_pc_des);
 						C_monotonic_eq_solver c_solver(c_eq);
 
 						c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
@@ -5379,27 +5379,27 @@ int C_csp_solver::solver_pc_fixed__tes_empty(double q_dot_pc_fixed /*MWt*/,
 void C_csp_solver::solver_cr_to_pc_to_cr(int pc_mode, double field_control_in, double tol, int &exit_mode, double &exit_tolerance)
 {
 	// Method to solve scenario where the CR is on (under some fixed operating conditions, i.e. defocus)
-	// and the PC is on. No TES or AUX, so the output of the CR connects directly to the PC
+	// and the PC is on. TES is in steady state
 
 	// Ouputs:
 	// int exit_mode: E_solver_outcomes 
 	
-	C_mono_eq_cr_to_pc_to_cr c_eq(this, pc_mode, m_P_cold_des, -1, field_control_in);
-	C_monotonic_eq_solver c_solver(c_eq);
+    C_mono_eq_cr_to_pc_to_cr_m_dot c_eq(this, pc_mode, m_P_cold_des, -1, field_control_in);
+    C_monotonic_eq_solver c_solver(c_eq);
 
-	c_solver.settings(tol, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+    c_solver.settings(tol, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-	double T_htf_cold_guess_colder = m_T_htf_cold_des - 273.15;			//[C], convert from [K]
-	double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
+	double m_dot_guess_lower = m_m_dot_pc_des;            //[kg/hr]
+	double m_dot_guess_higher = m_dot_guess_lower * 1.2;	//[kg/hr]
 
-	double T_htf_cold_solved, tol_solved;
-	T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+	double m_dot_solved, tol_solved;
+	m_dot_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
 	int iter_solved = -1;
 
 	int solver_code = 0;
 	try
 	{
-		solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
+		solver_code = c_solver.solve(m_dot_guess_lower, m_dot_guess_higher, 0.0, m_dot_solved, tol_solved, iter_solved);
 	}
 	catch (C_csp_exception)
 	{
@@ -5410,7 +5410,7 @@ void C_csp_solver::solver_cr_to_pc_to_cr(int pc_mode, double field_control_in, d
 	{
 		if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
 		{
-			error_msg = util::format("At time = %lg the iteration to find the cold HTF temperature connecting the power cycle and receiver only reached a convergence "
+			error_msg = util::format("At time = %lg the iteration to find the HTF mass flow connecting the power cycle and receiver only reached a convergence "
 				"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
 				mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
 			mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);

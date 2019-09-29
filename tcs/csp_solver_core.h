@@ -1339,16 +1339,34 @@ public:
 	private:
 		C_csp_solver *mpc_csp_solver;
 		double m_defocus;		//[-]
+        double m_m_dot;         //[kg/hr] of HTF
 		
 	public:
-		C_mono_eq_cr_on_pc_match_tes_empty(C_csp_solver *pc_csp_solver, double defocus /*-*/)
+		C_mono_eq_cr_on_pc_match_tes_empty(C_csp_solver *pc_csp_solver, double defocus /*-*/, double m_dot_htf /*kg/hr*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
-			m_defocus = defocus;	//[-]
+			m_defocus = defocus;	    //[-]
+            m_m_dot = m_dot_htf;        //[kg/hr] of HTF
 		}
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 	};
+
+    class C_mono_eq_cr_on_pc_match_tes_empty_mdot : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_defocus;		//[-]
+
+    public:
+        C_mono_eq_cr_on_pc_match_tes_empty_mdot(C_csp_solver *pc_csp_solver, double defocus /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_defocus = defocus;	    //[-]
+        }
+
+        virtual int operator()(double m_dot_htf /*kg/hr*/, double *diff_m_dot_store /*-*/);
+    };
 
 	class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
 	{

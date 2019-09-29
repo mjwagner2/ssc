@@ -2913,22 +2913,22 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
 				m_defocus = 1.0;
 
-				C_mono_eq_cr_on_pc_match_tes_empty c_eq(this, m_defocus);
+				C_mono_eq_cr_on_pc_match_tes_empty_mdot c_eq(this, m_defocus);
 				C_monotonic_eq_solver c_solver(c_eq);
 
 				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-				double T_htf_cold_guess_colder = m_T_htf_pc_cold_est;				//[C]
-				double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
+                double m_dot_guess_lower = m_m_dot_pc_des;            //[kg/hr]
+                double m_dot_guess_higher = m_dot_guess_lower * 1.2;	//[kg/hr]
 
-				double T_htf_cold_solved, tol_solved;
-				T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				double m_dot_solved, tol_solved;
+                m_dot_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
 				int iter_solved = -1;
 
 				int solver_code = 0;
 				try
 				{
-					solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
+					solver_code = c_solver.solve(m_dot_guess_lower, m_dot_guess_higher, 0.0, m_dot_solved, tol_solved, iter_solved);
 				}
 				catch (C_csp_exception)
 				{

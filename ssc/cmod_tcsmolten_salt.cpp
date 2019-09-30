@@ -240,6 +240,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "T_pc_cold_des",                      "Power cycle design cold temperature",                                                                                                     "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_pc_hot_des",                       "Power cycle design hot temperature",                                                                                                      "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "pc_config",                          "PC configuration 0=Steam Rankine (224), 1=user defined, 2=sCO2 Recompression (424)",                                                      "",             "",                                  "Power Cycle",                              "?=0",                                                              "INTEGER",       ""},
+    { SSC_INPUT,     SSC_NUMBER, "is_udpc_co2",                        "Is the user-defined power cycle an integrated sco2 cycle, where the HTF is also the cycle working fluid",                                 "",             "",                                  "Power Cycle",                              "?=0",                                                              "INTEGER",       ""},
     { SSC_INPUT,     SSC_NUMBER, "pb_pump_coef",                       "Pumping power to move 1kg of HTF through PB loop",                                                                                        "kW/kg",        "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "startup_time",                       "Time needed for power block startup",                                                                                                     "hr",           "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "startup_frac",                       "Fraction of design thermal power needed for startup",                                                                                     "none",         "",                                  "Power Cycle",                              "*",                                                                "",              ""},
@@ -1051,11 +1052,13 @@ public:
 
                 // Set User Defined cycle parameters to appropriate values
                 pc->m_is_user_defined_pc = false;
+                pc->m_is_udpc_co2 = false;
                 pc->m_W_dot_cooling_des = std::numeric_limits<double>::quiet_NaN();
             }
             else if (pb_tech_type == 1)
             {
                 pc->m_is_user_defined_pc = true;
+                pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
 
                 // User-Defined Cycle Parameters
                 pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
@@ -1218,6 +1221,7 @@ public:
 
                 // User-Defined Cycle Parameters
                 pc->m_is_user_defined_pc = true;
+                pc->m_is_udpc_co2 = false;
 
                 // User-Defined Cycle Parameters
                 pc->m_T_amb_des = as_double("sco2_T_amb_des");          //[C]
@@ -1478,6 +1482,7 @@ public:
 
                     // User-Defined Cycle Parameters
                     pc->m_is_user_defined_pc = true;
+                    pc->m_is_udpc_co2 = false;
 
                     pc->m_T_amb_des = c_sco2_csp.get_design_par()->m_T_amb_des - 273.15;    //[C]
                     pc->m_W_dot_cooling_des = as_double("fan_power_perc_net") / 100.0*as_double("P_ref");   //[MWe]

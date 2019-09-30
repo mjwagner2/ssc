@@ -380,8 +380,9 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 		m_eta_adj = ms_params.m_eta_ref / (Interpolate(12, 2, Psat_ref) / Interpolate(22, 2, Psat_ref));
 	}
 	else
-	{	// Initialization calculations for User Defined power cycle model
-        
+	{	// Initialization calculations for User Defined power cycle model    
+        mc_user_defined_pc.m_W_dot_max_frac = ms_params.m_cycle_max_frac;
+
         // Import the newer single combined UDPC table if it's populated, otherwise try using the older three separate tables
         if (!ms_params.mc_combined_ind.is_single()) {
             try {
@@ -450,7 +451,7 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
             throw(C_csp_exception("Error calculating cold design point Co2 props", "CO2 224 implementation"));
         }
         double h_phx_in_co2_des = mc_co2_props.enth;    //[kJ/kg]
-        m_m_dot_design = m_q_dot_design * 1.E3 / (h_turb_in_des - h_phx_in_co2_des);        //[kg/s]
+        m_m_dot_design = m_q_dot_design * 1.E3 / (h_turb_in_des - h_phx_in_co2_des)*3600.0;        //[kg/hr]
     }
 
     m_m_dot_min = ms_params.m_cycle_cutoff_frac*m_m_dot_design;		//[kg/hr]
@@ -630,28 +631,61 @@ void C_pc_Rankine_indirect_224::get_max_power_output_operation_constraints(doubl
 	}
 	else
 	{
-		// Calculate non-dimensional mass flow rate relative to design point
-		m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
+        if (ms_params.m_is_udpc_co2)
+        {
+            // Calculate non-dimensional mass flow rate relative to design point
+            m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
 
-		// Get ND performance at off-design ambient temperature
-		W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
-			(ms_params.m_T_htf_hot_ref,
-			T_amb,
-			m_dot_HTF_ND_max);	//[-]
+            // Get ND performance at off-design ambient temperature
+            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+            (ms_params.m_T_htf_hot_ref,
+                T_amb,
+                m_dot_HTF_ND_max);	//[-]
 
-		if (W_dot_ND_max >= m_dot_HTF_ND_max)
-		{
-			return;
-		}
+            if (W_dot_ND_max >= m_dot_HTF_ND_max)
+            {
+                m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref, T_amb, m_dot_HTF_ND_max);
+                return;
+            }
 
-		// set m_dot_ND to P_cycle_ND
-		m_dot_HTF_ND_max = W_dot_ND_max;
+            // set m_dot_ND to P_cycle_ND
+            m_dot_HTF_ND_max = W_dot_ND_max;
 
-		// Get ND performance at off-design ambient temperature
-		W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
-			(ms_params.m_T_htf_hot_ref,
-			T_amb,
-			m_dot_HTF_ND_max);	//[-]
+            // Get ND performance at off-design ambient temperature
+            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+            (ms_params.m_T_htf_hot_ref,
+                T_amb,
+                m_dot_HTF_ND_max);	//[-]
+
+            m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref,
+                T_amb,
+                m_dot_HTF_ND_max);
+        }
+        else
+        {
+            // Calculate non-dimensional mass flow rate relative to design point
+            m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
+
+            // Get ND performance at off-design ambient temperature
+            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+            (ms_params.m_T_htf_hot_ref,
+                T_amb,
+                m_dot_HTF_ND_max);	//[-]
+
+            if (W_dot_ND_max >= m_dot_HTF_ND_max)
+            {
+                return;
+            }
+
+            // set m_dot_ND to P_cycle_ND
+            m_dot_HTF_ND_max = W_dot_ND_max;
+
+            // Get ND performance at off-design ambient temperature
+            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+            (ms_params.m_T_htf_hot_ref,
+                T_amb,
+                m_dot_HTF_ND_max);	//[-]
+        }
 
 		return;
 	}
@@ -1090,42 +1124,53 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
 			// Calculate non-dimensional mass flow rate relative to design point
 			double m_dot_htf_ND = m_dot_htf / m_m_dot_design;         //[-]
-
-			// Get ND performance at off-design / part-load conditions
-			P_cycle = ms_params.m_P_ref*mc_user_defined_pc.get_W_dot_gross_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kW]
-
-			q_dot_htf = m_q_dot_design*mc_user_defined_pc.get_Q_dot_HTF_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);		//[MWt]
-
-			W_cool_par = ms_params.m_W_dot_cooling_des*mc_user_defined_pc.get_W_dot_cooling_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MW]
-
-			m_dot_water_cooling = ms_params.m_m_dot_water_des*mc_user_defined_pc.get_m_dot_water_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/hr]
-
+            			
             int err_co2_in = 0;
             int err_co2_out = 0;
             if (ms_params.m_is_udpc_co2)
             {
-                double deltaT_phx_co2 = (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref)*mc_user_defined_pc.get_phx_deltaT_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[C]
+                double deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2;
+                deltaT_phx_co2 = P_phx_in_co2 = m_dot_co2_out_ND = P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN();
 
-                T_htf_cold = ms_params.m_T_htf_hot_ref - deltaT_phx_co2;
+                mc_user_defined_pc.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
+                    P_cycle, q_dot_htf, W_cool_par, m_dot_water_cooling,
+                    deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2);
+                P_cycle *= ms_params.m_P_ref;
+                q_dot_htf *= m_q_dot_design;
+                W_cool_par *= ms_params.m_W_dot_cooling_des;
+                m_dot_warm_avail *= ms_params.m_m_dot_water_des;
+                deltaT_phx_co2 *= (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref);
+                P_phx_in_co2 *= ms_params.m_P_phx_in_co2_des;                           //[MPa]
+                double m_dot_co2_out__lookup = m_dot_co2_out_ND * m_m_dot_design;       //[kg/hr]
+                P_phx_out_co2 *= ms_params.m_P_turb_in_co2_des;                         //[MPa]
 
-                P_phx_in_co2 = ms_params.m_P_phx_in_co2_des*mc_user_defined_pc.get_P_phx_in_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MPa]
+                // Calcs
+                double T_htf_cold__lookup = ms_params.m_T_htf_hot_ref - deltaT_phx_co2; //[C]
 
-                double P_turb_in_co2 = ms_params.m_P_turb_in_co2_des*mc_user_defined_pc.get_P_phx_out_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);  //[MPa]
-
-                double m_dot_co2_ND__lookup = m_m_dot_design * mc_user_defined_pc.get_m_dot_co2_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/s]
-
-                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_turb_in_co2*1.E3, &mc_co2_props);
+                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
 
                 double h_t_in = mc_co2_props.enth;      //[kJ/kg]
 
-                err_co2_out = CO2_TP(T_htf_cold + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
+                // q_dot = m_dot(h_t_in - h_phx_in)
+                double h_phx_in = h_t_in - q_dot_htf * 1.E3 / (m_dot_htf / 3600.0);        //[kJ/kg]
 
-                double h_phx_in = mc_co2_props.enth;    //[kJ/kg]
+                err_co2_out = CO2_PH(P_phx_in_co2*1.E3, h_phx_in, &mc_co2_props);
 
-                m_dot_htf = q_dot_htf * 1.E3 / (h_t_in - h_phx_in);     //[kg/s]
+                T_htf_cold = mc_co2_props.temp - 273.15;
+
+                double blahhh = 1.23;
             }
             else
             {
+                // Get ND performance at off-design / part-load conditions
+                P_cycle = ms_params.m_P_ref*mc_user_defined_pc.get_W_dot_gross_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kW]
+
+                q_dot_htf = m_q_dot_design * mc_user_defined_pc.get_Q_dot_HTF_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);		//[MWt]
+
+                W_cool_par = ms_params.m_W_dot_cooling_des*mc_user_defined_pc.get_W_dot_cooling_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[MW]
+
+                m_dot_water_cooling = ms_params.m_m_dot_water_des*mc_user_defined_pc.get_m_dot_water_ND(T_htf_hot, T_db - 273.15, m_dot_htf_ND);	//[kg/hr]
+
                 T_htf_cold = T_htf_hot - q_dot_htf / (m_dot_htf / 3600.0*m_cp_htf_design / 1.E3);
             }
 

@@ -20,6 +20,8 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <algorithm>
+
 #include "ud_power_cycle.h"
 #include "csp_solver_util.h"
 
@@ -344,6 +346,79 @@ double C_ud_power_cycle::get_P_phx_out_co2_ND(double T_htf_hot /*C*/, double T_a
     return get_interpolated_ND_output(i_P_phx_out_co2, T_htf_hot, T_amb, m_dot_htf_ND);
 
     // Also, maybe want to check parameters against max/min, or if extrapolating, or something?
+}
+
+void C_ud_power_cycle::get_co2_outputs_ND__for_W_dot_in(double T_turb_in /*C*/, double T_amb /*C*/, double W_dot_ND /*-*/,
+    double & W_dot_gross_ND, double & Q_dot_HTF_ND, double & W_dot_cooling_ND, double & m_dot_water_ND,
+    double & phx_deltaT_ND, double & P_phx_in_ND, double & m_dot_co2_out_ND, double & P_phx_out_co2_ND)
+{
+    W_dot_gross_ND = get_W_dot_gross_ND(T_turb_in, T_amb, W_dot_ND);
+    Q_dot_HTF_ND = get_Q_dot_HTF_ND(T_turb_in, T_amb, W_dot_ND);
+    W_dot_cooling_ND = get_W_dot_cooling_ND(T_turb_in, T_amb, W_dot_ND);
+    m_dot_water_ND = get_m_dot_water_ND(T_turb_in, T_amb, W_dot_ND);
+    phx_deltaT_ND = get_phx_deltaT_ND(T_turb_in, T_amb, W_dot_ND);
+    P_phx_in_ND = get_P_phx_in_co2_ND(T_turb_in, T_amb, W_dot_ND);
+    m_dot_co2_out_ND = get_m_dot_co2_ND(T_turb_in, T_amb, W_dot_ND);
+    P_phx_out_co2_ND = get_P_phx_out_co2_ND(T_turb_in, T_amb, W_dot_ND);
+}
+
+
+void C_ud_power_cycle::get_co2_outputs_ND__for_m_dot_co2_in(double T_turb_in /*C*/, double T_amb /*C*/, double m_dot_co2_in_ND /*-*/,
+    double & W_dot_gross_ND, double & Q_dot_HTF_ND, double & W_dot_cooling_ND, double & m_dot_water_ND,
+    double & phx_deltaT_ND, double & P_phx_in_ND, double & m_dot_co2_out_ND, double & P_phx_out_co2_ND)
+{
+    // Find W_dot_ND that results in m_dot_co2_in_ND
+    C_MEQ__W_dot__m_dot_co2 c_m_dot_co2(this, T_turb_in, T_amb);
+    C_monotonic_eq_solver c_solver_m_dot_co2(c_m_dot_co2);
+
+    double W_dot_ND_guess = m_W_dot_max_frac;    //[-]
+    double y_m_dot_co2_in = std::numeric_limits<double>::quiet_NaN();
+
+    int udpc_code = c_solver_m_dot_co2.test_member_function(W_dot_ND_guess, &y_m_dot_co2_in);
+    if (udpc_code != 0)
+    {
+        throw(C_csp_exception("UDPC co2 outputs failed", "get_co2_outputs_ND"));
+    }
+
+    if (y_m_dot_co2_in < m_dot_co2_in_ND)
+    {
+        get_co2_outputs_ND__for_W_dot_in(T_turb_in, T_amb, W_dot_ND_guess,
+            W_dot_gross_ND, Q_dot_HTF_ND, W_dot_cooling_ND, m_dot_water_ND,
+            phx_deltaT_ND, P_phx_in_ND, m_dot_co2_out_ND, P_phx_out_co2_ND);
+
+        return;
+    }
+
+    C_monotonic_eq_solver::S_xy_pair xy_1;
+    xy_1.x = W_dot_ND_guess;
+    xy_1.y = y_m_dot_co2_in;
+
+    c_solver_m_dot_co2.settings(1.E-3, 50, 0.0, m_W_dot_max_frac, false);
+
+    double W_dot_ND_solved = std::numeric_limits<double>::quiet_NaN();
+    double tol_solved = std::numeric_limits<double>::quiet_NaN();
+    int iter_solved = -1;
+    udpc_code = c_solver_m_dot_co2.solve(xy_1, std::min(m_dot_co2_in_ND, 0.95*W_dot_ND_guess),
+        m_dot_co2_in_ND, W_dot_ND_solved, tol_solved, iter_solved);
+
+    if (udpc_code != C_monotonic_eq_solver::CONVERGED)
+    {
+        if(!(udpc_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1))
+        {
+            throw(C_csp_exception("UDPC co2 output iteration failed", "get_co2_outputs_ND"));
+        }
+    }
+
+    get_co2_outputs_ND__for_W_dot_in(T_turb_in, T_amb, W_dot_ND_solved,
+        W_dot_gross_ND, Q_dot_HTF_ND, W_dot_cooling_ND, m_dot_water_ND,
+        phx_deltaT_ND, P_phx_in_ND, m_dot_co2_out_ND, P_phx_out_co2_ND);
+}
+
+int C_ud_power_cycle::C_MEQ__W_dot__m_dot_co2::operator()(double W_dot_ND /*-*/, double *m_dot_co2_out_ND /*-*/)
+{
+    *m_dot_co2_out_ND = mpc_udpc->get_m_dot_co2_ND(m_T_turb_in, m_T_amb, W_dot_ND);
+
+    return 0;
 }
 
 double C_ud_power_cycle::get_interpolated_ND_output(int i_ME /*M.E. table index*/, 

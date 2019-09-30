@@ -27,6 +27,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interpolation_routines.h"
 #include "csp_solver_util.h"
 
+#include "numeric_solvers.h"
+
 class C_ud_power_cycle
 {
 
@@ -97,7 +99,12 @@ private:
 
 public:
 
-	C_ud_power_cycle(){};
+    double m_W_dot_max_frac;
+
+	C_ud_power_cycle()
+    {
+        m_W_dot_max_frac = std::numeric_limits<double>::quiet_NaN();
+    };
 
 	~C_ud_power_cycle(){};
 
@@ -105,7 +112,16 @@ public:
 		const util::matrix_t<double> & T_amb_ind, double T_amb_ref /*C*/, double T_amb_low /*C*/, double T_amb_high /*C*/,
 		const util::matrix_t<double> & m_dot_htf_ind, double m_dot_htf_ref /*-*/, double m_dot_htf_low /*-*/, double m_dot_htf_high /*-*/);
 
-	double get_W_dot_gross_ND( double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+    void get_co2_outputs_ND__for_m_dot_co2_in(double T_turb_in /*C*/, double T_amb /*C*/, double m_dot_co2_in_ND /*-*/,
+        double & W_dot_gross_ND, double & Q_dot_HTF_ND, double & W_dot_cooling_ND, double & m_dot_water_ND,
+        double & phx_deltaT_ND, double & P_phx_in_ND, double & m_dot_co2_out_ND, double & P_phx_out_co2_ND);
+    
+    void get_co2_outputs_ND__for_W_dot_in(double T_turb_in /*C*/, double T_amb /*C*/, double W_dot_ND /*-*/,
+        double & W_dot_gross_ND, double & Q_dot_HTF_ND, double & W_dot_cooling_ND, double & m_dot_water_ND,
+        double & phx_deltaT_ND, double & P_phx_in_ND, double & m_dot_co2_out_ND, double & P_phx_out_co2_ND);
+
+
+    double get_W_dot_gross_ND( double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
 
 	double get_Q_dot_HTF_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
 
@@ -121,6 +137,24 @@ public:
 
     double get_P_phx_out_co2_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
 
+    class C_MEQ__W_dot__m_dot_co2 : public C_monotonic_equation
+    {
+    private:
+        C_ud_power_cycle *mpc_udpc;
+        double m_T_turb_in;       //[C]
+        double m_T_amb;           //[C]
+
+    public:
+        C_MEQ__W_dot__m_dot_co2(C_ud_power_cycle *pc_udpc,
+            double T_turb_in /*C*/, double T_amb /*C*/)
+        {
+            mpc_udpc = pc_udpc;
+            m_T_turb_in = T_turb_in;
+            m_T_amb = T_amb;
+        }
+
+        virtual int operator()(double W_dot_ND /*-*/, double *m_dot_co2_out_ND /*-*/);
+    };
 };
 
 class C_od_pc_function

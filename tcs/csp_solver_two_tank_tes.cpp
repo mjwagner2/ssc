@@ -1226,6 +1226,11 @@ bool C_csp_two_tank_tes::discharge(double timestep /*s*/, double T_amb /*K*/, do
 	return true;
 }
 
+bool C_csp_two_tank_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    return false;
+}
+
 bool C_csp_two_tank_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
     return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
@@ -2261,6 +2266,11 @@ bool C_csp_cold_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double
 	return true;
 }
 
+bool C_csp_cold_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    return false;
+}
+
 bool C_csp_cold_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
     return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
@@ -3230,6 +3240,66 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
     double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
     outputs.m_q_dot_dc_to_htf = m_dot_htf_in * cp_htf_ave*(T_htf_hot_out - T_htf_cold_in) / 1000.0;		//[MWt]
+
+    return true;
+}
+
+bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+{
+    // This method calculates the timestep-average hot discharge temperature of the TES system.
+    // This is out of the field side of the high-temp heat exchanger (HT_HX), opposite the tank (or 'TES') side,
+
+    // The method returns FALSE if the system output (same as input) mass flow rate is greater than that available
+
+    // Inputs are:
+    // 1) Mass flow of the HTF through the HT_HX on the 'tes' side opposite the HTF.
+    // 2) Temperature of the HTF into the HT_HX on the 'field' side opposite the storage media.
+
+    if (m_dot_tank > m_m_dot_tes_dc_max || std::isnan(m_m_dot_tes_dc_max))      // mass flow in = mass flow out
+    {
+        outputs.m_q_heater = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_m_dot = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_W_dot_rhtf_pump = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_loss = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_dc_to_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_q_dot_ch_from_htf = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_ave = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_hot_final = std::numeric_limits<double>::quiet_NaN();
+        outputs.m_T_cold_final = std::numeric_limits<double>::quiet_NaN();
+
+        return false;
+    }
+
+    double q_heater_warm, q_heater_hot, q_dot_loss_warm, q_dot_loss_hot, T_warm_ave, T_hot_ave, m_dot_field, T_field_cold_in, T_field_hot_out, T_warm_tank_in;
+    q_heater_warm = q_heater_hot = q_dot_loss_warm = q_dot_loss_hot = T_warm_ave = T_hot_ave = m_dot_field = T_field_cold_in = T_field_hot_out = T_warm_tank_in = std::numeric_limits<double>::quiet_NaN();
+
+
+    mc_hot_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    double eff, q_trans;
+    eff = q_trans = std::numeric_limits<double>::quiet_NaN();
+    ht_hx.hx_discharge_mdot_tes(T_hot_ave, m_dot_tank, T_field_cold_in,
+        eff, T_warm_tank_in, T_field_hot_out, q_trans, m_dot_field);
+
+    mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb, T_warm_ave, q_heater_warm, q_dot_loss_warm);
+
+    outputs.m_q_heater = q_heater_warm + q_heater_hot;			//[MWt]
+    outputs.m_m_dot = m_dot_field;                               //[kg/s]
+    outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
+    T_htf_hot_out = T_field_hot_out;
+    outputs.m_q_dot_loss = q_dot_loss_warm + q_dot_loss_hot;	//[MWt]
+    outputs.m_q_dot_ch_from_htf = 0.0;		                    //[MWt]
+    outputs.m_T_hot_ave = T_hot_ave;						    //[K]
+    outputs.m_T_cold_ave = T_warm_ave;							//[K]
+    outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
+    outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();		//[K]
+    outputs.dP_perc = dP_HTHX_perc;
+
+    // Calculate thermal power to HTF
+    double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
+    double cp_htf_ave = mc_field_htfProps.Cp(T_htf_ave);		//[kJ/kg-K]
+    outputs.m_q_dot_dc_to_htf = m_dot_field * cp_htf_ave*(T_htf_hot_out - T_htf_cold_in) / 1000.0;		//[MWt]
 
     return true;
 }

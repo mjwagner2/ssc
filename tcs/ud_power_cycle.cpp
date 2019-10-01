@@ -393,7 +393,7 @@ void C_ud_power_cycle::get_co2_outputs_ND__for_m_dot_co2_in(double T_turb_in /*C
     xy_1.x = W_dot_ND_guess;
     xy_1.y = y_m_dot_co2_in;
 
-    c_solver_m_dot_co2.settings(1.E-3, 50, 0.0, m_W_dot_max_frac, false);
+    c_solver_m_dot_co2.settings(1.E-4, 50, 0.0, m_W_dot_max_frac, false);
 
     double W_dot_ND_solved = std::numeric_limits<double>::quiet_NaN();
     double tol_solved = std::numeric_limits<double>::quiet_NaN();

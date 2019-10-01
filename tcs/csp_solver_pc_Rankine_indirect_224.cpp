@@ -1129,6 +1129,42 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
             int err_co2_out = 0;
             if (ms_params.m_is_udpc_co2)
             {
+               /* if (true)
+                {
+                    double eta_des = 0.419968;
+                    double W_dot_des = 50000;
+                    double Q_dot_des = W_dot_des / eta_des;
+                    double T_t_in_des = 700.0; 
+                    double T_phx_in_des = 537.492;
+                    double P_phx_in_des = 24.751;
+                    double P_t_in_des = 20.7905;
+
+                    double m_dot_des = 575.992;
+
+                    double f_Q = 0.5058;
+                    double f_P_phx_in = 0.6502;
+                    double f_P_t_in = 0.6859;
+                    double f_deltaT = 0.7971;
+                    double f_m_dot = 0.644068;
+
+                    double q_dot_od = f_Q * Q_dot_des;
+                    double P_t_in_od = f_P_t_in * P_t_in_des;
+                    double P_phx_in_od = f_P_phx_in * P_phx_in_des;
+                    double m_dot_od = m_dot_des * f_m_dot;
+
+                    CO2_TP(T_t_in_des + 273.15, P_t_in_od*1.E3, &mc_co2_props);
+                    double h_t_in_od = mc_co2_props.enth;
+
+                    double h_phx_in_od = h_t_in_od - q_dot_od / m_dot_od;
+
+                    CO2_PH(P_phx_in_od*1.E3, h_phx_in_od, &mc_co2_props);
+                    double T_phx_in_calc = mc_co2_props.temp;
+
+                    double T_phx_in_csv = T_t_in_des - f_deltaT * (T_t_in_des - T_phx_in_des);
+
+                    double blahah = 1.23;
+                }*/
+
                 double deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2;
                 deltaT_phx_co2 = P_phx_in_co2 = m_dot_co2_out_ND = P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN();
 
@@ -1138,7 +1174,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                 P_cycle *= ms_params.m_P_ref;
                 q_dot_htf *= m_q_dot_design;
                 W_cool_par *= ms_params.m_W_dot_cooling_des;
-                m_dot_warm_avail *= ms_params.m_m_dot_water_des;
+                m_dot_water_cooling *= ms_params.m_m_dot_water_des;
                 deltaT_phx_co2 *= (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref);
                 P_phx_in_co2 *= ms_params.m_P_phx_in_co2_des;                           //[MPa]
                 double m_dot_co2_out__lookup = m_dot_co2_out_ND * m_m_dot_design;       //[kg/hr]
@@ -1148,17 +1184,33 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                 double T_htf_cold__lookup = ms_params.m_T_htf_hot_ref - deltaT_phx_co2; //[C]
 
                 err_co2_in = CO2_TP(T_htf_hot + 273.15, P_phx_out_co2*1.E3, &mc_co2_props);
+                double h_t_in = mc_co2_props.enth;
 
-                double h_t_in = mc_co2_props.enth;      //[kJ/kg]
+                err_co2_in = CO2_TP(T_htf_cold__lookup + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
+                double h_phx_in = mc_co2_props.enth;
+
+                double m_dot_co2__check = q_dot_htf * 1.E3 / (h_t_in - h_phx_in) * 3600.0;  //[kg/hr]
+
+                double m_dot_comp = m_dot_co2__check / m_dot_co2_out__lookup;
+
+                double q_dot_calc = m_dot_co2_out__lookup / 3600.0*(h_t_in - h_phx_in)*1.E-3;
+
+                double q_dot_comp = q_dot_calc / q_dot_htf;
+
+                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_phx_out_co2*1.E3, &mc_co2_props);
+
+                h_t_in = mc_co2_props.enth;      //[kJ/kg]
 
                 // q_dot = m_dot(h_t_in - h_phx_in)
-                double h_phx_in = h_t_in - q_dot_htf * 1.E3 / (m_dot_htf / 3600.0);        //[kJ/kg]
+                h_phx_in = h_t_in - q_dot_htf * 1.E3 / (m_dot_htf / 3600.0);        //[kJ/kg]
 
                 err_co2_out = CO2_PH(P_phx_in_co2*1.E3, h_phx_in, &mc_co2_props);
 
                 T_htf_cold = mc_co2_props.temp - 273.15;
 
-                double blahhh = 1.23;
+                double diff_T_htf_cold = T_htf_cold - T_htf_cold__lookup;
+
+                q_dot_htf = q_dot_calc;
             }
             else
             {

@@ -1147,7 +1147,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                 // Calcs
                 double T_htf_cold__lookup = ms_params.m_T_htf_hot_ref - deltaT_phx_co2; //[C]
 
-                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_phx_in_co2*1.E3, &mc_co2_props);
+                err_co2_in = CO2_TP(T_htf_hot + 273.15, P_phx_out_co2*1.E3, &mc_co2_props);
 
                 double h_t_in = mc_co2_props.enth;      //[kJ/kg]
 

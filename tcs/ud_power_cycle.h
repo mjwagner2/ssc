@@ -100,6 +100,7 @@ private:
 public:
 
     double m_W_dot_max_frac;
+    double m_m_dot_ND_min;
 
 	C_ud_power_cycle()
     {

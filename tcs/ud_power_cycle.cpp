@@ -149,6 +149,8 @@ void C_ud_power_cycle::init(const util::matrix_t<double> & T_htf_ind, double T_h
 		throw(C_csp_exception(m_error_msg, "User defined power cycle initialization"));
 	}
 
+    m_m_dot_ND_min = mc_m_dot_htf_ind.get_min_x_value_x_col_0();
+
 	// ************************************************************************
 	// ************************************************************************
 
@@ -352,14 +354,30 @@ void C_ud_power_cycle::get_co2_outputs_ND__for_W_dot_in(double T_turb_in /*C*/, 
     double & W_dot_gross_ND, double & Q_dot_HTF_ND, double & W_dot_cooling_ND, double & m_dot_water_ND,
     double & phx_deltaT_ND, double & P_phx_in_ND, double & m_dot_co2_out_ND, double & P_phx_out_co2_ND)
 {
-    W_dot_gross_ND = get_W_dot_gross_ND(T_turb_in, T_amb, W_dot_ND);
-    Q_dot_HTF_ND = get_Q_dot_HTF_ND(T_turb_in, T_amb, W_dot_ND);
-    W_dot_cooling_ND = get_W_dot_cooling_ND(T_turb_in, T_amb, W_dot_ND);
-    m_dot_water_ND = get_m_dot_water_ND(T_turb_in, T_amb, W_dot_ND);
-    phx_deltaT_ND = get_phx_deltaT_ND(T_turb_in, T_amb, W_dot_ND);
-    P_phx_in_ND = get_P_phx_in_co2_ND(T_turb_in, T_amb, W_dot_ND);
-    m_dot_co2_out_ND = get_m_dot_co2_ND(T_turb_in, T_amb, W_dot_ND);
-    P_phx_out_co2_ND = get_P_phx_out_co2_ND(T_turb_in, T_amb, W_dot_ND);
+    if (W_dot_ND < m_m_dot_ND_min)
+    {
+        m_dot_co2_out_ND = W_dot_ND / m_m_dot_ND_min * get_m_dot_co2_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        
+        W_dot_gross_ND = get_W_dot_gross_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        Q_dot_HTF_ND = get_Q_dot_HTF_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        W_dot_cooling_ND = get_W_dot_cooling_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        m_dot_water_ND = get_m_dot_water_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        phx_deltaT_ND = get_phx_deltaT_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        P_phx_in_ND = get_P_phx_in_co2_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+        P_phx_out_co2_ND = get_P_phx_out_co2_ND(T_turb_in, T_amb, m_m_dot_ND_min);
+    }
+    else
+    {
+        W_dot_gross_ND = get_W_dot_gross_ND(T_turb_in, T_amb, W_dot_ND);
+        Q_dot_HTF_ND = get_Q_dot_HTF_ND(T_turb_in, T_amb, W_dot_ND);
+        W_dot_cooling_ND = get_W_dot_cooling_ND(T_turb_in, T_amb, W_dot_ND);
+        m_dot_water_ND = get_m_dot_water_ND(T_turb_in, T_amb, W_dot_ND);
+        phx_deltaT_ND = get_phx_deltaT_ND(T_turb_in, T_amb, W_dot_ND);
+        P_phx_in_ND = get_P_phx_in_co2_ND(T_turb_in, T_amb, W_dot_ND);
+        m_dot_co2_out_ND = get_m_dot_co2_ND(T_turb_in, T_amb, W_dot_ND);
+        P_phx_out_co2_ND = get_P_phx_out_co2_ND(T_turb_in, T_amb, W_dot_ND);
+    }
+    
 }
 
 
@@ -416,7 +434,14 @@ void C_ud_power_cycle::get_co2_outputs_ND__for_m_dot_co2_in(double T_turb_in /*C
 
 int C_ud_power_cycle::C_MEQ__W_dot__m_dot_co2::operator()(double W_dot_ND /*-*/, double *m_dot_co2_out_ND /*-*/)
 {
-    *m_dot_co2_out_ND = mpc_udpc->get_m_dot_co2_ND(m_T_turb_in, m_T_amb, W_dot_ND);
+    if(W_dot_ND < mpc_udpc->m_m_dot_ND_min)
+    {
+        *m_dot_co2_out_ND =  W_dot_ND / mpc_udpc->m_m_dot_ND_min * mpc_udpc->get_m_dot_co2_ND(m_T_turb_in, m_T_amb, mpc_udpc->m_m_dot_ND_min);
+    }
+    else
+    {
+        *m_dot_co2_out_ND = mpc_udpc->get_m_dot_co2_ND(m_T_turb_in, m_T_amb, W_dot_ND);
+    }
 
     return 0;
 }

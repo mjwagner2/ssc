@@ -1286,128 +1286,295 @@ void C_csp_solver::C_mono_eq_pc_target_tes_empty__T_cold::solve_pc(double step /
 		temp_sim_info);
 }
 
+int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot::operator()(double m_dot_tank /*kg/hr*/, double *diff_q_dot_pc /*-*/)
+{
+    // Converge on the hot tank mass that results in the power cycle operating at its target power
+
+    C_mono_eq_cr_on_pc_target_tes_dc c_eq(mpc_csp_solver, m_pc_mode, m_defocus, m_dot_tank);
+    C_monotonic_eq_solver c_solver(c_eq);
+         
+    // Set up solver
+    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+    // Solve for cold temperature
+    double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+    double T_cold_guess_high = T_cold_guess_low + 10.0;                         //[C]
+
+    double T_cold_solved, tol_solved;
+    T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+    int iter_solved = -1;
+
+    // Solve for hot tank mass flow
+    int solver_code = 0;
+    try
+    {
+        solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0, T_cold_solved, tol_solved, iter_solved);
+    }
+    catch (C_csp_exception)
+    {
+        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+    }
+
+    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+    {
+        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+        {
+            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot "
+                "iteration to find the cold HTF temperature only reached a convergence "
+                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+            mpc_csp_solver->mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+        }
+        else
+        {
+            *diff_q_dot_pc = std::numeric_limits<double>::quiet_NaN();
+            return -1;
+        }
+    }
+
+
+    *diff_q_dot_pc = (mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf - m_q_dot_pc_target) / m_q_dot_pc_target;			//[-]
+
+    return 0;
+}
+
 int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
-	mpc_csp_solver->mc_cr_htf_state_in.m_temp = T_htf_cold;		//[C]
+    // Should not be called directly, only via C_mono_eq_cr_on_pc_target_tes_dc_mdot(double m_dot_tank /*kg/hr*/, double *q_dot_pc /*MWt*/)
 
-	mpc_csp_solver->mc_collector_receiver.on(mpc_csp_solver->mc_weather.ms_outputs,
-									mpc_csp_solver->mc_cr_htf_state_in,
-									m_defocus,
-									mpc_csp_solver->mc_cr_out_solver,
-									mpc_csp_solver->mc_kernel.mc_sim_info);
+    mpc_csp_solver->mc_tes.use_calc_vals(true);
 
-	// Check if receiver is OFF or model didn't solve
-	if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
-	{
-		*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-		return -1;
-	}
+    // Solve the tower model with T_htf_cold from the LT HX
+    double T_htf_rec_in = T_htf_cold + 273.15;      //[K]
+    double P_rec_in = mpc_csp_solver->mc_cr_htf_state_in.m_pres;    //[kPa]
+    mpc_csp_solver->mc_cr_htf_state_in.m_temp = T_htf_rec_in - 273.15;		//[C]
+    double P_in = mpc_csp_solver->m_P_cold_des;                 //[kPa] use the receiver design inlet pressure
+    mpc_csp_solver->mc_cr_htf_state_in.m_pres = P_in;
 
-	// Get the receiver mass flow rate
-	double m_dot_rec = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
-	double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;	//[C]
+    mpc_csp_solver->mc_collector_receiver.on(mpc_csp_solver->mc_weather.ms_outputs,
+        mpc_csp_solver->mc_cr_htf_state_in,
+        m_defocus,
+        mpc_csp_solver->mc_cr_out_solver,
+        mpc_csp_solver->mc_kernel.mc_sim_info);
 
-	C_mono_eq_pc_target__m_dot_fixed_plus_tes_dc c_eq(mpc_csp_solver, 
-										m_pc_mode, T_htf_cold,
-										T_htf_rec_hot, m_dot_rec);
-	C_monotonic_eq_solver c_solver(c_eq);
+    // Check if receiver is OFF or didn't solve
+    if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
+    {
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -1;
+    }
 
-	// Call the power cycle with the smallest possible mass flow rate: m_dot_rec
-	//if (m_dot_rec > mpc_csp_solver->m_m_dot_pc_max)
-	//{
-	//	throw(C_csp_exception("In C_mono_eq_cr_on_pc_target_tes_dc method the calculated receiver mass flow rate"
-	//		" was greater than the maximum allowable PC mass flow rate", ""));
-	//}
-	
-	double m_dot_tes_solved = 0.0;		//[kg/hr]
-	double q_dot_pc = std::numeric_limits<double>::quiet_NaN();
-	int solver_code = c_solver.test_member_function(m_dot_tes_solved, &q_dot_pc);
-	if (solver_code != 0)
-	{
-		*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-		return -2;
-	}
+    // Get receiver HTF outputs
+    double m_dot_rec_out = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
+    double T_htf_rec_out = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15;	//[K]
+    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double m_dot_store = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;    //[kg/hr]
+    double T_store_in = mpc_csp_solver->mc_cr_out_solver.m_T_store_hot + 273.15;   //[K]
 
-	if ((mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf - m_q_dot_target) / m_q_dot_target < -1.E-3)
-	{	// Sending max(m_dot_CR, m_m_dot_PC_max) to PC and still under target
-		// So discharge TES to meet target
-		// Iterate on mass flow rate
-		C_monotonic_eq_solver::S_xy_pair xy_pair_1;
-		xy_pair_1.x = m_dot_tes_solved;		//[kg/hr]
-		xy_pair_1.y = q_dot_pc;				//[MWt]
+    // Charge storage
+    // First set available charge to that coming from the tower
+    mpc_csp_solver->mc_tes.set_max_charge_flow(m_dot_store);
+    double T_cold_tes_K;
+    mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_dot_store / 3600.,
+        T_store_in,
+        T_cold_tes_K,
+        mpc_csp_solver->mc_tes_outputs);
 
-		// Get the maximum TES discharge mass flow rate
-		double q_dot_tes_dc_max, m_dot_tes_dc_max, T_tes_hot_dc_max;
-		q_dot_tes_dc_max = m_dot_tes_dc_max = T_tes_hot_dc_max = std::numeric_limits<double>::quiet_NaN();
-		mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, 
-												mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step, 
-												q_dot_tes_dc_max, 
-												m_dot_tes_dc_max, 
-												T_tes_hot_dc_max);
+    // First estimate available discharge in order to updated m_m_dot_tes_dc_max
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
 
-		m_dot_tes_dc_max *= 3600.0;		//[kg/hr] convert from kg/s
-		T_tes_hot_dc_max -= 273.15;		//[C] convert from K
+    mpc_csp_solver->mc_tes.update_calc_vals(false);     // do not update calc values due to following iterations (which are within larger iterations)
 
-		// Get the maximum TES discharge that results in max PC mass flow rate
-		double m_dot_tes_dc_pc_max = fmax(0, mpc_csp_solver->m_m_dot_pc_max - m_dot_rec);	//[kg/hr]
+    // Solve the HT HX using a given media discharge (m_m_dot_tank from the outer MEQ)
+    // This is a test call (update_calc_vals = false) using the receiver outlet temperature
+    // The .calc values are not updated so discharge() is called again later to update them.
+    double T_htf_hx_out, m_dot_hx_out;
+    mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_m_dot_tank / 3600.,
+        T_htf_rec_out,
+        T_htf_hx_out,
+        mpc_csp_solver->mc_tes_outputs);
+    m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.;
 
-		// The minimum of these two is the maximum possible TES dc mass flow rate
-		m_dot_tes_solved = std::min(m_dot_tes_dc_pc_max, m_dot_tes_dc_max);			//[kg/hr]
-		solver_code = c_solver.test_member_function(m_dot_tes_solved, &q_dot_pc);
-		if (solver_code != 0)
-		{
-			*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-			return -3;
-		}
+    double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
+    if (m_dot_rec_out > m_dot_hx_out) {
+        T_htf_hx_in = T_htf_rec_out;    //[K]
+        m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
+        m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
+        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
 
-		// Check if the maximum power cycle mass flow rate can achieve the target thermal power
-		// If so, iterate
-		if (mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf > m_q_dot_target)
-		{
-			C_monotonic_eq_solver::S_xy_pair xy_pair_2;
-			xy_pair_2.x = m_dot_tes_solved;		//[kg/hr]
-			xy_pair_2.y = q_dot_pc;				//[MWt]
+        // Recombine excess mass flow from the CR with that after the HT HX
+        double P_hx_in = P_rec_out;            //[kPa]
+        double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
 
-			c_solver.settings(1.E-3, 50, 0.0, m_dot_tes_solved, true);
+        // get enthalpy, assume sCO2 HTF
+        CO2_state co2_props;
+        int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
+        double h_in = co2_props.enth;
+        double h_out = h_in;
+        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
+        double T_htf_bypassed = co2_props.temp; //[K]
 
-			// Solve for m_dot_pc
-			m_dot_tes_solved = std::numeric_limits<double>::quiet_NaN();
-			double tol_solved = std::numeric_limits<double>::quiet_NaN();
-			int iter_solved = -1;
+        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+    }
+    else {
+        C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_in, P_rec_out, m_dot_rec_out, m_m_dot_tank);
+        C_monotonic_eq_solver c_solver(c_eq);
 
-			solver_code = 0;
-			try
-			{
-				solver_code = c_solver.solve(xy_pair_1, xy_pair_2, m_q_dot_target, m_dot_tes_solved, tol_solved, iter_solved);
-			}
-			catch (C_csp_exception)
-			{
-				throw(C_csp_exception("C_mono_eq_cr_on_pc_target_tes_dc method to calculate the power cycle mass flow rate returned an unexpected exemption"));
-			}
+        // Set up solver
+        c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-			if (solver_code != C_monotonic_eq_solver::CONVERGED)
-			{
-				if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-				{
-					mpc_csp_solver->error_msg = util::format("At time = %lg the iteration to find the TES discharge mass flow rate resulting in the target thermal power only reached a convergence "
-						"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-						mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-					mpc_csp_solver->mc_csp_messages.add_message(C_csp_messages::NOTICE, mpc_csp_solver->error_msg);
-				}
-				else
-				{
-					*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-					return -4;
-				}
-			}
-		}
-	}
+        // Solve for cold temperature
+        double T_cold_guess_low = std::min(T_htf_rec_in, T_htf_rec_out) - 273.15 - 10;	//[C]
+        double T_cold_guess_high = std::max(T_htf_rec_in, T_htf_rec_out) - 273.15 + 10;	//[C]
 
-	double T_htf_cold_calc = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold;	//[C]
+        double T_cold_solved, tol_solved;
+        T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+        int iter_solved = -1;
 
-	*diff_T_htf_cold = (T_htf_cold_calc - T_htf_cold) / T_htf_cold;		//[-]
+        int T_cold_code = 0;
+        try
+        {
+            T_cold_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
+        }
+        catch (C_csp_exception)
+        {
+            throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+        }
 
-	return 0;
+        if (T_cold_code != C_monotonic_eq_solver::CONVERGED)
+        {
+            if (T_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+            {
+                std::string msg = util::format("At time = %lg C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank "
+                    "iteration to find the cold HTF temperature to balance energy between the CR and PC only reached a convergence "
+                    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                    mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                mpc_csp_solver->mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+            }
+            else
+            {
+                *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+                return -1;
+            }
+        }
+
+        T_htf_hx_in = T_cold_solved + 273.15;
+        m_dot_hx_in = m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+        m_dot_pc_in = m_dot_hx_out;     //[kg/hr]
+        T_htf_hx_out = mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out + 273.15;     //[K]
+        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
+
+        // Recombine mass flow that was diverted around the CR with that after the HT HX
+        double P_hx_in = P_rec_out;            //[kPa]
+        double m_dot_bypassed = m_dot_hx_out - m_dot_rec_out;  //[kg/hr]
+
+        // get enthalpy, assume sCO2 HTF
+        CO2_state co2_props;
+        int prop_error_code = CO2_TP(T_htf_rec_in, P_rec_in, &co2_props);
+        double h_in = co2_props.enth;
+        double h_out = h_in;
+        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
+        double T_htf_bypassed = co2_props.temp; //[K]
+
+        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+    }
+
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
+
+    // call discharge again with calc_vals = true to update the hot and warm tank .calc values
+    double T_htf_hot;  //[K] HTF temp out of the HX on the field side
+    mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_m_dot_tank / 3600.,
+        T_htf_hx_in,
+        T_htf_hot,
+        mpc_csp_solver->mc_tes_outputs);
+    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+
+    // Solve the PC performance at the receiver htf flow rate
+    // Need to do this to get back PC T_htf_cold
+    // HTF State
+    mpc_csp_solver->mc_pc_htf_state_in.m_temp = T_htf_pc_in - 273.15;	//[C]
+    mpc_csp_solver->mc_pc_htf_state_in.m_pres = P_hx_out;   //[kPa]
+    // Inputs
+    mpc_csp_solver->mc_pc_inputs.m_m_dot = m_dot_pc_in;				            //[kg/hr]
+    mpc_csp_solver->mc_pc_inputs.m_standby_control = C_csp_power_cycle::ON;		//[-]
+    // Performance Call
+    mpc_csp_solver->mc_power_cycle.call(mpc_csp_solver->mc_weather.ms_outputs,
+        mpc_csp_solver->mc_pc_htf_state_in,
+        mpc_csp_solver->mc_pc_inputs,
+        mpc_csp_solver->mc_pc_out_solver,
+        mpc_csp_solver->mc_kernel.mc_sim_info);
+
+    // Check that power cycle is solving without errors
+    if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
+    {
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -2;
+    }
+
+    // Get power cycle HTF return state
+    double T_htf_pc_out = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold + 273.15;		//[K]
+    double m_dot_pc_out = mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf;                 //[kg/hr]
+    double P_pc_out = mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1000.;              //[kPa]
+
+    // Discharge virtual warm tank through LT HX
+    //double m_dot_hx_out;    //[kg/s]
+    mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        T_htf_pc_out,
+        T_htf_hx_out,
+        m_dot_hx_out,
+        mpc_csp_solver->mc_tes_outputs);
+    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
+
+    m_dot_hx_out *= 3600.;      //[kg/hr]
+    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+
+    // Recombine excess mass flow from the power cycle
+    double T_htf_rec_in_solved;     //[K]
+    if (m_dot_pc_out > m_dot_hx_out) {
+        double m_dot_bypassed = m_dot_pc_out - m_dot_hx_out;                                    //[kg/hr]
+
+        // get enthalpy, assume sCO2 HTF
+        CO2_state co2_props;
+        int prop_error_code = CO2_TP(T_htf_pc_out, P_pc_out, &co2_props);
+        double h_in = co2_props.enth;
+        double h_out = h_in;
+        prop_error_code = CO2_PH(P_lthx_out, h_out, &co2_props);
+        double T_htf_bypassed = co2_props.temp; //[K]
+
+        T_htf_rec_in_solved = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  // [K]  mix streams to get LT HX outlet temp
+    }
+    else {
+        T_htf_rec_in_solved = T_htf_hx_out;      //[K]
+    }
+
+    //Calculate pressure difference (which is not used)
+    double diff_P = (P_lthx_out - P_in) / P_in;
+
+    // Set charging inlet/outlet temps to hot/cold ave temps, respectively
+    mpc_csp_solver->mc_tes_ch_htf_state.m_m_dot = 0.0;					//[kg/hr]
+    mpc_csp_solver->mc_tes_ch_htf_state.m_temp_in = T_store_hot_ave;	//[C]
+    mpc_csp_solver->mc_tes_ch_htf_state.m_temp_out = T_store_cold_ave;  //[C]
+
+    // Set discharge HTF state
+    mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
+    mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
+    mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    //Calculate diff_T_htf_cold
+    *diff_T_htf_cold = (T_htf_rec_in_solved - T_htf_cold) / T_htf_cold;		//[-]
+
+    mpc_csp_solver->mc_tes.use_calc_vals(false);
+
+    return 0;
 }
 
 int C_csp_solver::C_mono_eq_cr_on__pc_match__tes_full::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
@@ -2341,4 +2508,54 @@ int C_csp_solver::C_MEQ_cr_df__pc_off__tes_full__defocus::operator()(double defo
 	*diff_m_dot = (m_dot_rec - m_dot_tes) / m_dot_rec;
 
 	return 0;
+}
+
+int C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
+{
+    // T_htf_cold is the guessed temperature into the high-temp (HT) HX
+    
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+
+    double T_htf_hot;  //[K] HTF temp out of the HX on the field side
+    mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_m_dot_store / 3600.,
+        T_htf_cold + 273.15,
+        T_htf_hot,
+        mpc_csp_solver->mc_tes_outputs);
+
+    double m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+    if (m_dot_hx_out < m_m_dot_rec_out) {
+        return -1; // in this MEQ we're assuming m_dot_HX > m_dot_CR
+    }
+    double m_dot_pc = m_dot_hx_out;     //[kg/hr]  
+    double m_dot_bypassed = std::max(0., m_dot_pc - m_m_dot_rec_out);   //[kg/hr] amount of HTF from before the CR that is mixed after the CR before the HX
+
+    // Recombine excess mass flow from the power cycle
+    // get enthalpy, assume sCO2 HTF
+    CO2_state co2_props;
+    int prop_error_code = CO2_TP(m_T_htf_rec_in, m_P_htf_rec_in, &co2_props);
+    double h_in = co2_props.enth;
+    double h_out = h_in;
+    prop_error_code = CO2_PH(m_P_htf_rec_out, h_out, &co2_props);
+    double T_htf_bypassed = co2_props.temp; //[K]
+
+    double T_htf_hx_in = (m_T_htf_rec_out * m_m_dot_rec_out + T_htf_bypassed * m_dot_bypassed) / (m_m_dot_rec_out + m_dot_bypassed);  // [K]  mix streams to get LT HX outlet temp
+
+    // Set charging inlet/outlet temps to hot/cold ave temps, respectively
+    mpc_csp_solver->mc_tes_ch_htf_state.m_m_dot = 0.0;					//[kg/hr]
+    mpc_csp_solver->mc_tes_ch_htf_state.m_temp_in = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave;	//[C]
+    mpc_csp_solver->mc_tes_ch_htf_state.m_temp_out = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave;  //[C]
+
+    // Set discharge HTF state
+    mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_m_dot_store;	//[kg/hr]
+    mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
+    mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hot - 273.15;	        //[C]
+
+
+    *diff_T_htf_cold = (T_htf_hx_in - T_htf_cold) / T_htf_cold;	//[-]
+
+    return 0;
 }

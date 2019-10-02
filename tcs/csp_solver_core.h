@@ -1370,22 +1370,43 @@ public:
         virtual int operator()(double m_dot_htf /*kg/hr*/, double *diff_m_dot_store /*-*/);
     };
 
+    class C_mono_eq_cr_on_pc_target_tes_dc_mdot : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        int m_pc_mode;			//[-]
+        double m_q_dot_pc_target; //[MWt]
+        double m_defocus;		//[-]
+
+    public:
+        C_mono_eq_cr_on_pc_target_tes_dc_mdot(C_csp_solver *pc_csp_solver,
+            int pc_mode, double q_dot_pc_target /*MWt*/, double defocus /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				//[-]
+            m_q_dot_pc_target = q_dot_pc_target; //[MWt]
+            m_defocus = defocus;				//[-]
+        }
+
+        virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_q_dot_pc /*-*/);
+    };
+
 	class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
 	{
 	private:
 		C_csp_solver *mpc_csp_solver;
 		int m_pc_mode;			//[-]
 		double m_defocus;		//[-]
-		double m_q_dot_target;	//[MWt]
+        double m_m_dot_tank;    //[kg/hr]
 
 	public:
 		C_mono_eq_cr_on_pc_target_tes_dc(C_csp_solver *pc_csp_solver,
-			int pc_mode, double q_dot_target /*MWt*/, double defocus /*-*/)
+			int pc_mode, double defocus /*-*/, double m_dot_tank /*kg/hr*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
 			m_pc_mode = pc_mode;				//[-]
 			m_defocus = defocus;				//[-]
-			m_q_dot_target = q_dot_target;		//[MWt]
+			m_m_dot_tank = m_dot_tank;  		//[kg/hr]
 		}
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
@@ -1700,6 +1721,39 @@ public:
         }
 
         virtual int operator()(double m_dot /*kg/hr*/, double *m_dot_bal /*-*/);
+    };
+
+    class C_MEQ_cr_on_tes_dc_m_dot_tank : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_T_htf_rec_in;      //[K]
+        double m_T_htf_rec_out;		//[K]
+        double m_P_htf_rec_in;      //[kPa]
+        double m_P_htf_rec_out;     //[kPa]
+        double m_m_dot_rec_out;     //[kg/hr]
+        double m_m_dot_store;       //[kg/hr]
+
+    public:
+        C_MEQ_cr_on_tes_dc_m_dot_tank(C_csp_solver *pc_csp_solver,
+            double T_htf_rec_in /*K*/,
+            double T_htf_rec_out /*K*/,
+            double P_htf_rec_in /*kPa*/,
+            double P_htf_rec_out /*kPa*/,
+            double m_dot_rec_out /*kg/hr*/,
+            double m_dot_store /*kg/hr*/
+            )
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_T_htf_rec_in = T_htf_rec_in;
+            m_T_htf_rec_out = T_htf_rec_out;
+            m_P_htf_rec_in = P_htf_rec_in;
+            m_P_htf_rec_out = P_htf_rec_out;
+            m_m_dot_rec_out = m_dot_rec_out;
+            m_m_dot_store = m_dot_store;
+        }
+
+        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };
 
 };

@@ -1165,7 +1165,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                     double blahah = 1.23;
                 }*/
 
-                double deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2;
+                double deltaT_phx_co2, m_dot_co2_out_ND, P_phx_out_co2;
                 deltaT_phx_co2 = P_phx_in_co2 = m_dot_co2_out_ND = P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN();
 
                 mc_user_defined_pc.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,

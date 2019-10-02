@@ -1128,7 +1128,7 @@ int C_csp_solver::C_mono_eq_pc_target__m_dot_fixed_plus_tes_dc::operator()(doubl
 int C_csp_solver::C_mono_eq_pc_target_tes_empty__x_step::operator()(double step /*s*/, double *q_dot_pc /*MWt*/)
 {
 	double T_htf_tes_hot, m_dot_tes_dc = std::numeric_limits<double>::quiet_NaN();
-	mpc_csp_solver->mc_tes.discharge_full(step,
+	mpc_csp_solver->mc_tes.discharge_full_both(step,
 						mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
 						m_T_htf_cold + 273.15,
 						T_htf_tes_hot,
@@ -1163,7 +1163,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_empty__T_cold::operator()(double T_htf
 	//   ... using the guess value for the TES cold inlet temperature
 	double T_htf_tes_hot, m_dot_htf_full_ts;
 	T_htf_tes_hot = m_dot_htf_full_ts = std::numeric_limits<double>::quiet_NaN();
-	mpc_csp_solver->mc_tes.discharge_full(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+	mpc_csp_solver->mc_tes.discharge_full_both(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
 							mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
 							T_htf_cold + 273.15,
 							T_htf_tes_hot,

@@ -1456,7 +1456,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 						else
 						{	// Power cycle is asking for more output than the receiver can supply
 
-							if( q_dot_tes_dc > 0.0 )
+							if( q_dot_tes_dc > 1.e-5 )
 							{	// Storage dispatch is available
 
 								if( ( ( (q_dot_cr_on + q_dot_tes_dc)*(1.0 + tol_mode_switching) > q_pc_target 
@@ -2811,9 +2811,15 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     mc_tes_outputs);
                 double m_dot_tank_guess_low = mc_tes_outputs.m_m_dot * 3600.;       //[kg/hr]
 
+                // Estimate available discharge
+                double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+                mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step,
+                    q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+                m_dot_field_est *= 3600.;   //[kg/hr]
+
                 mc_tes.discharge(mc_kernel.mc_sim_info.ms_ts.m_step,
                     mc_weather.ms_outputs.m_tdry + 273.15,
-                    m_m_dot_pc_max / 3600.,     //[kg/s]
+                    min(m_dot_field_est, m_m_dot_pc_max / 3600.),     //[kg/s]
                     m_T_htf_cold_des,
                     T_htf_hx_out,
                     mc_tes_outputs);

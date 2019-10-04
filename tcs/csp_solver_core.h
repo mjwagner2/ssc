@@ -1175,11 +1175,29 @@ public:
 		{
 			mpc_csp_solver = pc_csp_solver;
 			m_pc_mode = pc_mode;
-			m_q_dot_max = q_dot_max;			
+			m_q_dot_max = q_dot_max;
 		}
 
-		virtual int operator()(double defocus /*-*/, double *q_dot_pc /*MWt*/);
+		virtual int operator()(double defocus /*-*/, double *diff_q_dot_pc /*MWt*/);
 	};
+
+    class C_MEQ_cr_on__pc_q_dot_max__tes_off : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;       //[-]
+        double m_defocus;		//[-]
+
+    public:
+        C_MEQ_cr_on__pc_q_dot_max__tes_off(C_csp_solver *pc_csp_solver, double pc_mode /*-*/, double defocus /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;
+            m_defocus = defocus;	    //[-]
+        }
+
+        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+    };
 
 	class C_mono_eq_cr_to_pc_to_cr : public C_monotonic_equation
 	{

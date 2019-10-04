@@ -1852,7 +1852,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					C_monotonic_eq_solver c_solver(c_eq);
 
 					// Set up solver
-					c_solver.settings(1.E-3, 50, 0.0, defocus_guess, true);
+					c_solver.settings(1.E-3, 50, 0.0, defocus_guess, false);
 
 					// Solve for defocus
 					double defocus_guess_high = (std::min)(0.99*defocus_guess, defocus_guess * (q_pc_max / q_dot_pc_defocus));
@@ -1865,7 +1865,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					int solver_code = 0;
 					try
 					{
-						solver_code = c_solver.solve(defocus_guess_low, defocus_guess_high, q_pc_max, defocus_solved, tol_solved, iter_solved);
+						solver_code = c_solver.solve(defocus_guess_low, defocus_guess_high, 0., defocus_solved, tol_solved, iter_solved);
 					}
 					catch (C_csp_exception)
 					{

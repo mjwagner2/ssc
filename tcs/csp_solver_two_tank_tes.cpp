@@ -3274,8 +3274,9 @@ bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double
     double q_heater_warm, q_heater_hot, q_dot_loss_warm, q_dot_loss_hot, T_warm_ave, T_hot_ave, m_dot_field, T_field_cold_in, T_field_hot_out, T_warm_tank_in;
     q_heater_warm = q_heater_hot = q_dot_loss_warm = q_dot_loss_hot = T_warm_ave = T_hot_ave = m_dot_field = T_field_cold_in = T_field_hot_out = T_warm_tank_in = std::numeric_limits<double>::quiet_NaN();
 
-
     mc_hot_tank.energy_balance(timestep, 0.0, m_dot_tank, 0.0, T_amb, T_hot_ave, q_heater_hot, q_dot_loss_hot);
+
+    T_field_cold_in = T_htf_cold_in;
 
     double eff, q_trans;
     eff = q_trans = std::numeric_limits<double>::quiet_NaN();

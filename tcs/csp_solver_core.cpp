@@ -5209,7 +5209,9 @@ void C_csp_solver::solver_pc_su_controlled__tes_dc(double step_tol /*s*/,
 	C_mono_eq_pc_su_cont_tes_dc c_eq(this);
 	C_monotonic_eq_solver c_solver(c_eq);
 
-	c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+    double T_htf_hot_max = mc_tes.get_hot_temp() - 273.15;	//[C]
+    double T_htf_hot_min = m_T_htf_cold_des - 273.15;       //[C]
+	c_solver.settings(1.E-3, 50, T_htf_hot_min, T_htf_hot_max, false);
 
 	double T_htf_hot_guess_hotter = mc_tes.get_hot_temp() - 273.15;	//[C]
 	double T_htf_hot_guess_colder = T_htf_hot_guess_hotter - 10.0;	//[C]

@@ -2887,6 +2887,7 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step
         q_dot_dc_est = 0.;
         m_dot_field_est = 0.;
         T_hot_field_est = std::numeric_limits<double>::quiet_NaN();
+        m_m_dot_tes_dc_max = 0.;
         return;
     }
 

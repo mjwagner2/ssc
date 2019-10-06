@@ -1120,7 +1120,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty_mdot::operator()(double m_d
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
-    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+    double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 30.;  //[C]
+    double T_cold_max = mpc_csp_solver->m_cycle_T_htf_hot_des - 273.15;         //[C]
+    c_solver.settings(1.E-3, 50, T_cold_min, T_cold_max, false);
 
     // Solve for cold temperature
     double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;		//[C], convert from [K]

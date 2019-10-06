@@ -160,6 +160,8 @@ public:
 
     virtual double get_collector_area();
 
+    double conveyor_power(double m_dot_particle);
+
 
 	void call(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,

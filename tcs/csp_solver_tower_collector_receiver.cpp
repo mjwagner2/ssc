@@ -379,7 +379,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
-        cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
+        //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
         double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
         double dP_rec = P_prev * dP_rec_perc / 100.;
@@ -462,6 +462,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         }
     }
 
+    cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
 	mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
@@ -549,7 +550,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_is_recirculating = cr_out_solver.m_is_recirculating || cr_out_solver_prev.m_is_recirculating;  // if any are
         cr_out_solver.m_E_fp_total += cr_out_solver_prev.m_E_fp_total;
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
-        cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
+        //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
         double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
         double dP_rec = P_prev * dP_rec_perc / 100.;
@@ -631,6 +632,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         }
     }
 
+    cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
     mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
@@ -739,6 +741,16 @@ double C_csp_tower_collector_receiver::get_collector_area()
     }
 
     return A_sfs;
+}
+
+double C_csp_tower_collector_receiver::conveyor_power(double m_dot_particle /*kg/hr*/)
+{
+    // Electrical power needed to run particle conveyor in MWe
+    
+    const double P_cvr_des = 6.767;             //[MWe] particle conveyor power at design conditions
+    const double m_dot_particle_des = 4116.;    //[kg/s] particle flow rate through the tower at design
+
+    return P_cvr_des * m_dot_particle / (m_dot_particle_des * 3600.);   //[MWe]
 }
 
 double C_csp_tower_collector_receiver::calculate_thermal_efficiency_approx( const C_csp_weatherreader::S_outputs &weather, double q_inc )

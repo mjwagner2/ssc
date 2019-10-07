@@ -707,12 +707,16 @@ void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outp
 		est_out.m_q_dot_avail = cr_out_solver.m_q_thermal;			    //[MWt]
 		est_out.m_m_dot_avail = cr_out_solver.m_m_dot_salt_tot;         //[kg/hr]
 		est_out.m_T_htf_hot = cr_out_solver.m_T_salt_hot;		    	//[C], last receiver
+        est_out.m_m_dot_store_avail = cr_out_solver.m_m_dot_store_tot;  //[kg/hr]
+        est_out.m_T_store_hot = cr_out_solver.m_T_store_hot;            //[C]
 	}
 	else {
 		est_out.m_q_startup_avail = cr_out_solver.m_q_thermal;  		//[MWt]
 		est_out.m_q_dot_avail = 0.;
 		est_out.m_m_dot_avail = 0.;
 		est_out.m_T_htf_hot = std::numeric_limits<double>::quiet_NaN();
+        est_out.m_m_dot_store_avail = 0.;
+        est_out.m_T_store_hot = std::numeric_limits<double>::quiet_NaN();
 	}
 }
 

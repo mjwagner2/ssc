@@ -765,6 +765,9 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		// Get weather at this timestep. Should only be called once per timestep. (Except converged() function)
 		mc_weather.timestep_call(mc_kernel.mc_sim_info);
 
+        // Get volume of hot tank, for debugging
+        double V_hot_tank_frac = mc_tes.get_hot_tank_vol_frac();
+
 		// Get or set decision variables
 		bool is_rec_su_allowed = true;
 		bool is_pc_su_allowed = true;
@@ -819,11 +822,14 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			mc_kernel.mc_sim_info);
 		double q_dot_cr_startup = est_out.m_q_startup_avail;
 		double q_dot_cr_on = est_out.m_q_dot_avail;
-		double m_dot_cr_on = est_out.m_m_dot_avail;		//[kg/hr]
-		double T_htf_hot_cr_on = est_out.m_T_htf_hot;	//[C]
-		if (cr_operating_state != C_csp_collector_receiver::ON) 
+		double m_dot_cr_on = est_out.m_m_dot_avail;		            //[kg/hr]
+		double T_htf_hot_cr_on = est_out.m_T_htf_hot;	            //[C]
+        double m_dot_store_cr_on = est_out.m_m_dot_store_avail;		//[kg/hr]
+        double T_store_hot_cr_on = est_out.m_T_store_hot;	        //[C]
+        if (cr_operating_state != C_csp_collector_receiver::ON) {
             T_htf_hot_cr_on = m_T_htf_cold_des - 273.15; //[C]
-			//T_htf_hot_cr_on = m_cycle_T_htf_hot_des - 273.15;	//[C]
+            T_store_hot_cr_on = m_T_htf_cold_des - 273.15; //[C]
+        }
 
 		// Get TES operating state info at end of last time step
 		double q_dot_tes_dc, q_dot_tes_ch;
@@ -837,13 +843,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			mc_tes.discharge_avail_est(m_T_htf_pc_cold_est + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est);
 			m_dot_tes_dc_est *= 3600.0;	//[kg/hr] convert from kg/s
 
-            //No TES charging (not in the traditional way)
-            q_dot_tes_ch = 0.;
-            m_dot_tes_ch_est = 0.;
-			double T_cold_field_ch_est = T_htf_hot_cr_on + 273.15;	//[K]
-			//T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
-			//mc_tes.charge_avail_est(T_htf_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est);
-			//m_dot_tes_ch_est *= 3600.0;	//[kg/hr] convert from kg/s
+			double T_cold_field_ch_est;	//[K]
+			T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
+			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est);
+			m_dot_tes_ch_est *= 3600.0;	//[kg/hr] convert from kg/s
 		}
 		else
 		{

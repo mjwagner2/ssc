@@ -747,10 +747,11 @@ double C_csp_tower_collector_receiver::conveyor_power(double m_dot_particle /*kg
 {
     // Electrical power needed to run particle conveyor in MWe
     
-    const double P_cvr_des = 6.767;             //[MWe] particle conveyor power at design conditions
+    const double P_cvr_des = 6.867;             //[MWe] particle conveyor power at design conditions, 100% efficiency
+    const double eff = 0.8;                     //[-] particle conveyor efficiency
     const double m_dot_particle_des = 4116.;    //[kg/s] particle flow rate through the tower at design
 
-    return P_cvr_des * m_dot_particle / (m_dot_particle_des * 3600.);   //[MWe]
+    return P_cvr_des / eff * m_dot_particle / (m_dot_particle_des * 3600.);   //[MWe]
 }
 
 double C_csp_tower_collector_receiver::calculate_thermal_efficiency_approx( const C_csp_weatherreader::S_outputs &weather, double q_inc )

@@ -5265,7 +5265,7 @@ void C_csp_solver::solver_pc_su_controlled__tes_dc(double step_tol /*s*/,
 		// Get mass flow rate and temperature at a full discharge
 		double m_dot_pc = std::numeric_limits<double>::quiet_NaN();
 		double T_pc_in_calc = std::numeric_limits<double>::quiet_NaN();
-		mc_tes.discharge_full(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, m_T_htf_cold_des, T_pc_in_calc, m_dot_pc, mc_tes_outputs);
+		mc_tes.discharge_full_both(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, m_T_htf_cold_des, T_pc_in_calc, m_dot_pc, mc_tes_outputs);
 
 		// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
 		mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]

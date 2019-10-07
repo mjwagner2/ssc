@@ -182,6 +182,8 @@ public:
 
 	virtual double get_cold_temp();
 
+    virtual double get_hot_tank_vol_frac();
+
 	virtual double get_hot_mass();
 
 	virtual double get_cold_mass();

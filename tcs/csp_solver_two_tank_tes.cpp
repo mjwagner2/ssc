@@ -408,6 +408,19 @@ double C_storage_tank::get_m_m_calc() //ARD new getter for current mass
 	return m_m_calc;
 }
 
+double C_storage_tank::get_vol_frac()
+{
+    double vol;
+    if (m_use_calc_vals) {
+        vol = m_V_calc;
+    }
+    else {
+        vol = m_V_prev;
+    }
+    
+    return vol / m_V_active;
+}
+
 double C_storage_tank::m_dot_available(double f_unavail, double timestep)
 {
     double T_htf = get_m_T();
@@ -871,6 +884,11 @@ double C_csp_two_tank_tes::get_hot_temp()
 double C_csp_two_tank_tes::get_cold_temp()
 {
 	return mc_cold_tank.get_m_T();	//[K]
+}
+
+double C_csp_two_tank_tes::get_hot_tank_vol_frac()
+{
+    return mc_hot_tank.get_vol_frac();
 }
 
 
@@ -2006,6 +2024,11 @@ double C_csp_cold_tes::get_cold_temp()
 	return mc_cold_tank.get_m_T();	//[K]
 }
 
+double C_csp_cold_tes::get_hot_tank_vol_frac()
+{
+    return mc_hot_tank.get_vol_frac();
+}
+
 
 double C_csp_cold_tes::get_hot_mass()
 {
@@ -2842,6 +2865,11 @@ double C_csp_two_tank_two_hx_tes::get_cold_temp()
 {
 
     return mc_cold_tank.get_m_T();	//[K]
+}
+
+double C_csp_two_tank_two_hx_tes::get_hot_tank_vol_frac()
+{
+    return mc_hot_tank.get_vol_frac();
 }
 
 double C_csp_two_tank_two_hx_tes::get_initial_charge_energy()

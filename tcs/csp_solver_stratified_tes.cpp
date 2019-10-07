@@ -404,6 +404,11 @@ double C_csp_stratified_tes::get_cold_temp()
 	return mc_node_n.get_m_T_prev();	//[K]
 }
 
+double C_csp_stratified_tes::get_hot_tank_vol_frac()
+{
+    return 0.0;
+}
+
 
 double C_csp_stratified_tes::get_hot_mass()
 {

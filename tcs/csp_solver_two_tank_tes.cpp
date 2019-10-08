@@ -418,7 +418,7 @@ double C_storage_tank::get_vol_frac()
         vol = m_V_prev;
     }
     
-    return vol / m_V_active;
+    return (vol - m_V_inactive) / m_V_active;
 }
 
 double C_storage_tank::m_dot_available(double f_unavail, double timestep)

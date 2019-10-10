@@ -219,6 +219,7 @@ public:
 
 	void set(double _min, double _max, double _ave, double _stdev, double _sum, double _wtmean);
 	void initialize();
+    void zero();
 
 };
 
@@ -283,6 +284,8 @@ public:
 	std::vector<FluxSurfaces> flux_surfaces;
 
 	void initialize();
+
+    void zero();
 
 	void add_heliostat(Heliostat &H);
 

@@ -727,9 +727,19 @@ void stat_object::initialize(){ //int size){
 	min = 9.e99; 
 	max = -9.e99;
 	sum = 0.;
+    wtmean = 0.;
 	stdev = 0.;
 	ave = 0.;
+}
 
+void stat_object::zero()
+{
+    min = 0.;
+    max = 0.;
+    sum = 0.;
+    wtmean = 0.;
+    stdev = 0.;
+    ave = 0.;
 }
 
 void stat_object::set(double _min, double _max, double _ave, double _stdev, double _sum, double _wtmean)
@@ -771,27 +781,35 @@ sim_result::sim_result(){
 }
 
 void sim_result::initialize(){
-	total_heliostat_area = 0.;
-	total_receiver_area = 0.;
-	total_land_area = 0.;
-	power_on_field = 0.;
-	power_absorbed = 0.;
+
+    total_heliostat_area = 0.;
+    total_receiver_area = 0.;
+    total_land_area = 0.;
+    power_on_field = 0.;
+    power_absorbed = 0.;
     power_thermal_loss = 0.;
     power_piping_loss = 0.;
     power_to_htf = 0.;
-	power_to_cycle = 0.;
-	power_gross = 0.;
-	power_net = 0.;
-	num_heliostats_used = 0;
+    power_to_cycle = 0.;
+    power_gross = 0.;
+    power_net = 0.;
+    dni = 0.;
+    solar_az = 0.;
+    solar_zen = 0.;
+    total_installed_cost = 0.;
+    coe_metric = 0.;
+    
+    num_heliostats_used = 0;
 	num_heliostats_avail = 0;
     num_ray_traced = 0;
     num_ray_heliostat = 0;
     num_ray_receiver = 0;
 	_q_coe = 0.;
+    
     time_date_stamp = "";
     aim_method = "";
 
-	eff_total_heliostat.initialize();
+    eff_total_heliostat.initialize();
 	eff_total_sf.initialize();
 	eff_cosine.initialize();
 	eff_attenuation.initialize();
@@ -801,11 +819,29 @@ void sim_result::initialize(){
 	eff_intercept.initialize();
 	eff_absorption.initialize();
     eff_annual.initialize();
-    eff_cloud.initialize();
 	flux_density.initialize();
+    eff_cloud.initialize();
 
 	flux_surfaces.clear();
 	data_by_helio.clear();
+}
+
+void sim_result::zero()
+{
+    initialize();
+
+    eff_total_heliostat.zero();
+    eff_total_sf.zero();
+    eff_cosine.zero();
+    eff_attenuation.zero();
+    eff_blocking.zero();
+    eff_shading.zero();
+    eff_reflect.zero();
+    eff_intercept.zero();
+    eff_absorption.zero();
+    eff_annual.zero();
+    eff_cloud.zero();
+    flux_density.zero();
 }
 
 void sim_result::add_heliostat(Heliostat &H){

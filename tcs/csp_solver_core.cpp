@@ -814,7 +814,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		
 		m_T_htf_pc_cold_est = mc_pc_out_solver.m_T_htf_cold;	//[C]
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
-		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 60;	//[C]
+		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
 		C_csp_collector_receiver::S_csp_cr_est_out est_out;
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,
@@ -4383,7 +4383,12 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
 					{
 						// Haven't actually converged solution yet, so need to basically call CR_ON__PC_SU__TES_CH
-						C_mono_eq_cr_on_pc_su_tes_ch c_eq(this);
+
+                        // this next MEQ implementation hasn't been tested yet
+                        std::string err_msg = util::format("this next MEQ implementation hasn't been tested yet ", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+
+						C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
 						C_monotonic_eq_solver c_solver(c_eq);
 
 						// Get first htf cold temp guess
@@ -4714,66 +4719,49 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                int pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
 				m_defocus = 1.0;
 				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
 
-				C_mono_eq_cr_on_pc_su_tes_ch c_eq(this);
+				C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
 				C_monotonic_eq_solver c_solver(c_eq);
 
-				// Get first htf cold temp guess
-				double T_htf_cold_guess = m_T_htf_pc_cold_est;	//[C]
+                double m_dot_store_lower_guess = 0.;
 
-				// Use this to test code calculating new htf cold temperature
-				// Specifically checking that there's enough mass flow to startup PC AND send > 0 to TES
-				double diff_T_htf_cold_temp = std::numeric_limits<double>::quiet_NaN();
-				int T_htf_cold_code = c_solver.test_member_function(T_htf_cold_guess, &diff_T_htf_cold_temp);
-				if (T_htf_cold_code != 0)
-				{	// If failed, go to next mode (CR_ON__PC_SU__TES_OFF)
-					m_is_CR_ON__PC_SU__TES_CH__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
+                // Get higher guess for particle flow
+                mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
+                C_csp_collector_receiver::S_csp_cr_est_out est_out;
+                mc_collector_receiver.estimates(mc_weather.ms_outputs,
+                    mc_cr_htf_state_in,
+                    est_out,
+                    mc_kernel.mc_sim_info);
+                double m_dot_store_higher_guess = est_out.m_m_dot_store_avail;   //[kg/hr]
 
-				C_monotonic_eq_solver::S_xy_pair xy_pair_1;
-				xy_pair_1.x = T_htf_cold_guess;		//[C]
-				xy_pair_1.y = diff_T_htf_cold_temp;	//[-]
+                double m_dot_store_min = 0.;
+                double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
 
-				// Now guess another HTF temperature
-				T_htf_cold_guess += 10.0;			//[C]
-				T_htf_cold_code = c_solver.test_member_function(T_htf_cold_guess, &diff_T_htf_cold_temp);
-				if (T_htf_cold_code != 0)
-				{	// If failed, go to next mode (CR_ON__PC_SU__TES_OFF)
-					m_is_CR_ON__PC_SU__TES_CH__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
+				c_solver.settings(1.E-3, 50, m_dot_store_min, m_dot_store_max, false);
 
-				C_monotonic_eq_solver::S_xy_pair xy_pair_2;
-				xy_pair_2.x = T_htf_cold_guess;		//[C]
-				xy_pair_2.y = diff_T_htf_cold_temp;	//[-]
-
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				// Solve for T_htf_cold
-				double T_htf_cold_solved, tol_solved;
-				T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				// Solve for m_dot_hot_tank
+				double m_dot_hot_tank_solved, tol_solved;
+                m_dot_hot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
 				int iter_solved = -1;
 
-				T_htf_cold_code = 0;
+                int m_dot_hot_tank_code = 0;
 				try
 				{
-					T_htf_cold_code = c_solver.solve(xy_pair_1, xy_pair_2, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
+                    m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_hot_tank_solved, tol_solved, iter_solved);
 				}
 				catch (C_csp_exception)
 				{
-					throw(C_csp_exception("CR_ON__PC_SU__TES_CH__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
+					throw(C_csp_exception("CR_ON__PC_SU__TES_CH__AUX_OFF solver to converge the hot tank mass flow returned an unexpected exemption"));
 				}
 
-				if (T_htf_cold_code != C_monotonic_eq_solver::CONVERGED)
+				if (m_dot_hot_tank_code != C_monotonic_eq_solver::CONVERGED)
 				{
-					if (T_htf_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+					if (m_dot_hot_tank_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
 					{
-						error_msg = util::format("At time = %lg the iteration to find the cold HTF temperature connecting the receiver, power cycle startup, and tes charge only reached a convergence "
+						error_msg = util::format("At time = %lg the iteration to find the hot tank mass flow only reached a convergence "
 							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
 							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);

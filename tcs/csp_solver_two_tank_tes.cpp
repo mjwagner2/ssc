@@ -934,6 +934,11 @@ double C_csp_two_tank_tes::get_degradation_rate()
 	return e_loss / (m_q_pb_design * ms_params.m_ts_hours * 3600.); //s^-1  -- fraction of heat loss per second based on full charge
 }
 
+double C_csp_two_tank_tes::get_hot_m_dot_available(double f_unavail, double timestep)
+{
+    return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
+}
+
 void C_csp_two_tank_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) 
 {
 	double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
@@ -1641,10 +1646,12 @@ void two_tank_tes_sizing(HTFProperties &tes_htf_props, double Q_tes_des /*MWt-hr
 
 	// Volume required to supply design hours of thermal energy storage
 		//[m^3] = [MJ/s-hr] * [sec]/[hr] = [MJ] / (kg/m^3 * MJ/kg-K * K 
-	vol_one_temp_avail = Q_tes_des*3600.0 / (rho_ave * cp_ave / 1000.0 * (T_tes_hot - T_tes_cold));
+    double mass_avail = Q_tes_des * 3600.0 / (cp_ave / 1000.0 * (T_tes_hot - T_tes_cold));  //[kg]
+	vol_one_temp_avail = mass_avail / rho_ave;
 
 	// Additional volume necessary due to minimum tank limits
 	vol_one_temp_total = vol_one_temp_avail / (1.0 - h_min / h_tank);	//[m^3]
+    double mass_total = mass_avail * vol_one_temp_total / vol_one_temp_avail;  //[kg]
 
 	double A_cs = vol_one_temp_total / (h_tank*tank_pairs);		//[m^2] Cross-sectional area of a single tank
 
@@ -2106,6 +2113,11 @@ double C_csp_cold_tes::get_degradation_rate()
 	double d_tank = sqrt(m_vol_tank / ((double)ms_params.m_tank_pairs * ms_params.m_h_tank * 3.14159));
 	double e_loss = ms_params.m_u_tank * 3.14159 * ms_params.m_tank_pairs * d_tank * (ms_params.m_T_field_in_des + ms_params.m_T_field_out_des - 576.3)*1.e-6;  //MJ/s  -- assumes full area for loss, Tamb = 15C
 	return e_loss / (m_q_pb_design * ms_params.m_ts_hours * 3600.); //s^-1  -- fraction of heat loss per second based on full charge
+}
+
+double C_csp_cold_tes::get_hot_m_dot_available(double f_unavail, double timestep)
+{
+    return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
 }
 
 void C_csp_cold_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
@@ -2899,6 +2911,11 @@ double C_csp_two_tank_two_hx_tes::get_degradation_rate()
     double d_tank = sqrt(m_vol_tank / ((double)ms_params.m_tank_pairs * ms_params.m_h_tank * 3.14159));
     double e_loss = ms_params.m_u_tank * 3.14159 * ms_params.m_tank_pairs * d_tank * (ms_params.m_T_tes_cold_des + ms_params.m_T_tes_hot_des - 576.3)*1.e-6;  //MJ/s  -- assumes full area for loss, Tamb = 15C
     return e_loss / (m_q_pb_design * ms_params.m_ts_hours * 3600.); //s^-1  -- fraction of heat loss per second based on full charge
+}
+
+double C_csp_two_tank_two_hx_tes::get_hot_m_dot_available(double f_unavail, double timestep)
+{
+    return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
 }
 
 void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)

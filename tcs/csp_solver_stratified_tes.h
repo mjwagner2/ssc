@@ -208,6 +208,8 @@ public:
 
 	virtual double get_degradation_rate();  // s^-1
 
+    virtual double get_hot_m_dot_available(double f_unavail, double timestep);  //[kg/s]
+
 	virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est);
 
     virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est);

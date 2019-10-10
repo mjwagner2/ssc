@@ -730,6 +730,8 @@ public:
 
     virtual double get_degradation_rate() = 0;  // s^-1
 
+    virtual double get_hot_m_dot_available(double f_unavail, double timestep) = 0;   //kg/s
+
     virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) = 0;
 	
     virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) = 0;
@@ -1302,15 +1304,42 @@ public:
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 	};
 
+    class C_mono_eq_cr_on_pc_su_tes_ch_mdot : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_defocus;				//[-]
+
+    public:
+        C_mono_eq_cr_on_pc_su_tes_ch_mdot(C_csp_solver *pc_csp_solver, int pc_mode, double defocus)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				//[-]
+            m_defocus = defocus;				//[-]
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double m_dot_tank /*kg/hr*/, double *m_dot_htf_bal /*-*/);
+    };
+
 	class C_mono_eq_cr_on_pc_su_tes_ch : public C_monotonic_equation
 	{
 	private:
 		C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_defocus;				//[-]
+        double m_m_dot_tank;           //[kg/hr]
 
 	public:
-		C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver)
+		C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver, int pc_mode, double defocus, double m_dot_tank /*kg/hr*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				//[-]
+            m_defocus = defocus;				//[-]
+            m_m_dot_tank = m_dot_tank;    //[kg/hr]
 			m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
 		}
 

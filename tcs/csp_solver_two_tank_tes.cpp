@@ -672,7 +672,7 @@ C_csp_two_tank_tes::C_csp_two_tank_tes()
 	m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
 }
 
-void C_csp_two_tank_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs)
+void C_csp_two_tank_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params)
 {
 	if( !(ms_params.m_ts_hours > 0.0) )
 	{
@@ -1857,7 +1857,7 @@ C_csp_cold_tes::C_csp_cold_tes()
 	m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
 }
 
-void C_csp_cold_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs)
+void C_csp_cold_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params)
 {
 	if (!(ms_params.m_ts_hours > 0.0))
 	{
@@ -2666,7 +2666,7 @@ C_csp_two_tank_two_hx_tes::C_csp_two_tank_two_hx_tes()
     m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
 }
 
-void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs)
+void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params)
 {
     if (!(ms_params.m_ts_hours > 0.0))
     {
@@ -2758,8 +2758,13 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
     ms_params.m_T_tank_hot_ini += 273.15;		//[K] convert from C
     ms_params.m_T_tank_cold_ini += 273.15;		//[K] convert from C
 
-
     double Q_tes_des = m_q_pb_design / 1.E6 * ms_params.m_ts_hours;		//[MWt-hr] TES thermal capacity at design
+
+    // Calculate storage media mass flow at PC design
+    double T_tes_ave = 0.5*(ms_params.m_T_tes_hot_des + ms_params.m_T_tes_cold_des);		//[K]
+    double rho_ave = mc_store_htfProps.dens(T_tes_ave, 1.0);		//[kg/m^3] Density at average temperature
+    double cp_ave = mc_store_htfProps.Cp(T_tes_ave) * 1.e3;			//[J/kg-K] Specific heat at average temperature
+    solved_params.m_m_dot = m_q_pb_design / (cp_ave * (ms_params.m_T_tes_hot_des - ms_params.m_T_tes_cold_des));  //[kg/s]
 
     double d_tank_temp = std::numeric_limits<double>::quiet_NaN();
     double q_dot_loss_temp = std::numeric_limits<double>::quiet_NaN();

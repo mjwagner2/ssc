@@ -313,7 +313,7 @@ public:
 
 	~C_csp_two_tank_tes(){};
 
-	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
+	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params);
 
     double pipe_vol_tot;	                     //[m^3]
     util::matrix_t<double> pipe_v_dot_rel;       //[-]
@@ -477,7 +477,7 @@ public:
 
 	~C_csp_cold_tes() {};
 
-	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
+	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params);
 
 	virtual bool does_tes_exist();
 
@@ -726,7 +726,7 @@ public:
 
     ~C_csp_two_tank_two_hx_tes() {};
 
-    virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
+    virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params);
 
     double pipe_vol_tot;	                     //[m^3]
     util::matrix_t<double> pipe_v_dot_rel;       //[-]

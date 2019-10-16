@@ -514,7 +514,8 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 			mc_two_tank_ctes.ms_params.m_dot_cw_cold = (mc_two_tank_ctes.ms_params.m_dot_cw_rad*mc_two_tank_ctes.ms_params.m_ts_hours) / rad->m_night_hrs;//Set the flow rate on the storage system between tank and HX to radiative field to fill the tank in the shortest night of year (9 hours in Las Vegas Nevada).
 			//Initialize cold storage
             C_csp_tes::S_csp_tes_init_inputs init_inputs;
-			mc_two_tank_ctes.init(init_inputs);
+            C_csp_tes::S_csp_tes_outputs init_outputs;
+			mc_two_tank_ctes.init(init_inputs, init_outputs);
 		}
 		//If three-node stratified cold storage 
 		if (mc_two_tank_ctes.ms_params.m_ctes_type >2)
@@ -538,7 +539,8 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 
 			//Initialize cold storage
             C_csp_tes::S_csp_tes_init_inputs tes_init_inputs;
-			mc_stratified_ctes.init(tes_init_inputs);
+            C_csp_tes::S_csp_tes_outputs tes_init_outputs;
+			mc_stratified_ctes.init(tes_init_inputs, tes_init_outputs);
 
 		}
 		//Radiator

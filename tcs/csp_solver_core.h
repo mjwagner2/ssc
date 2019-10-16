@@ -706,7 +706,7 @@ public:
 		}
 	};
 
-	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs) = 0;
+	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params) = 0;
 
 	virtual bool does_tes_exist() = 0;
 
@@ -1022,6 +1022,9 @@ private:
 	double m_m_dot_pc_des;				//[kg/hr]
 	double m_m_dot_pc_min;				//[kg/hr]
 	double m_m_dot_pc_max;				//[kg/hr]
+
+        // TES design parameters
+    double m_m_dot_tes_des;             //[kg/hr]
 
 		// Storage logic
 	bool m_is_tes;			//[-] True: plant has storage
@@ -1452,20 +1455,20 @@ public:
     private:
         C_csp_solver *mpc_csp_solver;
         int m_pc_mode;			//[-]
-        double m_q_dot_pc_target; //[MWt]
+        double m_W_dot_pc_target; //[MWt]
         double m_defocus;		//[-]
 
     public:
         C_mono_eq_cr_on_pc_target_tes_dc_mdot(C_csp_solver *pc_csp_solver,
-            int pc_mode, double q_dot_pc_target /*MWt*/, double defocus /*-*/)
+            int pc_mode, double W_dot_pc_target /*MWt*/, double defocus /*-*/)
         {
             mpc_csp_solver = pc_csp_solver;
             m_pc_mode = pc_mode;				//[-]
-            m_q_dot_pc_target = q_dot_pc_target; //[MWt]
+            m_W_dot_pc_target = W_dot_pc_target; //[MWe]
             m_defocus = defocus;				//[-]
         }
 
-        virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_q_dot_pc /*-*/);
+        virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
     };
 
 	class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation

@@ -215,7 +215,7 @@ C_csp_stratified_tes::C_csp_stratified_tes()
 	m_m_dot_tes_dc_max = m_m_dot_tes_ch_max = std::numeric_limits<double>::quiet_NaN();
 }
 
-void C_csp_stratified_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs)
+void C_csp_stratified_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs, C_csp_tes::S_csp_tes_outputs &solved_params)
 {
 	if (!(ms_params.m_ts_hours > 0.0))
 	{

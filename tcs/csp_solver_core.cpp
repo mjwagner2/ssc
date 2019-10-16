@@ -796,6 +796,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		double m_dot_htf_ND_max = std::numeric_limits<double>::quiet_NaN();
 		double W_dot_ND_max = std::numeric_limits<double>::quiet_NaN();
 		mc_power_cycle.get_max_power_output_operation_constraints(mc_weather.ms_outputs.m_tdry, m_dot_htf_ND_max, W_dot_ND_max);
+        //HACK THESE VALUES FOR NOW:
+        m_dot_htf_ND_max *= 1.1;
+        W_dot_ND_max *= 1.1;
+
 		m_m_dot_pc_max = m_dot_htf_ND_max * m_m_dot_pc_des;
 
 

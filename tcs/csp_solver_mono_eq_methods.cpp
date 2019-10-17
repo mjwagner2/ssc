@@ -97,6 +97,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
     // Check if receiver is OFF or didn't solve
     if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -140,24 +142,11 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
-        T_htf_hx_in = T_htf_rec_out;    //[K]
-        m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
-        m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
-        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
-
-        // Recombine excess mass flow from the CR with that after the HT HX
-        double P_hx_in = P_rec_out;            //[kPa]
-        double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
-
-        // get enthalpy, assume sCO2 HTF
-        CO2_state co2_props;
-        int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
-        double h_in = co2_props.enth;
-        double h_out = h_in;
-        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
-        double T_htf_bypassed = co2_props.temp; //[K]
-
-        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+        // Needs defocusing if this is the converged state
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -1;
     }
     else {
         C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_in, P_rec_out, m_dot_rec_out, m_dot_store);
@@ -181,6 +170,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         }
         catch (C_csp_exception)
         {
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
             throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
         }
 
@@ -196,6 +187,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
             }
             else
             {
+                mpc_csp_solver->mc_tes.use_calc_vals(false);
+                mpc_csp_solver->mc_tes.update_calc_vals(true);
                 *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
                 return -1;
             }
@@ -252,6 +245,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -2;
     }
@@ -310,7 +305,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
     *diff_T_htf_cold = (T_htf_rec_in_solved - T_htf_cold) / T_htf_cold;		//[-]
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
     return 0;
 }
 
@@ -389,7 +384,9 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
     // Check if receiver is OFF or didn't solve
 	if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
 	{
-		*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
 		return -1;
 	}
 
@@ -414,6 +411,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
     // Test if particle flow from tower is greater than tes can store, factoring in later discharge
     if (m_dot_store > m_dot_tes_ch_max + m_dot_store) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -432,6 +431,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
     // Check if TES.charge method solved
     if (!ch_solved) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -3;
     }
@@ -459,24 +460,11 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
-        T_htf_hx_in = T_htf_rec_out;    //[K]
-        m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
-        m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
-        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
-
-        // Recombine excess mass flow from the CR with that after the HT HX
-        double P_hx_in = P_rec_out;            //[kPa]
-        double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
-
-        // get enthalpy, assume sCO2 HTF
-        CO2_state co2_props;
-        int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
-        double h_in = co2_props.enth;
-        double h_out = h_in;
-        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
-        double T_htf_bypassed = co2_props.temp; //[K]
-
-        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+        // Needs defocusing if this is the converged state
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -1;
     }
     else {
         C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_rec_in, P_rec_out, m_dot_rec_out, m_dot_store);
@@ -501,6 +489,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         }
         catch (C_csp_exception)
         {
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
             throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
         }
         mpc_csp_solver->mc_tes.update_calc_vals(true);
@@ -517,6 +507,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
             }
             else
             {
+                mpc_csp_solver->mc_tes.use_calc_vals(false);
+                mpc_csp_solver->mc_tes.update_calc_vals(true);
                 *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
                 return -1;
             }
@@ -557,6 +549,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -2;
     }
@@ -614,7 +608,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
     return 0;
 }
 
@@ -979,6 +973,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
     // Check if receiver is OFF or didn't solve
     if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -1004,6 +1000,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
 
     // Test if particle flow from tower is greater than tes can store, factoring in later discharge
     if (m_dot_store > m_dot_tes_ch_max + m_m_dot_tank) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -1022,6 +1020,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
 
     // Check if TES.charge method solved
     if (!ch_solved) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -3;
     }
@@ -1049,24 +1049,11 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
-        T_htf_hx_in = T_htf_rec_out;    //[K]
-        m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
-        m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
-        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
-
-        // Recombine excess mass flow from the CR with that after the HT HX
-        double P_hx_in = P_rec_out;            //[kPa]
-        double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
-
-        // get enthalpy, assume sCO2 HTF
-        CO2_state co2_props;
-        int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
-        double h_in = co2_props.enth;
-        double h_out = h_in;
-        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
-        double T_htf_bypassed = co2_props.temp; //[K]
-
-        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+        // Needs defocusing if this is the converged state
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -1;
     }
     else {
         C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_rec_in, P_rec_out, m_dot_rec_out, m_m_dot_tank);
@@ -1091,6 +1078,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         }
         catch (C_csp_exception)
         {
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
             throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
         }
         mpc_csp_solver->mc_tes.update_calc_vals(true);
@@ -1107,6 +1096,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
             }
             else
             {
+                mpc_csp_solver->mc_tes.use_calc_vals(false);
+                mpc_csp_solver->mc_tes.update_calc_vals(true);
                 *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
                 return -1;
             }
@@ -1147,6 +1138,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -2;
     }
@@ -1209,7 +1202,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
     return 0;
 }
 
@@ -1472,6 +1465,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     // Check if receiver is OFF or didn't solve
     if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -1575,6 +1570,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -2;
     }
@@ -1633,7 +1630,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     *diff_T_htf_cold = ((T_htf_rec_in - 273.15) - T_htf_cold) / T_htf_cold;		//[-]
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
     return 0;
 }
 
@@ -1981,6 +1978,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
     // Check if receiver is OFF or didn't solve
     if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -2006,6 +2005,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
 
     // Test if particle flow from tower is greater than tes can store, factoring in later discharge
     if (m_dot_store > m_dot_tes_ch_max + m_m_dot_tank) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
     }
@@ -2024,6 +2025,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
 
     // Check if TES.charge method solved
     if (!ch_solved) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -3;
     }
@@ -2051,24 +2054,11 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
-        T_htf_hx_in = T_htf_rec_out;    //[K]
-        m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
-        m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
-        P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
-
-        // Recombine excess mass flow from the CR with that after the HT HX
-        double P_hx_in = P_rec_out;            //[kPa]
-        double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
-
-        // get enthalpy, assume sCO2 HTF
-        CO2_state co2_props;
-        int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
-        double h_in = co2_props.enth;
-        double h_out = h_in;
-        prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
-        double T_htf_bypassed = co2_props.temp; //[K]
-
-        T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+        // Needs defocusing if this is the converged state
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -1;
     }
     else {
         C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_rec_in, P_rec_out, m_dot_rec_out, m_m_dot_tank);
@@ -2093,6 +2083,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         }
         catch (C_csp_exception)
         {
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
             throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
         }
         mpc_csp_solver->mc_tes.update_calc_vals(true);
@@ -2109,6 +2101,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
             }
             else
             {
+                mpc_csp_solver->mc_tes.use_calc_vals(false);
+                mpc_csp_solver->mc_tes.update_calc_vals(true);
                 *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
                 return -1;
             }
@@ -2149,6 +2143,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -2;
     }
@@ -2207,7 +2203,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+    mpc_csp_solver->mc_tes.update_calc_vals(true);
     return 0;
 }
 
@@ -2649,6 +2645,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 	//// Check if receiver is OFF or didn't solve
 	//if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
 	//{
+    //  mpc_csp_solver->mc_tes.use_calc_vals(false);
+    //  mpc_csp_solver->mc_tes.update_calc_vals(true);
 	//	*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
 	//	return -1;
 	//}
@@ -2662,6 +2660,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 
  //   if (m_dot_rec_out > m_dot_pc) {
  //       // Might be able to take some flow from the tower exit instead
+ //       mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //       mpc_csp_solver->mc_tes.update_calc_vals(true);
  //       *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
  //       return -1;
  //   }
@@ -2680,6 +2680,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 
  //   // Test if particle flow from tower is greater than tes can store, factoring in later discharge
  //   if (m_dot_store > m_dot_tes_ch_max + m_dot_store) {
+ //       mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //       mpc_csp_solver->mc_tes.update_calc_vals(true);
  //       *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
  //       return -1;
  //   }
@@ -2698,6 +2700,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 
  //   // Check if TES.charge method solved
  //   if (!ch_solved) {
+ //       mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //       mpc_csp_solver->mc_tes.update_calc_vals(true);
  //       *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
  //       return -3;
  //   }
@@ -2723,24 +2727,11 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 
  //   double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
  //   if (m_dot_rec_out > m_dot_hx_out) {
- //       T_htf_hx_in = T_htf_rec_out;    //[K]
- //       m_dot_hx_in = m_dot_hx_out;     //[kg/hr]
- //       m_dot_pc_in = m_dot_rec_out;    //[kg/hr]
- //       P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
-
- //       // Recombine excess mass flow from the CR with that after the HT HX
- //       double P_hx_in = P_rec_out;            //[kPa]
- //       double m_dot_bypassed = m_dot_rec_out - m_dot_hx_out;  //[kg/hr]
-
- //       // get enthalpy, assume sCO2 HTF
- //       CO2_state co2_props;
- //       int prop_error_code = CO2_TP(T_htf_hx_in, P_hx_in, &co2_props);
- //       double h_in = co2_props.enth;
- //       double h_out = h_in;
- //       prop_error_code = CO2_PH(P_hx_out, h_out, &co2_props);
- //       double T_htf_bypassed = co2_props.temp; //[K]
-
- //       T_htf_pc_in = (T_htf_hx_out * m_dot_hx_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_hx_out + m_dot_bypassed);  //[K]  mix streams to get PC inlet temp
+ //       //Needs defocusing if this is the converged state
+ //       mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //       mpc_csp_solver->mc_tes.update_calc_vals(true);
+ //       *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+ //       return -1;
  //   }
  //   else {
  //       C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_in, P_rec_out, m_dot_rec_out, m_m_dot_tank);
@@ -2765,6 +2756,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
  //       }
  //       catch (C_csp_exception)
  //       {
+ //           mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //           mpc_csp_solver->mc_tes.update_calc_vals(true);
  //           throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
  //       }
  //       mpc_csp_solver->mc_tes.update_calc_vals(true);
@@ -2781,6 +2774,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
  //           }
  //           else
  //           {
+ //               mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //               mpc_csp_solver->mc_tes.update_calc_vals(true);
  //               *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
  //               return -1;
  //           }
@@ -2807,20 +2802,11 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
  //   double T_htf_hx_in;     //[K]
  //   double m_dot_rec_in = mpc_csp_solver->m_m_dot_pc_max;                       //[kg/hr]
  //   if (m_dot_rec_in > m_dot_rec_out) {
- //       double T_htf_rec_in = T_htf_cold + 273.15;                              //[K]
- //       double P_rec_in = mpc_csp_solver->mc_cr_htf_state_in.m_pres;            //[kPa]
- //       double m_dot_bypassed = m_dot_rec_in - m_dot_rec_out;                   //[kg/hr]
-
- //       // get enthalpy, assume sCO2 HTF
- //       CO2_state co2_props;
- //       int prop_error_code = CO2_TP(T_htf_rec_in, P_rec_in, &co2_props);
- //       double h_in = co2_props.enth;
- //       double h_out = h_in;
- //       prop_error_code = CO2_PH(P_rec_out, h_out, &co2_props);
- //       double T_htf_bypassed = co2_props.temp; //[K]
-
- //       T_htf_hx_in = (T_htf_rec_out * m_dot_rec_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_rec_out + m_dot_bypassed);  // [K]  mix streams to get HX inlet temp
- //   }
+ //       mpc_csp_solver->mc_tes.use_calc_vals(false);
+ //       mpc_csp_solver->mc_tes.update_calc_vals(true);
+ //       *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+ //       return -1;
+//   }
  //   else {
  //       T_htf_hx_in = T_htf_rec_out;      //[K]
  //   }
@@ -2886,6 +2872,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 	//// Check that power cycle is producing power and solving without errors
 	//if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful && mpc_csp_solver->mc_pc_inputs.m_standby_control == C_csp_power_cycle::ON)
 	//{
+    //  mpc_csp_solver->mc_tes.use_calc_vals(false);
+    //  mpc_csp_solver->mc_tes.update_calc_vals(true);
 	//	*diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
 	//	return -2;
 	//}
@@ -2944,7 +2932,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
 	//*diff_T_htf_cold = ((T_htf_rec_in - 273.15) - T_htf_cold) / T_htf_cold;		//[-]
 
  //   mpc_csp_solver->mc_tes.use_calc_vals(false);
-
+ //   mpc_csp_solver->mc_tes.update_calc_vals(true);
 	//return 0;
 }
 

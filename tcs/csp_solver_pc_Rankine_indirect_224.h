@@ -99,11 +99,23 @@ private:
 		return 284.482349 + 20.8848464*P - 1.5898147*P*P + 0.0655241456*P*P*P - 0.0010168822*P*P*P*P; /*return value in Kelvin*/
 	}
 
-    int split_ind_tbl(util::matrix_t<double> &combined, util::matrix_t<double> &T_htf_ind,
-        util::matrix_t<double> &m_dot_ind, util::matrix_t<double> &T_amb_ind);
-
 public:
 	
+    enum
+    {
+        E_COL_T_HTF,
+        E_COL_M_DOT,
+        E_COL_T_AMB,
+        E_COL_W_CYL,
+        E_COL_Q_CYL,
+        E_COL_W_COOL,
+        E_COL_M_H2O,
+        E_COL_PHX_DELTAT,
+        E_COL_P_PHX_IN_CO2,
+        E_COL_M_DOT_CO2,
+        E_COL_P_PHX_OUT_CO2
+    };
+
 	enum
 	{
 		E_ETA_THERMAL,		//[-] Cycle thermal efficiency (gross)
@@ -282,6 +294,22 @@ public:
 	virtual void assign(int index, double *p_reporting_ts_array, size_t n_reporting_ts_array);
 
 };
+
+void get_var_setup(std::vector<double> & vec_unique, std::vector<double> & var_vec,
+    double & var_des, double & var_low, double & var_high);
+
+bool is_level_in_par(std::vector<std::vector<double>> test_combs,
+    std::vector<std::vector<double>> full_table);
+
+int split_ind_tbl(util::matrix_t<double> &combined, util::matrix_t<double> &T_htf_ind,
+    util::matrix_t<double> &m_dot_ind, util::matrix_t<double> &T_amb_ind);
+
+int split_ind_tbl(util::matrix_t<double> &combined, util::matrix_t<double> &T_htf_ind,
+    util::matrix_t<double> &m_dot_ind, util::matrix_t<double> &T_amb_ind,
+    int & n_T_htf_pars, int & n_T_amb_pars, int & n_m_dot_pars,
+    double & m_dot_low, double & m_dot_des, double & m_dot_high,
+    double & T_htf_low, double & T_htf_des, double & T_htf_high,
+    double & T_amb_low, double & T_amb_des, double & T_amb_high);
 
 
 

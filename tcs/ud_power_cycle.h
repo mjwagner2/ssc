@@ -31,6 +31,19 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 class C_ud_power_cycle
 {
+public:
+
+    enum E_output_order
+    {
+        i_W_dot_gross = 0,
+        i_Q_dot_HTF,
+        i_W_dot_cooling,
+        i_m_dot_water,
+        i_T_phx_cold,
+        i_P_phx_in_co2,
+        i_m_dot_co2,
+        i_P_phx_out_co2
+    };
 
 private:
 	
@@ -39,17 +52,6 @@ private:
 	//    Independent |    Gross Power Output   |   HTF Thermal Power	|   Cooling Parasitics  |	 Water Use 
 	// 0)  Variable   |  1) -   2) 0     3) +   |  4) -   5) 0    6) +  |  7) -    8) 0    9) + | 10) -  11) 0   12) + 
 
-	enum E_output_order
-	{
-		i_W_dot_gross = 0,
-		i_Q_dot_HTF,
-		i_W_dot_cooling,
-		i_m_dot_water,
-        i_T_phx_cold,
-        i_P_phx_in_co2,
-        i_m_dot_co2,
-        i_P_phx_out_co2
-	};
 
 	// Lookup table with dependent variables corresponding to parametric on independent variable T_htf_hot [C] (first column)
 	Linear_Interp mc_T_htf_ind;		// At m_dot_htf levels

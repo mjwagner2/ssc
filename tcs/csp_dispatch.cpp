@@ -242,7 +242,7 @@ bool csp_dispatch_opt::predict_performance(int step_start, int ntimeints, int di
 
 			double f_pb_op_lim_local = std::numeric_limits<double>::quiet_NaN();
 			double m_dot_htf_max_local = std::numeric_limits<double>::quiet_NaN();
-			params.mpc_pc->get_max_power_output_operation_constraints(m_weather.ms_outputs.m_tdry, m_dot_htf_max_local, f_pb_op_lim_local);
+			params.mpc_pc->get_max_power_output_operation_constraints(m_weather.ms_outputs.m_tdry, m_dot_htf_max_local, f_pb_op_lim_local, true);
 			f_pb_op_lim_ave += f_pb_op_lim_local * ave_weight;	//[-]
 
             //store the condenser parasitic power fraction

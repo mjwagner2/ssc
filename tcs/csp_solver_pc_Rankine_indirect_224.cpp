@@ -382,6 +382,7 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	else
 	{	// Initialization calculations for User Defined power cycle model    
         mc_user_defined_pc.m_W_dot_max_frac = ms_params.m_cycle_max_frac;
+        mc_udpc_off_sun.m_W_dot_max_frac = ms_params.m_cycle_max_frac;
 
         // Import the newer single combined UDPC table if it's populated, otherwise try using the older three separate tables
         if (!ms_params.mc_combined_ind.is_single()) {
@@ -400,11 +401,24 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
             throw(C_csp_exception("UDPC tables are not set", "UDPC Table Importation"));
         }
 
+        try
+        {
+            split_ind_tbl(ms_params.mc_combined_ind_OS, ms_params.mc_T_htf_ind_OS, ms_params.mc_m_dot_htf_ind_OS, ms_params.mc_T_amb_ind_OS);
+        }
+        catch (...)
+        {
+            throw(C_csp_exception("OFF SUN udpc initialization failed"));
+        }
+
 		// Load tables into user defined power cycle member class
 			// .init method will throw an error if initialization fails, so catch upstream
 		mc_user_defined_pc.init( ms_params.mc_T_htf_ind, ms_params.m_T_htf_hot_ref, ms_params.m_T_htf_low, ms_params.m_T_htf_high, 
 								ms_params.mc_T_amb_ind, ms_params.m_T_amb_des, ms_params.m_T_amb_low, ms_params.m_T_amb_high,
 								ms_params.mc_m_dot_htf_ind, 1.0, ms_params.m_m_dot_htf_low, ms_params.m_m_dot_htf_high );
+
+        mc_udpc_off_sun.init(ms_params.mc_T_htf_ind_OS, ms_params.m_T_htf_hot_ref, ms_params.m_T_htf_low, ms_params.m_T_htf_high,
+                                ms_params.mc_T_amb_ind, ms_params.m_T_amb_des, ms_params.m_T_amb_low, ms_params.m_T_amb_high,
+                                ms_params.mc_m_dot_htf_ind, 1.0, ms_params.m_m_dot_htf_low, ms_params.m_m_dot_htf_high);
 
 		if(ms_params.m_W_dot_cooling_des != ms_params.m_W_dot_cooling_des || ms_params.m_W_dot_cooling_des < 0.0 )
 		{
@@ -623,7 +637,7 @@ double C_pc_Rankine_indirect_224::get_max_q_pc_startup()
 	}
 }
 
-void C_pc_Rankine_indirect_224::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max)
+void C_pc_Rankine_indirect_224::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	if (!ms_params.m_is_user_defined_pc)
 	{
@@ -635,33 +649,67 @@ void C_pc_Rankine_indirect_224::get_max_power_output_operation_constraints(doubl
 	{
         if (ms_params.m_is_udpc_co2)
         {
-            // Calculate non-dimensional mass flow rate relative to design point
-            m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
-
-            // Get ND performance at off-design ambient temperature
-            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
-            (ms_params.m_T_htf_hot_ref,
-                T_amb,
-                m_dot_HTF_ND_max);	//[-]
-
-            if (W_dot_ND_max >= m_dot_HTF_ND_max)
+            if (is_rec_on)
             {
-                m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref, T_amb, m_dot_HTF_ND_max);
-                return;
+                // Calculate non-dimensional mass flow rate relative to design point
+                m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
+
+                // Get ND performance at off-design ambient temperature
+                W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+                (ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);	//[-]
+
+                if (W_dot_ND_max >= m_dot_HTF_ND_max)
+                {
+                    m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref, T_amb, m_dot_HTF_ND_max);
+                    return;
+                }
+
+                // set m_dot_ND to P_cycle_ND
+                m_dot_HTF_ND_max = W_dot_ND_max;
+
+                // Get ND performance at off-design ambient temperature
+                W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
+                (ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);	//[-]
+
+                m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);
             }
+            else
+            {
+                // Calculate non-dimensional mass flow rate relative to design point
+                m_dot_HTF_ND_max = ms_params.m_cycle_max_frac;		//[-] Use max mass flow rate
 
-            // set m_dot_ND to P_cycle_ND
-            m_dot_HTF_ND_max = W_dot_ND_max;
+                // Get ND performance at off-design ambient temperature
+                W_dot_ND_max = mc_udpc_off_sun.get_W_dot_gross_ND
+                (ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);	//[-]
 
-            // Get ND performance at off-design ambient temperature
-            W_dot_ND_max = mc_user_defined_pc.get_W_dot_gross_ND
-            (ms_params.m_T_htf_hot_ref,
-                T_amb,
-                m_dot_HTF_ND_max);	//[-]
+                if (W_dot_ND_max >= m_dot_HTF_ND_max)
+                {
+                    m_dot_HTF_ND_max = mc_udpc_off_sun.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref, T_amb, m_dot_HTF_ND_max);
+                    return;
+                }
 
-            m_dot_HTF_ND_max = mc_user_defined_pc.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref,
-                T_amb,
-                m_dot_HTF_ND_max);
+                // set m_dot_ND to P_cycle_ND
+                m_dot_HTF_ND_max = W_dot_ND_max;
+
+                // Get ND performance at off-design ambient temperature
+                W_dot_ND_max = mc_udpc_off_sun.get_W_dot_gross_ND
+                (ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);	//[-]
+
+                m_dot_HTF_ND_max = mc_udpc_off_sun.get_m_dot_co2_ND(ms_params.m_T_htf_hot_ref,
+                    T_amb,
+                    m_dot_HTF_ND_max);
+            }
+            
         }
         else
         {
@@ -1169,10 +1217,18 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
                 double deltaT_phx_co2, m_dot_co2_out_ND, P_phx_out_co2;
                 deltaT_phx_co2 = P_phx_in_co2 = m_dot_co2_out_ND = P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN();
-
-                mc_user_defined_pc.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
-                    P_cycle, q_dot_htf, W_cool_par, m_dot_water_cooling,
-                    deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2);
+                if (weather.m_beam > 200.0)
+                {
+                    mc_user_defined_pc.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
+                        P_cycle, q_dot_htf, W_cool_par, m_dot_water_cooling,
+                        deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2);
+                }
+                else
+                {
+                    mc_udpc_off_sun.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
+                        P_cycle, q_dot_htf, W_cool_par, m_dot_water_cooling,
+                        deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2);
+                }
                 P_cycle *= ms_params.m_P_ref;
                 q_dot_htf *= m_q_dot_design;
                 W_cool_par *= ms_params.m_W_dot_cooling_des;

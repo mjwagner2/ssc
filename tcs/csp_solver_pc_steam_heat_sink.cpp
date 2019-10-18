@@ -193,7 +193,7 @@ double C_pc_steam_heat_sink::get_htf_pumping_parasitic_coef()
 	return 0.0;	// kWe/kWt
 }
 
-void C_pc_steam_heat_sink::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max)
+void C_pc_steam_heat_sink::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	m_dot_HTF_ND_max = m_max_frac;		//[-]
 	W_dot_ND_max = m_dot_HTF_ND_max;	//[-]

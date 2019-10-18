@@ -71,6 +71,7 @@ private:
 
 	// member class for User Defined Power Cycle
 	C_ud_power_cycle mc_user_defined_pc;
+    C_ud_power_cycle mc_udpc_off_sun;
 
 	// track number of calls per timestep, reset = -1 in converged() call
 	int m_ncall;
@@ -226,6 +227,18 @@ public:
 		double m_m_dot_htf_high;	//[-] High level of m_dot_htf corresponding to T_HTF parametric (also must be included within range of independent T_htf_values)
             // Lookup table that is the combination of the three above T_htf_hot, T_amb, and m_dot_htf tables (this is the newer table format)
         util::matrix_t<double> mc_combined_ind;
+            
+        
+        // Parameters for user-defined power cycle
+            // Lookup table with dependent variables corresponding to parametric on independent variable T_htf_hot [C] (first column)
+        util::matrix_t<double> mc_T_htf_ind_OS;	// At m_dot_htf levels (-, 0, +)
+            // Lookup table with dependent variables corresponding to parametric on independent variable T_amb [C] (first column)
+        util::matrix_t<double> mc_T_amb_ind_OS;	// At T_htf levels (-, 0, +)
+            // Lookup table with dependent variables corresponding to parametric on independent variable m_dot_htf [ND] (first column)
+        util::matrix_t<double> mc_m_dot_htf_ind_OS;	// At T_amb levels (-, 0, +)
+            // Lookup table for off-sun cycle
+        util::matrix_t<double> mc_combined_ind_OS;
+
 
 		double m_W_dot_cooling_des;		//[MW] Cooling parasitic at design conditions
 		double m_m_dot_water_des;		//[kg/s] Power cycle water use at design conditions
@@ -270,7 +283,7 @@ public:
     virtual double get_hot_startup_energy();    //[MWh]
     virtual double get_max_thermal_power();     //MW
     virtual double get_min_thermal_power();     //MW
-	virtual void get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max);	//[-] Normalized over design power
+	virtual void get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on);	//[-] Normalized over design power
 	virtual double get_efficiency_at_TPH(double T_degC, double P_atm, double relhum_pct, double *w_dot_condenser = 0);
     virtual double get_efficiency_at_load(double load_frac, double *w_dot_condenser=0);
 	virtual double get_htf_pumping_parasitic_coef();		//[kWe/kWt]

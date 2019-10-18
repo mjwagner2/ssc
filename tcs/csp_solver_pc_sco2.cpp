@@ -179,7 +179,7 @@ double C_pc_sco2::get_min_thermal_power()
 	return m_q_dot_min;		//[MWt]
 }
 
-void C_pc_sco2::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max)
+void C_pc_sco2::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	throw(C_csp_exception("C_pc_sco2::get_max_power_output_operation_constraints() is not complete"));
 

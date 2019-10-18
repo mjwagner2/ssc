@@ -276,6 +276,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_MATRIX, "ud_T_amb_ind_od",                    "Off design table of user-defined power cycle performance formed from parametric on T_amb [C]",                                            "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              ""},
     { SSC_INPUT,     SSC_MATRIX, "ud_m_dot_htf_ind_od",                "Off design table of user-defined power cycle performance formed from parametric on m_dot_htf [ND]",                                       "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              ""},
     { SSC_INPUT,     SSC_MATRIX, "ud_ind_od",                          "Off design user-defined power cycle performance as function of T_htf, m_dot_htf [ND], and T_amb",                                         "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              ""},
+    { SSC_INPUT,     SSC_MATRIX, "ud_ind_od_off_sun",                  "Off design for OFF SUN user-defined power cycle performance as function of T_htf, m_dot_htf [ND], and T_amb",                                         "",             "",                                  "User Defined Power Cycle",                 "pc_config=1",                                                      "",              "" },
 
     // Direct CO2 User Defined
     { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "MPa",          "",                                  "User Defined Power cycle",                 "pc_config=1",                                                      "",              ""},
@@ -1078,6 +1079,11 @@ public:
                 pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
                 pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
                 pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+                if (is_assigned("ud_ind_od_off_sun"))
+                {
+                    pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
+                }
             }
 
             // Set pointer to parent class

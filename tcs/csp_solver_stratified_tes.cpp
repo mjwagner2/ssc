@@ -674,7 +674,7 @@ bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, 
 	return true;
 }
 
-bool C_csp_stratified_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_stratified_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
     return false;
 }

@@ -742,7 +742,7 @@ public:
 
 	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
-    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
     virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 	
@@ -1833,6 +1833,8 @@ public:
             m_m_dot_rec_out = m_dot_rec_out;
             m_m_dot_store = m_dot_store;
         }
+
+        double m_m_dot_htf_out;     //[kg/hr] mass flow out of HX on the field side
 
         virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };

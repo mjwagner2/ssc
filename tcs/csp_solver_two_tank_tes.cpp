@@ -1249,7 +1249,7 @@ bool C_csp_two_tank_tes::discharge(double timestep /*s*/, double T_amb /*K*/, do
 	return true;
 }
 
-bool C_csp_two_tank_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_two_tank_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
     return false;
 }
@@ -2301,7 +2301,7 @@ bool C_csp_cold_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double
 	return true;
 }
 
-bool C_csp_cold_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_cold_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
     return false;
 }
@@ -3026,13 +3026,13 @@ void C_csp_two_tank_two_hx_tes::discharge_full_lt(double timestep /*s*/, double 
     mc_cold_tank.energy_balance(timestep, m_dot_tank, 0.0, T_cold_tank_in, T_amb,
         T_cold_ave, q_heater_cold, q_dot_loss_cold);
 
-    outputs.m_q_heater = q_heater_cold + q_heater_warm;
+    outputs.m_q_heater = q_heater_cold;                         // don't include any virtual heat for warm tank
     outputs.m_m_dot = m_dot_tank;
-    outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
+    outputs.m_W_dot_rhtf_pump = 0.;                             // this is already captured when leaving hot tank
     T_htf_warm_out = T_field_warm_out;
     m_dot_htf_out = m_dot_field;
-    outputs.m_q_dot_loss = q_dot_loss_cold + q_dot_loss_warm;
-    outputs.m_q_dot_ch_from_htf = 0.0;
+    outputs.m_q_dot_loss = q_dot_loss_cold;                     // don't include any virtual losses from warm tank, piping handled elsewhere
+    outputs.m_q_dot_ch_from_htf = 0.;
     outputs.m_T_hot_ave = T_warm_ave;
     outputs.m_T_cold_ave = T_cold_ave;
     outputs.m_T_hot_final = mc_warm_tank.get_m_T_calc();
@@ -3074,12 +3074,12 @@ void C_csp_two_tank_two_hx_tes::discharge_full(double timestep /*s*/, double T_a
     mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb,
         T_warm_ave, q_heater_warm, q_dot_loss_warm);
 
-    outputs.m_q_heater = q_heater_hot + q_heater_warm;
+    outputs.m_q_heater = q_heater_hot;                         // don't include any virtual heat for warm tank
     outputs.m_m_dot = m_dot_tank;
     outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
     T_htf_hot_out = T_field_hot_out;
     m_dot_htf_out = m_dot_field;
-    outputs.m_q_dot_loss = q_dot_loss_hot + q_dot_loss_warm;
+    outputs.m_q_dot_loss = q_dot_loss_hot;                     // don't include any virtual losses from warm tank, piping handled elsewhere
     outputs.m_q_dot_ch_from_htf = 0.0;
     outputs.m_T_hot_ave = T_hot_ave;
     outputs.m_T_cold_ave = T_warm_ave;
@@ -3275,11 +3275,11 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
 
     mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb, T_warm_ave, q_heater_warm, q_dot_loss_warm);
 
-    outputs.m_q_heater = q_heater_warm + q_heater_hot;			//[MWt]
+    outputs.m_q_heater = q_heater_hot;              			//[MWt]         don't include any virtual heat for warm tank
     outputs.m_m_dot = m_dot_tank;                               //[kg/s]
     outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
     T_htf_hot_out = T_field_hot_out;
-    outputs.m_q_dot_loss = q_dot_loss_warm + q_dot_loss_hot;	//[MWt]
+    outputs.m_q_dot_loss = q_dot_loss_hot;                  	//[MWt] don't include any virtual losses from warm tank, piping handled elsewhere
     outputs.m_q_dot_ch_from_htf = 0.0;		                    //[MWt]
     outputs.m_T_hot_ave = T_hot_ave;						    //[K]
     outputs.m_T_cold_ave = T_warm_ave;							//[K]
@@ -3295,7 +3295,7 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
     return true;
 }
 
-bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
     // This method calculates the timestep-average hot discharge temperature of the TES system.
     // This is out of the field side of the high-temp heat exchanger (HT_HX), opposite the tank (or 'TES') side,
@@ -3336,11 +3336,12 @@ bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double
 
     mc_warm_tank.energy_balance(timestep, m_dot_tank, 0.0, T_warm_tank_in, T_amb, T_warm_ave, q_heater_warm, q_dot_loss_warm);
 
-    outputs.m_q_heater = q_heater_warm + q_heater_hot;			//[MWt]
-    outputs.m_m_dot = m_dot_field;                               //[kg/s]
+    outputs.m_q_heater = q_heater_hot;              			//[MWt] don't include any virtual heat for warm tank
+    outputs.m_m_dot = m_dot_tank;                               //[kg/s]
     outputs.m_W_dot_rhtf_pump = m_dot_tank * ms_params.m_tes_pump_coef / 1.E3;     //[MWe] Just tank-to-tank pumping power, convert from kW/kg/s*kg/s
     T_htf_hot_out = T_field_hot_out;
-    outputs.m_q_dot_loss = q_dot_loss_warm + q_dot_loss_hot;	//[MWt]
+    m_dot_htf_out = m_dot_field;                                //[kg/s]
+    outputs.m_q_dot_loss = q_dot_loss_hot;	                    //[MWt] don't include any virtual losses from warm tank, piping handled elsewhere
     outputs.m_q_dot_ch_from_htf = 0.0;		                    //[MWt]
     outputs.m_T_hot_ave = T_hot_ave;						    //[K]
     outputs.m_T_cold_ave = T_warm_ave;							//[K]

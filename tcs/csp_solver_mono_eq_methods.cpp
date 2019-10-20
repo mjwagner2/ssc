@@ -78,6 +78,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus::operator()(double
 int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Should not be called directly, only via C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus::operator()(double defocus /*-*/, double *diff_q_dot_pc /*MWt*/)
+    C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
+    C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
 
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
@@ -119,7 +121,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         m_dot_store / 3600.,
         T_store_in,
         T_cold_tes_K,
-        mpc_csp_solver->mc_tes_outputs);
+        tes_outputs);
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
     double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
@@ -137,8 +139,9 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         m_dot_store / 3600.,
         T_htf_rec_out,
         T_htf_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.;
+        m_dot_hx_out,
+        tes_outputs_temp);
+    m_dot_hx_out *= 3600.;
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
@@ -195,7 +198,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         }
 
         T_htf_hx_in = T_cold_solved + 273.15;
-        m_dot_hx_in = m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+        m_dot_hx_in = m_dot_hx_out = c_eq.m_m_dot_htf_out; //[kg/hr] mass flow out of the HX on the field side
         m_dot_pc_in = m_dot_hx_out;     //[kg/hr]
         T_htf_hx_out = mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out + 273.15;     //[K]
         P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
@@ -224,8 +227,16 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         m_dot_store / 3600.,
         T_htf_hx_in,
         T_htf_hot,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+        m_dot_hx_out,
+        tes_outputs_temp);
+    double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
+    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;
+    tes_outputs.m_W_dot_rhtf_pump = tes_outputs_temp.m_W_dot_rhtf_pump;
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf = tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_hot_ave = tes_outputs_temp.m_T_hot_ave;
+    tes_outputs.m_T_hot_final = tes_outputs_temp.m_T_hot_final;
+    tes_outputs.dP_perc = tes_outputs_temp.dP_perc;
 
     // Solve the PC performance at the receiver htf flow rate
     // Need to do this to get back PC T_htf_cold
@@ -263,11 +274,15 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         T_htf_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
-
+        tes_outputs_temp);
+    double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
-    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+    double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf += tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_cold_ave = tes_outputs_temp.m_T_cold_ave;
+    tes_outputs.m_T_cold_final = tes_outputs_temp.m_T_cold_final;
+    tes_outputs.dP_perc += tes_outputs_temp.dP_perc;
 
     // Recombine excess mass flow from the power cycle
     double T_htf_rec_in_solved;     //[K]
@@ -300,6 +315,8 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
     mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    mpc_csp_solver->mc_tes_outputs = tes_outputs;
 
     //Calculate diff_T_htf_cold
     *diff_T_htf_cold = (T_htf_rec_in_solved - T_htf_cold) / T_htf_cold;		//[-]
@@ -369,6 +386,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr_m_dot::operator()(double m_dot /*kg/h
 int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Should not be called directly, only via C_mono_eq_cr_to_pc_to_cr_m_dot(double m_dot /*kg/hr*/, double *m_dot_bal /*-*/)
+    C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
+    C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
 
     // Solve the tower model with T_htf_cold from the LT HX
     double T_htf_rec_in = T_htf_cold + 273.15;      //[K]
@@ -427,7 +446,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         m_dot_store / 3600.,
         T_store_in,
         T_cold_tes_K,
-        mpc_csp_solver->mc_tes_outputs);
+        tes_outputs);
 
     // Check if TES.charge method solved
     if (!ch_solved) {
@@ -454,9 +473,10 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         m_dot_store / 3600.,
         T_htf_rec_out,
         T_htf_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
+        m_dot_hx_out,
+        tes_outputs_temp);
     mpc_csp_solver->mc_tes.update_calc_vals(true);
-    m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.;
+    m_dot_hx_out *= 3600.;
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
@@ -515,7 +535,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         }
 
         T_htf_hx_in = T_cold_solved + 273.15;
-        m_dot_hx_in = m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+        m_dot_hx_in = m_dot_hx_out = c_eq.m_m_dot_htf_out; //[kg/hr] mass flow out of the HX on the field side
         m_dot_pc_in = m_dot_hx_out;     //[kg/hr]
         T_htf_pc_in = T_htf_hx_out = mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out + 273.15;     //[K]
         P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
@@ -528,8 +548,16 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         m_dot_store / 3600.,
         T_htf_hx_in,
         T_htf_hot,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+        m_dot_hx_out,
+        tes_outputs_temp);
+    double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
+    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;
+    tes_outputs.m_W_dot_rhtf_pump = tes_outputs_temp.m_W_dot_rhtf_pump;
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf = tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_hot_ave = tes_outputs_temp.m_T_hot_ave;
+    tes_outputs.m_T_hot_final = tes_outputs_temp.m_T_hot_final;
+    tes_outputs.dP_perc = tes_outputs_temp.dP_perc;
 
     // Solve the PC performance at the receiver htf flow rate
     // Need to do this to get back PC T_htf_cold
@@ -566,11 +594,15 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
         T_htf_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
-
+        tes_outputs_temp);
+    double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
-    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+    double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf += tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_cold_ave = tes_outputs_temp.m_T_cold_ave;
+    tes_outputs.m_T_cold_final = tes_outputs_temp.m_T_cold_final;
+    tes_outputs.dP_perc += tes_outputs_temp.dP_perc;
 
     // Recombine excess mass flow from the power cycle
     double T_htf_rec_in_solved;     //[K]
@@ -603,6 +635,8 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
     mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    mpc_csp_solver->mc_tes_outputs = tes_outputs;
 
     //Calculate diff_T_htf_cold
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
@@ -958,6 +992,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_tan
 int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Should not be called directly, only via C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_store /*kg/hr*/, double *m_dot_htf_bal /*-*/)
+    C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
+    C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
 	
     // Solve the tower model with T_htf_cold from the LT HX
     double T_htf_rec_in = T_htf_cold + 273.15;      //[K]
@@ -1016,7 +1052,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         m_dot_store / 3600.,
         T_store_in,
         T_cold_tes_K,
-        mpc_csp_solver->mc_tes_outputs);
+        tes_outputs);
 
     // Check if TES.charge method solved
     if (!ch_solved) {
@@ -1043,9 +1079,10 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         m_m_dot_tank / 3600.,
         T_htf_rec_out,
         T_htf_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
+        m_dot_hx_out,
+        tes_outputs_temp);
     mpc_csp_solver->mc_tes.update_calc_vals(true);
-    m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.;
+    m_dot_hx_out *= 3600.;
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
@@ -1104,7 +1141,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         }
 
         T_htf_hx_in = T_cold_solved + 273.15;
-        m_dot_hx_in = m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+        m_dot_hx_in = m_dot_hx_out = c_eq.m_m_dot_htf_out; //[kg/hr] mass flow out of the HX on the field side
         m_dot_pc_in = m_dot_hx_out;     //[kg/hr]
         T_htf_pc_in = T_htf_hx_out = mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out + 273.15;     //[K]
         P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
@@ -1117,8 +1154,16 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         m_m_dot_tank / 3600.,
         T_htf_hx_in,
         T_htf_hot,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+        m_dot_hx_out,
+        tes_outputs_temp);
+    double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
+    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;
+    tes_outputs.m_W_dot_rhtf_pump = tes_outputs_temp.m_W_dot_rhtf_pump;
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf = tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_hot_ave = tes_outputs_temp.m_T_hot_ave;
+    tes_outputs.m_T_hot_final = tes_outputs_temp.m_T_hot_final;
+    tes_outputs.dP_perc = tes_outputs_temp.dP_perc;
 
     // Solve the PC performance using the receiver or HX htf flow rate -> this may be ignored if PC is in controlled startup
     // Need to do this to get back PC T_htf_cold
@@ -1160,11 +1205,15 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
         T_htf_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
-
+        tes_outputs_temp);
+    double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
-    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+    double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf += tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_cold_ave = tes_outputs_temp.m_T_cold_ave;
+    tes_outputs.m_T_cold_final = tes_outputs_temp.m_T_cold_final;
+    tes_outputs.dP_perc += tes_outputs_temp.dP_perc;
 
     // Recombine excess mass flow from the power cycle
     double T_htf_rec_in_solved;     //[K]
@@ -1197,6 +1246,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
     mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    mpc_csp_solver->mc_tes_outputs = tes_outputs;
 
     //Calculate diff_T_htf_cold
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
@@ -1448,6 +1499,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty_mdot::operator()(double m_d
 int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Should not be called directly, only via C_mono_eq_cr_on_pc_match_tes_empty_mdot(double m_dot /*kg/hr*/, double *m_dot_bal /*-*/)
+    C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
+    C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
 
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
@@ -1487,7 +1540,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
         m_dot_store / 3600.,
         T_store_in,
         T_cold_tes_K,
-        mpc_csp_solver->mc_tes_outputs);
+        tes_outputs);
 
     // Recombine excess mass flow from the power cycle
     double T_htf_hx_in;     //[K]
@@ -1524,11 +1577,11 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
         T_htf_hx_in,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+        tes_outputs_temp);
+    double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
 
     m_dot_hx_out *= 3600.;  //[kg/hr]
-    double P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
+    double P_hx_out = P_rec_out * (1. - tes_outputs_temp.dP_perc / 100.);    //[kPa]
 
     // Recombine excess mass flow from before the HT HX (since TES is emptying, htf mass flow is constrained)
     double T_htf_pc_in;     //[K]
@@ -1588,11 +1641,15 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
         T_htf_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
-
+        tes_outputs_temp);
+    double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
-    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+    double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf += tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_cold_ave = tes_outputs_temp.m_T_cold_ave;
+    tes_outputs.m_T_cold_final = tes_outputs_temp.m_T_cold_final;
+    tes_outputs.dP_perc += tes_outputs_temp.dP_perc;
 
     // Recombine excess mass flow from the power cycle
     double T_htf_rec_in;     //[K]
@@ -1625,6 +1682,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    mpc_csp_solver->mc_tes_outputs = tes_outputs;
 
     //Calculate diff_T_htf_cold
     *diff_T_htf_cold = ((T_htf_rec_in - 273.15) - T_htf_cold) / T_htf_cold;		//[-]
@@ -1963,6 +2022,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot::operator()(double m_dot
 int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Should not be called directly, only via C_mono_eq_cr_on_pc_target_tes_dc_mdot(double m_dot_tank /*kg/hr*/, double *q_dot_pc /*MWt*/)
+    C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
+    C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
 
     // Solve the tower model with T_htf_cold from the LT HX
     double T_htf_rec_in = T_htf_cold + 273.15;      //[K]
@@ -2021,7 +2082,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         m_dot_store / 3600.,
         T_store_in,
         T_cold_tes_K,
-        mpc_csp_solver->mc_tes_outputs);
+        tes_outputs);
 
     // Check if TES.charge method solved
     if (!ch_solved) {
@@ -2048,9 +2109,10 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         m_m_dot_tank / 3600.,
         T_htf_rec_out,
         T_htf_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
+        m_dot_hx_out,
+        tes_outputs_temp);
     mpc_csp_solver->mc_tes.update_calc_vals(true);
-    m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.;
+    m_dot_hx_out *= 3600.;
 
     double T_htf_hx_in, m_dot_hx_in, T_htf_pc_in, m_dot_pc_in, P_hx_out;
     if (m_dot_rec_out > m_dot_hx_out) {
@@ -2109,7 +2171,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         }
 
         T_htf_hx_in = T_cold_solved + 273.15;
-        m_dot_hx_in = m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
+        m_dot_hx_in = m_dot_hx_out = c_eq.m_m_dot_htf_out; //[kg/hr] mass flow out of the HX on the field side
         m_dot_pc_in = m_dot_hx_out;     //[kg/hr]
         T_htf_pc_in = T_htf_hx_out = mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out + 273.15;     //[K]
         P_hx_out = P_rec_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);    //[kPa]
@@ -2122,8 +2184,16 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         m_m_dot_tank / 3600.,
         T_htf_hx_in,
         T_htf_hot,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_hot_ave = mpc_csp_solver->mc_tes_outputs.m_T_hot_ave - 273.15;       //[C]
+        m_dot_hx_out,
+        tes_outputs_temp);
+    double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
+    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;
+    tes_outputs.m_W_dot_rhtf_pump = tes_outputs_temp.m_W_dot_rhtf_pump;
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf = tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_hot_ave = tes_outputs_temp.m_T_hot_ave;
+    tes_outputs.m_T_hot_final = tes_outputs_temp.m_T_hot_final;
+    tes_outputs.dP_perc = tes_outputs_temp.dP_perc;
 
     // Solve the PC performance at the receiver htf flow rate
     // Need to do this to get back PC T_htf_cold
@@ -2161,11 +2231,15 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
         T_htf_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
-        mpc_csp_solver->mc_tes_outputs);
-    double T_store_cold_ave = mpc_csp_solver->mc_tes_outputs.m_T_cold_ave - 273.15;       //[C]
-
+        tes_outputs_temp);
+    double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
-    double P_lthx_out = P_pc_out * (1. - mpc_csp_solver->mc_tes_outputs.dP_perc / 100.);           //[kPa]
+    double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]
+    // don't double count heater power and thermal losses, already accounted for during charging
+    tes_outputs.m_q_dot_dc_to_htf += tes_outputs_temp.m_q_dot_dc_to_htf;
+    tes_outputs.m_T_cold_ave = tes_outputs_temp.m_T_cold_ave;
+    tes_outputs.m_T_cold_final = tes_outputs_temp.m_T_cold_final;
+    tes_outputs.dP_perc += tes_outputs_temp.dP_perc;
 
     // Recombine excess mass flow from the power cycle
     double T_htf_rec_in_solved;     //[K]
@@ -2198,6 +2272,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
     mpc_csp_solver->mc_tes_dc_htf_state.m_m_dot = m_dot_hx_in;                  	//[kg/hr]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_in = T_htf_hx_in - 273.15;   		//[C]
     mpc_csp_solver->mc_tes_dc_htf_state.m_temp_out = T_htf_hx_out - 273.15;	        //[C]
+
+    mpc_csp_solver->mc_tes_outputs = tes_outputs;
 
     //Calculate diff_T_htf_cold
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;		//[-]
@@ -3337,13 +3413,14 @@ int C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank::operator()(double T_htf_cold /*
         m_m_dot_store / 3600.,
         T_htf_cold + 273.15,
         T_htf_hot,
+        m_m_dot_htf_out,
         mpc_csp_solver->mc_tes_outputs);
+    m_m_dot_htf_out *= 3600.;
 
-    double m_dot_hx_out = mpc_csp_solver->mc_tes_outputs.m_m_dot * 3600.; //[kg/hr] mass flow out of the HX on the field side
-    if (m_dot_hx_out < m_m_dot_rec_out) {
+    if (m_m_dot_htf_out < m_m_dot_rec_out) {
         return -1; // in this MEQ we're assuming m_dot_HX > m_dot_CR
     }
-    double m_dot_pc = m_dot_hx_out;     //[kg/hr]  
+    double m_dot_pc = m_m_dot_htf_out;     //[kg/hr]  
     double m_dot_bypassed = std::max(0., m_dot_pc - m_m_dot_rec_out);   //[kg/hr] amount of HTF from before the CR that is mixed after the CR before the HX
 
     // Recombine excess mass flow from the power cycle

@@ -851,6 +851,7 @@ public:
 			TES_E_CH_STATE,       //[MWht] TES charge state at the end of the time step
 			TES_M_DOT_DC,         //[MWt] TES discharge mass flow rate
 			TES_M_DOT_CH,         //[MWt] TES charge mass flow rate
+            TES_V_INITIAL,        //[-] Hot tank fill fraction
 			COL_W_DOT_TRACK,      //[MWe] Parasitic collector tracking, startup, stow power consumption
 			CR_W_DOT_PUMP,        //[MWe] Parasitic tower HTF pump power
 			SYS_W_DOT_PUMP,       //[MWe] Parasitic PC and TES HTF pump power

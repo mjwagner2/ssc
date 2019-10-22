@@ -124,9 +124,9 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off::operator()(double T_htf_co
         tes_outputs);
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     mpc_csp_solver->mc_tes.update_calc_vals(false);     // do not update calc values due to following iterations (which are within larger iterations)
 
@@ -418,13 +418,14 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
 
     // Charge storage
     // First estimate available charge
-    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max;
+    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
     q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
     mpc_csp_solver->mc_tes.charge_avail_est(T_store_in,
         mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_tes_ch_max,
         m_dot_tes_ch_max,
-        T_tes_cold_ch_max);
+        T_tes_cold_ch_max,
+        m_dot_store_ch_max);
 
     m_dot_tes_ch_max *= 3600.0;		//[kg/hr]
 
@@ -459,9 +460,9 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr::operator()(double T_htf_cold /*C*/, 
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     // Solve the HT HX using a given media discharge (m_m_dot_tank from the outer MEQ)
     // This is a test call (update_calc_vals = false) using the receiver outlet temperature
@@ -671,9 +672,9 @@ int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/
 	double T_htf_cold = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold;		//[C]
 
     // Estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
     m_dot_field_est *= 3600.;   //[kg/hr]
 
 	// Solve TES discharge
@@ -773,14 +774,15 @@ int C_csp_solver::C_mono_eq_pc_target_tes_dc__T_cold::operator()(double T_htf_co
 	C_monotonic_eq_solver c_solver(c_eq);
 
 	// Calculate the maximum mass flow rate available for discharge
-	double q_dot_tes_dc_max, m_dot_tes_dc_max, T_htf_hot_dc_max;
+	double q_dot_tes_dc_max, m_dot_tes_dc_max, T_htf_hot_dc_max, m_dot_store_dc_max;
 	q_dot_tes_dc_max = m_dot_tes_dc_max = T_htf_hot_dc_max = std::numeric_limits<double>::quiet_NaN();
 
 	mpc_csp_solver->mc_tes.discharge_avail_est_both(T_htf_cold + 273.15,
 										mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
 										q_dot_tes_dc_max,
 										m_dot_tes_dc_max,
-										T_htf_hot_dc_max);
+										T_htf_hot_dc_max,
+                                        m_dot_store_dc_max);
 
 	m_dot_tes_dc_max *= 3600.0;		//[kg/hr] convert from kg/s
 
@@ -990,7 +992,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_tan
 }
 
 int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
-{
+{  
     // Should not be called directly, only via C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_store /*kg/hr*/, double *m_dot_htf_bal /*-*/)
     C_csp_tes::S_csp_tes_outputs tes_outputs;           // the aggregate of the different tes calls
     C_csp_tes::S_csp_tes_outputs tes_outputs_temp;      // output of each tes call, used to update the aggregate
@@ -1024,13 +1026,14 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
 
     // Charge storage
     // First estimate available charge
-    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max;
+    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
     q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
     mpc_csp_solver->mc_tes.charge_avail_est(T_store_in,
         mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_tes_ch_max,
         m_dot_tes_ch_max,
-        T_tes_cold_ch_max);
+        T_tes_cold_ch_max,
+        m_dot_store_ch_max);
 
     m_dot_tes_ch_max *= 3600.0;		//[kg/hr]
 
@@ -1065,9 +1068,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch::operator()(double T_htf_cold /*C
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     // Solve the HT HX using a given media discharge (m_m_dot_tank from the outer MEQ)
     // This is a test call (update_calc_vals = false) using the receiver outlet temperature
@@ -1386,13 +1389,14 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch__T_cold::operator()(double T_
 
 	// Get maximum charging mass flow rate
 	// Knowing the receiver outlet temperature, can calculate the maximum mass flow rate available for charging
-	double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max;
+	double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
 	q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
 	mpc_csp_solver->mc_tes.charge_avail_est(mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15, 
 										mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step, 
 										q_dot_tes_ch_max, 
 										m_dot_tes_ch_max, 
-										T_tes_cold_ch_max);
+										T_tes_cold_ch_max,
+                                        m_dot_store_ch_max);
 
 	m_dot_tes_ch_max *= 3600.0;		//[kg/hr] convert from kg/s
 
@@ -1568,9 +1572,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
 
     // Solve the HT HX using a full storage media discharge
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_hx_in, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
     double T_htf_hx_out, m_dot_hx_out;
     mpc_csp_solver->mc_tes.discharge_full(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
@@ -2054,13 +2058,14 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
 
     // Charge storage
     // First estimate available charge
-    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max;
+    double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
     q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
     mpc_csp_solver->mc_tes.charge_avail_est(T_store_in,
         mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_tes_ch_max,
         m_dot_tes_ch_max,
-        T_tes_cold_ch_max);
+        T_tes_cold_ch_max,
+        m_dot_store_ch_max);
 
     m_dot_tes_ch_max *= 3600.0;		//[kg/hr]
 
@@ -2095,9 +2100,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc::operator()(double T_htf_cold
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     // Solve the HT HX using a given media discharge (m_m_dot_tank from the outer MEQ)
     // This is a test call (update_calc_vals = false) using the receiver outlet temperature
@@ -3403,9 +3408,9 @@ int C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank::operator()(double T_htf_cold /*
 {
     // T_htf_cold is the guessed temperature into the high-temp (HT) HX
     
-    double q_dot_dc_est, m_dot_field_est, T_hot_field_est;
+    double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
     mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+        q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     double T_htf_hot;  //[K] HTF temp out of the HX on the field side
     mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,

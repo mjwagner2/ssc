@@ -939,7 +939,7 @@ double C_csp_two_tank_tes::get_hot_m_dot_available(double f_unavail, double time
     return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
 }
 
-void C_csp_two_tank_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est) 
+void C_csp_two_tank_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
 	double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
 
@@ -973,15 +973,16 @@ void C_csp_two_tank_tes::discharge_avail_est(double T_cold_K, double step_s, dou
 		T_hot_field_est = T_hot_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_disch_avail;   //[kg/s]
 	m_m_dot_tes_dc_max = m_dot_field_est;		//[kg/s]
 }
 
-void C_csp_two_tank_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est)
+void C_csp_two_tank_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est, double &m_dot_store_est)
 {
-    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 }
 
-void C_csp_two_tank_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
+void C_csp_two_tank_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est)
 {
 	double f_ch_storage = 0.0;	// for now, hardcode such that storage always completely charges
 
@@ -1008,6 +1009,7 @@ void C_csp_two_tank_tes::charge_avail_est(double T_hot_K, double step_s, double 
 		T_cold_field_est = T_cold_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_charge_avail;   //[kg/s]
 	m_m_dot_tes_ch_max = m_dot_field_est;		//[kg/s]
 }
 
@@ -2120,7 +2122,7 @@ double C_csp_cold_tes::get_hot_m_dot_available(double f_unavail, double timestep
     return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
 }
 
-void C_csp_cold_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
+void C_csp_cold_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
 	double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
 
@@ -2147,15 +2149,16 @@ void C_csp_cold_tes::discharge_avail_est(double T_cold_K, double step_s, double 
 		T_hot_field_est = T_hot_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_disch_avail;   //[kg/s]
 	m_m_dot_tes_dc_max = m_dot_tank_disch_avail * step_s;		//[kg/s]
 }
 
-void C_csp_cold_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est)
+void C_csp_cold_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est, double &m_dot_store_est)
 {
-    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 }
 
-void C_csp_cold_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
+void C_csp_cold_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est)
 {
 	double f_ch_storage = 0.0;	// for now, hardcode such that storage always completely charges
 
@@ -2182,6 +2185,7 @@ void C_csp_cold_tes::charge_avail_est(double T_hot_K, double step_s, double &q_d
 		T_cold_field_est = T_cold_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_charge_avail;   //[kg/s]
 	m_m_dot_tes_ch_max = m_dot_tank_charge_avail * step_s;		//[kg/s]
 }
 
@@ -2923,7 +2927,7 @@ double C_csp_two_tank_two_hx_tes::get_hot_m_dot_available(double f_unavail, doub
     return mc_hot_tank.m_dot_available(f_unavail, timestep);	//[kg/s]
 }
 
-void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
+void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
     // This is just looking at the high-temp (HT) HX
     // T_cold_K is the temperature entering the HT_HX on the 'field' side opposite the storage media
@@ -2947,10 +2951,12 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double step
     eff = T_warm_tes = std::numeric_limits<double>::quiet_NaN();
     ht_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, eff, T_warm_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
 
+    m_dot_store_est = m_dot_tank_disch_avail;   //[kg/s]
     m_m_dot_tes_dc_max = m_dot_field_est;		//[kg/s]
+
 }
 
-void C_csp_two_tank_two_hx_tes::discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
+void C_csp_two_tank_two_hx_tes::discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
     // This is looking at both the low and high-temp HXs in series
     // T_cold_K is the temperature entering the LT_HX on the 'field' side opposite the storage media
@@ -2973,10 +2979,11 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est_both(double T_cold_K, double
     eff = T_cold_tes = std::numeric_limits<double>::quiet_NaN();
     h_l_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, eff, T_cold_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
 
+    m_dot_store_est = m_dot_tank_disch_avail;   //[kg/s]
     m_m_dot_tes_dc_max = m_dot_field_est;		//[kg/s]
 }
 
-void C_csp_two_tank_two_hx_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
+void C_csp_two_tank_two_hx_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est)
 {
     // This is just looking at the hot and cold tanks in a direct configuration
     // T_hot_K is the temperature of the storage media entering the hot tank
@@ -2994,6 +3001,7 @@ void C_csp_two_tank_two_hx_tes::charge_avail_est(double T_hot_K, double step_s, 
     m_dot_field_est = m_dot_tank_charge_avail;
     T_cold_field_est = T_cold_ini;
 
+    m_dot_store_est = m_dot_tank_charge_avail;  //[kg/s]
     m_m_dot_tes_ch_max = m_dot_field_est;		//[kg/s]
 }
 

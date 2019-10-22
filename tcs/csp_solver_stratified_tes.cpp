@@ -493,7 +493,7 @@ double C_csp_stratified_tes::get_hot_m_dot_available(double f_unavail, double ti
     return 0.0;
 }
 
-void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est)
+void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
 	double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
 
@@ -520,15 +520,16 @@ void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, d
 		T_hot_field_est = T_hot_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_disch_avail;  //[kg/s]
 	m_m_dot_tes_dc_max = m_dot_tank_disch_avail * step_s;		//[kg/s]
 }
 
-void C_csp_stratified_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est)
+void C_csp_stratified_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est, double &m_dot_store_est)
 {
-    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est);
+    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 }
 
-void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est)
+void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est)
 {
 	double f_ch_storage = 0.0;	// for now, hardcode such that storage always completely charges
 
@@ -555,6 +556,7 @@ void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, doubl
 		T_cold_field_est = T_cold_ini;
 	}
 
+    m_dot_store_est = m_dot_tank_charge_avail;  //[kg/s]
 	m_m_dot_tes_ch_max = m_dot_tank_charge_avail * step_s;		//[kg/s]
 }
 

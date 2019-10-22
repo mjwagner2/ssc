@@ -859,17 +859,18 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		double q_dot_tes_dc, q_dot_tes_ch;
 		q_dot_tes_dc = q_dot_tes_ch = std::numeric_limits<double>::quiet_NaN();
 		double m_dot_tes_dc_est, m_dot_tes_ch_est;
+        double m_dot_tes_store_dc_est, m_dot_tes_store_ch_est;
 		if (m_is_tes)
 		{
 			//predict estimated amount of charge/discharge available
 			double T_hot_field_dc_est;	//[K]
 			T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.discharge_avail_est(m_T_htf_pc_cold_est + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est);
+			mc_tes.discharge_avail_est(m_T_htf_pc_cold_est + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
 			m_dot_tes_dc_est *= 3600.0;	//[kg/hr] convert from kg/s
 
 			double T_cold_field_ch_est;	//[K]
 			T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est);
+			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
 			m_dot_tes_ch_est *= 3600.0;	//[kg/hr] convert from kg/s
 		}
 		else
@@ -997,8 +998,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 dispatch.params.info_time = mc_kernel.mc_sim_info.ms_ts.m_time; //s
 
                 //Note the state of the thermal energy storage system
-                double q_disch, m_dot_disch, T_tes_return;
-				mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, q_disch, m_dot_disch, T_tes_return);
+                double q_disch, m_dot_disch, T_tes_return, m_dot_store;
+				mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, q_disch, m_dot_disch, T_tes_return, m_dot_store);
 				dispatch.params.e_tes_init = q_disch * 1000. * mc_kernel.mc_sim_info.ms_ts.m_step / 3600. + dispatch.params.e_tes_min;        //kWh
 		        if(dispatch.params.e_tes_init < dispatch.params.e_tes_min )
                     dispatch.params.e_tes_init = dispatch.params.e_tes_min;
@@ -1146,6 +1147,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		// Check if CR startup should be solved before entering hierarchy
 		double q_dot_tes_dc_t_CR_su = 0.0;
 		double m_dot_tes_dc_t_CR_su = 0.0;
+        double m_dot_tes_store_dc_t_CR_su = 0.0;
 		if( (cr_operating_state == C_csp_collector_receiver::OFF || cr_operating_state == C_csp_collector_receiver::STARTUP) &&
 			q_dot_cr_startup > 0.0 &&
 			is_rec_su_allowed && 
@@ -1180,7 +1182,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				{
 					double T_hot_field_dc_est;	//[kg/s, K]
 					T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-					mc_tes.discharge_avail_est(m_T_htf_cold_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_dc_t_CR_su, T_hot_field_dc_est);
+					mc_tes.discharge_avail_est(m_T_htf_cold_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_dc_t_CR_su, T_hot_field_dc_est, m_dot_tes_store_dc_t_CR_su);
 					m_dot_tes_dc_t_CR_su *= 3600.0;		//[kg/hr] convert from kg/s
 				}
 				else
@@ -4894,8 +4896,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
         double e_tes_disch = 0.;
         if(m_is_tes)
         {
-            double mdot_disch, Tdisch;
-			mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, e_tes_disch, mdot_disch, Tdisch);
+            double mdot_disch, Tdisch, mdot_store_disch;
+			mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, e_tes_disch, mdot_disch, Tdisch, mdot_store_disch);
 
             e_tes_disch *= mc_kernel.mc_sim_info.ms_ts.m_step / 3600.;  //MWh
         }

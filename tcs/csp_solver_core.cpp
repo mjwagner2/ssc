@@ -865,13 +865,15 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			//predict estimated amount of charge/discharge available
 			double T_hot_field_dc_est;	//[K]
 			T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.discharge_avail_est(m_T_htf_pc_cold_est + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
-			m_dot_tes_dc_est *= 3600.0;	//[kg/hr] convert from kg/s
+			mc_tes.discharge_avail_est(T_htf_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
+			m_dot_tes_dc_est *= 3600.0;	        //[kg/hr] convert from kg/s
+            m_dot_tes_store_dc_est *= 3600.0;   //[kg/hr] convert from kg/s
 
 			double T_cold_field_ch_est;	//[K]
 			T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
 			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
-			m_dot_tes_ch_est *= 3600.0;	//[kg/hr] convert from kg/s
+			m_dot_tes_ch_est *= 3600.0;         //[kg/hr] convert from kg/s
+            m_dot_tes_store_ch_est *= 3600.0;   //[kg/hr] convert from kg/s
 		}
 		else
 		{

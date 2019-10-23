@@ -1,8 +1,6 @@
 clear();
 filedir = cwd();
-//weatherdir = env("SAMNTDIR") + '/deploy/solar_resource';
-weatherdir = "C:\\SAM\\2018.11.11\\solar_resource";
-var( 'solar_resource_file', weatherdir + '/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
+var( 'solar_resource_file', 'daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
 var( 'rec_efficiency_lookup', csvread(filedir + '/rec_efficiency.csv'));
 var( 'rec_pressure_lookup', csvread(filedir + '/rec_pressure.csv'));
 var( 'ppa_multiplier_model', 0 );
@@ -26,7 +24,7 @@ var( 'hel_stow_deploy', 8 );
 var( 'v_wind_max', 15 );
 var( 'eta_map', csvread(filedir + '/eta_map.csv'));
 var( 'eta_map_aod_format', 0 );
-var( 'flux_maps', csvread(filedir + '/flux_maps.csv'));
+//var( 'flux_maps', csvread(filedir + '/flux_maps.csv'));
 var( 'c_atm_0', 0.0067889999999999999 );
 var( 'c_atm_1', 0.1046 );
 var( 'c_atm_2', -0.017000000000000001 );

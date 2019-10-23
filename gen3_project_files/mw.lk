@@ -36,7 +36,7 @@ var( 'is_dispatch_series', 0 );
 
 var( 'solar_resource_file', 'daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
 var( 'dispatch_factors_ts', real_array(read_text_file('dispatch_factors_ts.csv')));
-var( 'ud_ind_od', csvread('udpc_output.csv'));
+var( 'ud_ind_od', csvread('ud_ind_od.csv'));
 var( 'ud_ind_od_off_sun', csvread('ud_ind_od_off_sun.csv'));
 var( 'helio_positions', csvread('helio_positions.csv'));
 var( 'eta_map', csvread('eta_map.csv'));

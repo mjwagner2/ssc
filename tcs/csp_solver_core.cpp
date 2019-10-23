@@ -2621,42 +2621,70 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 			case CR_ON__PC_TARGET__TES_CH__AUX_OFF:
 			case CR_ON__PC_SB__TES_CH__AUX_OFF:
-			{
-				// CR is on (no defocus)
-				// PC is on and hitting specified target
-				// TES is charging
+            {
+                // CR is on (no defocus)
+                // PC is on and hitting specified target
+                // TES is charging
 
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
+                if (!mc_collector_receiver.m_is_sensible_htf)
+                {
+                    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                    throw(C_csp_exception(err_msg, "CSP Solver"));
+                }
 
-				int power_cycle_mode = -1;
-				double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+                int power_cycle_mode = -1;
+                double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
                 double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
 
-				//std::string op_mode_str = "";
-				if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::ON;
-					q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                //std::string op_mode_str = "";
+                if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+                {
+                    power_cycle_mode = C_csp_power_cycle::ON;
+                    q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
                     W_dot_pc_fixed = W_pc_target;
-					op_mode_str = "CR_ON__PC_TARGET__TES_CH__AUX_OFF";
-				}
-				else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::STANDBY;
-					q_dot_pc_fixed = q_pc_sb;
+                    op_mode_str = "CR_ON__PC_TARGET__TES_CH__AUX_OFF";
+                }
+                else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
+                {
+                    power_cycle_mode = C_csp_power_cycle::STANDBY;
+                    q_dot_pc_fixed = q_pc_sb;
                     W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-					op_mode_str = "CR_ON__PC_SB__TES_CH__AUX_OFF";
-				}
+                    op_mode_str = "CR_ON__PC_SB__TES_CH__AUX_OFF";
+                }
 
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
+                // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                m_defocus = 1.0;
+
+                if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF) {
+                    // Ensure default PC target power is attainable
+                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus);
+                    C_monotonic_eq_solver c_solver(c_eq);
+
+                    double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
+                    double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
+                    int tes_max_code = c_solver.test_member_function(m_dot_tes_max, &diff_m_dot_particle);
+                    if (tes_max_code != 0) {
+                        // Can't solve models with high tes mass flow, so get out
+                        error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
+                            "convergence could not be achieved. Controller will shut-down CR and PC",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        are_models_converged = false;
+                        m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
+
+                        break;
+                    }
+
+                    if (diff_m_dot_particle < -1.E-3)
+                    {
+                        //Reduce target power cycle power
+                        W_dot_pc_fixed = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed) * 0.995;
+                    }
+                }
 
                 C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
+                C_monotonic_eq_solver c_solver(c_eq);
 
                 // Get guesses for particle flow
                 mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]

@@ -776,7 +776,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		// Get or set decision variables
 		bool is_rec_su_allowed = true;
 		bool is_pc_su_allowed = true;
-		bool is_pc_sb_allowed = true;
+		//bool is_pc_sb_allowed = true;
+		bool is_pc_sb_allowed = false;
 		mc_kernel.mc_sim_info.m_tou = 1;	    //[base 1] used ONLY by power cycle model for hybrid cooling - may also want to move this to controller
 
 		// Get standby fraction and min operating fraction

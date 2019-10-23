@@ -36,7 +36,9 @@ class C_pt_sf_perf_interp
 {
 private:
 	// Class Instances
-	GaussMarkov *field_efficiency_table;
+    GaussMarkov *field_efficiency_table;
+    GaussMarkov *field_area_table;
+    GaussMarkov *field_nhelio_table;
 	MatDoub m_map_sol_pos;
 	
 	double m_p_start;				//[kWe-hr] Heliostat startup energy
@@ -83,12 +85,12 @@ public:
 		double m_hel_stow_deploy;	//[deg] convert to [rad] in init()
 		double m_v_wind_max;		//[m/s] max wind speed
 
-		int m_N_hel;		//[-]
-
 		int m_n_flux_x;
 		int m_n_flux_y;
 
-		util::matrix_t<double> m_eta_map;
+        util::matrix_t<double> m_eta_map;
+        util::matrix_t<double> m_area_map;
+        util::matrix_t<double> m_nhelio_map;
 
 		util::matrix_t<double> m_flux_maps;
 
@@ -96,24 +98,22 @@ public:
 
 		double m_land_area;
 
-		double m_A_sf;		//[m2]
-
 		S_params()
 		{
 			// Integers
-			m_n_flux_x = m_n_flux_y = m_N_hel = -1;
+			m_n_flux_x = m_n_flux_y = -1;
 
 			// Doubles
 			m_p_start = m_p_track = m_hel_stow_deploy = m_v_wind_max = 
-				m_land_area = m_A_sf = std::numeric_limits<double>::quiet_NaN();
+				m_land_area =std::numeric_limits<double>::quiet_NaN();
 
 		}		
-	};
-
-	S_params ms_params;
+	} ms_params;
 
 	struct S_outputs
 	{
+        int m_N_hel;
+        double m_A_sf;
 		double m_q_dot_field_inc;	//[MWt] Field incident thermal power (from the sun!)
 
 		util::matrix_t<double> m_flux_map_out;
@@ -123,7 +123,8 @@ public:
 
 		S_outputs()
 		{
-			m_q_dot_field_inc = m_pparasi = m_eta_field = m_sf_adjust_out =  std::numeric_limits<double>::quiet_NaN();
+			m_q_dot_field_inc = m_pparasi = m_eta_field = m_sf_adjust_out = m_A_sf = std::numeric_limits<double>::quiet_NaN();
+            m_N_hel = -1;
 		}
 	};
 

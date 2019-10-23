@@ -84,12 +84,13 @@ public:
     struct S_inputs
     {
         double m_field_eff;					                //[-] = (irradiance on receiver) / (I_bn * area of all heliostats)
+        double m_A_sf;
         int m_input_operation_mode;			                //[-] operating mode of collector receiver, corresponding to enum C_csp_collector_receiver::E_csp_cr_modes
         const util::matrix_t<double> *m_flux_map_input;		//[-] flux values for each receiver surface node, as fraction of an evenly distributed irradiance
 
         S_inputs()
         {
-            m_field_eff = std::numeric_limits<double>::quiet_NaN();
+            m_field_eff = m_A_sf = std::numeric_limits<double>::quiet_NaN();
             m_input_operation_mode = -1;
         }
     };

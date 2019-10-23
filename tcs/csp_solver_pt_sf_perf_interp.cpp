@@ -46,6 +46,8 @@ C_pt_sf_perf_interp::C_pt_sf_perf_interp()
 	m_n_flux_x = m_n_flux_y = -1;
 
 	field_efficiency_table = 0;
+    field_area_table = 0;
+    field_nhelio_table = 0;
 
 	m_cdata = 0;		// = NULL
 	mf_callback = 0;	// = NULL
@@ -55,14 +57,20 @@ C_pt_sf_perf_interp::C_pt_sf_perf_interp()
 
 C_pt_sf_perf_interp::~C_pt_sf_perf_interp()
 {
-	if( field_efficiency_table != 0 )
-		delete field_efficiency_table;
+    if (field_efficiency_table != 0)
+        delete field_efficiency_table;
+    if (field_area_table != 0)
+        delete field_area_table;
+    if (field_nhelio_table != 0)
+        delete field_nhelio_table;
 }
 
 void C_pt_sf_perf_interp::init()
 {
 	//Read in parameters
-	util::matrix_t<double> eta_map;
+    util::matrix_t<double> eta_map;
+    util::matrix_t<double> area_map;
+    util::matrix_t<double> nhelio_map;
 	util::matrix_t<double> flux_maps;
 	
 	m_p_start = ms_params.m_p_start;
@@ -71,6 +79,8 @@ void C_pt_sf_perf_interp::init()
 	m_v_wind_max = ms_params.m_v_wind_max;
 
 	eta_map = ms_params.m_eta_map;
+    area_map = ms_params.m_area_map;
+    nhelio_map = ms_params.m_nhelio_map;
 
 	m_n_flux_x = ms_params.m_n_flux_x;
 	m_n_flux_y = ms_params.m_n_flux_y;
@@ -186,6 +196,63 @@ void C_pt_sf_perf_interp::init()
 		mc_csp_messages.add_message(C_csp_messages::WARNING, error_msg);
 	}
 
+    //create area and number of heliostats maps
+    //ms_params.m_area_map, &ms_params.m_nheilo_map
+    {
+        MatDoub sunpos;
+        vector<double> response;
+
+        int nrows = ms_params.m_area_map.nrows();
+        int ncols = ms_params.m_area_map.ncols();
+
+        if (ncols != 3)
+        {
+            error_msg = util::format("The heliostat field area input is not formatted correctly. Type expects 3 columns"
+                " (zenith angle, azimuth angle, area value) and instead has %d cols.", ncols);
+
+            throw(C_csp_exception(error_msg, "heliostat field initialization"));
+        }
+
+        //read the data from the array into the local storage arrays
+        sunpos.resize(nrows, VectDoub(2));
+        response.resize(nrows);
+        for (int i = 0; i < nrows; i++)
+        {
+            sunpos.at(i).at(0) = area_map(i, 0) / az_scale * CSP::pi / 180.0;
+            sunpos.at(i).at(1) = area_map(i, 1) / zen_scale * CSP::pi / 180.0;
+            response.at(i) = area_map(i, 2);
+        }
+        Powvargram vgram(sunpos, response, interp_beta, interp_nug);
+        field_area_table = new GaussMarkov(sunpos, response, vgram);
+    }
+    {
+        MatDoub sunpos;
+        vector<double> response;
+
+        int nrows = ms_params.m_nhelio_map.nrows();
+        int ncols = ms_params.m_nhelio_map.ncols();
+
+        if (ncols != 3)
+        {
+            error_msg = util::format("The heliostat field heliostat count input is not formatted correctly. Type expects 3 columns"
+                " (zenith angle, azimuth angle, num-helio value) and instead has %d cols.", ncols);
+
+            throw(C_csp_exception(error_msg, "heliostat field initialization"));
+        }
+
+        //read the data from the array into the local storage arrays
+        sunpos.resize(nrows, VectDoub(2));
+        response.resize(nrows);
+        for (int i = 0; i < nrows; i++)
+        {
+            sunpos.at(i).at(0) = nhelio_map(i, 0) / az_scale * CSP::pi / 180.0;
+            sunpos.at(i).at(1) = nhelio_map(i, 1) / zen_scale * CSP::pi / 180.0;
+            response.at(i) = nhelio_map(i, 2);
+        }
+        Powvargram vgram(sunpos, response, interp_beta, interp_nug);
+        field_nhelio_table = new GaussMarkov(sunpos, response, vgram);
+    }
+
 	// Initialize stored variables
 	m_eta_prev = 0.0;
 	m_v_wind_prev = 0.0;
@@ -228,32 +295,38 @@ void C_pt_sf_perf_interp::call(const C_csp_weatherreader::S_outputs &weather, do
 	// clear out the existing flux map
 	ms_outputs.m_flux_map_out.fill(0.0);
 
+    vector<double> sunpos;
+    sunpos.push_back(solaz / az_scale);
+    sunpos.push_back(solzen / zen_scale);
+
 	// Parasitics for startup or shutdown
 	double pparasi = 0.0;
 
-	// If starting up or shutting down, calculate parasitics
-	if( (field_control > 1.e-4 && m_eta_prev < 1.e-4) ||		// Startup by setting of control paramter (Field_control 0-> 1)
+    ms_outputs.m_N_hel = (int)field_nhelio_table->interp(sunpos);
+    ms_outputs.m_A_sf = field_area_table->interp(sunpos);
+
+	// If starting up or shutting down, calculate parasitics using solar position close to east horizon
+    if( (field_control > 1.e-4 && m_eta_prev < 1.e-4) ||		// Startup by setting of control paramter (Field_control 0-> 1)
 		(field_control < 1.e-4 && m_eta_prev >= 1.e-4) ||			// OR Shutdown by setting of control paramter (Field_control 1->0 )
 		(field_control > 1.e-4 && v_wind >= m_v_wind_max) ||		// OR Shutdown by high wind speed
 		(m_eta_prev > 1.e-4 && m_v_wind_prev >= m_v_wind_max && v_wind < m_v_wind_max) )	// OR Startup after high wind speed
-		pparasi = ms_params.m_N_hel * m_p_start / (step / 3600.0);			// [kWe-hr]/[hr] = kWe 
+		pparasi = ms_outputs.m_N_hel * m_p_start / (step / 3600.0);			// [kWe-hr]/[hr] = kWe 
 
 	// Parasitics for tracking      
 	if( v_wind < m_v_wind_max && m_v_wind_prev < m_v_wind_max )
-		pparasi += ms_params.m_N_hel * m_p_track * field_control;				// [kWe]
+		pparasi += ms_outputs.m_N_hel * m_p_track * field_control;				// [kWe]
 
 	double eta_field = 0.;
 
 	if( solzen > (CSP::pi / 2 - .001 - m_hel_stow_deploy) || v_wind > m_v_wind_max || time < 3601 )
 	{
 		eta_field = 1.e-6;
+        ms_outputs.m_N_hel = 0;
+        ms_outputs.m_A_sf = 0;
 	}
 	else
 	{
 		// Use current solar position to interpolate field efficiency table and find solar field efficiency
-		vector<double> sunpos;
-		sunpos.push_back(solaz / az_scale);
-		sunpos.push_back(solzen / zen_scale);
         if( ms_params.m_eta_map_aod_format )
         {
             if( weather.m_aod != weather.m_aod )
@@ -307,7 +380,7 @@ void C_pt_sf_perf_interp::call(const C_csp_weatherreader::S_outputs &weather, do
 
 	}
 
-	ms_outputs.m_q_dot_field_inc = weather.m_beam*ms_params.m_A_sf*1.E-6;		//[MWt]
+	ms_outputs.m_q_dot_field_inc = weather.m_beam*ms_outputs.m_A_sf*1.E-6;		//[MWt]
 
 	ms_outputs.m_pparasi = pparasi / 1.E3;		//[MW], convert from kJ/hr: Parasitic power for tracking
 	ms_outputs.m_eta_field = eta_field;			//[-], field efficiency
@@ -329,7 +402,7 @@ void C_pt_sf_perf_interp::off(const C_csp_solver_sim_info &sim_info)
 		// Is field shutting down?
 	if( m_eta_prev >= 1.e-4 )
 	{
-		pparasi = ms_params.m_N_hel * m_p_start / (step / 3600.0);			// [kWe-hr]/[hr] = kWe 
+		pparasi = ms_outputs.m_N_hel * m_p_start / (step / 3600.0);			// [kWe-hr]/[hr] = kWe 
 	}
 
 	ms_outputs.m_pparasi = pparasi / 1.E3;		//[MW], convert from kJ/hr: Parasitic power for tracking

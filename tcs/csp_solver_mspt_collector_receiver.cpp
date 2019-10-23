@@ -73,7 +73,7 @@ void C_csp_mspt_collector_receiver::init(const C_csp_collector_receiver::S_csp_c
     solved_params.m_P_cold_des = mc_pt_receiver.m_P_cold_des;               //[kPa]
     solved_params.m_T_htf_hot_des = mc_pt_receiver.m_T_htf_hot_des;         //[K]
 	solved_params.m_q_dot_rec_des = mc_pt_receiver.m_q_rec_des / 1.E6;		//[MW]
-	solved_params.m_A_aper_total = mc_pt_heliostatfield.ms_params.m_A_sf;	//[m^2]
+	solved_params.m_A_aper_total = mc_pt_heliostatfield.ms_outputs.m_A_sf;	//[m^2]
 
 	return;
 }
@@ -106,12 +106,12 @@ double C_csp_mspt_collector_receiver::get_min_power_delivery()    //MWt
 
 double C_csp_mspt_collector_receiver::get_tracking_power()
 {
-	return mc_pt_heliostatfield.ms_params.m_p_track * mc_pt_heliostatfield.ms_params.m_N_hel*1.e-3;	//MWe
+	return mc_pt_heliostatfield.ms_params.m_p_track * mc_pt_heliostatfield.ms_outputs.m_N_hel*1.e-3;	//MWe
 }
 
 double C_csp_mspt_collector_receiver::get_col_startup_power()
 {
-	return mc_pt_heliostatfield.ms_params.m_p_start * mc_pt_heliostatfield.ms_params.m_N_hel *1.e-3;	//MWe-hr
+	return mc_pt_heliostatfield.ms_params.m_p_start * mc_pt_heliostatfield.ms_outputs.m_N_hel *1.e-3;	//MWe-hr
 }
 
 double C_csp_mspt_collector_receiver::get_design_thermal_power()
@@ -148,8 +148,9 @@ void C_csp_mspt_collector_receiver::call(const C_csp_weatherreader::S_outputs &w
 	// Get heliostat field outputs and set corresponding receiver inputs
 	C_pt_receiver::S_inputs receiver_inputs;
 	receiver_inputs.m_field_eff = mc_pt_heliostatfield.ms_outputs.m_eta_field;
+    receiver_inputs.m_A_sf = mc_pt_heliostatfield.ms_outputs.m_A_sf;
 	receiver_inputs.m_input_operation_mode = inputs.m_input_operation_mode;
-	receiver_inputs.m_flux_map_input = &mc_pt_heliostatfield.ms_outputs.m_flux_map_out;
+	//receiver_inputs.m_flux_map_input = &mc_pt_heliostatfield.ms_outputs.m_flux_map_out;
 	mc_pt_receiver.call(weather, htf_state_in, receiver_inputs, sim_info);
 		
 	// Set collector/receiver parent class outputs and return
@@ -348,7 +349,7 @@ double C_csp_mspt_collector_receiver::get_collector_area()
     //return p->m_dens_mirror * p->m_helio_height * p->m_helio_width * (double)p->m_helio_positions.nrows();
 
     //return mc_pt_receiver.m_A_sf;
-    return mc_pt_heliostatfield.ms_params.m_A_sf;
+    return mc_pt_heliostatfield.ms_outputs.m_A_sf;
 }
 
 double C_csp_mspt_collector_receiver::calculate_thermal_efficiency_approx( const C_csp_weatherreader::S_outputs &weather, double q_inc )

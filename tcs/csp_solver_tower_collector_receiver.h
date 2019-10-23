@@ -52,8 +52,15 @@ public:
 	
 	enum
     {
+        E_FIELD_AREA_TOT,            //[m2] Total heliostat field area
+        E_FIELD_AREA1,              //[m2] Heliostat field area 1
+        E_FIELD_AREA2,              //[m2] Heliostat field area 1
+        E_FIELD_AREA3,              //[m2] Heliostat field area 1
         E_FIELD_Q_DOT_INC,          //[MWt] Field incident thermal power
-        E_FIELD_ETA_OPT,            //[-] Optical efficiency including Tower refl
+        E_FIELD_ETA_TOT,            //[-] Average optical efficiency including tower reflectivity
+        E_FIELD_ETA_OPT1,            //[-] Optical efficiency including Tower refl
+        E_FIELD_ETA_OPT2,            //[-] Optical efficiency including Tower refl
+        E_FIELD_ETA_OPT3,            //[-] Optical efficiency including Tower refl
         E_FIELD_ADJUST,             //[-] Field adjustment factor
         
         E_Q_DOT_INC,                //[MWt] Tower incident thermal power

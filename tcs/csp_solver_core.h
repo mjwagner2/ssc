@@ -1191,48 +1191,48 @@ public:
 		virtual int operator()(double defocus /*-*/, double *diff_q_dot_pc /*MWt*/);
 	};
 
-    class C_MEQ_cr_on__pc_q_dot_max__tes_off : public C_monotonic_equation
-    {
-    private:
-        C_csp_solver *mpc_csp_solver;
-        double m_pc_mode;       //[-]
-        double m_defocus;		//[-]
+    //class C_MEQ_cr_on__pc_q_dot_max__tes_off : public C_monotonic_equation
+    //{
+    //private:
+    //    C_csp_solver *mpc_csp_solver;
+    //    double m_pc_mode;       //[-]
+    //    double m_defocus;		//[-]
 
-    public:
-        C_MEQ_cr_on__pc_q_dot_max__tes_off(C_csp_solver *pc_csp_solver, double pc_mode /*-*/, double defocus /*-*/)
-        {
-            mpc_csp_solver = pc_csp_solver;
-            m_pc_mode = pc_mode;
-            m_defocus = defocus;	    //[-]
-        }
+    //public:
+    //    C_MEQ_cr_on__pc_q_dot_max__tes_off(C_csp_solver *pc_csp_solver, double pc_mode /*-*/, double defocus /*-*/)
+    //    {
+    //        mpc_csp_solver = pc_csp_solver;
+    //        m_pc_mode = pc_mode;
+    //        m_defocus = defocus;	    //[-]
+    //    }
 
-        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-    };
+    //    virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+    //};
 
-	class C_mono_eq_cr_to_pc_to_cr : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-		int m_pc_mode;					//[-]
-		double m_P_field_in;			//[kPa]
-		double m_x_field_in;			//[-]
-		double m_field_control_in;		//[-]
-        double m_m_dot;                 //[kg/hr]
+	//class C_mono_eq_cr_to_pc_to_cr : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+	//	int m_pc_mode;					//[-]
+	//	double m_P_field_in;			//[kPa]
+	//	double m_x_field_in;			//[-]
+	//	double m_field_control_in;		//[-]
+ //       double m_m_dot;                 //[kg/hr]
 
-	public:
-		C_mono_eq_cr_to_pc_to_cr(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
-			double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/, double m_dot /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-			m_pc_mode = pc_mode;
-			m_P_field_in = P_field_in;
-			m_x_field_in = x_field_in;
-			m_field_control_in = field_control_in;
-            m_m_dot = m_dot;
-		}
-		
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//public:
+	//	C_mono_eq_cr_to_pc_to_cr(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
+	//		double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/, double m_dot /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+	//		m_pc_mode = pc_mode;
+	//		m_P_field_in = P_field_in;
+	//		m_x_field_in = x_field_in;
+	//		m_field_control_in = field_control_in;
+ //           m_m_dot = m_dot;
+	//	}
+	//	
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_su_cont_tes_dc : public C_monotonic_equation
 	{
@@ -1355,28 +1355,28 @@ public:
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *m_dot_htf_bal /*-*/);
     };
 
-	class C_mono_eq_cr_on_pc_su_tes_ch : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-        double m_pc_mode;				//[-]
-        double m_defocus;				//[-]
-        double m_m_dot_tank;           //[kg/hr]
+	//class C_mono_eq_cr_on_pc_su_tes_ch : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+ //       double m_pc_mode;				//[-]
+ //       double m_defocus;				//[-]
+ //       double m_m_dot_tank;           //[kg/hr]
 
-	public:
-		C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver, int pc_mode, double defocus, double m_dot_tank /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-            m_pc_mode = pc_mode;				//[-]
-            m_defocus = defocus;				//[-]
-            m_m_dot_tank = m_dot_tank;    //[kg/hr]
-			m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
-		}
+	//public:
+	//	C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver, int pc_mode, double defocus, double m_dot_tank /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+ //           m_pc_mode = pc_mode;				//[-]
+ //           m_defocus = defocus;				//[-]
+ //           m_m_dot_tank = m_dot_tank;    //[kg/hr]
+	//		m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+	//	}
 
-		double m_step_pc_su;	//[s]
+	//	double m_step_pc_su;	//[s]
 
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_target__m_dot : public C_monotonic_equation
 	{
@@ -1472,26 +1472,26 @@ public:
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
     };
 
-	class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-		int m_pc_mode;			//[-]
-		double m_defocus;		//[-]
-        double m_m_dot_tank;    //[kg/hr]
+	//class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+	//	int m_pc_mode;			//[-]
+	//	double m_defocus;		//[-]
+ //       double m_m_dot_tank;    //[kg/hr]
 
-	public:
-		C_mono_eq_cr_on_pc_target_tes_dc(C_csp_solver *pc_csp_solver,
-			int pc_mode, double defocus /*-*/, double m_dot_tank /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-			m_pc_mode = pc_mode;				//[-]
-			m_defocus = defocus;				//[-]
-			m_m_dot_tank = m_dot_tank;  		//[kg/hr]
-		}
+	//public:
+	//	C_mono_eq_cr_on_pc_target_tes_dc(C_csp_solver *pc_csp_solver,
+	//		int pc_mode, double defocus /*-*/, double m_dot_tank /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+	//		m_pc_mode = pc_mode;				//[-]
+	//		m_defocus = defocus;				//[-]
+	//		m_m_dot_tank = m_dot_tank;  		//[kg/hr]
+	//	}
 
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_target__m_dot_fixed_plus_tes_dc : public C_monotonic_equation
 	{

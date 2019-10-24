@@ -1986,7 +1986,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					{
 						// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_RM_HI__TES_OFF here
 
-						C_mono_eq_cr_to_pc_to_cr c_eq(this, pc_mode, m_P_cold_des, -1, defocus_guess, m_m_dot_pc_des);
+                        C_MEQ_cr_on__pc__tes c_eq(this, defocus_guess, pc_mode, m_P_cold_des,
+                            std::numeric_limits<double>::quiet_NaN(), true, false);
 						C_monotonic_eq_solver c_solver(c_eq);
 
 						c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);

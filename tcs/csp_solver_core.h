@@ -1839,6 +1839,40 @@ public:
         virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };
 
+    class C_MEQ_cr_on__pc__tes : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_defocus;       		//[-]
+        int m_pc_mode;					//[-]
+        double m_P_rec_in;  			//[kPa] tower inlet pressure
+        double m_m_dot_tank;            //[kg/hr] particle mass flow out of hot tank
+        bool m_match_rec_m_dot_store;   //[-]  Should the hot tank discharge flow equal the receiver outlet m_dot_store (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-]  Should the HT HX outlet sco2 flow equal the receiver outlet sco2 flow (i.e., min PC mass flow) ?
+
+    public:
+        C_MEQ_cr_on__pc__tes(C_csp_solver *pc_csp_solver, double defocus /*-*/, int pc_mode /*-*/, double P_rec_in /*kPa*/,
+            double m_dot_tank /*kg/hr*/, double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_defocus = defocus;
+            m_pc_mode = pc_mode;
+            m_P_rec_in = P_rec_in;
+            m_m_dot_tank = m_dot_tank;
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+            if (m_match_rec_m_dot_store && m_match_rec_m_dot_htf) {
+                throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when both the receiver "
+                    "fluid and particle flows are the same as the respective TES flows" ));
+            }
+        }
+
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+    };
 };
 
 

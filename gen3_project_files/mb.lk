@@ -247,12 +247,12 @@ var( '_sco2_recup_eff_max', 9.9999999999999998e+37 );
 //var( 'time_stop', 86400 );
 
 // Spring Equinox (3/20):
-//var( 'time_start', 6739200 );
-//var( 'time_stop', 6825600 );
+var( 'time_start', 6739200 );
+var( 'time_stop', 6825600 );
 
 // Summer Solstice (6/21):
-var( 'time_start', 14774400 );
-var( 'time_stop', 14860800 );
+//var( 'time_start', 14774400 );
+//var( 'time_stop', 14860800 );
 
 // Fall Equinox (9/23):
 //var( 'time_start', 22896000 );

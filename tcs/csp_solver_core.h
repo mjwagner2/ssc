@@ -1334,6 +1334,30 @@ public:
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
     };
 
+    class C_mono_eq_cr_on_pc_target_tes__defocus : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_q_dot_pc_target;       //[MWt]
+        double m_W_dot_pc_target;       //[MWe]
+
+    public:
+        C_mono_eq_cr_on_pc_target_tes__defocus(C_csp_solver *pc_csp_solver,
+            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				//[-]
+            m_q_dot_pc_target = q_dot_pc_target; //[MWt]
+            m_W_dot_pc_target = W_dot_pc_target;       //[MWe]
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double defocus /*-*/, double *diff_pc_target /*-*/);
+    };
+
     class C_mono_eq_cr_on_pc_su_tes_ch_mdot : public C_monotonic_equation
     {
     private:

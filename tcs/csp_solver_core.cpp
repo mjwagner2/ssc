@@ -2683,6 +2683,30 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                         //Reduce target power cycle power
                         W_dot_pc_fixed = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed) * 0.995;
                     }
+
+                    // Ensure tower doesn't need to defocus
+                    C_mono_eq_cr_on_pc_target_tes__defocus c_eq2(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
+                    C_monotonic_eq_solver c_solver2(c_eq2);
+                    double diff_pc_target = std::numeric_limits<double>::quiet_NaN();
+                    int df_code = c_solver2.test_member_function(1., &diff_pc_target);
+                    if (df_code != 0) {
+                        // Can't solve models with no defocus, so get out
+                        error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
+                            "convergence could not be achieved. Controller will shut-down CR and PC",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        are_models_converged = false;
+                        m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_HI_SIDE = false;
+
+                        break;
+                    }
+
+                    if (diff_pc_target > -1.E-3)
+                    {
+                        //Need to defocus or increase allowable power cycle power  -> choosing to increase target power
+                        W_dot_pc_fixed = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed) * 1.005;
+                    }
                 }
 
                 C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus);
@@ -2699,8 +2723,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 double m_dot_store_min = 0.;
                 double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
 
-                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.85);   //[kg/hr]
-                double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.95);   //[kg/hr]
+                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.95);   //[kg/hr]
+                double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.98);   //[kg/hr]
 
                 if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
                     m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;

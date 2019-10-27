@@ -1975,6 +1975,63 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
     return 0;
 }
 
+int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defocus /*-*/, double *diff_pc_target /*-*/)
+{
+    // Converge on the defocus that results in the power cycle operating at its target power
+
+    C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
+        std::numeric_limits<double>::quiet_NaN(), false, true);
+    C_monotonic_eq_solver c_solver(c_eq);
+
+    // Set up solver
+    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+    // Solve for cold temperature
+    double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;        //[C], convert from [K]
+    double T_cold_guess_high = T_cold_guess_low + 10.0;                         //[C]
+
+    double T_cold_solved, tol_solved;
+    T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+    int iter_solved = -1;
+
+    // Solve for defocus
+    int solver_code = 0;
+    try
+    {
+        solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0, T_cold_solved, tol_solved, iter_solved);
+    }
+    catch (C_csp_exception)
+    {
+        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+    }
+
+    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+    {
+        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+        {
+            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus "
+                "iteration to find the cold HTF temperature only reached a convergence "
+                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+            mpc_csp_solver->mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+        }
+        else
+        {
+            *diff_pc_target = std::numeric_limits<double>::quiet_NaN();
+            return -1;
+        }
+    }
+
+    if (m_pc_mode == C_csp_power_cycle::ON) {
+        *diff_pc_target = (mpc_csp_solver->mc_pc_out_solver.m_P_cycle - m_W_dot_pc_target) / m_W_dot_pc_target;         //[-]
+    }
+    else {
+        *diff_pc_target = (mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf - m_q_dot_pc_target) / m_q_dot_pc_target;           //[-]
+    }
+
+    return 0;
+}
+
 int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot::operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/)
 {
     // Converge on the hot tank mass that results in the power cycle operating at its target power
@@ -3511,7 +3568,21 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
     // Choose hot tank particle outlet flow
     double m_dot_hot_tank_out;
-    m_match_rec_m_dot_store ? m_dot_hot_tank_out = m_dot_rec_store : m_dot_hot_tank_out = m_m_dot_tank;
+    if (m_match_rec_m_dot_store) {
+        m_dot_hot_tank_out = m_dot_rec_store;
+    }
+    else if (!std::isnan(m_m_dot_tank)) {
+        m_dot_hot_tank_out = m_m_dot_tank;
+    }
+    else if (m_match_rec_m_dot_htf) {
+        double T_hot_htf, T_cold_store_est;
+        mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
+    }
+    else {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on__pc__tes was in an incorrect state", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+    }
 
     // Test if particle flow from tower is greater than tes can store, factoring in later discharge
     if (m_dot_rec_store > m_dot_tes_ch_max + m_dot_hot_tank_out) {
@@ -3568,7 +3639,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         P_hx_out = P_rec_out * (1. - tes_outputs_temp.dP_perc / 100.);    //[kPa]
     }
     else {
-        // Use a given media discharge
+        // Use a given media discharge, either m_m_dot_tank or equal to the receiver output (when TES is in steady-state)
         // This is a test call (update_calc_vals = false) using the receiver outlet temperature
         // The .calc values are not updated so discharge() is called again later to update them.
         mpc_csp_solver->mc_tes.update_calc_vals(false);     // do not update calc values due to following iterations (which are within larger iterations)
@@ -3693,6 +3764,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     double T_htf_pc_out = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold + 273.15;       //[K]
     double m_dot_pc_out = mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf;                 //[kg/hr]
     double P_pc_out = mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1000.;              //[kPa]
+    double eta_pc = mpc_csp_solver->mc_pc_out_solver.m_P_cycle / mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf;  //[-]
 
     // Check for new PC startup timestep here
     m_step_pc_su = mpc_csp_solver->mc_pc_out_solver.m_time_required_su;     //[s] power cycle model returns MIN(time required to completely startup, full timestep duration)

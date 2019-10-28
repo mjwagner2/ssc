@@ -1980,7 +1980,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defo
     // Converge on the defocus that results in the power cycle operating at its target power
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        std::numeric_limits<double>::quiet_NaN(), false, true);
+        std::numeric_limits<double>::quiet_NaN(), false, true);  // match_rec_m_dot_htf = true
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver

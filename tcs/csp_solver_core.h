@@ -1873,12 +1873,16 @@ public:
         int m_pc_mode;					//[-]
         double m_P_rec_in;  			//[kPa] tower inlet pressure
         double m_m_dot_tank;            //[kg/hr] particle mass flow out of hot tank
-        bool m_match_rec_m_dot_store;   //[-]  Should the hot tank discharge flow equal the receiver outlet m_dot_store (i.e., tes is SS) ?
-        bool m_match_rec_m_dot_htf;     //[-]  Should the HT HX outlet sco2 flow equal the receiver outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
 
     public:
         C_MEQ_cr_on__pc__tes(C_csp_solver *pc_csp_solver, double defocus /*-*/, int pc_mode /*-*/, double P_rec_in /*kPa*/,
-            double m_dot_tank /*kg/hr*/, double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/)
+            double m_dot_tank /*kg/hr*/, double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
         {
             mpc_csp_solver = pc_csp_solver;
             m_defocus = defocus;
@@ -1887,11 +1891,19 @@ public:
             m_m_dot_tank = m_dot_tank;
             m_match_rec_m_dot_store = match_rec_m_dot_store;
             m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
 
             if (m_match_rec_m_dot_store && m_match_rec_m_dot_htf) {
                 throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when both the receiver "
                     "fluid and particle flows are the same as the respective TES flows" ));
+            }
+
+            if (discharge_just_overfilled && (match_rec_m_dot_store || match_rec_m_dot_htf)) {
+                throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when discharging just the overfilled "
+                    "particles when either the receiver fluid or particle flows are the same as the respective TES flows"));
             }
         }
 

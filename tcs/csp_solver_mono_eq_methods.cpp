@@ -33,7 +33,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus::operator()(double
 {
     // the last argument is just so it compiles -> need to change everything here
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        std::numeric_limits<double>::quiet_NaN(), true, false);
+        std::numeric_limits<double>::quiet_NaN(), true, false, false, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
@@ -333,7 +333,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr_m_dot::operator()(double m_dot /*kg/h
     //  and the hot tank outlet, when the TES is in steady state (could be full, could be empty, could just be steady-state)
     
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_field_control_in, m_pc_mode, m_P_field_in,
-        std::numeric_limits<double>::quiet_NaN(), true, false);
+        std::numeric_limits<double>::quiet_NaN(), true, false, false, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -944,7 +944,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_tan
     // Converge on the power cycle mass flow that is set during controlled startup
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        m_dot_tank, false, false);
+        m_dot_tank, false, false, false, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -1923,7 +1923,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
     // Converge on the hot tank mass that results in the power cycle operating at its target power
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        m_dot_tank, false, false);
+        m_dot_tank, false, false, false, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -1980,7 +1980,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defo
     // Converge on the defocus that results in the power cycle operating at its target power
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        std::numeric_limits<double>::quiet_NaN(), false, true);  // match_rec_m_dot_htf = true
+        std::numeric_limits<double>::quiet_NaN(), false, true, false, false);  // match_rec_m_dot_htf = true
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -2037,7 +2037,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot::operator()(double m_dot
     // Converge on the hot tank mass that results in the power cycle operating at its target power
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
-        m_dot_tank, false, false);
+        m_dot_tank, false, false, false, false);
     C_monotonic_eq_solver c_solver(c_eq);
          
     // Set up solver
@@ -3553,8 +3553,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     double m_dot_rec_store = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;    //[kg/hr]
     double T_store_in = mpc_csp_solver->mc_cr_out_solver.m_T_store_hot + 273.15;   //[K]
 
-    // Charge storage
-    // First estimate available charge
+    // Estimate available charge
     double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
     q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
     mpc_csp_solver->mc_tes.charge_avail_est(T_store_in,
@@ -3566,17 +3565,43 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
     m_dot_tes_ch_max *= 3600.0;     //[kg/hr]
 
+    // Charge storage
+    double m_dot_charge = std::min(m_dot_rec_store, m_dot_tes_ch_max);  //[kg/hr]
+    double T_cold_tes_K;
+    bool ch_solved = mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+        m_dot_charge / 3600.,
+        T_store_in,
+        T_cold_tes_K,
+        tes_outputs);
+
+    // Check if TES charge method solved
+    if (!ch_solved) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -2;
+    }
+
+    // Excess particles? (TES overcharged)
+    double m_dot_ch_overfilled = m_dot_rec_store - m_dot_charge;    //[kg/hr]
+    m_dot_ch_overfilled > 0. ? m_is_tes_overfilled = true : m_is_tes_overfilled = false;
+    
     // Choose hot tank particle outlet flow
     double m_dot_hot_tank_out;
     if (m_match_rec_m_dot_store) {
-        m_dot_hot_tank_out = m_dot_rec_store;
+        m_dot_hot_tank_out = m_dot_rec_store;   //[kg/hr]
     }
     else if (!std::isnan(m_m_dot_tank)) {
-        m_dot_hot_tank_out = m_m_dot_tank;
+        m_dot_hot_tank_out = m_m_dot_tank;      //[kg/hr]
     }
     else if (m_match_rec_m_dot_htf) {
         double T_hot_htf, T_cold_store_est;
         mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
+        m_dot_hot_tank_out *= 3600.;            //[kg/hr]
+    }
+    else if (m_discharge_just_overfilled) {
+        m_dot_hot_tank_out = m_dot_ch_overfilled;   //[kg/hr]
     }
     else {
         mpc_csp_solver->mc_tes.use_calc_vals(false);
@@ -3584,33 +3609,13 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on__pc__tes was in an incorrect state", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
     }
 
-    // Test if particle flow from tower is greater than tes can store, factoring in later discharge
-    if (m_dot_rec_store > m_dot_tes_ch_max + m_dot_hot_tank_out) {
-        mpc_csp_solver->mc_tes.use_calc_vals(false);
-        mpc_csp_solver->mc_tes.update_calc_vals(true);
-        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-        return -1;
-    }
-    else {
-        // update available charge
-        mpc_csp_solver->mc_tes.set_max_charge_flow((m_dot_tes_ch_max + m_dot_hot_tank_out) / 3600.);
-    }
-
-    double T_cold_tes_K;
-    bool ch_solved = mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
-        mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
-        m_dot_rec_store / 3600.,
-        T_store_in,
-        T_cold_tes_K,
-        tes_outputs);
-
-    // Check if TES.charge method solved
-    if (!ch_solved) {
+    if (m_dot_hot_tank_out <= 0.) {
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -3;
     }
+
 
     mpc_csp_solver->mc_tes.use_calc_vals(true);
 
@@ -3634,9 +3639,10 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             T_htf_hx_out,
             tes_outputs_temp);
 
-        m_dot_pc_in = m_dot_hx_out = m_dot_hx_in;       //[kg/hr]
-        T_htf_pc_in = T_htf_hx_out;                     //[K]
-        P_hx_out = P_rec_out * (1. - tes_outputs_temp.dP_perc / 100.);    //[kPa]
+        m_dot_hot_tank_out = tes_outputs_temp.m_m_dot * 3600.;              //[kg/hr] Hot tank particle mass flow
+        m_dot_pc_in = m_dot_hx_out = m_dot_hx_in;                           //[kg/hr]
+        T_htf_pc_in = T_htf_hx_out;                                         //[K]
+        P_hx_out = P_rec_out * (1. - tes_outputs_temp.dP_perc / 100.);      //[kPa]
     }
     else {
         // Use a given media discharge, either m_m_dot_tank or equal to the receiver output (when TES is in steady-state)
@@ -3658,7 +3664,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             mpc_csp_solver->mc_tes.use_calc_vals(false);
             mpc_csp_solver->mc_tes.update_calc_vals(true);
             *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-            return -1;
+            return -4;
         }
         else {
             C_MEQ_cr_on_tes_dc_m_dot_tank c_eq(mpc_csp_solver, T_htf_rec_in, T_htf_rec_out, P_rec_in, P_rec_out, m_dot_rec_out, m_dot_hot_tank_out);
@@ -3704,7 +3710,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
                     mpc_csp_solver->mc_tes.use_calc_vals(false);
                     mpc_csp_solver->mc_tes.update_calc_vals(true);
                     *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-                    return -1;
+                    return -5;
                 }
             }
 
@@ -3727,13 +3733,61 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     }
 
     double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
-    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;
+    tes_outputs.m_m_dot = tes_outputs_temp.m_m_dot;                       //[kg/s] Hot tank particle mass flow
     tes_outputs.m_W_dot_rhtf_pump = tes_outputs_temp.m_W_dot_rhtf_pump;
     // don't double count heater power and thermal losses, already accounted for during charging
     tes_outputs.m_q_dot_dc_to_htf = tes_outputs_temp.m_q_dot_dc_to_htf;
     tes_outputs.m_T_hot_ave = tes_outputs_temp.m_T_hot_ave;
     tes_outputs.m_T_hot_final = tes_outputs_temp.m_T_hot_final;
     tes_outputs.dP_perc = tes_outputs_temp.dP_perc;
+    
+
+    // After discharging, charge any previously overfilled particles
+    if (m_dot_ch_overfilled > 0.) {
+        // Estimate available charge
+        double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
+        q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
+        mpc_csp_solver->mc_tes.charge_avail_est(T_store_in,
+            mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+            q_dot_tes_ch_max,
+            m_dot_tes_ch_max,
+            T_tes_cold_ch_max,
+            m_dot_store_ch_max);
+
+        m_dot_tes_ch_max *= 3600.0;     //[kg/hr]
+
+        // Charge storage
+        double m_dot_charge = std::min(m_dot_ch_overfilled, m_dot_tes_ch_max);  //[kg/hr]
+        double T_cold_tes_K;
+        bool ch_solved = mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+            mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
+            m_dot_charge / 3600.,
+            T_store_in,
+            T_cold_tes_K,
+            tes_outputs);
+
+        // Check if TES charge method solved
+        if (!ch_solved) {
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+            return -6;
+        }
+
+        // Excess particles? (TES overcharged)
+        m_dot_ch_overfilled = std::max(0., m_dot_ch_overfilled - m_dot_charge);    //[kg/hr]
+        m_dot_ch_overfilled > 0. ? m_is_tes_overfilled = true : m_is_tes_overfilled = false;
+    }
+    
+
+    // Is particle flow from tower greater than TES can store and later discharge
+    m_dot_ch_overfilled > 0. ? m_is_tes_overfilled = true : m_is_tes_overfilled = false;
+    if (!m_allow_tes_overfill && m_is_tes_overfilled) {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -7;
+    }
 
     // Solve the PC performance using the receiver or HX htf flow rate -> this may be ignored if PC is in controlled startup
     // Need to do this to get back PC T_htf_cold
@@ -3756,7 +3810,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-        return -2;
+        return -8;
     }
 
     // Get power cycle HTF return state

@@ -66,6 +66,7 @@ public:
 		Pressurized_Water,
         N06230,         // Nickel alloy
         N07740,         // Nickel alloy
+        Silica_particles,
 		End_Library_Fluids,
 		User_defined = 50
 	};

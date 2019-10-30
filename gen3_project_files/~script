@@ -1,4 +1,4 @@
-// backup script written by SAM at Wed Oct 30 15:29:46 2019
+// backup script written by SAM at Wed Oct 30 16:30:54 2019
 
 clear();
 filedir = cwd();
@@ -110,7 +110,7 @@ var( 'is_rec_startup_from_T_soln', 0 );
 var( 'is_rec_enforce_min_startup', 0 );
 var( 'T_rec_cold_des', 561.2 );
 var( 'T_rec_hot_des', 730 );
-var( 'store_htf', 18 );
+var( 'store_htf', 34 );		// Silica_particles
 var( 'store_fl_props', 
 [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ] );
 var( 'tes_pump_coef', 0.14999999999999999 );

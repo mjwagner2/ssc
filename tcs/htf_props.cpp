@@ -289,6 +289,8 @@ double HTFProperties::Cp( double T_K )
     case N07740:
         return -1.E-9*std::pow(T_C, 4) + 3.E-6*std::pow(T_C, 3) -
             0.0022*std::pow(T_C, 2) + 0.6218*T_C + 434.06;  // BPVC_CC_BPV_2017 Case 2702 - 3
+    case Silica_particles:
+        return 1.08;
 	case User_defined:
 		{
 			if ( m_userTable.nrows() < 3 ) return std::numeric_limits<double>::quiet_NaN();
@@ -372,6 +374,8 @@ double HTFProperties::dens(double T_K, double P)
             return 8970.0; // BPVC II D
         case N07740:
             return 8072.0;  // BPVC_CC_BPV_2017 Case 2702 - 3
+        case Silica_particles:
+            return 1617.;
 		case User_defined:
 			if ( m_userTable.nrows() < 3 )
 						return std::numeric_limits<double>::quiet_NaN();
@@ -539,6 +543,8 @@ double HTFProperties::cond(double T_K)
         return 0.0197*T_C + 8.5359; // BPVC II D
     case N07740:
         return 0.0155*T_C + 9.7239;  // BPVC_CC_BPV_2017 Case 2702 - 3
+    case Silica_particles:
+        return 3.284E-7*T_C*T_C + 2.107E-4*T_C + 3.137E-1;
 	case User_defined:
 		if ( m_userTable.nrows() < 3 )
 					return std::numeric_limits<double>::quiet_NaN();
@@ -623,6 +629,8 @@ double HTFProperties::enth(double T_K)
 		return 1000.*(0.0034*T_C*T_C + 1.5977*T_C - 0.0926);
 	case Pressurized_Water:
 		return 4.2711*T_C - 4.3272;
+    case Silica_particles:
+        return 1.08E3 * T_K;
 	case User_defined:
 		if ( m_userTable.nrows() < 3 )
 		return std::numeric_limits<double>::quiet_NaN();

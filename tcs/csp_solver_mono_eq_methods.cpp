@@ -2088,6 +2088,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus::operator()(double defocu
         }
     }
 
+    m_is_tes_overfilled = c_eq.m_is_tes_overfilled;
+
     *diff_m_dot_pc_target = (mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_target) / m_m_dot_pc_target;         //[-]
 
     return 0;

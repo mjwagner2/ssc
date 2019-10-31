@@ -4705,39 +4705,65 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					throw(C_csp_exception(err_msg, "CSP Solver"));
 				}
 
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-                int pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
-				m_defocus = 1.0;
-				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
-
-				C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-                double m_dot_store_lower_guess = 0.;
-
-                // Get higher guess for particle flow
+                // Get guesses for particle flow
                 mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
                 C_csp_collector_receiver::S_csp_cr_est_out est_out;
                 mc_collector_receiver.estimates(mc_weather.ms_outputs,
                     mc_cr_htf_state_in,
                     est_out,
                     mc_kernel.mc_sim_info);
-                double m_dot_store_higher_guess = est_out.m_m_dot_store_avail;   //[kg/hr]
+
+                double T_hot_htf, T_cold_store_est, m_dot_store_est;
+                mc_tes.discharge_est(est_out.m_T_htf_hot + 273.15, est_out.m_m_dot_avail / 3600., T_hot_htf, T_cold_store_est, m_dot_store_est);
+                m_dot_store_est *= 3600.;  //[kg/hr]
+
+                // Determine if tower htf flow is greater than PC flow
+                mc_pc_htf_state_in.m_temp = T_hot_htf - 273.15;			//[C]
+                mc_pc_inputs.m_m_dot = est_out.m_m_dot_avail;			//[kg/hr] no mass flow rate to power cycle
+                mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;
+                // Performance Call
+                mc_power_cycle.call(mc_weather.ms_outputs,
+                    mc_pc_htf_state_in,
+                    mc_pc_inputs,
+                    mc_pc_out_solver,
+                    mc_kernel.mc_sim_info);
+
+                // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                int pc_mode;
+                if (est_out.m_m_dot_avail < mc_pc_out_solver.m_m_dot_htf) {
+                    pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;    // tower htf flow is less than needed PC flow
+                }
+                else {
+                    pc_mode = C_csp_power_cycle::STARTUP;               // tower htf flow is more than needed PC flow, so send all flow to PC
+                }
+                m_defocus = 1.0;
+                double step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+                C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
+                C_monotonic_eq_solver c_solver(c_eq);
 
                 double m_dot_store_min = 0.;
                 double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
 
-				c_solver.settings(1.E-3, 50, m_dot_store_min, m_dot_store_max, false);
+                double m_dot_store_lower_guess = min(m_dot_store_max, m_dot_store_est * 1.03);   //[kg/hr]
+                double m_dot_store_higher_guess = min(m_dot_store_max, m_dot_store_est * 1.08);   //[kg/hr]
 
-				// Solve for m_dot_hot_tank
-				double m_dot_hot_tank_solved, tol_solved;
-                m_dot_hot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
+                if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
+                    m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
+                }
+
+                // Set up solver
+                double tol = 5.E-3;
+                c_solver.settings(tol, 50, m_dot_store_min, m_dot_store_max, false);
+
+                double m_dot_tank_solved, tol_solved;
+                m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                int iter_solved = -1;
 
                 int m_dot_hot_tank_code = 0;
 				try
 				{
-                    m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_hot_tank_solved, tol_solved, iter_solved);
+                    m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
 				}
 				catch (C_csp_exception)
 				{

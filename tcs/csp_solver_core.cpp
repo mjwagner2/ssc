@@ -4358,7 +4358,9 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     true /*allow_tes_overfill*/, false /*discharge_just_overfilled*/);
                 C_monotonic_eq_solver c_solver2(c_eq2);
                 double diff_m_dot_pc_target = std::numeric_limits<double>::quiet_NaN();
+                bool is_tes_overfilled = false;
                 int m_dot_df_code = c_solver2.test_member_function(1., &diff_m_dot_pc_target);
+                is_tes_overfilled = c_eq2.m_is_tes_overfilled;
 				if (m_dot_df_code != 0)
 				{
 					// Report message and shut down CR and PC
@@ -4385,8 +4387,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					break;
 				}
 
-                if (std::abs(diff_m_dot_pc_target) < 1.E3 && !c_eq2.m_is_tes_overfilled) {
-                    // Defocus isn't needed
+                if (diff_m_dot_pc_target < 0. && !is_tes_overfilled) {
+                    // Defocus isn't needed as neither the HTF nor particle flows are too high
                     if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
                     {
                         m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
@@ -4405,129 +4407,137 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     break;
                 }
 
+                double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+                if (diff_m_dot_pc_target > 0.) {
+                    // Find the defocus resulting in the maximum PC HTF flow
+                    c_solver2.settings(1.E-3, 50, 0., 1., false);
 
-                // Find the defocus resulting in the maximum PC HTF flow
-                c_solver2.settings(1.E-3, 50, 0., 1., false);
+                    // Solve for defocus
+                    double defocus_guess_low = 0.8;
+                    double defocus_guess_high = 1.;
 
-                // Solve for defocus
-                double defocus_guess_low = 0.8;
-                double defocus_guess_high = 1.;
+                    double tol_solved;
+                    defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
 
-                double defocus_solved, tol_solved;
-                defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                int iter_solved = -1;
-
-                // Solve for defocus
-                int solver_code = 0;
-                try
-                {
-                    solver_code = c_solver2.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
-                }
-                catch (C_csp_exception)
-                {
-                    throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-                }
-
-                if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                {
-                    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+                    // Solve for defocus
+                    int solver_code = 0;
+                    try
                     {
-                        std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
-                            "iteration to find the defocus only reached a convergence "
-                            "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-                        mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+                        solver_code = c_solver2.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
+                        is_tes_overfilled = c_eq2.m_is_tes_overfilled;
                     }
-                    else
+                    catch (C_csp_exception)
                     {
-                        if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+                    }
+
+                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                    {
+                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
                         {
-                            m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-                        }
-                        else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                        {
-                            m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
+                                "iteration to find the defocus only reached a convergence "
+                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
                         }
                         else
                         {
-                            m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                            if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                            {
+                                m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                            }
+                            else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                            {
+                                m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                            }
+                            else
+                            {
+                                m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                            }
+
+                            are_models_converged = false;
+
+                            break;
                         }
+                    }
 
-                        are_models_converged = false;
-
+                    // At this defocus and maximum PC HTF flow, is storage not overfilled?
+                    if (!is_tes_overfilled) {
+                        // Set member defocus
+                        m_defocus = defocus_solved;
+                        are_models_converged = true;
                         break;
                     }
                 }
 
-                // At this defocus and maximum PC HTF flow, is storage not overfilled?
-                if (!c_eq2.m_is_tes_overfilled) {
+                if (is_tes_overfilled) {
+                    // Find defocus resulting in TES not being overfilled
+                    C_mono_eq_cr_on_pc_mdotmax_tes__defocus c_eq3(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
+                        false /*match_rec_m_dot_store*/, false /*match_rec_m_dot_htf*/,
+                        true /*allow_tes_overfill*/, false /*discharge_just_overfilled*/);
+                    C_monotonic_eq_solver c_solver3(c_eq3);
+                    double defocus_upper_limit;
+                    !isnan(defocus_solved) ? defocus_upper_limit = defocus_solved : defocus_upper_limit = 1.;
+
+                    c_solver3.settings(1.E-3, 50, 0., defocus_upper_limit, false);
+
+                    // Solve for defocus
+                    double defocus_guess_low = defocus_upper_limit * 0.8;
+                    double defocus_guess_high = defocus_upper_limit * 0.9;
+
+                    double tol_solved;
+                    defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
+
+                    // Solve for defocus
+                    int solver_code = 0;
+                    try
+                    {
+                        solver_code = c_solver3.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+                    }
+
+                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                    {
+                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+                        {
+                            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
+                                "iteration to find the defocus only reached a convergence "
+                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+                        }
+                        else
+                        {
+                            if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                            {
+                                m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                            }
+                            else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                            {
+                                m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                            }
+                            else
+                            {
+                                m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                            }
+
+                            are_models_converged = false;
+
+                            break;
+                        }
+                    }
+
                     // Set member defocus
                     m_defocus = defocus_solved;
                     are_models_converged = true;
                     break;
                 }
-
-
-                // Find defocus resulting in TES not being overfilled
-                C_mono_eq_cr_on_pc_mdotmax_tes__defocus c_eq3(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
-                    false /*match_rec_m_dot_store*/, false /*match_rec_m_dot_htf*/,
-                    true /*allow_tes_overfill*/, false /*discharge_just_overfilled*/);
-                C_monotonic_eq_solver c_solver3(c_eq3);
-                c_solver3.settings(1.E-3, 50, 0., defocus_solved, false);
-
-                // Solve for defocus
-                defocus_guess_low = defocus_solved * 0.8;
-                defocus_guess_high = defocus_solved * 0.9;
-
-                defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                iter_solved = -1;
-
-                // Solve for defocus
-                solver_code = 0;
-                try
-                {
-                    solver_code = c_solver3.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
-                }
-                catch (C_csp_exception)
-                {
-                    throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-                }
-
-                if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                {
-                    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-                    {
-                        std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
-                            "iteration to find the defocus only reached a convergence "
-                            "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-                        mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-                    }
-                    else
-                    {
-                        if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
-                        {
-                            m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-                        }
-                        else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                        {
-                            m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-                        }
-                        else
-                        {
-                            m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
-                        }
-
-                        are_models_converged = false;
-
-                        break;
-                    }
-                }
-
-                // Set member defocus
-                m_defocus = defocus_solved;
-                are_models_converged = true;
-                break;
 
 			}	// end 'CR_DF__PC_MAX__TES_FULL__AUX_OFF'
 				break;

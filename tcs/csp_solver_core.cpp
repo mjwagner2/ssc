@@ -2660,7 +2660,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
                 if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF) {
                     // Ensure default PC target power is attainable
-                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus);
+                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, false, false, true /*m_allow_tes_overfill*/, false);
                     C_monotonic_eq_solver c_solver(c_eq);
 
                     double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
@@ -2703,7 +2703,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                         break;
                     }
 
-                    if (diff_pc_target > 1.E-3)
+                    if (diff_pc_target > 0.)
                     {
                         //PC is still over target power when running at minimum mass flow -> this is the minimum PC power
                         //Need to defocus or increase allowable power cycle power  -> choosing to increase target power
@@ -2728,7 +2728,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     }
                 }
 
-                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus);
+                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, false, false, false, false);
                 C_monotonic_eq_solver c_solver(c_eq);
 
                 // Get guesses for particle flow

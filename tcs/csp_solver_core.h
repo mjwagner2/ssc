@@ -1318,19 +1318,31 @@ public:
         double m_q_dot_pc_target;       //[MWt]
         double m_W_dot_pc_target;       //[MWe]
         double m_defocus;				//[-]
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
 
     public:
         C_mono_eq_cr_on_pc_target_tes_ch_mdot(C_csp_solver *pc_csp_solver,
-            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/, double defocus /*-*/)
+            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/, double defocus /*-*/,
+            double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
         {
             mpc_csp_solver = pc_csp_solver;
             m_pc_mode = pc_mode;				//[-]
             m_q_dot_pc_target = q_dot_pc_target; //[MWt]
             m_W_dot_pc_target = W_dot_pc_target;       //[MWe]
             m_defocus = defocus;				//[-]
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
         }
 
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
         double m_step_pc_su;	//[s]
 
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);

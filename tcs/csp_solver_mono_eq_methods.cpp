@@ -1927,7 +1927,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), m_dot_tank,
-        false, false, false, false);
+        m_match_rec_m_dot_store, m_match_rec_m_dot_htf, m_allow_tes_overfill, m_discharge_just_overfilled);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -1968,6 +1968,8 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
             return -1;
         }
     }
+
+    m_is_tes_overfilled = c_eq.m_is_tes_overfilled;
 
     if (m_pc_mode == C_csp_power_cycle::ON) {
         *diff_pc_target = (mpc_csp_solver->mc_pc_out_solver.m_P_cycle - m_W_dot_pc_target) / m_W_dot_pc_target;         //[-]

@@ -351,7 +351,7 @@ void C_csp_solver::reset_hierarchy_logic()
 	m_is_CR_SU__PC_OFF__TES_OFF__AUX_OFF_avail = true;
 	m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = true;
 	m_is_CR_ON__PC_SU__TES_OFF__AUX_OFF_avail = true;
-	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = true;
+	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;      // don't allow this state
 	m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail = true;
 	m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = true;
 

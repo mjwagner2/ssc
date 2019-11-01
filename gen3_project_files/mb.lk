@@ -251,12 +251,12 @@ var( '_sco2_recup_eff_max', 9.9999999999999998e+37 );
 //var( 'time_stop', 6825600 );
 
 // Summer Solstice (6/21):
-//var( 'time_start', 14774400 );
-//var( 'time_stop', 14860800 );
+var( 'time_start', 14774400 );
+var( 'time_stop', 14860800 );
 
 // Fall Equinox (9/23):
-var( 'time_start', 22896000 );
-var( 'time_stop', 22982400 );
+//var( 'time_start', 22896000 );
+//var( 'time_stop', 22982400 );
 
 // Winter Solstice (12/21):
 //var( 'time_start', 30585600 );
@@ -613,8 +613,8 @@ output.Operating_mode_2 = var( 'op_mode_2' );
 units.Operating_mode_2 = '-';
 output.Operating_mode_3 = var( 'op_mode_3' );
 units.Operating_mode_3 = '-';
-output.TES_hot_tank_initial = var( 'V_hot_tank_initial' );
-units.TES_hot_tank_initial = '-';
+output.TES_V_hot_tank_initial = var( 'V_hot_tank_initial' );
+units.TES_V_hot_tank_initial = '-';
 output.PC_power = var( 'P_cycle' );
 units.PC_power = 'MWe';
 output.PC_efficiency = var( 'eta' );

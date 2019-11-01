@@ -308,7 +308,7 @@ public:
 			for( int j = 0; j < n_flux_x_csp; j++ )
 				flux_map_in(i, j) = p_i_flux_map[j*n_flux_y_csp + i];
 
-		ms_inputs.m_flux_map_input = &flux_map_in;
+		//ms_inputs.m_flux_map_input = &flux_map_in;
 
 		// set sim info
 		ms_sim_info.ms_ts.m_time = time;

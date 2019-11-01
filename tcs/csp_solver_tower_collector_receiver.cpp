@@ -26,8 +26,15 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 static C_csp_reported_outputs::S_output_info S_output_info[] =
 {
+	{C_csp_tower_collector_receiver::E_FIELD_AREA1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_AREA2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_AREA3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_AREA_TOT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 	{C_csp_tower_collector_receiver::E_FIELD_Q_DOT_INC, C_csp_reported_outputs::TS_WEIGHTED_AVE},
-	{C_csp_tower_collector_receiver::E_FIELD_ETA_OPT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_ETA_OPT1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_ETA_OPT2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_ETA_OPT3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_csp_tower_collector_receiver::E_FIELD_ETA_TOT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 	{C_csp_tower_collector_receiver::E_FIELD_ADJUST, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	{C_csp_tower_collector_receiver::E_Q_DOT_INC, C_csp_reported_outputs::TS_WEIGHTED_AVE},
@@ -441,6 +448,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_Q_DOT_HX1, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_FIELD_AREA1, field_outputs.m_A_sf);
+	        mc_reported_outputs.value(E_FIELD_ETA_OPT1, field_outputs.m_eta_field);			        //[-]
         }
         else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -450,6 +459,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_Q_DOT_HX2, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_FIELD_AREA2, field_outputs.m_A_sf);
+	        mc_reported_outputs.value(E_FIELD_ETA_OPT2, field_outputs.m_eta_field);			        //[-]
         }
         else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -459,16 +470,19 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_Q_DOT_HX3, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_FIELD_AREA3, field_outputs.m_A_sf);
+	        mc_reported_outputs.value(E_FIELD_ETA_OPT3, field_outputs.m_eta_field);			        //[-]
         }
     }
 
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
-	mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     double collector_areas = get_collector_area();
-	mc_reported_outputs.value(E_FIELD_ETA_OPT, eta_weighted_sum / collector_areas);			        //[-]
 	mc_reported_outputs.value(E_FIELD_ADJUST, sf_adjust_weighted_sum / collector_areas);			//[-]
+    mc_reported_outputs.value(E_FIELD_AREA_TOT, collector_areas);
+	mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
+	mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_weighted_sum / collector_areas);			        //[-]
 	mc_reported_outputs.value(E_Q_DOT_INC, q_dot_rec_inc);	                                        //[MWt]
 	mc_reported_outputs.value(E_ETA_THERMAL, std::max(1. - q_losses / q_dot_rec_inc, 0.));		    //[-]
 	mc_reported_outputs.value(E_Q_DOT_THERMAL, q_thermal);	                                        //[MWt]
@@ -635,9 +649,17 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
-    mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     double collector_areas = get_collector_area();
-    mc_reported_outputs.value(E_FIELD_ETA_OPT, eta_weighted_sum / collector_areas);			        //[-]
+    mc_reported_outputs.value(E_FIELD_AREA1, collector_receivers.at(0).get_field_outputs().m_A_sf);
+    mc_reported_outputs.value(E_FIELD_AREA2, collector_receivers.at(1).get_field_outputs().m_A_sf);
+    mc_reported_outputs.value(E_FIELD_AREA3, collector_receivers.at(2).get_field_outputs().m_A_sf);
+    mc_reported_outputs.value(E_FIELD_AREA_TOT, collector_areas);
+    mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_weighted_sum / collector_areas);			        //[-]
+    mc_reported_outputs.value(E_FIELD_ETA_OPT1, collector_receivers.at(0).get_field_outputs().m_eta_field);			        //[-]
+    mc_reported_outputs.value(E_FIELD_ETA_OPT2, collector_receivers.at(1).get_field_outputs().m_eta_field);			        //[-]
+    mc_reported_outputs.value(E_FIELD_ETA_OPT3, collector_receivers.at(2).get_field_outputs().m_eta_field);			        //[-]
+    mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_weighted_sum / collector_areas);			        //[-]
+    mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     mc_reported_outputs.value(E_FIELD_ADJUST, sf_adjust_weighted_sum / collector_areas);			//[-]
     mc_reported_outputs.value(E_Q_DOT_INC, q_dot_rec_inc);	                                        //[MWt]
     mc_reported_outputs.value(E_ETA_THERMAL, std::max(1. - q_losses / q_dot_rec_inc, 0.));		    //[-]

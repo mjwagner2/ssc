@@ -736,6 +736,8 @@ public:
 	
     virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est) = 0;
 
+    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/) = 0;
+
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est) = 0;
 
     virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
@@ -1191,48 +1193,48 @@ public:
 		virtual int operator()(double defocus /*-*/, double *diff_q_dot_pc /*MWt*/);
 	};
 
-    class C_MEQ_cr_on__pc_q_dot_max__tes_off : public C_monotonic_equation
-    {
-    private:
-        C_csp_solver *mpc_csp_solver;
-        double m_pc_mode;       //[-]
-        double m_defocus;		//[-]
+    //class C_MEQ_cr_on__pc_q_dot_max__tes_off : public C_monotonic_equation
+    //{
+    //private:
+    //    C_csp_solver *mpc_csp_solver;
+    //    double m_pc_mode;       //[-]
+    //    double m_defocus;		//[-]
 
-    public:
-        C_MEQ_cr_on__pc_q_dot_max__tes_off(C_csp_solver *pc_csp_solver, double pc_mode /*-*/, double defocus /*-*/)
-        {
-            mpc_csp_solver = pc_csp_solver;
-            m_pc_mode = pc_mode;
-            m_defocus = defocus;	    //[-]
-        }
+    //public:
+    //    C_MEQ_cr_on__pc_q_dot_max__tes_off(C_csp_solver *pc_csp_solver, double pc_mode /*-*/, double defocus /*-*/)
+    //    {
+    //        mpc_csp_solver = pc_csp_solver;
+    //        m_pc_mode = pc_mode;
+    //        m_defocus = defocus;	    //[-]
+    //    }
 
-        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-    };
+    //    virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+    //};
 
-	class C_mono_eq_cr_to_pc_to_cr : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-		int m_pc_mode;					//[-]
-		double m_P_field_in;			//[kPa]
-		double m_x_field_in;			//[-]
-		double m_field_control_in;		//[-]
-        double m_m_dot;                 //[kg/hr]
+	//class C_mono_eq_cr_to_pc_to_cr : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+	//	int m_pc_mode;					//[-]
+	//	double m_P_field_in;			//[kPa]
+	//	double m_x_field_in;			//[-]
+	//	double m_field_control_in;		//[-]
+ //       double m_m_dot;                 //[kg/hr]
 
-	public:
-		C_mono_eq_cr_to_pc_to_cr(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
-			double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/, double m_dot /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-			m_pc_mode = pc_mode;
-			m_P_field_in = P_field_in;
-			m_x_field_in = x_field_in;
-			m_field_control_in = field_control_in;
-            m_m_dot = m_dot;
-		}
-		
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//public:
+	//	C_mono_eq_cr_to_pc_to_cr(C_csp_solver *pc_csp_solver, int pc_mode /*-*/,
+	//		double P_field_in /*kPa*/, double x_field_in /*-*/, double field_control_in /*-*/, double m_dot /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+	//		m_pc_mode = pc_mode;
+	//		m_P_field_in = P_field_in;
+	//		m_x_field_in = x_field_in;
+	//		m_field_control_in = field_control_in;
+ //           m_m_dot = m_dot;
+	//	}
+	//	
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_su_cont_tes_dc : public C_monotonic_equation
 	{
@@ -1316,22 +1318,134 @@ public:
         double m_q_dot_pc_target;       //[MWt]
         double m_W_dot_pc_target;       //[MWe]
         double m_defocus;				//[-]
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
 
     public:
         C_mono_eq_cr_on_pc_target_tes_ch_mdot(C_csp_solver *pc_csp_solver,
-            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/, double defocus /*-*/)
+            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/, double defocus /*-*/,
+            double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
         {
             mpc_csp_solver = pc_csp_solver;
             m_pc_mode = pc_mode;				//[-]
             m_q_dot_pc_target = q_dot_pc_target; //[MWt]
             m_W_dot_pc_target = W_dot_pc_target;       //[MWe]
             m_defocus = defocus;				//[-]
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
+    };
+
+    class C_mono_eq_cr_on_pc_target_tes__defocus : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_q_dot_pc_target;       //[MWt]
+        double m_W_dot_pc_target;       //[MWe]
+
+    public:
+        C_mono_eq_cr_on_pc_target_tes__defocus(C_csp_solver *pc_csp_solver,
+            int pc_mode, double q_dot_pc_target /*MWt*/, double W_dot_pc_target /*MWe*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				//[-]
+            m_q_dot_pc_target = q_dot_pc_target; //[MWt]
+            m_W_dot_pc_target = W_dot_pc_target;       //[MWe]
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
         }
 
         double m_step_pc_su;	//[s]
 
-        virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
+        virtual int operator()(double defocus /*-*/, double *diff_pc_target /*-*/);
+    };
+
+    class C_mono_eq_cr_on_pc_mdot_tes__defocus : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_m_dot_pc_target;       //[kg/hr]
+        double m_P_rec_in;  			//[kPa] tower inlet pressure
+        double m_m_dot_tank;            //[kg/hr] particle mass flow out of hot tank
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
+
+    public:
+        C_mono_eq_cr_on_pc_mdot_tes__defocus(C_csp_solver *pc_csp_solver,
+            int pc_mode, double m_dot_pc_target /*kg/hr*/, double P_rec_in /*kPa*/, double m_dot_tank /*kg/hr*/,
+            double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				    //[-]
+            m_m_dot_pc_target = m_dot_pc_target;    //[kg/hr]
+            m_P_rec_in = P_rec_in;
+            m_m_dot_tank = m_dot_tank;
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double defocus /*-*/, double *diff_m_dot_pc_target /*-*/);
+    };
+
+    class C_mono_eq_cr_on_pc_mdotmax_tes__defocus : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_pc_mode;				//[-]
+        double m_m_dot_pc_target;       //[kg/hr]
+        double m_P_rec_in;  			//[kPa] tower inlet pressure
+        double m_m_dot_tank;            //[kg/hr] particle mass flow out of hot tank
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
+
+    public:
+        C_mono_eq_cr_on_pc_mdotmax_tes__defocus(C_csp_solver *pc_csp_solver,
+            int pc_mode, double m_dot_pc_target /*kg/hr*/, double P_rec_in /*kPa*/, double m_dot_tank /*kg/hr*/,
+            double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;				    //[-]
+            m_m_dot_pc_target = m_dot_pc_target;    //[kg/hr]
+            m_P_rec_in = P_rec_in;
+            m_m_dot_tank = m_dot_tank;
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double defocus /*-*/, double *diff_m_dot_pc_target /*-*/);
     };
 
     class C_mono_eq_cr_on_pc_su_tes_ch_mdot : public C_monotonic_equation
@@ -1355,28 +1469,28 @@ public:
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *m_dot_htf_bal /*-*/);
     };
 
-	class C_mono_eq_cr_on_pc_su_tes_ch : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-        double m_pc_mode;				//[-]
-        double m_defocus;				//[-]
-        double m_m_dot_tank;           //[kg/hr]
+	//class C_mono_eq_cr_on_pc_su_tes_ch : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+ //       double m_pc_mode;				//[-]
+ //       double m_defocus;				//[-]
+ //       double m_m_dot_tank;           //[kg/hr]
 
-	public:
-		C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver, int pc_mode, double defocus, double m_dot_tank /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-            m_pc_mode = pc_mode;				//[-]
-            m_defocus = defocus;				//[-]
-            m_m_dot_tank = m_dot_tank;    //[kg/hr]
-			m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
-		}
+	//public:
+	//	C_mono_eq_cr_on_pc_su_tes_ch(C_csp_solver *pc_csp_solver, int pc_mode, double defocus, double m_dot_tank /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+ //           m_pc_mode = pc_mode;				//[-]
+ //           m_defocus = defocus;				//[-]
+ //           m_m_dot_tank = m_dot_tank;    //[kg/hr]
+	//		m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+	//	}
 
-		double m_step_pc_su;	//[s]
+	//	double m_step_pc_su;	//[s]
 
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_target__m_dot : public C_monotonic_equation
 	{
@@ -1472,26 +1586,26 @@ public:
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
     };
 
-	class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-		int m_pc_mode;			//[-]
-		double m_defocus;		//[-]
-        double m_m_dot_tank;    //[kg/hr]
+	//class C_mono_eq_cr_on_pc_target_tes_dc : public C_monotonic_equation
+	//{
+	//private:
+	//	C_csp_solver *mpc_csp_solver;
+	//	int m_pc_mode;			//[-]
+	//	double m_defocus;		//[-]
+ //       double m_m_dot_tank;    //[kg/hr]
 
-	public:
-		C_mono_eq_cr_on_pc_target_tes_dc(C_csp_solver *pc_csp_solver,
-			int pc_mode, double defocus /*-*/, double m_dot_tank /*kg/hr*/)
-		{
-			mpc_csp_solver = pc_csp_solver;
-			m_pc_mode = pc_mode;				//[-]
-			m_defocus = defocus;				//[-]
-			m_m_dot_tank = m_dot_tank;  		//[kg/hr]
-		}
+	//public:
+	//	C_mono_eq_cr_on_pc_target_tes_dc(C_csp_solver *pc_csp_solver,
+	//		int pc_mode, double defocus /*-*/, double m_dot_tank /*kg/hr*/)
+	//	{
+	//		mpc_csp_solver = pc_csp_solver;
+	//		m_pc_mode = pc_mode;				//[-]
+	//		m_defocus = defocus;				//[-]
+	//		m_m_dot_tank = m_dot_tank;  		//[kg/hr]
+	//	}
 
-		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
+	//	virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+	//};
 
 	class C_mono_eq_pc_target__m_dot_fixed_plus_tes_dc : public C_monotonic_equation
 	{
@@ -1839,6 +1953,61 @@ public:
         virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };
 
+    class C_MEQ_cr_on__pc__tes : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver *mpc_csp_solver;
+        double m_defocus;       		//[-]
+        int m_pc_mode;					//[-]
+        double m_P_rec_in;  			//[kPa] tower inlet pressure
+        double m_m_dot_pc;              //[kg/hr] htf mass flow into power cycle
+        double m_m_dot_tank;            //[kg/hr] particle mass flow out of hot tank
+        bool m_match_rec_m_dot_store;   //[-] Should the hot tank particle discharge flow equal the tower particle flow (i.e., tes is SS) ?
+        bool m_match_rec_m_dot_htf;     //[-] Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
+        bool m_allow_tes_overfill;      //[-] Can the hot tank remain overfilled at the end of the iteration? (used for performing tests) ?
+        bool m_discharge_just_overfilled; //[-] Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
+
+    public:
+        C_MEQ_cr_on__pc__tes(C_csp_solver *pc_csp_solver, double defocus /*-*/, int pc_mode /*-*/, double P_rec_in /*kPa*/,
+            double m_dot_pc /*kg/hr*/, double m_dot_tank /*kg/hr*/,
+            double match_rec_m_dot_store /*-*/, double match_rec_m_dot_htf /*-*/,
+            double allow_tes_overfill /*-*/, double discharge_just_overfilled /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_defocus = defocus;
+            m_pc_mode = pc_mode;
+            m_P_rec_in = P_rec_in;
+            m_m_dot_pc = m_dot_pc;
+            m_m_dot_tank = m_dot_tank;
+            m_match_rec_m_dot_store = match_rec_m_dot_store;
+            m_match_rec_m_dot_htf = match_rec_m_dot_htf;
+            m_allow_tes_overfill = allow_tes_overfill;
+            m_discharge_just_overfilled = discharge_just_overfilled;
+            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+            if (!std::isnan(m_m_dot_pc) && !std::isnan(m_m_dot_tank)) {
+                throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when both the power "
+                    "cycle htf and hot tank particle flows are specified"));
+            }
+            
+            if (m_match_rec_m_dot_store && m_match_rec_m_dot_htf) {
+                throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when both the receiver "
+                    "fluid and particle flows are the same as the respective TES flows" ));
+            }
+
+            if (discharge_just_overfilled && (match_rec_m_dot_store || match_rec_m_dot_htf)) {
+                throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes when discharging just the overfilled "
+                    "particles when either the receiver fluid or particle flows are the same as the respective TES flows"));
+            }
+        }
+
+        bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
+        double m_m_dot_ch_overfilled;   //[kg/hr] Excess particles from tower? (+ if TES overcharged, - if there is still room to charge)
+        double m_step_pc_su;	//[s]
+
+        virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
+    };
 };
 
 

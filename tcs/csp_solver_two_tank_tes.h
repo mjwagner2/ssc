@@ -585,8 +585,9 @@ private:
     std::string error_msg;
 
     // Timestep data
-    double m_m_dot_tes_dc_max;  //[kg/s] TES discharge available from the SYSTEM (field side of HX if there is one)
-    double m_m_dot_tes_ch_max;  //[kg/s] TES charge that can be sent to the SYSTEM (field side of HX if there is one)
+    double m_m_dot_tes_dc_max;          //[kg/s] TES discharge available from the SYSTEM at the field side of HX
+    double m_m_dot_tes_dc_max_direct;   //[kg/s] TES storage media discharge available from the SYSTEM
+    double m_m_dot_tes_ch_max;          //[kg/s] TES charge that can be sent to the SYSTEM, in this case the direct charging particles
 
     // Member data
     bool m_is_tes;

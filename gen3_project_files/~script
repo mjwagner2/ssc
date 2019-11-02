@@ -1,3 +1,5 @@
+// backup script written by SAM at Sat Nov  2 15:58:03 2019
+
 clear();
 filedir = cwd();
 var( 'solar_resource_file', 'daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );

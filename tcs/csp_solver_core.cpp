@@ -2739,10 +2739,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     est_out,
                     mc_kernel.mc_sim_info);
 
-                double m_dot_store_min = 0.;
-                double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
+                double m_dot_store_avail = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
+                double m_dot_store_min = min(m_m_dot_tes_des * 0.5, m_dot_store_avail);
+                double m_dot_store_max = m_m_dot_tes_des * 1.5;
 
-                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.95);   //[kg/hr]
+                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.92);   //[kg/hr]
                 double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.98);   //[kg/hr]
 
                 if (m_dot_store_lower_guess == m_dot_store_higher_guess) {

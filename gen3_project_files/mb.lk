@@ -239,8 +239,8 @@ var( '_sco2_eta_t', 9.9999999999999998e+37 );
 var( '_sco2_recup_eff_max', 9.9999999999999998e+37 );
 
 // Whole Year:
-//var( 'time_start', 0 );
-//var( 'time_stop', 31536000 );
+var( 'time_start', 0 );
+var( 'time_stop', 31536000 );
 
 // Jan. 1:
 //var( 'time_start', 0 );
@@ -263,8 +263,16 @@ var( '_sco2_recup_eff_max', 9.9999999999999998e+37 );
 //var( 'time_stop', 30672000 );
 
 // Jan.
-var( 'time_start', 0 );
-var( 'time_stop', 2764800 );
+//var( 'time_start', 0 );
+//var( 'time_stop', 2678400 );
+
+// Feb.
+//var( 'time_start', 2678400 );
+//var( 'time_stop', 5097600 );
+
+// Oct. - Dec.
+//var( 'time_start', 23587200 );
+//var( 'time_stop', 31536000 );
 
 
 var( 'pb_fixed_par', 0.0054999999999999997 );

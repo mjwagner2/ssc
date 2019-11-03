@@ -351,7 +351,7 @@ void C_csp_solver::reset_hierarchy_logic()
 	m_is_CR_SU__PC_OFF__TES_OFF__AUX_OFF_avail = true;
 	m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = true;
 	m_is_CR_ON__PC_SU__TES_OFF__AUX_OFF_avail = true;
-	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;      // don't allow this state
+	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = true;      // don't allow this state
 	m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail = true;
 	m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = true;
 
@@ -1278,19 +1278,20 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 					else if( q_dot_tes_ch > 0.0 )
 					{
-						if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-							m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-						{
-							operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-						}
-						else if(m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail)
-						{
-							operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;														
-						}
-						else
-						{
-							operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						}
+                        operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						//if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+						//	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
+						//{
+						//	operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+						//}
+						//else if(m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail)
+						//{
+						//	operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;														
+						//}
+						//else
+						//{
+						//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						//}
 					}
 					else
 					{
@@ -1598,23 +1599,24 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 								else if( q_dot_tes_ch > 0.0 )
 								{	// Charge storage with receiver output
 
-									if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-										m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-									{	// Tolerance is applied so that if CR is *close* to being less than a full TES charge, the controller tries normal operation (no defocus)
+                                    operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+         //                           if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+									//	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
+									//{	// Tolerance is applied so that if CR is *close* to being less than a full TES charge, the controller tries normal operation (no defocus)
 
 
-										operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-									}
-									else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
-									{	// The CR output will overcharge storage, so it needs to defocus.
-										// However, because the CR output is already part-load, it may be close to shutting down before defocus...
+									//	operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+									//}
+									//else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
+									//{	// The CR output will overcharge storage, so it needs to defocus.
+									//	// However, because the CR output is already part-load, it may be close to shutting down before defocus...
 
-										operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
-									}
-									else
-									{
-										operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-									}
+									//	operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+									//}
+									//else
+									//{
+									//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+									//}
 								}
 								else
 								{	// No home for receiver output, and not enough thermal power for power cycle
@@ -1627,26 +1629,27 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					else
 					{	// Power cycle startup is not allowed - see if receiver output can go to storage
 
-						if( q_dot_tes_ch > 0.0 )
-						{
-							if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-								m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-							{
-								operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-							}
-							else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
-							{
-								operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
-							}
-							else
-							{
-								operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-							}
-						}
-						else
-						{
-							operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						}
+                        operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						//if( q_dot_tes_ch > 0.0 )
+						//{
+						//	if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+						//		m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
+						//	{
+						//		operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+						//	}
+						//	else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
+						//	{
+						//		operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+						//	}
+						//	else
+						//	{
+						//		operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						//	}
+						//}
+						//else
+						//{
+						//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						//}
 
 					}	// End logic else 'pc su is NOT allowed'		
 				}	// End logic if(q_dot_cr_output > 0.0 && is_rec_su_allowed)
@@ -3004,7 +3007,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				C_mono_eq_cr_on_pc_match_tes_empty_mdot c_eq(this, m_defocus);
 				C_monotonic_eq_solver c_solver(c_eq);
 
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+				c_solver.settings(1.E-3, 50, m_m_dot_pc_des*0.1, std::numeric_limits<double>::quiet_NaN(), false);
 
                 double m_dot_guess_lower = m_m_dot_pc_des;            //[kg/hr]
                 double m_dot_guess_higher = m_dot_guess_lower * 1.2;	//[kg/hr]

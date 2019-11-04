@@ -3886,30 +3886,35 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				int power_cycle_mode = -1;
 				double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+                double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
 
 				//std::string op_mode_str = "";
 				if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
 				{
 					power_cycle_mode = C_csp_power_cycle::ON; 
-					q_dot_pc_fixed = q_pc_target;
+					q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                    W_dot_pc_fixed = W_pc_target;
 					op_mode_str = "CR_OFF__PC_TARGET__TES_DC__AUX_OFF";
 				}
 				else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
 				{
 					power_cycle_mode = C_csp_power_cycle::ON; 
-					q_dot_pc_fixed = q_pc_target;
+                    q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                    W_dot_pc_fixed = W_pc_target;
 					op_mode_str = "CR_SU__PC_TARGET__TES_DC__AUX_OFF";
 				}
 				else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
 				{
 					power_cycle_mode = C_csp_power_cycle::STANDBY;
 					q_dot_pc_fixed = q_pc_sb;
+                    W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
 					op_mode_str = "CR_OFF__PC_SB__TES_DC__AUX_OFF";
 				}
 				else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
 				{
 					power_cycle_mode = C_csp_power_cycle::STANDBY;
 					q_dot_pc_fixed = q_pc_sb;
+                    W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
 					op_mode_str = "CR_SU__PC_SB__TES_DC__AUX_OFF";
 				}
 				
@@ -3962,7 +3967,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 				}
 
-				C_mono_eq_pc_target_tes_dc__T_cold c_eq(this, power_cycle_mode, q_dot_pc_fixed);
+				C_mono_eq_pc_target_tes_dc__T_cold c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
 				C_monotonic_eq_solver c_solver(c_eq);
 
 				// Set up solver
@@ -4012,17 +4017,32 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 				}
 
-				double q_dot_solved = c_eq.m_q_dot_calc;	//[MWt]
+				//double q_dot_solved = c_eq.m_q_dot_calc;	//[MWt]
+                double pc_target, pc_target_solved, pc_max;
+                if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+                {
+                    pc_target = W_dot_pc_fixed;
+                    pc_target_solved = mc_pc_out_solver.m_P_cycle;		//[MWt]
+                    pc_max = W_pc_max;
+                }
+                else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+                {
+                    pc_target = q_dot_pc_fixed;
+                    pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
+                    pc_max = q_pc_max;
+                }
+
 				double m_dot_solved = c_eq.m_m_dot_calc;	//[kg/hr]
+
 				
 				// Check if solved thermal power is greater than target
-				if ((q_dot_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+				if ((pc_target_solved - pc_target) / pc_target > 1.E-3)
 				{
-					if ((q_dot_solved - q_pc_max) / q_pc_max > 1.E-3)
+					if ((pc_target_solved - pc_max) / pc_max > 1.E-3)
 					{
-						error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
-							" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_solved, q_pc_max);
+						error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
+							" larger than the maximum PC power %lg [MWt]. Controller shut off plant",
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_max);
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
 						turn_off_plant();
@@ -4031,14 +4051,14 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 					else
 					{
-						error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
-							" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_solved, q_dot_pc_fixed, q_pc_max);
+						error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
+							" larger than the target PC power %lg [MWt] but less than the maximum power %lg [MWt]",
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_target, pc_max);
 
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 					}
 				}
-				else if ((q_dot_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+				else if ((pc_target_solved - pc_target) / pc_target < -1.E-3)
 				{
 					if (m_dot_solved < m_m_dot_pc_max)
 					{	// TES cannot provide enough thermal power - step down to next operating mode

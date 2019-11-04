@@ -1269,7 +1269,7 @@ public:
 			m_pc_mode = pc_mode;
 		}
 
-		virtual int operator()(double m_dot_htf /*kg/hr*/, double *q_dot_pc /*MWt*/);
+		virtual int operator()(double m_dot_htf /*kg/hr*/, double *pc_target /*MW*/);
 	};
 
 	class C_mono_eq_pc_target_tes_dc__T_cold : public C_monotonic_equation
@@ -1278,19 +1278,21 @@ public:
 		C_csp_solver *mpc_csp_solver;
 		int m_pc_mode;			//[-]
 		double m_q_dot_target;		//[MWt]
+        double m_W_dot_pc_target;   //[MWe]
 
 	public:
 		C_mono_eq_pc_target_tes_dc__T_cold(C_csp_solver *pc_csp_solver, 
-				int pc_mode /*-*/, double q_dot_target /*MWt*/)
+				int pc_mode /*-*/, double q_dot_target /*MWt*/, double W_dot_target /*MWe*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
 			m_pc_mode = pc_mode;	//[-]
 			m_q_dot_target = q_dot_target;		//[MWt]
-			m_q_dot_calc = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+            m_W_dot_pc_target = W_dot_target;   //[MWe]
+            m_pc_calc = std::numeric_limits<double>::quiet_NaN();	    //[MW]
 			m_m_dot_calc = std::numeric_limits<double>::quiet_NaN();	//[kg/hr]
 		}
 
-		double m_q_dot_calc;		//[MWt]
+        double m_pc_calc;           //[MW]
 		double m_m_dot_calc;		//[kg/hr]
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);

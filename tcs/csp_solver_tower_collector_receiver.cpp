@@ -650,15 +650,16 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 
     double collector_areas = get_collector_area();
+    double eta_field_tot = collector_areas > 0. ? eta_weighted_sum / collector_areas : 0.;
+
     mc_reported_outputs.value(E_FIELD_AREA1, collector_receivers.at(0).get_field_outputs().m_A_sf);
     mc_reported_outputs.value(E_FIELD_AREA2, collector_receivers.at(1).get_field_outputs().m_A_sf);
     mc_reported_outputs.value(E_FIELD_AREA3, collector_receivers.at(2).get_field_outputs().m_A_sf);
     mc_reported_outputs.value(E_FIELD_AREA_TOT, collector_areas);
-    mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_weighted_sum / collector_areas);			        //[-]
+    mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_field_tot);			        //[-]
     mc_reported_outputs.value(E_FIELD_ETA_OPT1, collector_receivers.at(0).get_field_outputs().m_eta_field);			        //[-]
     mc_reported_outputs.value(E_FIELD_ETA_OPT2, collector_receivers.at(1).get_field_outputs().m_eta_field);			        //[-]
     mc_reported_outputs.value(E_FIELD_ETA_OPT3, collector_receivers.at(2).get_field_outputs().m_eta_field);			        //[-]
-    mc_reported_outputs.value(E_FIELD_ETA_TOT, eta_weighted_sum / collector_areas);			        //[-]
     mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     mc_reported_outputs.value(E_FIELD_ADJUST, sf_adjust_weighted_sum / collector_areas);			//[-]
     mc_reported_outputs.value(E_Q_DOT_INC, q_dot_rec_inc);	                                        //[MWt]

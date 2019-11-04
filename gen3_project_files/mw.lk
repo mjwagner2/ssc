@@ -19,11 +19,12 @@ var( 'is_udpc_co2', 1);
 var( 'CT', 2 );
 var( 'tech_type', 1 );
 var( 'is_sco2_preprocess', 0 );
-var( 'time_start', 24*3600*79 );
+var( 'time_start', 0);	//24*3600*79 );
 var( 'time_stop', 31536000 );
 var( 'is_dispatch', 0 );
 var( 'is_wlim_series', 0 );
 var( 'is_dispatch_series', 0 );
+var( 'store_htf', 34 );
 
 //var( 'eta_map_aod_format', false );
 
@@ -60,7 +61,7 @@ var( 'helio_width', 8.66 );
 var( 'helio_height', 8.66 );
 var( 'helio_optical_error_mrad', 1.53 );
 var( 'helio_active_fraction', 0.99 );
-var( 'dens_mirror', 1. );
+var( 'dens_mirror', 0.97 );
 var( 'helio_reflectance', 0.9 );
 var( 'rec_absorptance', 0.94 );
 var( 'rec_hl_perm2', 30 );
@@ -77,8 +78,8 @@ var( 'D_rec', 17.65 );
 var( 'h_tower', 193.458 );
 var( 'land_area_base', 1847.0377197265625 );
 
-//var( 'N_hel', 8790 );
-//var( 'A_sf_in', 1269054.492 );
+var( 'N_hel', 8790 );
+var( 'A_sf_in', 1269050 );
 //var( 'c_atm_0', 0.006789 );
 //var( 'c_atm_1', 0.1046 );
 //var( 'c_atm_2', -0.017 );
@@ -127,11 +128,11 @@ var( 'csp.pt.sf.fixed_land_area', 45 );
 var( 'csp.pt.sf.land_overhead_factor', 1 );
 
 
-
+/*
 var( 'T_htf_cold_des', 600 );
 var( 'T_htf_hot_des', 730 );
 
-/*
+
 var( 'N_panels', 20 );
 var( 'd_tube_out', 40 );
 var( 'th_tube', 1.25 );
@@ -173,7 +174,6 @@ var( 'epsilon_radbot', 0.07 );
 var( 'epsilon_radgrnd', 0.9 );
 var( 'L_rad_sections', 10 );
 var( 'epsilon_radHX', 0.8 );
-var( 'helio_area_tot', 1269054.5 );
 var( 'radiator_unitcost', 13 );
 var( 'radiator_installcost', 22 );
 var( 'radiator_fluidcost', 0.34000000357627869 );
@@ -181,9 +181,10 @@ var( 'radfluid_vol_ratio', 3 );
 var( 'ctes_cost', 0.69999998807907104 );
 var( 'rad_pressuredrop', 75 );
 */
+var( 'helio_area_tot', 639435 );
 
 var( 'P_ref', 100 );
-var( 'design_eff', 0.3717 );
+var( 'design_eff', 0.42); 
 var( 'tshours', 15.5 );
 var( 'solarm', 3. );
 var( 'rec_htf', 5 );
@@ -199,15 +200,14 @@ var( 'piping_length_const', 0 );
 var( 'eta_pump', 0.85 );
 
 
-var( 'T_rec_cold_des', 568 );
+var( 'T_rec_cold_des', 561.2 );
 var( 'T_rec_hot_des', 730 );
-var( 'store_htf', 18 );
 var( 'store_fl_props', 
 [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ] );
 var( 'tes_pump_coef', 0.15 );
 var( 'T_tes_hot_des', 715 );
-var( 'T_tes_warm_des', 630 );
-var( 'T_tes_cold_des', 553 );
+var( 'T_tes_warm_des', 576.1 );
+var( 'T_tes_cold_des', 546.6 );
 var( 'csp.pt.tes.init_hot_htf_percent', 30 );
 var( 'h_tank', 12 );
 var( 'cold_tank_max_heat', 15 );
@@ -401,6 +401,7 @@ var( 'adjust:constant', 4 );
 var( 'sf_adjust:constant', 0 );
 run('tcsmolten_salt');
 
+outln("GEN " + to_string(sum(var('gen'))));
 
 /*
 
@@ -636,3 +637,269 @@ outln('Net capital cost ' + var('cost_installed'));
 outln('Equity ' + var('size_of_equity'));
 outln('Size of debt ' + var('size_of_debt'));
 */
+
+
+allout = [
+'solar_resource_data',
+'solar_resource_file',
+'ampl_data_dir',
+'ampl_exec_call',
+'rec_height',
+'D_rec',
+'h_tower',
+'N_hel',
+'land_area_base',
+'ppa_multiplier_model',
+'field_model_type',
+'gross_net_conversion_factor',
+'helio_width',
+'helio_height',
+'helio_optical_error_mrad',
+'helio_active_fraction',
+'dens_mirror',
+'helio_reflectance',
+'rec_absorptance',
+'rec_hl_perm2',
+'land_max',
+'land_min',
+'dni_des',
+'p_start',
+'p_track',
+'hel_stow_deploy',
+'v_wind_max',
+'interp_nug',
+'interp_beta',
+'water_usage_per_wash',
+'washing_frequency',
+'tower_fixed_cost',
+'tower_exp',
+'rec_ref_cost',
+'rec_ref_area',
+'rec_cost_exp',
+'site_spec_cost',
+'heliostat_spec_cost',
+'plant_spec_cost',
+'bop_spec_cost',
+'tes_spec_cost',
+'land_spec_cost',
+'contingency_rate',
+'sales_tax_rate',
+'sales_tax_frac',
+'cost_sf_fixed',
+'fossil_spec_cost',
+'flux_max',
+'opt_init_step',
+'opt_max_iter',
+'opt_conv_tol',
+'opt_flux_penalty',
+'opt_algorithm',
+'csp.pt.cost.epc.per_acre',
+'csp.pt.cost.epc.percent',
+'csp.pt.cost.epc.per_watt',
+'csp.pt.cost.epc.fixed',
+'csp.pt.cost.plm.percent',
+'csp.pt.cost.plm.per_watt',
+'csp.pt.cost.plm.fixed',
+'csp.pt.sf.fixed_land_area',
+'csp.pt.sf.land_overhead_factor',
+'P_ref',
+'design_eff',
+'tshours',
+'solarm',
+'rec_htf',
+'f_rec_min',
+'rec_su_delay',
+'rec_qf_delay',
+'csp.pt.rec.max_oper_frac',
+'eta_pump',
+'piping_loss',
+'piping_length_mult',
+'piping_length_const',
+'piping_loss_coeff',
+'is_rec_model_trans',
+'is_rec_startup_trans',
+'is_rec_startup_from_T_soln',
+'is_rec_enforce_min_startup',
+'T_rec_cold_des',
+'T_rec_hot_des',
+'store_htf',
+'tes_pump_coef',
+'T_tes_hot_des',
+'T_tes_warm_des',
+'T_tes_cold_des',
+'csp.pt.tes.init_hot_htf_percent',
+'h_tank',
+'cold_tank_max_heat',
+'dt_hot',
+'u_tank',
+'tank_pairs',
+'cold_tank_Thtr',
+'h_tank_min',
+'hot_tank_Thtr',
+'hot_tank_max_heat',
+'T_pc_cold_des',
+'T_pc_hot_des',
+'pc_config',
+'is_udpc_co2',
+'pb_pump_coef',
+'startup_time',
+'startup_frac',
+'cycle_max_frac',
+'cycle_cutoff_frac',
+'q_sby_frac',
+'dT_cw_ref',
+'T_amb_des',
+'P_boil',
+'CT',
+'T_approach',
+'T_ITD_des',
+'P_cond_ratio',
+'pb_bd_frac',
+'P_cond_min',
+'n_pl_inc',
+'tech_type',
+'ud_T_amb_des',
+'ud_f_W_dot_cool_des',
+'ud_m_dot_water_cool_des',
+'ud_T_htf_low',
+'ud_T_htf_high',
+'ud_T_amb_low',
+'ud_T_amb_high',
+'ud_m_dot_htf_low',
+'ud_m_dot_htf_high',
+'P_phx_in_co2_des',
+'P_turb_in_co2_des',
+'sco2_cycle_config',
+'eta_c',
+'eta_t',
+'recup_eff_max',
+'P_high_limit',
+'deltaT_PHX',
+'fan_power_perc_net',
+'sco2_T_amb_des',
+'sco2_T_approach',
+'is_sco2_preprocess',
+'sco2ud_T_htf_cold_calc',
+'sco2ud_T_htf_low',
+'sco2ud_T_htf_high',
+'sco2ud_T_amb_low',
+'sco2ud_T_amb_high',
+'sco2ud_m_dot_htf_low',
+'sco2ud_m_dot_htf_high',
+'_sco2_P_high_limit',
+'_sco2_P_ref',
+'_sco2_T_amb_des',
+'_sco2_T_approach',
+'_sco2_T_htf_hot_des',
+'_sco2_deltaT_PHX',
+'_sco2_design_eff',
+'_sco2_eta_c',
+'_sco2_eta_t',
+'_sco2_recup_eff_max',
+'time_start',
+'time_stop',
+'time_steps_per_hour',
+'vacuum_arrays',
+'pb_fixed_par',
+'aux_par',
+'aux_par_f',
+'aux_par_0',
+'aux_par_1',
+'aux_par_2',
+'bop_par',
+'bop_par_f',
+'bop_par_0',
+'bop_par_1',
+'bop_par_2',
+'is_dispatch',
+'disp_horizon',
+'disp_frequency',
+'disp_steps_per_hour',
+'disp_max_iter',
+'disp_timeout',
+'disp_mip_gap',
+'disp_spec_bb',
+'disp_reporting',
+'disp_spec_presolve',
+'disp_spec_scaling',
+'disp_time_weighting',
+'is_write_ampl_dat',
+'is_ampl_engine',
+'disp_rsu_cost',
+'disp_csu_cost',
+'disp_pen_delta_w',
+'q_rec_standby',
+'q_rec_heattrace',
+'is_wlim_series',
+'dispatch_factor1',
+'dispatch_factor2',
+'dispatch_factor3',
+'dispatch_factor4',
+'dispatch_factor5',
+'dispatch_factor6',
+'dispatch_factor7',
+'dispatch_factor8',
+'dispatch_factor9',
+'is_dispatch_series',
+'const_per_interest_rate1',
+'const_per_interest_rate2',
+'const_per_interest_rate3',
+'const_per_interest_rate4',
+'const_per_interest_rate5',
+'const_per_months1',
+'const_per_months2',
+'const_per_months3',
+'const_per_months4',
+'const_per_months5',
+'const_per_percent1',
+'const_per_percent2',
+'const_per_percent3',
+'const_per_percent4',
+'const_per_percent5',
+'const_per_upfront_rate1',
+'const_per_upfront_rate2',
+'const_per_upfront_rate3',
+'const_per_upfront_rate4',
+'const_per_upfront_rate5',
+'adjust:constant',
+'sf_adjust:constant',
+'helio_positions',
+'land_bound_table',
+'eta_map',
+'rec_efficiency_lookup',
+'rec_pressure_lookup',
+'field_fl_props',
+'store_fl_props',
+'ud_T_htf_ind_od',
+'ud_T_amb_ind_od',
+'ud_m_dot_htf_ind_od',
+'ud_ind_od',
+'ud_ind_od_off_sun',
+'sco2ud_T_htf_ind_od',
+'sco2ud_T_amb_ind_od',
+'sco2ud_m_dot_htf_ind_od',
+'weekday_schedule',
+'weekend_schedule',
+'dispatch_sched_weekday',
+'dispatch_sched_weekend',
+'adjust:periods',
+'sf_adjust:periods',
+'dispatch_factors_ts',
+'land_bound_list',
+'F_wc',
+'f_turb_tou_periods',
+'wlim_series',
+'dispatch_series',
+'adjust:hourly',
+'sf_adjust:hourly'
+];
+
+insum = open(cwd()+'/inputs-summary-mw.csv', 'w');
+
+for(i=0; i<#allout; i++)
+{
+	//outln(allout[i], to_string(var(allout[i])));
+	write(insum, allout[i] + "," + to_string(var(allout[i])) + "\n" );
+}
+
+close(insum);

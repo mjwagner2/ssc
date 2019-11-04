@@ -1,0 +1,84 @@
+D_rec,17.65 ,17.649999999999999 
+P_cond_ratio,1.0028 ,1.0027999999999999 
+P_phx_in_co2_des,24.750625 ,24.750599999999999 
+P_turb_in_co2_des,20.790525 ,20.790500000000002 
+W_rad_tubes,0.05 ,0.050000000000000003 
+_sco2_P_high_limit,1.e38 ,9.9999999999999998e+37 
+_sco2_P_ref,1.e38 ,9.9999999999999998e+37 
+_sco2_T_amb_des,1.e38 ,9.9999999999999998e+37 
+_sco2_T_approach,1.e38 ,9.9999999999999998e+37 
+_sco2_T_htf_hot_des,1.e38 ,9.9999999999999998e+37 
+_sco2_deltaT_PHX,1.e38 ,9.9999999999999998e+37 
+_sco2_design_eff,1.e38 ,9.9999999999999998e+37 
+_sco2_eta_c,1.e38 ,9.9999999999999998e+37 
+_sco2_eta_t,1.e38 ,9.9999999999999998e+37 
+_sco2_recup_eff_max,1.e38 ,9.9999999999999998e+37 
+aux_par_0,0.483 ,0.48299999999999998 
+aux_par_1,0.571 ,0.57099999999999995 
+bop_par_1,0.483 ,0.48299999999999998 
+c_atm_0,0.006789 ,0.0067889999999999999 
+c_atm_2,-0.017 ,-0.017000000000000001 
+c_atm_3,0.002845 ,0.0028449999999999999 
+cbi_fed_maxvalue,1.e38 ,9.9999999999999998e+37 
+cbi_oth_maxvalue,1.e38 ,9.9999999999999998e+37 
+cbi_sta_maxvalue,1.e38 ,9.9999999999999998e+37 
+cbi_uti_maxvalue,1.e38 ,9.9999999999999998e+37 
+cycle_cutoff_frac,0.2 ,0.20000000000000001 
+dens_mirror,0.97 ,0.96999999999999997 
+design_eff,0.42,0.42 
+disp_pen_delta_w,0.1 ,0.10000000000000001 
+disp_time_weighting,0.99 ,0.98999999999999999 
+dispatch_factor1,2.064 ,2.0640000000000001 
+dispatch_factor4,1.1 ,1.1000000000000001 
+dispatch_factor5,0.8 ,0.80000000000000004 
+dispatch_factor6,0.7 ,0.69999999999999996 
+dispatch_factors_ts,real_array(read_text_file('dispatch_factors_ts.csv',real_array(read_text_file(filedir + '/dispatch_factors_ts.csv'
+epsilon_radHX,0.8 ,0.80000000000000004 
+epsilon_radbot,0.07 ,0.070000000000000007 
+epsilon_radgrnd,0.9 ,0.90000000000000002 
+epsilon_radtop,0.95 ,0.94999999999999996 
+eta_c,0.89 ,0.89000000000000001 
+eta_map,csvread('eta_map.csv',csvread(filedir + '/eta_map.csv'
+eta_map_aod_format,false ,0 
+eta_pump,0.85 ,0.84999999999999998 
+eta_t,0.9 ,0.90000000000000002 
+flux_maps,csvread('flux_maps.csv',csvread(filedir + '/flux_maps.csv'
+flux_positions,csvread('flux_positions.csv',csvread(filedir + '/flux_positions.csv'
+gross_net_conversion_factor,0.9 ,0.90000000000000002 
+helio_active_fraction,0.99 ,0.98999999999999999 
+helio_height,8.66 ,8.6600000000000001 
+helio_positions,csvread('helio_positions.csv',csvread(filedir + '/helio_positions.csv'
+helio_reflectance,0.9 ,0.90000000000000002 
+helio_width,8.66 ,8.6600000000000001 
+ibi_fed_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+ibi_oth_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+ibi_sta_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+ibi_uti_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+is_udpc_co2,1,1 
+itc_fed_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+itc_sta_percent_maxvalue,1.e38 ,9.9999999999999998e+37 
+opt_init_step,0.06 ,0.059999999999999998 
+p_start,0.025 ,0.025000000000000001 
+pb_fixed_par,0.0055 ,0.0054999999999999997 
+pb_pump_coef,0.55 ,0.55000000000000004 
+piping_length_mult,2.6 ,2.6000000000000001 
+q_sby_frac,0.2 ,0.20000000000000001 
+real_discount_rate,6.4 ,6.4000000000000004 
+rec_absorptance,0.94 ,0.93999999999999995 
+rec_cost_exp,0.7 ,0.69999999999999996 
+rec_efficiency_lookup,csvread('rec_efficiency.csv',csvread(filedir + '/rec_efficiency.csv'
+rec_height,21.6029 ,21.602900000000002 
+rec_pressure_lookup,csvread('rec_pressure.csv',csvread(filedir + '/rec_pressure.csv'
+rec_su_delay,0.2 ,0.20000000000000001 
+recup_eff_max,0.96 ,0.95999999999999996 
+sco2ud_T_htf_cold_calc,1.e38 ,9.9999999999999998e+37 
+solarm,3. ,3 
+tes_pump_coef,0.15 ,0.14999999999999999 
+time_start,0,0 
+tower_exp,0.0113 ,0.011299999999999999 
+u_ctes_tank,0.4 ,0.40000000000000002 
+u_tank,0.4 ,0.40000000000000002 
+ud_ind_od,csvread('ud_ind_od.csv',csvread(filedir + '/ud_ind_od.csv'
+ud_ind_od_off_sun,csvread('ud_ind_od_off_sun.csv',csvread(filedir + '/ud_ind_od_off_sun.csv'
+water_usage_per_wash,0.7 ,0.69999999999999996 
+wlim_series,real_array(read_text_file('wlim_series.csv',real_array(read_text_file(filedir + '/wlim_series.csv'

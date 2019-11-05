@@ -193,11 +193,11 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "time_steps_per_hour",                "Number of simulation time steps per hour",                                                                                                "",             "",                                  "System Control",                           "?=-1",                                                             "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "vacuum_arrays",                      "Allocate arrays for only the required number of steps",                                                                                   "",             "",                                  "System Control",                           "?=0",                                                              "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "pb_fixed_par",                       "Fixed parasitic load - runs at all times",                                                                                                "MWe/MWcap",    "",                                  "System Control",                           "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "aux_par",                            "Aux heater, boiler parasitic",                                                                                                            "MWe/MWcap",    "",                                  "System Control",                           "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "aux_par_f",                          "Aux heater, boiler parasitic - multiplying fraction",                                                                                     "",             "",                                  "System Control",                           "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "aux_par_0",                          "Aux heater, boiler parasitic - constant coefficient",                                                                                     "",             "",                                  "System Control",                           "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "aux_par_1",                          "Aux heater, boiler parasitic - linear coefficient",                                                                                       "",             "",                                  "System Control",                           "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "aux_par_2",                          "Aux heater, boiler parasitic - quadratic coefficient",                                                                                    "",             "",                                  "System Control",                           "*",                                                                "",              ""},
+    //{ SSC_INPUT,     SSC_NUMBER, "aux_par",                            "Aux heater, boiler parasitic",                                                                                                            "MWe/MWcap",    "",                                  "System Control",                           "*",                                                                "",              ""},
+    //{ SSC_INPUT,     SSC_NUMBER, "aux_par_f",                          "Aux heater, boiler parasitic - multiplying fraction",                                                                                     "",             "",                                  "System Control",                           "*",                                                                "",              ""},
+    //{ SSC_INPUT,     SSC_NUMBER, "aux_par_0",                          "Aux heater, boiler parasitic - constant coefficient",                                                                                     "",             "",                                  "System Control",                           "*",                                                                "",              ""},
+    //{ SSC_INPUT,     SSC_NUMBER, "aux_par_1",                          "Aux heater, boiler parasitic - linear coefficient",                                                                                       "",             "",                                  "System Control",                           "*",                                                                "",              ""},
+    //{ SSC_INPUT,     SSC_NUMBER, "aux_par_2",                          "Aux heater, boiler parasitic - quadratic coefficient",                                                                                    "",             "",                                  "System Control",                           "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "bop_par",                            "Balance of plant parasitic power fraction",                                                                                               "MWe/MWcap",    "",                                  "System Control",                           "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "bop_par_f",                          "Balance of plant parasitic power fraction - mult frac",                                                                                   "",             "",                                  "System Control",                           "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "bop_par_0",                          "Balance of plant parasitic power fraction - const coeff",                                                                                 "",             "",                                  "System Control",                           "*",                                                                "",              ""},
@@ -251,7 +251,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INOUT,     SSC_NUMBER, "rec_height",                         "Receiver height",                                                                                                                         "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "D_rec",                              "The overall outer diameter of the receiver",                                                                                              "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "h_tower",                            "Tower height",                                                                                                                            "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
-    { SSC_INOUT,     SSC_NUMBER, "N_hel",                              "Number of heliostats",                                                                                                                    "",             "",                                  "Heliostat Field",                          "",                                                                 "",              ""},
+    //{ SSC_INOUT,     SSC_NUMBER, "N_hel",                              "Number of heliostats",                                                                                                                    "",             "",                                  "Heliostat Field",                          "",                                                                 "",              ""},
     //{ SSC_INOUT,     SSC_MATRIX, "helio_positions",                    "Heliostat position table",                                                                                                                "",             "",                                  "Heliostat Field",                          "*",                                                                "",              "COL_LABEL=XY_POSITION"},
     { SSC_INOUT,     SSC_NUMBER, "land_area_base",                     "Base land area occupied by heliostats",                                                                                                   "acre",         "",                                  "Heliostat Field",                          "*",                                                                "",              ""},
     
@@ -543,18 +543,7 @@ public:
         int tes_type = 1;
         const int N_rec = 3;        // number of receivers and corresponding fields
 
-        int rec_type = var_receiver::REC_TYPE::EXTERNAL_CYLINDRICAL;
-        switch (rec_type)
-        {
-            case var_receiver::REC_TYPE::EXTERNAL_CYLINDRICAL:
-            {
-                assign("rec_aspect", as_number("rec_height") / as_number("D_rec"));
-                break;
-            }
-            case var_receiver::REC_TYPE::FLAT_PLATE:
-                assign("rec_aspect", as_number("rec_height") / as_number("D_rec"));
-                break;
-        }
+        assign("rec_aspect", as_number("rec_height") / as_number("D_rec"));
 
         double q_design = as_number("P_ref") / as_number("design_eff") * as_number("solarm");
         assign("q_design", q_design);
@@ -633,33 +622,31 @@ public:
         pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
         pc->m_pc_fl_props = as_matrix("field_fl_props");
 
+        pc->m_is_user_defined_pc = true;
+        pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
+
+        // User-Defined Cycle Parameters
+        pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
+        pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0*as_double("P_ref");  //[MWe]
+        pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
+
+        // Also need lower and upper levels for the 3 independent variables...
+        pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
+        pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
+        pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
+        pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
+        pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
+        pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
+
+        // User-Defined Cycle Off-Design Tables 
+        pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+        pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+        pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+        pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+        if (is_assigned("ud_ind_od_off_sun"))
         {
-            pc->m_is_user_defined_pc = true;
-            pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
-
-            // User-Defined Cycle Parameters
-            pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
-            pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0*as_double("P_ref");  //[MWe]
-            pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
-
-            // Also need lower and upper levels for the 3 independent variables...
-            pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
-            pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
-            pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
-            pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
-            pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
-            pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
-
-            // User-Defined Cycle Off-Design Tables 
-            pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
-            pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
-            pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
-            pc->mc_combined_ind = as_matrix("ud_ind_od");
-
-            if (is_assigned("ud_ind_od_off_sun"))
-            {
-                pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
-            }
+            pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
         }
 
             // Set pointer to parent class

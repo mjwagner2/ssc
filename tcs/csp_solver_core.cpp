@@ -4970,7 +4970,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
         if(m_is_tes)
         {
             double mdot_disch, Tdisch, mdot_store_disch;
-			mc_tes.discharge_avail_est(m_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, e_tes_disch, mdot_disch, Tdisch, mdot_store_disch);
+			mc_tes.discharge_avail_est_both(m_cycle_T_htf_cold_des, mc_kernel.mc_sim_info.ms_ts.m_step, e_tes_disch, mdot_disch, Tdisch, mdot_store_disch);
 
             e_tes_disch *= mc_kernel.mc_sim_info.ms_ts.m_step / 3600.;  //MWh
         }

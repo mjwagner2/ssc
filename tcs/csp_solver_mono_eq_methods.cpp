@@ -954,7 +954,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_tan
     c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
     // Solve for cold temperature
-    double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;        //[C], convert from [K]
+    //double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;        //[C], convert from [K]
+    //double T_cold_guess_high = T_cold_guess_low + 10.0;                         //[C]
+    double T_cold_guess_low = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 + 25;        //[C], convert from [K]
     double T_cold_guess_high = T_cold_guess_low + 10.0;                         //[C]
 
     double T_cold_solved, tol_solved;

@@ -1229,6 +1229,32 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                         P_cycle, q_dot_htf, W_cool_par, m_dot_water_cooling,
                         deltaT_phx_co2, P_phx_in_co2, m_dot_co2_out_ND, P_phx_out_co2);
                 }
+
+                //double P_cycle_onsun, q_dot_htf_onsun, W_cool_par_onsun, m_dot_water_cooling_onsun, deltaT_phx_co2_onsun, P_phx_in_co2_onsun, m_dot_co2_out_ND_onsun, P_phx_out_co2_onsun;
+                //deltaT_phx_co2_onsun = P_phx_in_co2_onsun = m_dot_co2_out_ND_onsun = P_phx_out_co2_onsun = std::numeric_limits<double>::quiet_NaN();
+
+                //mc_user_defined_pc.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
+                //    P_cycle_onsun, q_dot_htf_onsun, W_cool_par_onsun, m_dot_water_cooling_onsun,
+                //    deltaT_phx_co2_onsun, P_phx_in_co2_onsun, m_dot_co2_out_ND_onsun, P_phx_out_co2_onsun);
+
+                //double P_cycle_offsun, q_dot_htf_offsun, W_cool_par_offsun, m_dot_water_cooling_offsun, deltaT_phx_co2_offsun, P_phx_in_co2_offsun, m_dot_co2_out_ND_offsun, P_phx_out_co2_offsun;
+                //deltaT_phx_co2_offsun = P_phx_in_co2_offsun = m_dot_co2_out_ND_offsun = P_phx_out_co2_offsun = std::numeric_limits<double>::quiet_NaN();
+
+                //mc_udpc_off_sun.get_co2_outputs_ND__for_m_dot_co2_in(T_htf_hot, T_db - 273.15, m_dot_htf_ND,
+                //    P_cycle_offsun, q_dot_htf_offsun, W_cool_par_offsun, m_dot_water_cooling_offsun,
+                //    deltaT_phx_co2_offsun, P_phx_in_co2_offsun, m_dot_co2_out_ND_offsun, P_phx_out_co2_offsun);
+                //
+                //double load_scale = m_dot_htf_ND > 1. ? 1. : m_dot_htf_ND;
+                //P_cycle = P_cycle_offsun *(1. - load_scale) + P_cycle_onsun * load_scale;
+                //q_dot_htf = q_dot_htf_offsun *(1. - load_scale) + q_dot_htf_onsun * load_scale;
+                //W_cool_par = W_cool_par_offsun *(1. - load_scale) + W_cool_par_onsun * load_scale;
+                //m_dot_water_cooling = m_dot_water_cooling_offsun *(1. - load_scale) + m_dot_water_cooling_onsun * load_scale;
+                //deltaT_phx_co2 = deltaT_phx_co2_offsun *(1. - load_scale) + deltaT_phx_co2_onsun * load_scale;
+                //P_phx_in_co2 = P_phx_in_co2_offsun *(1. - load_scale) + P_phx_in_co2_onsun * load_scale;
+                //m_dot_co2_out_ND = m_dot_co2_out_ND_offsun *(1. - load_scale) + m_dot_co2_out_ND_onsun * load_scale;
+                //P_phx_out_co2 = P_phx_out_co2_offsun *(1. - load_scale) + P_phx_out_co2_onsun * load_scale;
+
+
                 P_cycle *= ms_params.m_P_ref;
                 q_dot_htf *= m_q_dot_design;
                 W_cool_par *= ms_params.m_W_dot_cooling_des;
@@ -1268,7 +1294,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
                 double diff_T_htf_cold = T_htf_cold - T_htf_cold__lookup;
 
-                q_dot_htf = q_dot_calc;
+                //q_dot_htf = q_dot_calc;           << dropping this temporarily because the reported efficiency becomes unrealistic for the gen3 system. 
             }
             else
             {

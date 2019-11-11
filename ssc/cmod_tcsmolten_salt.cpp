@@ -383,6 +383,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out1",                      "HX 1 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out2",                      "HX 2 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "T_HX_tes_out3",                      "HX 3 TES outlet temperature",                                                                                                             "C",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm1",                     "Receiver 1 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm2",                     "Receiver 2 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm3",                     "Receiver 3 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
 
         // Power cycle outputs
     { SSC_OUTPUT,    SSC_ARRAY,  "eta",                                "PC efficiency, gross",                                                                                                                    "",             "",                                  "",                                         "*",                                                                "",              ""},
@@ -870,6 +873,9 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT1, allocate("T_HX_tes_out1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT2, allocate("T_HX_tes_out2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_T_HX_OUT3, allocate("T_HX_tes_out3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM1, allocate("eta_rec_therm1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM2, allocate("eta_rec_therm2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM3, allocate("eta_rec_therm3", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;

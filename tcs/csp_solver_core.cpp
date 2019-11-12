@@ -4177,7 +4177,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-				double T_htf_cold_guess_colder = m_T_htf_pc_cold_est;				//[C]
+				double T_htf_cold_guess_colder = m_T_htf_cold_des - 273.15;				//[C]
 				double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
 
 				double T_htf_cold_solved, tol_solved;

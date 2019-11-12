@@ -102,6 +102,9 @@ public:
         E_Q_DOT_HX3,                //[MWt] HX 1 transferred power
         E_M_DOT_HX3,                //[kg/hr] HX 1 TES mass flow rate
         E_T_HX_OUT3,                //[C] HX 1 TES outlet temperature
+        E_ETA_THERM1,               //[-] Receiver 1 thermal efficiency
+        E_ETA_THERM2,               //[-] Receiver 2 thermal efficiency
+        E_ETA_THERM3,               //[-] Receiver 3 thermal efficiency
     };
 	
     int m_field_fl;

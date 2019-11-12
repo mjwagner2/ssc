@@ -277,6 +277,8 @@ C_csp_messages::C_csp_messages()
 void C_csp_messages::add_message(int type, std::string msg)
 {
 	// Want first message last...
+    if (type == C_csp_messages::NOTICE)
+        return;
     m_message_list.insert( m_message_list.begin(), S_message_def(type, msg) );
 
 }

@@ -42,7 +42,7 @@ var( 'rec_pressure_lookup', csvread('rec_pressure.csv'));
 eta_map = csvread('eta_map.csv');
 
 solarm_ref = 3.;
-solarm = 3.;
+solarm = 3;
 
 for(i=0; i<#eta_map; i++)
 {

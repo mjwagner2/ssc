@@ -628,3 +628,84 @@ for(j=0; j<#outs; j++)
 }
 
 csvwrite("output_case3.csv", allout);
+
+output_filename = 'output_dview.csv';
+output.Operating_mode_1 = var( 'op_mode_1' );
+units.Operating_mode_1 = '-';
+output.Operating_mode_2 = var( 'op_mode_2' );
+units.Operating_mode_2 = '-';
+output.Operating_mode_3 = var( 'op_mode_3' );
+units.Operating_mode_3 = '-';
+output.TES_V_hot_tank_initial = var( 'V_hot_tank_initial' );
+units.TES_V_hot_tank_initial = '-';
+output.PC_power = var( 'P_cycle' );
+units.PC_power = 'MWe';
+output.PC_efficiency = var( 'eta' );
+units.PC_efficiency = '-';
+output.DNI = var( 'beam' );
+units.DNI = 'W/m^2';
+output.Receiver_1_inlet_temp = var( 'T_rec_in1' );
+units.Receiver_1_inlet_temp = 'C';
+output.Receiver_1_outlet_temp = var( 'T_rec_out1' );
+units.Receiver_1_outlet_temp = 'C';
+output.Receiver_2_inlet_temp = var( 'T_rec_in2' );
+units.Receiver_2_inlet_temp = 'C';
+output.Receiver_2_outlet_temp = var( 'T_rec_out2' );
+units.Receiver_2_outlet_temp = 'C';
+output.Receiver_3_inlet_temp = var( 'T_rec_in3' );
+units.Receiver_3_inlet_temp = 'C';
+output.Receiver_3_outlet_temp = var( 'T_rec_out3' );
+units.Receiver_3_outlet_temp = 'C';
+output.HX_1_particle_outlet_temp = var( 'T_HX_tes_out1' );
+units.HX_1_particle_outlet_temp = 'C';
+output.HX_2_particle_outlet_temp = var( 'T_HX_tes_out2' );
+units.HX_2_particle_outlet_temp = 'C';
+output.HX_3_particle_outlet_temp = var( 'T_HX_tes_out3' );
+units.HX_3_particle_outlet_temp = 'C';
+output.Receiver_1_HTF_mass_flow = var( 'm_dot_rec1' );
+units.Receiver_1_HTF_mass_flow = 'kg/hr';
+output.Receiver_1_particle_mass_flow = var( 'm_dot_HX_tes1' );
+units.Receiver_1_particle_mass_flow = 'kg/hr';
+output.Receiver_2_HTF_mass_flow = var( 'm_dot_rec2' );
+units.Receiver_2_HTF_mass_flow = 'kg/hr';
+output.Receiver_2_particle_mass_flow = var( 'm_dot_HX_tes2' );
+units.Receiver_2_particle_mass_flow = 'kg/hr';
+output.Receiver_3_HTF_mass_flow = var( 'm_dot_rec3' );
+units.Receiver_3_HTF_mass_flow = 'kg/hr';
+output.Receiver_3_particle_mass_flow = var( 'm_dot_HX_tes3' );
+units.Receiver_3_particle_mass_flow = 'kg/hr';
+output.Tower_HTF_inlet_temp = var( 'T_rec_in' );
+units.Tower_HTF_inlet_temp = 'C';
+output.Tower_HTF_outlet_temp = var( 'T_rec_out' );
+units.Tower_HTF_outlet_temp = 'C';
+output.TES_hot_tank_temp = var( 'T_tes_hot' );
+units.TES_hot_tank_temp = 'C';
+output.TES_cold_tank_temp = var( 'T_tes_cold' );
+units.TES_cold_tank_temp = 'C';
+output.TES_discharge_mass_flow = var( 'm_dot_tes_dc' );
+units.TES_discharge_mass_flow = 'kg/hr';
+output.TES_charge_mass_flow = var( 'm_dot_tes_ch' );
+units.TES_charge_mass_flow = 'kg/hr';
+output.PC_inlet_temp = var( 'T_pc_in' );
+units.PC_inlet_temp = 'C';
+output.PC_outlet_temp = var( 'T_pc_out' );
+units.PC_outlet_temp = 'C';
+output.PC_mass_flow = var( 'm_dot_pc' );
+units.PC_mass_flow = 'kg/hr';
+
+ok = csvwrite( output_filename, output );
+
+// Add unit row
+filenum = open( output_filename, 'r' );
+firstline = '';
+read_line( filenum, firstline );
+close( filenum );
+headers = split(firstline, ',');
+for ( i=0; i<#headers; i++ ) {
+	units_arr[i] = units{headers[i]};
+}
+units_str = join(units_arr, ',');
+newfirstline = firstline + '\n' + units_str;
+file = read_text_file( output_filename );
+newfile = replace( file, firstline, newfirstline );
+write_text_file( output_filename, newfile );

@@ -2663,7 +2663,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
                 if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF) {
                     // Ensure default PC target power is attainable
-                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, false, false, true /*m_allow_tes_overfill*/, false);
+                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true /*m_allow_tes_overfill*/);
                     C_monotonic_eq_solver c_solver(c_eq);
 
                     double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
@@ -2731,7 +2731,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     }
                 }
 
-                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, false, false, false, false);
+                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, false);
                 C_monotonic_eq_solver c_solver(c_eq);
 
                 // Get guesses for particle flow
@@ -4400,8 +4400,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// First, verify if defocus is needed: at defocus = 1 see if m_dot_pc > m_dot_pc_max OR charge is overfilled
                 C_mono_eq_cr_on_pc_mdot_tes__defocus c_eq2(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
-                    false /*match_rec_m_dot_store*/, true /*match_rec_m_dot_htf*/,
-                    true /*allow_tes_overfill*/, false /*discharge_just_overfilled*/);
+                    hot_tank_discharging::per_matched_rec_htf, true /*allow_tes_overfill*/);
                 C_monotonic_eq_solver c_solver2(c_eq2);
                 double diff_m_dot_pc_target = std::numeric_limits<double>::quiet_NaN();
                 bool is_tes_overfilled = false;
@@ -4545,8 +4544,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 if (is_tes_overfilled) {
                     // Find defocus resulting in TES not being overfilled
                     C_mono_eq_cr_on_pc_mdotmax_tes__defocus c_eq3(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
-                        false /*match_rec_m_dot_store*/, false /*match_rec_m_dot_htf*/,
-                        true /*allow_tes_overfill*/, false /*discharge_just_overfilled*/);
+                        hot_tank_discharging::per_specified_pc_mdot, true /*allow_tes_overfill*/);
                     C_monotonic_eq_solver c_solver3(c_eq3);
                     double defocus_upper_limit;
                     !isnan(defocus_solved) ? defocus_upper_limit = defocus_solved : defocus_upper_limit = 1.;

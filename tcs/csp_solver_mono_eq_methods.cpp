@@ -34,7 +34,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus::operator()(double
     // the last argument is just so it compiles -> need to change everything here
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        true, false, false, false);
+        hot_tank_discharging::out_equals_in, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
@@ -335,7 +335,7 @@ int C_csp_solver::C_mono_eq_cr_to_pc_to_cr_m_dot::operator()(double m_dot /*kg/h
     
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_field_control_in, m_pc_mode, m_P_field_in,
         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        true, false, false, false);
+        hot_tank_discharging::out_equals_in, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -967,7 +967,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_su_tes_ch_mdot::operator()(double m_dot_tan
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), m_dot_tank,
-        false, false, false, false);
+        hot_tank_discharging::specified, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -1949,7 +1949,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), m_dot_tank,
-        m_match_rec_m_dot_store, m_match_rec_m_dot_htf, m_allow_tes_overfill, m_discharge_just_overfilled);
+        m_hot_tank_discharging, m_allow_tes_overfill);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -2009,7 +2009,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defo
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        false, true, false, false);  // match_rec_m_dot_htf = true
+        hot_tank_discharging::per_matched_rec_htf, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -2067,8 +2067,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus::operator()(double defocu
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        m_match_rec_m_dot_store, m_match_rec_m_dot_htf,
-        m_allow_tes_overfill, m_discharge_just_overfilled);  // match_rec_m_dot_htf = true
+        m_hot_tank_discharging, m_allow_tes_overfill);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -2123,8 +2122,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_mdotmax_tes__defocus::operator()(double def
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         m_m_dot_pc_target, std::numeric_limits<double>::quiet_NaN(),
-        m_match_rec_m_dot_store, m_match_rec_m_dot_htf,
-        m_allow_tes_overfill, m_discharge_just_overfilled);  // match_rec_m_dot_htf = true
+        m_hot_tank_discharging, m_allow_tes_overfill);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
@@ -2177,7 +2175,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_dc_mdot::operator()(double m_dot
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, m_pc_mode, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
         std::numeric_limits<double>::quiet_NaN(), m_dot_tank,
-        false, false, false, false);
+        hot_tank_discharging::specified, false);
     C_monotonic_eq_solver c_solver(c_eq);
          
     // Set up solver
@@ -3315,6 +3313,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     // so can calculate max TES discharge MASS
     double mass_tes_max = m_dot_htf_full_ts*mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step;     //[kg]
 
+    // Find the step size, at full tes discharge, that hits the PC target heat input
     C_MEQ_cr_on__pc_target__tes_empty__step c_eq(mpc_csp_solver, m_defocus, T_htf_cold);
     C_monotonic_eq_solver c_solver(c_eq);
 
@@ -3341,6 +3340,16 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
         return -1;
+    }
+
+    // Compare solved q_dot_pc to target value
+    // If it is greater, than exit because we can't decrease the mass flow rate
+    if ((q_dot_pc_m_dot_min - m_q_dot_pc_target) / m_q_dot_pc_target > -1.E-3)
+    {
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        m_step = time_max;
+        return 0;
     }
 
     // Solve PC model with calculated inlet and timestep values
@@ -3389,16 +3398,6 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     }
 
     *diff_T_htf_cold = (T_htf_rec_in_solved - 273.15 - T_htf_cold) / T_htf_cold;
-
-    // Compare solved q_dot_pc to target value
-    // If it is greater, than exit because we can't decrease the mass flow rate
-    if ((q_dot_pc_m_dot_min - m_q_dot_pc_target) / m_q_dot_pc_target > -1.E-3)
-    {
-        mpc_csp_solver->mc_tes.use_calc_vals(false);
-        mpc_csp_solver->mc_tes.update_calc_vals(true);
-        m_step = time_max;
-        return 0;
-    }
 
     // Calculate the time required to deplete storage at the maximum PC HTF mass flow rate
     // ... Be conservative with 0.75 multiplier
@@ -3838,27 +3837,29 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     
     // Choose hot tank particle outlet flow
     double m_dot_hot_tank_out;
-    if (m_match_rec_m_dot_store) {
-        m_dot_hot_tank_out = m_dot_rec_store;   //[kg/hr]
-    }
-    else if (!std::isnan(m_m_dot_pc)) {
-        m_dot_hot_tank_out = std::numeric_limits<double>::quiet_NaN();      //[kg/hr]
-    }
-    else if (!std::isnan(m_m_dot_tank)) {
-        m_dot_hot_tank_out = m_m_dot_tank;      //[kg/hr]
-    }
-    else if (m_match_rec_m_dot_htf) {
-        double T_hot_htf, T_cold_store_est;
-        mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
-        m_dot_hot_tank_out *= 3600.;            //[kg/hr]
-    }
-    else if (m_discharge_just_overfilled) {
-        m_dot_hot_tank_out = std::max(0., m_m_dot_ch_overfilled);   //[kg/hr]
-    }
-    else {
-        mpc_csp_solver->mc_tes.use_calc_vals(false);
-        mpc_csp_solver->mc_tes.update_calc_vals(true);
-        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on__pc__tes was in an incorrect state", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+    switch (m_hot_tank_discharging)
+    {
+        case hot_tank_discharging::out_equals_in:
+            m_dot_hot_tank_out = m_dot_rec_store;   //[kg/hr]
+            break;
+        case hot_tank_discharging::per_specified_pc_mdot:
+            m_dot_hot_tank_out = std::numeric_limits<double>::quiet_NaN();      //[kg/hr]
+            break;
+        case hot_tank_discharging::specified:
+            m_dot_hot_tank_out = m_m_dot_tank;      //[kg/hr]
+            break;
+        case hot_tank_discharging::per_matched_rec_htf:
+            double T_hot_htf, T_cold_store_est;
+            mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
+            m_dot_hot_tank_out *= 3600.;            //[kg/hr]
+            break;
+        case hot_tank_discharging::excess_overfilled:
+            m_dot_hot_tank_out = std::max(0., m_m_dot_ch_overfilled);   //[kg/hr]
+            break;
+        default:
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on__pc__tes was in an incorrect state", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
     }
 
     if (!std::isnan(m_dot_hot_tank_out) && m_dot_hot_tank_out < 0.) {
@@ -3880,7 +3881,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     double T_htf_hx_in, T_htf_hx_out, T_htf_pc_in;   //[K]
     double m_dot_hx_in, m_dot_hx_out, m_dot_pc_in;                //[kg/hr]
     double P_hx_out;                                 //[kPa]
-    if (m_match_rec_m_dot_htf) {
+    if (m_hot_tank_discharging == hot_tank_discharging::per_matched_rec_htf) {
         // Use the receiver HTF flow
         m_dot_hx_in = m_dot_rec_out;    //[kg/hr]
         T_htf_hx_in = T_htf_rec_out;    //[K]

@@ -35,7 +35,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 enum hot_tank_discharging
 {
     specified,
-    complete_discharge,
+    full_discharge,
     out_equals_in,                  // Should the hot tank particle discharge flow equal the tower particle flow(i.e., tes is SS) ?
     excess_overfilled,              // Discharge just the temporarily overfilled particles from the hot tank (leaving hot tank full at end of iteration) ?
     per_specified_pc_mdot,

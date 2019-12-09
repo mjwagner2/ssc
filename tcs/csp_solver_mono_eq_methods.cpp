@@ -3856,6 +3856,9 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         case hot_tank_discharging::excess_overfilled:
             m_dot_hot_tank_out = std::max(0., m_m_dot_ch_overfilled);   //[kg/hr]
             break;
+        case hot_tank_discharging::full_discharge:
+            m_dot_hot_tank_out = mpc_csp_solver->mc_tes.get_hot_m_dot_available(0., mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step) * 3600.;    //[kg/hr]
+            break;
         default:
             mpc_csp_solver->mc_tes.use_calc_vals(false);
             mpc_csp_solver->mc_tes.update_calc_vals(true);

@@ -47,7 +47,7 @@ var( 'rec_pressure_lookup', csvread('rec_pressure.csv'));
 eta_map = csvread('eta_map.csv');
 
 solarm_ref = 3.;
-solarm = 3;
+solarm = 3.;
 
 for(i=0; i<#eta_map; i++)
 {
@@ -70,7 +70,7 @@ var( 'eta_map', eta_map);
 var( 'gross_net_conversion_factor', 0.9 );
 var( 'P_ref', 100 );
 var( 'design_eff', 0.43); //0.44); 
-var( 'tshours', 10.3 ); 	//10.3
+var( 'tshours', 15.5 ); 	//10.3
 var( 'solarm', solarm );
 
 //heliostat field
@@ -709,3 +709,39 @@ newfirstline = firstline + '\n' + units_str;
 file = read_text_file( output_filename );
 newfile = replace( file, firstline, newfirstline );
 write_text_file( output_filename, newfile );
+
+
+//parametric
+/*
+solarms = [2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4];
+tshourss = [5, 10, 15.5, 20];
+for(k=0; k<#tshourss; k++)
+{
+	for(l=0; l<#solarms; l++)
+	{
+		clear(['solarm', 'tshours', 'eta_map', 'D_rec']);
+		
+		solarm = solarms[l];
+		tshours = tshourss[k];
+		var( 'tshours', tshours );
+		var( 'solarm', solarm );
+	
+		eta_map = csvread('eta_map.csv');
+		for(i=0; i<#eta_map; i++)
+		{
+			for(j=5; j<8; j++)
+			{
+				eta_map[i][j] = to_string( to_int( to_real(eta_map[i][j])*solarm/solarm_ref ));
+			}
+		
+		}
+
+		var( 'eta_map', eta_map);	
+		var( 'D_rec', 22.9*3*solarm/solarm_ref );
+		
+		run('tcsmolten_salt');
+		
+		outln('Annual energy for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + round(var('annual_energy')*1e-6) + ' x 10^6 [MWe]');
+	}
+}
+*/

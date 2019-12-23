@@ -1476,12 +1476,14 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty_mdot::operator()(double m_d
     // Converge on an HTF mass flow (m_dot) that balances the particle mass flow (m_dot_bal) between the tower outlet
     //  and the hot tank outlet, when the TES is emptying
 
-    C_mono_eq_cr_on_pc_match_tes_empty c_eq(mpc_csp_solver, m_defocus, m_dot);
+    C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, m_defocus, C_csp_power_cycle::ON, mpc_csp_solver->mc_cr_htf_state_in.m_pres,
+        m_dot, std::numeric_limits<double>::quiet_NaN(),
+        hot_tank_discharging::full_discharge, false);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
-    double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 30.;  //[C]
-    double T_cold_max = mpc_csp_solver->m_cycle_T_htf_hot_des - 273.15;         //[C]
+    double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 10.;
+    double T_cold_max = mpc_csp_solver->m_T_htf_cold_des - 273.15 + 40.;
     c_solver.settings(1.E-3, 50, T_cold_min, T_cold_max, false);
 
     // Solve for cold temperature

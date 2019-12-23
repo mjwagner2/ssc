@@ -42,6 +42,19 @@ enum hot_tank_discharging
     per_matched_rec_htf             // Should the HT HX outlet sco2 flow equal the tower outlet sco2 flow (i.e., min PC mass flow) ?
 };
 
+enum meq_error
+{
+    none,
+    cr_off_or_error,
+    tes_charge_error,
+    tes_overfilled,
+    config_error,           // MEQ configured wrong
+    cr_flow_exceeds_pb,
+    other_meq_error,
+    pb_error,
+    meq_failed
+};
+
 class C_csp_solver_steam_state
 {
 public:
@@ -1348,10 +1361,12 @@ public:
             m_allow_tes_overfill = allow_tes_overfill;
             m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+            m_meq_error = meq_error::none;
         }
 
         bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
         double m_step_pc_su;	//[s]
+        meq_error m_meq_error;
 
         virtual int operator()(double m_dot_tank /*kg/hr*/, double *diff_pc_target /*-*/);
     };
@@ -1979,6 +1994,7 @@ public:
             m_allow_tes_overfill = allow_tes_overfill;
             m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
+            m_meq_error = meq_error::none;
 
             if (!std::isfinite(m_m_dot_pc) && m_hot_tank_discharging == hot_tank_discharging::per_specified_pc_mdot) {
                 throw(C_csp_exception("Cannot solve C_csp_solver::C_MEQ_cr_on__pc__tes, the power cycle "
@@ -1994,6 +2010,7 @@ public:
         bool m_is_tes_overfilled;       //[-] Has the hot tank been overfilled?
         double m_m_dot_ch_overfilled;   //[kg/hr] Excess particles from tower? (+ if TES overcharged, - if there is still room to charge)
         double m_step_pc_su;	//[s]
+        meq_error m_meq_error;
 
         virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };

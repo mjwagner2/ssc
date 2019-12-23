@@ -860,7 +860,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		double q_dot_tes_dc, q_dot_tes_ch;
 		q_dot_tes_dc = q_dot_tes_ch = std::numeric_limits<double>::quiet_NaN();
 		double m_dot_tes_dc_est, m_dot_tes_ch_est;
-        double m_dot_tes_store_dc_est, m_dot_tes_store_ch_est;
+        double m_dot_tes_store_dc_est, m_dot_tes_store_ch_est, mass_store_total;
 		if (m_is_tes)
 		{
 			//predict estimated amount of charge/discharge available
@@ -875,6 +875,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
 			m_dot_tes_ch_est *= 3600.0;         //[kg/hr] convert from kg/s
             m_dot_tes_store_ch_est *= 3600.0;   //[kg/hr] convert from kg/s
+
+            mass_store_total = (m_dot_tes_store_dc_est + m_dot_tes_store_ch_est) * mc_kernel.mc_sim_info.ms_ts.m_step / 3600.;
 		}
 		else
 		{
@@ -2669,7 +2671,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
                     double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
                     int tes_max_code = c_solver.test_member_function(m_dot_tes_max, &diff_m_dot_particle);
-                    if (tes_max_code != 0) {
+                    if (tes_max_code != 0 && c_eq.m_meq_error != meq_error::cr_flow_exceeds_pb && c_eq.m_meq_error != meq_error::tes_overfilled) {
                         // Can't solve models with high tes mass flow, so get out
                         error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
                             "convergence could not be achieved. Controller will shut-down CR and PC",

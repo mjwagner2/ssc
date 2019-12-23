@@ -1567,7 +1567,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
 
     // Charge storage
     // First set available charge to that coming from the tower
-    mpc_csp_solver->mc_tes.set_max_charge_flow(m_dot_store);
+    mpc_csp_solver->mc_tes.set_max_charge_flow(m_dot_store / 3600.);
     double T_cold_tes_K;
     mpc_csp_solver->mc_tes.charge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
@@ -1968,9 +1968,11 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot::operator()(double m_dot
     try
     {
         solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0, T_cold_solved, tol_solved, iter_solved);
+        m_meq_error = c_eq.m_meq_error;
     }
     catch (C_csp_exception)
     {
+        m_meq_error = meq_error::meq_failed;
         throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch_mdot", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
     }
 
@@ -3781,6 +3783,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     // Check if receiver is OFF or didn't solve
     if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
     {
+        m_meq_error = meq_error::cr_off_or_error;
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -3818,6 +3821,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
     // Check if TES charge method solved
     if (!ch_solved) {
+        m_meq_error = meq_error::tes_charge_error;
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -3829,6 +3833,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     m_m_dot_ch_overfilled = m_dot_rec_store - m_dot_tes_ch_max;    //[kg/hr]
     m_m_dot_ch_overfilled > 0. ? m_is_tes_overfilled = true : m_is_tes_overfilled = false;
     if (!m_allow_tes_overfill && m_is_tes_overfilled) {
+        m_meq_error = meq_error::tes_overfilled;
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -3866,6 +3871,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     }
 
     if (!std::isnan(m_dot_hot_tank_out) && m_dot_hot_tank_out < 0.) {
+        m_meq_error = meq_error::config_error;
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -3903,10 +3909,11 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     else if (std::isnormal(m_m_dot_pc)) {
         // Use the specified power cycle mass flow
         if (m_dot_rec_out > m_m_dot_pc) {
+            m_meq_error = meq_error::cr_flow_exceeds_pb;
             mpc_csp_solver->mc_tes.use_calc_vals(false);
             mpc_csp_solver->mc_tes.update_calc_vals(true);
             *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
-            return -4;
+            return -9;
         }
         double m_dot_bypassed = m_m_dot_pc - m_dot_rec_out;                 //[kg/hr]
 
@@ -3950,6 +3957,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
         if (m_dot_rec_out > m_dot_hx_out) {
             // Needs defocusing if this is the converged state
+            m_meq_error = meq_error::cr_flow_exceeds_pb;
             mpc_csp_solver->mc_tes.use_calc_vals(false);
             mpc_csp_solver->mc_tes.update_calc_vals(true);
             *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -3978,6 +3986,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             }
             catch (C_csp_exception)
             {
+                m_meq_error = meq_error::other_meq_error;
                 mpc_csp_solver->mc_tes.use_calc_vals(false);
                 mpc_csp_solver->mc_tes.update_calc_vals(true);
                 throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank failed", mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_time), ""));
@@ -3996,6 +4005,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
                 }
                 else
                 {
+                    m_meq_error = meq_error::other_meq_error;
                     mpc_csp_solver->mc_tes.use_calc_vals(false);
                     mpc_csp_solver->mc_tes.update_calc_vals(true);
                     *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -4048,6 +4058,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     // Check that power cycle is solving without errors
     if (!mpc_csp_solver->mc_pc_out_solver.m_was_method_successful)
     {
+        m_meq_error = meq_error::pb_error;
         mpc_csp_solver->mc_tes.use_calc_vals(false);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
@@ -4119,5 +4130,6 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
     mpc_csp_solver->mc_tes.use_calc_vals(false);
     mpc_csp_solver->mc_tes.update_calc_vals(true);
+    m_meq_error = meq_error::none;
     return 0;
 }

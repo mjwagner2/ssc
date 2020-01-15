@@ -47,6 +47,7 @@ enum meq_error
     none,
     cr_off_or_error,
     tes_charge_error,
+    tes_discharge_error,
     tes_overfilled,
     config_error,           // MEQ configured wrong
     cr_flow_exceeds_pb,

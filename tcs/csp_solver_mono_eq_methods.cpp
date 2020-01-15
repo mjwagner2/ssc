@@ -3896,12 +3896,21 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         // Use the receiver HTF flow
         m_dot_hx_in = m_dot_rec_out;    //[kg/hr]
         T_htf_hx_in = T_htf_rec_out;    //[K]
-        mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        bool dc_solved = mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hx_in / 3600.,
             T_htf_hx_in,
             T_htf_hx_out,
             tes_outputs_temp);
+
+        // Check if TES discharge method solved
+        if (!dc_solved) {
+            m_meq_error = meq_error::tes_discharge_error;
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+            return -2;
+        }
 
         m_dot_hot_tank_out = tes_outputs_temp.m_m_dot * 3600.;              //[kg/hr] Hot tank particle mass flow
         m_dot_pc_in = m_dot_hx_out = m_dot_hx_in;                           //[kg/hr]
@@ -3930,12 +3939,21 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         T_htf_hx_in = (T_htf_rec_out * m_dot_rec_out + T_htf_bypassed * m_dot_bypassed) / (m_dot_rec_out + m_dot_bypassed);  // [K]  mix streams to get LT HX outlet temp
         m_dot_hx_in = m_m_dot_pc;
 
-        mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        bool dc_solved = mpc_csp_solver->mc_tes.discharge(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hx_in / 3600.,
             T_htf_hx_in,
             T_htf_hx_out,
             tes_outputs_temp);
+
+        // Check if TES discharge method solved
+        if (!dc_solved) {
+            m_meq_error = meq_error::tes_discharge_error;
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+            return -2;
+        }
 
         m_dot_hot_tank_out = tes_outputs_temp.m_m_dot * 3600.;              //[kg/hr] Hot tank particle mass flow
         m_dot_pc_in = m_dot_hx_out = m_dot_hx_in;                           //[kg/hr]
@@ -3947,7 +3965,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         // This is a test call (update_calc_vals = false) using the receiver outlet temperature
         // The .calc values are not updated so discharge() is called again later to update them.
         mpc_csp_solver->mc_tes.update_calc_vals(false);     // do not update calc values due to following iterations (which are within larger iterations)
-        mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        bool dc_solved = mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hot_tank_out / 3600.,
             T_htf_rec_out,
@@ -3956,6 +3974,15 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             tes_outputs_temp);
         mpc_csp_solver->mc_tes.update_calc_vals(true);
         m_dot_hx_out *= 3600.;
+
+        // Check if TES discharge method solved
+        if (!dc_solved) {
+            m_meq_error = meq_error::tes_discharge_error;
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+            return -2;
+        }
 
         if (m_dot_rec_out > m_dot_hx_out) {
             // Needs defocusing if this is the converged state
@@ -4024,13 +4051,22 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
         // call discharge again with calc_vals = true to update the hot and warm tank .calc values
         double T_htf_hot;  //[K] HTF temp out of the HX on the field side
-        mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+        dc_solved = mpc_csp_solver->mc_tes.discharge_tes_side(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hot_tank_out / 3600.,
             T_htf_hx_in,
             T_htf_hot,
             m_dot_hx_out,
             tes_outputs_temp);
+
+        // Check if TES discharge method solved
+        if (!dc_solved) {
+            m_meq_error = meq_error::tes_discharge_error;
+            mpc_csp_solver->mc_tes.use_calc_vals(false);
+            mpc_csp_solver->mc_tes.update_calc_vals(true);
+            *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+            return -2;
+        }
     }
 
     double T_store_hot_ave = tes_outputs_temp.m_T_hot_ave - 273.15;       //[C]
@@ -4084,6 +4120,16 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);
+
+    // Check if TES discharge method solved
+    if (!std::isfinite(T_htf_hx_out) || !std::isfinite(m_dot_hx_out)) {
+        m_meq_error = meq_error::tes_discharge_error;
+        mpc_csp_solver->mc_tes.use_calc_vals(false);
+        mpc_csp_solver->mc_tes.update_calc_vals(true);
+        *diff_T_htf_cold = std::numeric_limits<double>::quiet_NaN();
+        return -2;
+    }
+
     double T_store_cold_ave = tes_outputs_temp.m_T_cold_ave - 273.15;       //[C]
     m_dot_hx_out *= 3600.;      //[kg/hr]
     double P_lthx_out = P_pc_out * (1. - tes_outputs_temp.dP_perc / 100.);           //[kPa]

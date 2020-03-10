@@ -68,6 +68,7 @@ public:
 		unitPowerMin_kW(cm.as_double("fuelcell_unit_min_power")),
 		shutdown_hours(cm.as_double("fuelcell_shutdown_time")),
 		startup_hours(cm.as_double("fuelcell_startup_time")),
+		is_started(cm.as_double("fuelcell_is_started")),
 		dynamicResponseUp_kWperHour(cm.as_double("fuelcell_dynamic_response_up")),
 		dynamicResponseDown_kWperHour(cm.as_double("fuelcell_dynamic_response_down")),
 		degradation_kWperHour(cm.as_double("fuelcell_degradation")),
@@ -153,7 +154,7 @@ public:
 			}
 		}
 		else {
-			throw compute_module::exec_error("fuelcell", "Electric load time steps must equal generation time step or 8760");
+			throw exec_error("fuelcell", "Electric load time steps must equal generation time step or 8760");
 		}
 
 		size_t count = 0;
@@ -185,6 +186,7 @@ public:
 	double unitPowerMin_kW;
 	double shutdown_hours;
 	double startup_hours;
+	bool is_started;
 	double dynamicResponseUp_kWperHour;
 	double dynamicResponseDown_kWperHour;
 	double degradation_kWperHour;

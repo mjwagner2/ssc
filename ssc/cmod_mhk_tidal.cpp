@@ -2,7 +2,7 @@
 *  Copyright 2017 Alliance for Sustainable Energy, LLC
 *
 *  NOTICE: This software was developed at least in part by Alliance for Sustainable Energy, LLC
-*  (“Alliance”) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
+*  (ï¿½Allianceï¿½) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
 *  The Government retains for itself and others acting on its behalf a nonexclusive, paid-up,
 *  irrevocable worldwide license in the software to reproduce, prepare derivative works, distribute
 *  copies to the public, perform publicly and display publicly, and to permit others to do so.
@@ -27,8 +27,8 @@
 *  4. Redistribution of this software, without modification, must refer to the software by the same
 *  designation. Redistribution of a modified version of this software (i) may not refer to the modified
 *  version by the same designation, or by any confusingly similar designation, and (ii) must refer to
-*  the underlying software originally provided by Alliance as “System Advisor Model” or “SAM”. Except
-*  to comply with the foregoing, the terms “System Advisor Model”, “SAM”, or any confusingly similar
+*  the underlying software originally provided by Alliance as ï¿½System Advisor Modelï¿½ or ï¿½SAMï¿½. Except
+*  to comply with the foregoing, the terms ï¿½System Advisor Modelï¿½, ï¿½SAMï¿½, or any confusingly similar
 *  designation may not be used to refer to any modified version of this software or any modified
 *  version of the underlying software originally provided by Alliance without the prior written consent
 *  of Alliance.
@@ -55,17 +55,26 @@ static var_info _cm_vtab_mhk_tidal[] = {
 	//   VARTYPE			DATATYPE			NAME									LABEL																		UNITS           META            GROUP              REQUIRED_IF					CONSTRAINTS				UI_HINTS	
 	{ SSC_INPUT,			SSC_MATRIX,			"tidal_resource",					    "Frequency distribution of resource as a function of stream speeds",		"",				"",             "MHKTidal",			"*",						"",						"" },	
 	{ SSC_INPUT,			SSC_MATRIX,			"tidal_power_curve",					"Power curve of tidal energy device as function of stream speeds",			"kW",			"",             "MHKTidal",			"*",						"",						"" },	
-	{ SSC_INPUT,			SSC_NUMBER,			"annual_energy_loss",					"Total energy losses",														"%",			"",             "MHKTidal",			"?=0",						"",						"" },	
-	{ SSC_INPUT,			SSC_NUMBER,			"calculate_capacity",					"Calculate device rated capacity from power curve",							"0/1",			"",             "MHKTidal",         "?=1",                      "INTEGER,MIN=0,MAX=1",	"" },
+	//{ SSC_INPUT,			SSC_NUMBER,			"calculate_capacity",					"Calculate device rated capacity from power curve",							"0/1",			"",             "MHKTidal",         "?=1",                      "INTEGER,MIN=0,MAX=1",	"" },
 	{ SSC_INPUT,			SSC_NUMBER,			"number_devices",						"Number of tidal devices in the system",									"",				"",             "MHKTidal",         "?=1",                      "INTEGER",				"" },
 
-	{ SSC_INOUT,			SSC_NUMBER,			"device_rated_capacity",				"Rated capacity of device",													"kW",			"",				"MHKTidal",			"calculate_capacity=0",		"",						"" },
 
-	{ SSC_OUTPUT,			SSC_NUMBER,			"average_power_device",					"Average power production of a single device",								"kW",			"",				"MHKTidal",			"*",						"",						"" },
-	{ SSC_OUTPUT,			SSC_NUMBER,			"annual_energy",						"Annual energy production of farm",											"kWh",			"",				"MHKTidal",			"*",						"",						"" },
-	{ SSC_OUTPUT,			SSC_NUMBER,			"capacity_factor",						"Capacity Factor of farm",													"%",			"",				"MHKTidal",			"*",						"",						"" },
-	{ SSC_OUTPUT,			SSC_ARRAY,			"annual_energy_distribution",			"Annual energy production of farm as function of speed",					"kWh",			"",				"MHKTidal",			"*",						"",						"" },
-	{ SSC_OUTPUT,			SSC_ARRAY,			"annual_cumulative_energy_distribution","Cumulative annual energy production of farm as function of speed",			"kWh",			"",				"MHKTidal",			"*",						"",						"" },
+
+	// losses
+	{ SSC_INPUT,			SSC_NUMBER,			"loss_array_spacing",				"Array spacing loss",													"%",			"",				"MHKTidal",			"*",		"",						"" },
+	{ SSC_INPUT,			SSC_NUMBER,			"loss_resource_overprediction",				"Resource overprediction loss",													"%",			"",				"MHKTidal",			"*",		"",						"" },
+	{ SSC_INPUT,			SSC_NUMBER,			"loss_transmission",				"Transmission losses",													"%",			"",				"MHKTidal",			"*",		"",						"" },
+	{ SSC_INPUT,			SSC_NUMBER,			"loss_downtime",				"Array/WEC downtime loss",													"%",			"",				"MHKTidal",			"*",		"",						"" },
+	{ SSC_INPUT,			SSC_NUMBER,			"loss_additional",				"Additional losses",													"%",			"",				"MHKTidal",			"*",		"",						"" },
+
+
+//	{ SSC_OUTPUT,			SSC_NUMBER,			"device_rated_capacity",				"Rated capacity of device",													"kW",			"",				"MHKTidal",			"calculate_capacity=0",		"",						"" },
+	{ SSC_OUTPUT,			SSC_NUMBER,			"device_rated_capacity",				"Rated capacity of device",													"kW",			"",				"MHKTidal",			"",		"",						"" },
+	{ SSC_OUTPUT,			SSC_NUMBER,			"device_average_power",					"Average power production of a single device",								"kW",			"",				"MHKTidal",			"*",						"",						"" },
+	{ SSC_OUTPUT,			SSC_NUMBER,			"annual_energy",						"Annual energy production of array",										"kWh",			"",				"MHKTidal",			"*",						"",						"" },
+	{ SSC_OUTPUT,			SSC_NUMBER,			"capacity_factor",						"Capacity Factor of array",													"%",			"",				"MHKTidal",			"*",						"",						"" },
+	{ SSC_OUTPUT,			SSC_ARRAY,			"annual_energy_distribution",			"Annual energy production of array as function of speed",					"kWh",			"",				"MHKTidal",			"*",						"",						"" },
+	{ SSC_OUTPUT,			SSC_ARRAY,			"annual_cumulative_energy_distribution","Cumulative annual energy production of array as function of speed",		"kWh",			"",				"MHKTidal",			"*",						"",						"" },
 
 	var_info_invalid
 };
@@ -87,18 +96,18 @@ public:
 		
 		//Check to ensure size of _power_vect == _speed_vect : 
 		if ( tidal_power_curve.nrows() != tidal_resource_matrix.nrows() )
-			throw compute_module::exec_error("mhk_tidal", "Size of Power Curve is not equal to Tidal Resource");
+			throw exec_error("mhk_tidal", "Size of Power Curve is not equal to Tidal Resource");
 
 		//Store the number of rows- this will have to change if resource and power curve can have different stream speeds
 		int number_rows = (int)tidal_resource_matrix.nrows();
 
 		//Check that the power matrix only has two columns
 		if (tidal_power_curve.ncols() != (size_t)2)
-			throw compute_module::exec_error("mhk_tidal", "Power curve must contain two columns");
+			throw exec_error("mhk_tidal", "Power curve must contain two columns");
 
 		//Check that the resource matrix has at least two columns
 		if (tidal_power_curve.ncols() < (size_t)2)
-			throw compute_module::exec_error("mhk_tidal", "Resource matrix must have at least two columns");
+			throw exec_error("mhk_tidal", "Resource matrix must have at least two columns");
 
 
 		//Create vectors to store individual columns from the user input matrix "tidal_resource"
@@ -114,13 +123,24 @@ public:
 	//Initialize variables to store calculated values and outputs:
 		ssc_number_t *p_annual_energy_dist = allocate("annual_energy_distribution", number_rows);
 		ssc_number_t *p_annual_cumulative_energy_dist = allocate("annual_cumulative_energy_distribution", number_rows);
-		double annual_energy = 0, average_power_device = 0, _probability_vect_checker = 0, capacity_factor = 0, device_rated_capacity = 0;
+		double annual_energy = 0, device_average_power = 0, _probability_vect_checker = 0, capacity_factor = 0, device_rated_capacity = 0;
 		
 		//User either sets device_rated_capacity in the UI, or allows cmod to determine from power curve:
-		if (is_assigned("device_rated_capacity")) device_rated_capacity = as_double("device_rated_capacity");
+		if (is_assigned("device_rated_capacity"))
+			device_rated_capacity = as_double("device_rated_capacity");
+		else
+			device_rated_capacity = 0.0;
 
 		//Read number of devices
 		int number_devices = as_integer("number_devices");
+
+		// total loss
+		double total_loss = as_double("loss_array_spacing")
+			+ as_double("loss_resource_overprediction")
+			+ as_double("loss_transmission")
+			+ as_double("loss_downtime")
+			+ as_double("loss_additional");
+
 
 		//Storing each column of the tidal_resource_matrix and tidal_power_curve as vectors:
 		for (int i = 0; i < number_rows; i++) {
@@ -130,7 +150,7 @@ public:
 			_power_vect[i] = tidal_power_curve.at(i, 1);
 			
 			//Store max power if not set in UI:
-			if (as_boolean("calculate_capacity"))
+			/*if (as_boolean("calculate_capacity")) */
 				if (_power_vect[i] > device_rated_capacity)
 					device_rated_capacity = _power_vect[i];
 			
@@ -150,23 +170,24 @@ public:
 				p_annual_cumulative_energy_dist[i] = p_annual_energy_dist[i] + p_annual_cumulative_energy_dist[i - 1];
 			
 			//Contribution to Average Power from this speed bin 
-			average_power_device += _power_vect[i] * _probability_vect[i];
+			device_average_power += _power_vect[i] * _probability_vect[i];
 		}
 				
 		//Throw exception if frequency distribution vector sums to < 99.5%
 		double probability_tolerance = 0.005;
 		if (fabs(1.0 - _probability_vect_checker) > probability_tolerance)
-			throw compute_module::exec_error("mhk_tidal", "Probability distribution vector does not add up to 100%.");
+			throw exec_error("mhk_tidal", "Probability distribution vector does not add up to 100%.");
 
 		//Factoring in losses in total annual energy production:
-		annual_energy *= (1 - (as_double("annual_energy_loss") / 100 ));
+		annual_energy *= (1 - (total_loss / 100 ));
+		// leave device power without losses
 
 		//Calculating capacity factor:
 		capacity_factor = annual_energy / (device_rated_capacity * number_devices * 8760);
 
 		//Assigning values to outputs:
 		assign("annual_energy", var_data((ssc_number_t)annual_energy));
-		assign("average_power_device", var_data((ssc_number_t)average_power_device));
+		assign("device_average_power", var_data((ssc_number_t)device_average_power));
 		assign("device_rated_capacity", var_data((ssc_number_t)device_rated_capacity));
 		assign("capacity_factor", var_data((ssc_number_t)capacity_factor * 100));
 	}

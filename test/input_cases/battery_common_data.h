@@ -47,10 +47,11 @@ namespace {
 		ssc_data_set_number(data, "batt_computed_bank_capacity", 612.2591552734375);
 		ssc_data_set_number(data, "batt_current_charge_max", 3037);
 		ssc_data_set_number(data, "batt_current_discharge_max", 3037);
-		ssc_data_set_number(data, "batt_power_charge_max_kwac", 153.06478881835938);
-		ssc_data_set_number(data, "batt_power_discharge_max_kwac", 153.06478881835938);
+		ssc_data_set_number(data, "batt_inverter_efficiency_cutoff", 90);
 		ssc_data_set_number(data, "batt_power_charge_max_kwdc", 153.06478881835938);
 		ssc_data_set_number(data, "batt_power_discharge_max_kwdc", 153.06478881835938);
+		ssc_data_set_number(data, "batt_power_charge_max_kwac", 153.06478881835938);
+		ssc_data_set_number(data, "batt_power_discharge_max_kwac", 153.06478881835938);
 		ssc_data_set_number(data, "batt_voltage_choice", 0);
 		ssc_data_set_number(data, "batt_Vfull", 4.0999999046325684);
 		ssc_data_set_number(data, "batt_Vexp", 4.0500001907348633);

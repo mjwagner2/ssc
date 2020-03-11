@@ -39,10 +39,10 @@ public:
         i_Q_dot_HTF,
         i_W_dot_cooling,
         i_m_dot_water,
-        //i_T_phx_cold,
-        //i_P_phx_in_co2,
-        //i_m_dot_co2,
-        //i_P_phx_out_co2
+        i_T_phx_cold,
+        i_P_phx_in_co2,
+        i_m_dot_co2,
+        i_P_phx_out_co2
     };
 
 private:

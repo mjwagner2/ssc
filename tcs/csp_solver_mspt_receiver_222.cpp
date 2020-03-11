@@ -280,7 +280,7 @@ void C_mspt_receiver_222::call(const C_csp_weatherreader::S_outputs &weather,
 	
 	// Get inputs
 	double field_eff = inputs.m_field_eff;					//[-]
-	//const util::matrix_t<double> *flux_map_input = inputs.m_flux_map_input;
+	const util::matrix_t<double> *flux_map_input = inputs.m_flux_map_input;
 		// When this function is called from TCS solver, input_operation_mode should always be == 2
 	int input_operation_mode = inputs.m_input_operation_mode;
 

@@ -44,6 +44,7 @@ set(TCS_SRC
 		csp_solver_pt_sf_perf_interp.cpp
 		csp_solver_stratified_tes.cpp
 		csp_solver_tou_block_schedules.cpp
+		csp_solver_tower_collector_receiver.cpp
 		csp_solver_trough_collector_receiver.cpp
 		csp_solver_two_tank_tes.cpp
 		csp_solver_util.cpp

@@ -114,10 +114,10 @@ public:
         E_COL_Q_CYL,
         E_COL_W_COOL,
         E_COL_M_H2O,
-        //E_COL_PHX_DELTAT,
-        //E_COL_P_PHX_IN_CO2,
-        //E_COL_M_DOT_CO2,
-        //E_COL_P_PHX_OUT_CO2
+        E_COL_PHX_DELTAT,
+        E_COL_P_PHX_IN_CO2,
+        E_COL_M_DOT_CO2,
+        E_COL_P_PHX_OUT_CO2
     };
 
 	enum

@@ -2518,7 +2518,7 @@ int split_ind_tbl(util::matrix_t<double> &cmbd_ind, util::matrix_t<double> &T_ht
         throw(C_csp_exception("Filtered UDPC parametric for each variable must contain at least 4 unique values"));
     }
 
-    const int ncols = 13;		// was 25
+    const int ncols = 25;		// now it's 13
     T_htf_ind.resize_fill(n_T_htf_pars, ncols, 0.0);
     std::vector<double> m_dot_levels = std::vector<double>{ m_dot_low, m_dot_des, m_dot_high };
 
@@ -2536,10 +2536,10 @@ int split_ind_tbl(util::matrix_t<double> &cmbd_ind, util::matrix_t<double> &T_ht
                     T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_Q_CYL], i, 3 * C_ud_power_cycle::i_Q_dot_HTF + 1 + j);
                     T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_W_COOL], i, 3 * C_ud_power_cycle::i_W_dot_cooling + 1 + j);
                     T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_H2O], i, 3 * C_ud_power_cycle::i_m_dot_water + 1 + j);
-                    //T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
-                    //T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
-                    //T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
-                    //T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
+                    T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
+                    T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
+                    T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
+                    T_htf_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
                 }
             }
         }
@@ -2562,10 +2562,10 @@ int split_ind_tbl(util::matrix_t<double> &cmbd_ind, util::matrix_t<double> &T_ht
                     m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_Q_CYL], i, 3 * C_ud_power_cycle::i_Q_dot_HTF + 1 + j);
                     m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_W_COOL], i, 3 * C_ud_power_cycle::i_W_dot_cooling + 1 + j);
                     m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_H2O], i, 3 * C_ud_power_cycle::i_m_dot_water + 1 + j);
-                    //m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
-                    //m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
-                    //m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
-                    //m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
+                    m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
+                    m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
+                    m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
+                    m_dot_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
                 }
             }
         }
@@ -2588,10 +2588,10 @@ int split_ind_tbl(util::matrix_t<double> &cmbd_ind, util::matrix_t<double> &T_ht
                     T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_Q_CYL], i, 3 * C_ud_power_cycle::i_Q_dot_HTF + 1 + j);
                     T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_W_COOL], i, 3 * C_ud_power_cycle::i_W_dot_cooling + 1 + j);
                     T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_H2O], i, 3 * C_ud_power_cycle::i_m_dot_water + 1 + j);
-                    //T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
-                    //T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
-                    //T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
-                    //T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
+                    T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_PHX_DELTAT], i, 3 * C_ud_power_cycle::i_T_phx_cold + 1 + j);
+                    T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_IN_CO2], i, 3 * C_ud_power_cycle::i_P_phx_in_co2 + 1 + j);
+                    T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_M_DOT_CO2], i, 3 * C_ud_power_cycle::i_m_dot_co2 + 1 + j);
+                    T_amb_ind.set_value(cmbd_tbl[k][C_pc_Rankine_indirect_224::E_COL_P_PHX_OUT_CO2], i, 3 * C_ud_power_cycle::i_P_phx_out_co2 + 1 + j);
                 }
             }
         }

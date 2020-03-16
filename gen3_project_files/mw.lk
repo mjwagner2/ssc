@@ -757,7 +757,7 @@ for(k=0; k<#tshourss; k++)
 		run('singleowner');
 		
 		outln('Annual energy for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + round(var('annual_energy')*1e-6) +
-		' x 10^6 [MWe]' + ' and LCOE = ' + var('lcoe_real') + ' capacity factor = ' + var('capacity_factor'));
+		' [GWhe]' + ' and LCOE = ' + var('lcoe_real') + ' capacity factor = ' + var('capacity_factor'));
 		//outln('LCOE for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + var('lcoe_real');
 	}
 }

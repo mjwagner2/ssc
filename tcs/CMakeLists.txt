@@ -55,6 +55,7 @@ set(TCS_SRC
 		fmin_callbacks.cpp
 		heat_exchangers.cpp
 		Heliostat_AzElAod.cpp
+		htf_props.cpp
 		interconnect.cpp
 		nlopt_callbacks.cpp
 		numeric_solvers.cpp

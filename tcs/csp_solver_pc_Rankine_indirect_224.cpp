@@ -1053,6 +1053,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	int radcool_cntrl=0;
 	P_cycle = eta = T_htf_cold = m_dot_demand = m_dot_htf_ref = m_dot_water_cooling = W_cool_par = f_hrsys = P_cond = T_cond_out=T_rad_out= std::numeric_limits<double>::quiet_NaN();
 	
+	double P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN(); //[MPa]
     double P_phx_in_co2 = std::numeric_limits<double>::quiet_NaN(); //[MPa]
 
 	// 4.15.15 twn: hardcode these so they don't have to be passed into call(). Mode is always = 2 for CSP simulations
@@ -1112,6 +1113,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;		
 		eta = 0.0;									
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+		P_phx_out_co2 = htf_state_in.m_pres * 1.e-3;	//[MPa]
         P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 		
 		// *****
@@ -1319,7 +1321,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
                     double blahah = 1.23;
                 }*/
 
-                double deltaT_phx_co2, m_dot_co2_out_ND, P_phx_out_co2;
+                double deltaT_phx_co2, m_dot_co2_out_ND;
                 deltaT_phx_co2 = P_phx_in_co2 = m_dot_co2_out_ND = P_phx_out_co2 = std::numeric_limits<double>::quiet_NaN();
                 if (weather.m_beam > 200.0)
                 {
@@ -1477,6 +1479,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 			P_cycle = 0.0;
 			eta = 0.0;
 			T_htf_cold = ms_params.m_T_htf_cold_ref;
+			P_phx_out_co2 = htf_state_in.m_pres * 1.e-3;	//[MPa]
             P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 		
 			m_dot_demand = m_dot_sby;
@@ -1518,6 +1521,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;
 		eta = 0.0;
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+		P_phx_out_co2 = htf_state_in.m_pres * 1.e-3;	//[MPa]
         P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 	
 		m_dot_demand = 0.0;
@@ -1670,6 +1674,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		P_cycle = 0.0;
 		eta = 0.0;
 		T_htf_cold = ms_params.m_T_htf_cold_ref;
+		P_phx_out_co2 = htf_state_in.m_pres * 1.e-3;	//[MPa]
         P_phx_in_co2 = ms_params.m_P_phx_in_co2_des;    //[MPa]
 	
 		m_dot_htf = m_dot_htf_req_kg_s;		//[kg/hr]
@@ -1820,6 +1825,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	out_solver.m_m_dot_htf = m_dot_htf;					//[kg/hr] Actual HTF flow rate passing through the power cycle
 	mc_reported_outputs.value(E_M_DOT_HTF,m_dot_htf);	//[kg/hr] Actual HTF flow rate passing through the power cycle
 	
+	out_solver.m_P_phx_out = P_phx_out_co2;		//[MPa]
     out_solver.m_P_phx_in = P_phx_in_co2;       //[MPa]
 
 	//out_report.m_m_dot_htf_ref = m_dot_htf_ref;		//[kg/hr] Calculated reference HTF flow rate at design

@@ -640,6 +640,7 @@ public:
 		double m_q_dot_htf;			//[MWt] Thermal power from HTF (= thermal power into cycle)
 		double m_m_dot_htf;			//[kg/hr] Actual HTF flow rate passing through the power cycle
         
+		double m_P_phx_out;			//[MPa] calculated by sCO2 power cycle
         double m_P_phx_in;          //[MPa]
 
 			// Parasitics, plant net power equation

@@ -4082,7 +4082,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     // Need to do this to get back PC T_htf_cold
     // HTF State
     mpc_csp_solver->mc_pc_htf_state_in.m_temp = T_htf_pc_in - 273.15;   //[C]
-    mpc_csp_solver->mc_pc_htf_state_in.m_pres = P_hx_out;   //[kPa]
+    mpc_csp_solver->mc_pc_htf_state_in.m_pres = P_hx_out;   //[kPa]  Not really used.
     // Inputs
     mpc_csp_solver->mc_pc_inputs.m_m_dot = m_dot_pc_in;                 //[kg/hr]
     mpc_csp_solver->mc_pc_inputs.m_standby_control = m_pc_mode;         //[-]
@@ -4107,6 +4107,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     // IF STARTUP_CONTROLLED, m_dot_pc_out is calculated, and != m_dot_pc_in
     double T_htf_pc_out = mpc_csp_solver->mc_pc_out_solver.m_T_htf_cold + 273.15;       //[K]
     double m_dot_pc_out = mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf;                 //[kg/hr]
+    //double P_pc_in = mpc_csp_solver->mc_pc_out_solver.
     double P_pc_out = mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1000.;              //[kPa]
     double eta_pc = mpc_csp_solver->mc_pc_out_solver.m_P_cycle / mpc_csp_solver->mc_pc_out_solver.m_q_dot_htf;  //[-]
 

@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "../ssc/core.h"
-#include "../ssc/vartab.h"
+#include "vartab.h"
 #include "../ssc/common.h"
 #include "cmod_windpower.h"
 #include "cmod_windpower_test.h"
@@ -38,50 +38,64 @@ TEST_F(CMWindPowerIntegration, WakeModelsUsingFile_cmod_windpower){
 
 	ssc_number_t annual_energy;
 	ssc_data_get_number(data, "annual_energy", &annual_energy);
-	EXPECT_NEAR(annual_energy, 33224154, e) << "Annual energy.";
+	EXPECT_NEAR(annual_energy, 33224154, e) << "Simple";
 
 	ssc_number_t monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[0];
-	EXPECT_NEAR(monthly_energy, 2.8218e6, e) << "Monthly energy of January";
+	EXPECT_NEAR(monthly_energy, 2.8218e6, e) << "Simple: January";
 
 	monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[11];
-	EXPECT_NEAR(monthly_energy, 2.8218e6, e) << "Month energy of December";
+	EXPECT_NEAR(monthly_energy, 2.8218e6, e) << "Simple: December";
 
-	// WAsp Model
+	ssc_number_t wake_loss;
+	ssc_data_get_number(data, "wake_losses", &wake_loss);
+    EXPECT_NEAR(wake_loss, 1.546, 1e-3) << "Simple: Wake loss";
+
+
+    // WAsp Model
 	ssc_data_set_number(data, "wind_farm_wake_model", 1);
 	compute();
 
 	ssc_data_get_number(data, "annual_energy", &annual_energy);
-	EXPECT_NEAR(annual_energy, 32346158, e);
+	EXPECT_NEAR(annual_energy, 32346158, e) << "Wasp";
 
 	monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[0];
-	EXPECT_NEAR(monthly_energy, 2.7472e6, e);
+	EXPECT_NEAR(monthly_energy, 2.7472e6, e) << "Wasp: Jan";
 
 	monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[11];
-	EXPECT_NEAR(monthly_energy, 2.7472e6, e);
+	EXPECT_NEAR(monthly_energy, 2.7472e6, e)<< "Wasp: Dec";
+
+    ssc_data_get_number(data, "wake_losses", &wake_loss);
+    EXPECT_NEAR(wake_loss, 4.148, 1e-3) << "Wasp: Wake loss";
 
 	// Eddy Viscosity Model
 	ssc_data_set_number(data, "wind_farm_wake_model", 2);
 	compute();
 
 	ssc_data_get_number(data, "annual_energy", &annual_energy);
-	EXPECT_NEAR(annual_energy, 31081848, e);
+	EXPECT_NEAR(annual_energy, 31081848, e) << "Eddy";
 
 	monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[0];
-	EXPECT_NEAR(monthly_energy, 2.6398e6, e);
+	EXPECT_NEAR(monthly_energy, 2.6398e6, e) << "Eddy: Jan";
 
 	monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[11];
-	EXPECT_NEAR(monthly_energy, 2.6398e6, e);
+	EXPECT_NEAR(monthly_energy, 2.6398e6, e) << "Eddy: Dec";
+
+    ssc_data_get_number(data, "wake_losses", &wake_loss);
+    EXPECT_NEAR(wake_loss, 7.895, 1e-3) << "Eddy: Wake loss";
 
 	// Constant Loss Model
     ssc_data_set_number(data, "wind_farm_wake_model", 3);
-    ssc_data_set_number(data, "wake_loss", 5);
+    ssc_data_set_number(data, "wake_int_loss", 5);
 
     compute();
 
     ssc_number_t gross;
     ssc_data_get_number(data, "annual_energy", &annual_energy);
     ssc_data_get_number(data, "annual_gross_energy", &gross);
-    EXPECT_NEAR(annual_energy, gross*0.95, e);
+    EXPECT_NEAR(annual_energy, gross*0.95, e) << "Constant";
+
+    ssc_data_get_number(data, "wake_losses", &wake_loss);
+    EXPECT_NEAR(wake_loss, 5, 1e-3) << "Constant: Wake loss";
 }
 
 /// Using Interpolated Subhourly Wind Data
@@ -90,7 +104,7 @@ TEST_F(CMWindPowerIntegration, UsingInterpolatedSubhourly_cmod_windpower){
 
     const char * SSCDIR = std::getenv("SSCDIR");
     char file[256];
-    int n1 = sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands.srw", SSCDIR);
+    sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands.srw", SSCDIR);
 
 	ssc_data_set_string(data, "wind_resource_filename", file);
 	bool success = compute();
@@ -104,7 +118,7 @@ TEST_F(CMWindPowerIntegration, UsingInterpolatedSubhourly_cmod_windpower){
 
 
 	// Using 15 min File
-    n1 = sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands-15min.srw", SSCDIR);
+	sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands-15min.srw", SSCDIR);
 
 	ssc_data_set_string(data, "wind_resource_filename", file);
 	success = compute();
@@ -122,7 +136,7 @@ TEST_F(CMWindPowerIntegration, UsingInterpolatedSubhourly_cmod_windpower){
 	EXPECT_EQ(nEntries, 8760 * 4);
 
 	// Using 5 min File
-    n1 = sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands-5min.srw", SSCDIR);
+    sprintf(file, "%s/test/input_docs/AR Northwestern-Flat Lands-5min.srw", SSCDIR);
 
 	ssc_data_set_string(data, "wind_resource_filename", file);
 	success = compute();
@@ -271,7 +285,7 @@ TEST_F(CMWindPowerIntegration, WindDist3_cmod_windpower) {
     auto *vt = static_cast<var_table*>(data);
     vt->assign("wind_resource_distribution", dist);
     ssc_data_set_number(data, "wind_farm_wake_model", 3);
-    ssc_data_set_number(data, "wake_loss", 5);
+    ssc_data_set_number(data, "wake_int_loss", 5);
     ssc_data_set_number(data, "avail_turb_loss", 5);
 
     compute();
@@ -280,11 +294,11 @@ TEST_F(CMWindPowerIntegration, WindDist3_cmod_windpower) {
     ssc_data_get_number(data, "annual_energy", &annual_energy);
     ssc_data_get_number(data, "annual_gross_energy", &gross);
     EXPECT_NEAR(gross, 160804000, e);
-    EXPECT_NEAR(annual_energy, gross*0.9, e);
+    EXPECT_NEAR(annual_energy, gross*0.95*0.95, e);
 
     ssc_number_t monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[0];
-    EXPECT_NEAR(monthly_energy, 12291500, e);
-    
+    EXPECT_NEAR(monthly_energy, 12326000, e);
+
 }
 
 /// Icing and Low Temp Cutoff, with Wind Resource Data
@@ -311,7 +325,7 @@ TEST_F(CMWindPowerIntegration, IcingAndLowTempCutoff_cmod_windpower) {
 
 	ssc_number_t annual_energy;
 	ssc_data_get_number(data, "annual_energy", &annual_energy);
-	EXPECT_NEAR(annual_energy, 2108935, e) << "Reduced annual energy";
+	EXPECT_NEAR(annual_energy, 2110545, e) << "Reduced annual energy";
 
 	ssc_number_t monthly_energy = ssc_data_get_array(data, "monthly_energy", nullptr)[0];
 	EXPECT_NEAR(monthly_energy, 0, e);
@@ -327,16 +341,16 @@ TEST_F(CMWindPowerIntegration, IcingAndLowTempCutoff_cmod_windpower) {
 }
 
 /// Testing Turbine powercurve calculation
-TEST(windpower_turbine_powercurve, NoData){
+TEST(Turbine_powercurve_cmod_windpower_eqns, NoData){
     ASSERT_THROW(Turbine_calculate_powercurve(nullptr), std::runtime_error);
 }
 
-TEST(windpower_turbine_powercurve, MissingVariables){
+TEST(Turbine_powercurve_cmod_windpower_eqns, MissingVariables){
     var_table* vd = new var_table;
     ASSERT_THROW(Turbine_calculate_powercurve(vd), std::runtime_error);
 }
 
-TEST(windpower_turbine_powercurve, Case1){
+TEST(Turbine_powercurve_cmod_windpower_eqns, Case1){
     var_table* vd = new var_table;
     vd->assign("turbine_size", 1500);
     vd->assign("wind_turbine_rotor_diameter", 75);
@@ -364,7 +378,7 @@ TEST(windpower_turbine_powercurve, Case1){
     ASSERT_NEAR(rated_wx, 11.204, 1e-2);
 }
 
-TEST(windpower_turbine_powercurve, Case2){
+TEST(Turbine_powercurve_cmod_windpower_eqns, Case2){
     var_table* vd = new var_table;
     vd->assign("turbine_size", 1500);
     vd->assign("wind_turbine_rotor_diameter", 75);
@@ -392,7 +406,7 @@ TEST(windpower_turbine_powercurve, Case2){
     ASSERT_NEAR(rated_wx, 11.27, 1e-2);
 }
 
-TEST(windpower_turbine_powercurve, Case3){
+TEST(Turbine_powercurve_cmod_windpower_eqns, Case3){
     var_table* vd = new var_table;
     vd->assign("turbine_size", 1500);
     vd->assign("wind_turbine_rotor_diameter", 75);
@@ -420,7 +434,7 @@ TEST(windpower_turbine_powercurve, Case3){
     ASSERT_NEAR(rated_wx, 11.30, 1e-2);
 }
 
-TEST(windpower_turbine_powercurve, Case4){
+TEST(Turbine_powercurve_cmod_windpower_eqns, Case4){
     var_table* vd = new var_table;
     vd->assign("turbine_size", 1500);
     vd->assign("wind_turbine_rotor_diameter", 75);

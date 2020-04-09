@@ -52,7 +52,6 @@ private:
 	//    Independent |    Gross Power Output   |   HTF Thermal Power	|   Cooling Parasitics  |	 Water Use 
 	// 0)  Variable   |  1) -   2) 0     3) +   |  4) -   5) 0    6) +  |  7) -    8) 0    9) + | 10) -  11) 0   12) + 
 
-
 	// Lookup table with dependent variables corresponding to parametric on independent variable T_htf_hot [C] (first column)
 	Linear_Interp mc_T_htf_ind;		// At m_dot_htf levels
 

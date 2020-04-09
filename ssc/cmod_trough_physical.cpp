@@ -103,7 +103,7 @@ static var_info _cm_vtab_trough_physical[] = {
     { SSC_INPUT,        SSC_MATRIX,      "D_5",                       "Outer glass envelope diameter ",                                                   "m",            "",               "solar_field",    "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "D_p",                       "Diameter of the absorber flow plug (optional) ",                                   "m",            "",               "solar_field",    "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "Flow_type",                 "Flow type through the absorber",                                                   "none",         "",               "solar_field",    "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_MATRIX,      "Rough",                     "Roughness of the internal surface ",                                               "m",            "",               "solar_field",    "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_MATRIX,      "Rough",                     "Relative roughness of the internal HCE surface ",                                  "-",            "",               "solar_field",    "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "alpha_env",                 "Envelope absorptance ",                                                            "none",         "",               "solar_field",    "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "epsilon_3_11",              "Absorber emittance for receiver type 1 variation 1",                               "none",         "",               "solar_field",    "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "epsilon_3_12",              "Absorber emittance for receiver type 1 variation 2",                               "none",         "",               "solar_field",    "*",                       "",                      "" },
@@ -164,18 +164,10 @@ static var_info _cm_vtab_trough_physical[] = {
     { SSC_INPUT,        SSC_NUMBER,      "P_cond_min",                "Minimum condenser pressure",                                                       "inHg",         "",               "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "n_pl_inc",                  "Number of part-load increments for the heat rejection system",                     "none",         "",               "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_ARRAY,       "F_wc",                      "Fraction indicating wet cooling use for hybrid system",                            "none",         "constant=[0,0,0,0,0,0,0,0,0]",     "powerblock", "pc_config=0", "",                    "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_T_amb_des",              "Ambient temperature at user-defined power cycle design point",                     "C",            "",               "powerblock",     "pc_config=1",             "",                      "" },
+    
+    // UDPC parameters
     { SSC_INPUT,        SSC_NUMBER,      "ud_f_W_dot_cool_des",       "Percent of user-defined power cycle design gross output consumed by cooling",      "%",            "",               "powerblock",     "pc_config=1",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "ud_m_dot_water_cool_des",   "Mass flow rate of water required at user-defined power cycle design point",        "kg/s",         "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_T_htf_low",              "Low level HTF inlet temperature for T_amb parametric",                             "C",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_T_htf_high",             "High level HTF inlet temperature for T_amb parametric",                            "C",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_T_amb_low",              "Low level ambient temperature for HTF mass flow rate parametric",                  "C",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_T_amb_high",             "High level ambient temperature for HTF mass flow rate parametric",                 "C",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_m_dot_htf_low",          "Low level normalized HTF mass flow rate for T_HTF parametric",                     "-",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "ud_m_dot_htf_high",         "High level normalized HTF mass flow rate for T_HTF parametric",                    "-",            "",               "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_MATRIX,      "ud_T_htf_ind_od",           "Off design table of user-defined power cycle performance formed from parametric on T_htf_hot [C]",  "", "",          "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_MATRIX,      "ud_T_amb_ind_od",           "Off design table of user-defined power cycle performance formed from parametric on T_amb [C]",      "", "",          "powerblock",     "pc_config=1",             "",                      "" },
-    { SSC_INPUT,        SSC_MATRIX,      "ud_m_dot_htf_ind_od",       "Off design table of user-defined power cycle performance formed from parametric on m_dot_htf [ND]", "", "",          "powerblock",     "pc_config=1",             "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "ud_ind_od",                 "Off design user-defined power cycle performance as function of T_htf, m_dot_htf [ND], and T_amb",   "", "",          "powerblock",     "pc_config=1",             "",                      "" },
 
     // TES
@@ -202,6 +194,7 @@ static var_info _cm_vtab_trough_physical[] = {
     { SSC_INPUT,        SSC_MATRIX,      "weekend_schedule",          "12x24 CSP operation Time-of-Use Weekend schedule",                                 "-",            "",               "tou",            "*",                       "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "dispatch_sched_weekday",    "12x24 PPA pricing Weekday schedule",                                               "",             "",               "tou",            "?=1",                     "",                      "" },
     { SSC_INPUT,        SSC_MATRIX,      "dispatch_sched_weekend",    "12x24 PPA pricing Weekend schedule",                                               "",             "",               "tou",            "?=1",                     "",                      "" },
+    { SSC_INPUT,        SSC_NUMBER,      "is_tod_pc_target_also_pc_max", "Is the TOD target cycle heat input also the max cycle heat input?",             "",             "",               "tou",            "?=0",                     "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "is_dispatch",               "Allow dispatch optimization?",  /*TRUE=1*/                                         "-",            "",               "tou",            "?=0",                     "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "is_write_ampl_dat",         "Write AMPL data files for dispatch run",                                           "-",            "",               "tou",            "?=0",                     "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "is_ampl_engine",            "Run dispatch optimization with external AMPL engine",                              "-",            "",               "tou",            "?=0",                     "",                      "" },
@@ -393,9 +386,12 @@ static var_info _cm_vtab_trough_physical[] = {
     { SSC_OUTPUT,       SSC_ARRAY,       "m_dot_balance",             "Relative mass flow balance error",                                                 "",             "",               "solver",         "*",                       "",                      "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_balance",                 "Relative energy balance error",                                                    "",             "",               "solver",         "*",                       "",                      "" },
 
+    // Monthly Outputs
+    { SSC_OUTPUT,       SSC_ARRAY,       "monthly_energy",            "Monthly Energy",                                                                   "kWh",          "",               "Post-process",   "*",              "LENGTH=12",                      "" },
+
     // Annual Outputs
     { SSC_OUTPUT,       SSC_NUMBER,      "annual_energy",                   "Annual Net Electrical Energy Production w/ avail derate",                    "kWe-hr",       "",               "Post-process",   "*",                       "",                      "" },
-    { SSC_OUTPUT,       SSC_NUMBER,      "annual_gross_energy",             "Annual Gross Electrical Energy Production w/ avail derate",                  "kWe-hr",       "",               "Post-process",   "*",                       "",                      "" },
+    //{ SSC_OUTPUT,       SSC_NUMBER,      "annual_gross_energy",             "Annual Gross Electrical Energy Production w/ avail derate",                  "kWe-hr",       "",               "Post-process",   "*",                       "",                      "" },
     { SSC_OUTPUT,       SSC_NUMBER,      "annual_thermal_consumption",      "Annual thermal freeze protection required",                                  "kWt-hr",       "",               "Post-process",   "*",                       "",                      "" },
     //{ SSC_OUTPUT,       SSC_NUMBER,      "annual_electricity_consumption",  "Annual electricity consumptoin w/ avail derate",                             "kWe-hr",       "",               "Post-process",   "*",                       "",                      "" },
     { SSC_OUTPUT,       SSC_NUMBER,      "annual_total_water_use",          "Total Annual Water Usage",                                                   "m^3",          "",               "Post-process",   "*",                       "",                      "" },
@@ -530,7 +526,7 @@ public:
         //c_trough.m_fthrok = as_integer("fthrok");                 //[-] Flag to allow partial defocusing of the collectors
         c_trough.m_fthrctrl = 2;                                    //[-] Defocusing strategy; hardcode = 2 for now
         c_trough.m_accept_loc = as_integer("accept_loc");           //[-] In acceptance testing mode - temperature sensor location (1=hx,2=loop)
-        c_trough.m_HDR_rough = as_double("HDR_rough");              //[m] Header pipe roughness
+        c_trough.m_HDR_rough = as_double("HDR_rough");              //[-] Header pipe relative roughness
         c_trough.m_theta_stow = as_double("theta_stow");            //[deg] stow angle
         c_trough.m_theta_dep = as_double("theta_dep");              //[deg] deploy angle
         c_trough.m_Row_Distance = as_double("Row_Distance");        //[m] Spacing between rows (centerline to centerline)
@@ -657,7 +653,7 @@ public:
         c_trough.m_D_5 = as_matrix("D_5");                              //[m] Outer glass envelope diameter
         c_trough.m_D_p = as_matrix("D_p");                              //[m] Diameter of the absorber flow plug (optional)
         c_trough.m_Flow_type = as_matrix("Flow_type");                  //[-] Flow type through the absorber
-        c_trough.m_Rough = as_matrix("Rough");                          //[m] Roughness of the internal surface
+        c_trough.m_Rough = as_matrix("Rough");                          //[-] Relative roughness of the internal HCE surface
         c_trough.m_alpha_env = as_matrix("alpha_env");                  //[-] Envelope absorptance
         // **********************************************************
         
@@ -810,9 +806,10 @@ public:
                 pc->m_CT = as_integer("CT");                    // cooling tech type: 1=evaporative, 2=air, 3=hybrid    
                 pc->m_tech_type = as_integer("tech_type");      // turbine inlet pressure: 1: Fixed, 3: Sliding
                 if (pc->m_tech_type == 1) { pc->m_tech_type = 2; }; // changing fixed pressure for the tower to fixed pressure for the trough
-                if (!(pc->m_tech_type == 2 || pc->m_tech_type == 3 || pc->m_tech_type == 5 || pc->m_tech_type == 6))
+                if (pc->m_tech_type == 3) { pc->m_tech_type = 8; }; // changing sliding pressure for the tower to sliding pressure for the trough
+                if (!(pc->m_tech_type == 2 || pc->m_tech_type == 5 || pc->m_tech_type == 6 || pc->m_tech_type == 8))
                 {
-                    std::string tech_msg = util::format("tech_type must be either 1 (fixed pressure) or 3 (sliding). Input was %d."
+                    std::string tech_msg = util::format("tech_type must be either 2 (fixed pressure) or 8 (sliding). Input was %d."
                         " Simulation proceeded with fixed pressure", pc->m_tech_type);
                     pc->m_tech_type = 2;
                 }
@@ -837,22 +834,10 @@ public:
                 pc->m_is_user_defined_pc = true;
 
                 // User-Defined Cycle Parameters
-                pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
                 pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0*as_double("P_ref");  //[MWe]
                 pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
 
-                // Also need lower and upper levels for the 3 independent variables...
-                pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
-                pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
-                pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
-                pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
-                pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
-                pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
-
                 // User-Defined Cycle Off-Design Tables 
-                pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
-                pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
-                pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
                 pc->mc_combined_ind = as_matrix("ud_ind_od");
             }
 
@@ -976,6 +961,7 @@ public:
 
 
         }
+        tou.mc_dispatch_params.m_is_tod_pc_target_also_pc_max = as_boolean("is_tod_pc_target_also_pc_max");
         tou.mc_dispatch_params.m_is_block_dispatch    = !tou.mc_dispatch_params.m_dispatch_optimize;      //mw
         tou.mc_dispatch_params.m_use_rule_1           = true;
         tou.mc_dispatch_params.m_standby_off_buffer   = 2.0;
@@ -1331,11 +1317,11 @@ public:
 
 
         // Monthly outputs
-
+        accumulate_monthly_for_year("gen", "monthly_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1);
 
 
         // Annual outputs
-        accumulate_annual_for_year("gen", "annual_gross_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        accumulate_annual_for_year("gen", "annual_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
         accumulate_annual_for_year("P_cycle", "annual_W_cycle_gross", 1000.0*sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);		//[kWe-hr]
         //accumulate_annual_for_year("W_dot_par_tot_haf", "annual_electricity_consumption", sim_setup.m_report_step/3600.0, steps_per_hour);  //[kWe-hr]
         accumulate_annual_for_year("disp_objective", "disp_objective_ann", 1000.0*sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
@@ -1349,10 +1335,8 @@ public:
         ssc_number_t annual_field_fp = accumulate_annual_for_year("q_dot_freeze_prot", "annual_field_freeze_protection", sim_setup.m_report_step / 3600.0*1.E3, steps_per_hour);    //[kWt-hr]
         ssc_number_t annual_tes_fp = accumulate_annual_for_year("q_tes_heater", "annual_tes_freeze_protection", sim_setup.m_report_step / 3600.0*1.E3, steps_per_hour); //[kWt-hr]
 
-        ssc_number_t annual_gross_energy = as_number("annual_gross_energy");        //[kWt-hr]
         ssc_number_t annual_thermal_consumption = annual_field_fp + annual_tes_fp;  //[kWt-hr]
         assign("annual_thermal_consumption", annual_thermal_consumption);
-        assign("annual_energy", annual_gross_energy - annual_thermal_consumption);  //[kWt-hr]
 
         // Calculate water use
         // First, sum power cycle water consumption timeseries outputs

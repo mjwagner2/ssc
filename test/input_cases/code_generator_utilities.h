@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "sscapi.h"
+#include "../ssc/sscapi.h"
 #include "../ssc/core.h"
 #include <string>
 #include <type_traits>
@@ -107,7 +107,7 @@ static int run_module(ssc_data_t & data, std::string module_name, bool printErro
 	module = ssc_module_create(const_cast<char*>(module_name.c_str()));
 	if (NULL == module)
 	{
-		if (printErrors){ printf("error: could not create 'pvsamv1' module.");}
+		if (printErrors){ printf("error: could not create module.");}
 		return -1;
 	}
 

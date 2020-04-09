@@ -388,11 +388,12 @@ void C_csp_trough_collector_receiver::init(const C_csp_collector_receiver::S_csp
 
     // Initialize interconnects
     m_interconnects.reserve(m_K_cpnt.nrows());  // m_K_cpnt.nrows() = number of interconnects
-    m_rough_cpnt.resize_fill(m_K_cpnt.nrows(), m_K_cpnt.ncols(), m_HDR_rough);
+    m_rough_cpnt.resize(m_K_cpnt.nrows(), m_K_cpnt.ncols());
     m_u_cpnt.resize_fill(m_K_cpnt.nrows(), m_K_cpnt.ncols(), m_Pipe_hl_coef);
     m_mc_cpnt.resize(m_K_cpnt.nrows(), m_K_cpnt.ncols());
     for (std::size_t i = 0; i < m_mc_cpnt.ncells(); i++) {
         m_mc_cpnt[i] = m_mc_bal_sca * m_L_cpnt[i];
+        m_rough_cpnt[i] = m_HDR_rough / m_D_cpnt[i];
     }
     for (std::size_t i = 0; i < m_K_cpnt.nrows(); i++) {
         m_interconnects.push_back(interconnect(&m_htfProps, m_K_cpnt.row(i).data(), m_D_cpnt.row(i).data(), m_L_cpnt.row(i).data(),
@@ -1804,7 +1805,7 @@ double C_csp_trough_collector_receiver::field_pressure_drop(double T_db, double 
             int HT = (int)m_SCAInfoArray(i, 0) - 1;    //HCE type
 
             double T_htf_ave = (T_in_SCA[i] + T_out_SCA[i]) / 2.;
-            DP_tube[i] = DP_tube[i] + PressureDrop(m_dot_htf, T_htf_ave, P_field_in - i * P_field_in / m_nSCA, m_D_h(HT, j), (m_Rough(HT, j)*m_D_h(HT, j)),
+            DP_tube[i] = DP_tube[i] + PressureDrop(m_dot_htf, T_htf_ave, P_field_in - i * P_field_in / m_nSCA, m_D_h(HT, j), m_Rough(HT, j)*m_D_h(HT, j),
                 m_L_SCA[CT], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)*m_HCE_FieldFrac(HT, j);
 
         }
@@ -2173,6 +2174,8 @@ void C_csp_trough_collector_receiver::off(const C_csp_weatherreader::S_outputs &
 	cr_out_solver.m_W_dot_col_tracking = m_W_dot_sca_tracking;	//[MWe]
 	cr_out_solver.m_W_dot_htf_pump = m_W_dot_pump;				//[MWe]
 
+    cr_out_solver.m_q_rec_heattrace = m_q_dot_freeze_protection;    //[MWt]
+
 	m_operating_mode = C_csp_collector_receiver::OFF;
 
 	set_output_value();
@@ -2352,6 +2355,8 @@ void C_csp_trough_collector_receiver::startup(const C_csp_weatherreader::S_outpu
 	cr_out_solver.m_W_dot_col_tracking = m_W_dot_sca_tracking;	//[MWe]
 		// Is this calculated in the 'energy balance' method, or a TBD 'metrics' method?
 	cr_out_solver.m_W_dot_htf_pump = m_W_dot_pump;				//[MWe]
+
+    cr_out_solver.m_q_rec_heattrace = m_q_dot_freeze_protection;    //[MWt]
 
 	set_output_value();
 }
@@ -2613,6 +2618,8 @@ void C_csp_trough_collector_receiver::on(const C_csp_weatherreader::S_outputs &w
 		cr_out_solver.m_W_dot_col_tracking = m_W_dot_sca_tracking;	//[MWe]
 		cr_out_solver.m_W_dot_htf_pump = m_W_dot_pump;				//[MWe]
         cr_out_solver.m_dP_sf = m_dP_total;         //[bar]
+
+        cr_out_solver.m_q_rec_heattrace = m_q_dot_freeze_protection;    //[MWt]
 	}
 	else
 	{	// Solution failed, so tell controller/solver
@@ -2639,6 +2646,8 @@ void C_csp_trough_collector_receiver::on(const C_csp_weatherreader::S_outputs &w
 		cr_out_solver.m_W_dot_col_tracking = 0.0;
 		cr_out_solver.m_W_dot_htf_pump = 0.0;
         cr_out_solver.m_dP_sf = 0.0;                //[bar]
+
+        cr_out_solver.m_q_rec_heattrace = m_q_dot_freeze_protection;    //[MWt]
 	}
 
 	set_output_value();
@@ -3094,6 +3103,8 @@ overtemp_iter_flag: //10 continue     //Return loop for over-temp conditions
 				cr_out_solver.m_E_fp_total = 0.0;
 				cr_out_solver.m_W_dot_col_tracking = 0.0;
 				cr_out_solver.m_W_dot_htf_pump = 0.0;
+
+                cr_out_solver.m_q_rec_heattrace = 0.0;    //[MWt]
 
 				//cr_out_report.m_q_dot_field_inc = 0.0;
 				//cr_out_report.m_eta_field = 0.0;
@@ -3585,7 +3596,7 @@ calc_final_metrics_goto:
 				x1 = 0.0;
 				x2 = 1.0;
 			}
-			m_DP_tube[i] = m_DP_tube[i] + PressureDrop(m_dot_htf, m_TCS_T_htf_ave[i], 1.0, m_D_h(HT, j), (m_Rough(HT, j)*m_D_h(HT, j)),
+			m_DP_tube[i] = m_DP_tube[i] + PressureDrop(m_dot_htf, m_TCS_T_htf_ave[i], 1.0, m_D_h(HT, j), m_Rough(HT, j)*m_D_h(HT, j),
 				(m_L_SCA[CT] + m_Distance_SCA[CT]), 0.0, 0.0, x1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, x2)*m_HCE_FieldFrac(HT, j);
 			//if(ErrorFound()) return 1
 		}
@@ -3896,6 +3907,8 @@ set_outputs_and_return:
 	cr_out_solver.m_E_fp_total = E_fp_tot_out;	//[MW] Freeze protection energy
 	//value(O_E_FP_TOT, E_fp_tot_out);			//[MW] Freeze protection energy
 	
+    cr_out_solver.m_q_rec_heattrace = m_q_dot_freeze_protection;    //[MWt]
+
 	//value(O_QQ, m_qq);							//[none] Number of iterations required to solve
 	//value(O_T_SYS_C, T_sys_c_out);				//[C] Collector inlet temperature
 	//value(O_EQOPTEFF, EqOpteff_out);			//[none] Collector equivalent optical efficiency
@@ -5581,7 +5594,7 @@ No | Name         | Description                           | Units     |  Type
 3 | T            | m_Fluid temperature                     | K         | float
 4 | P            | m_Fluid pressure                        | Pa        | float
 5 | D            | Diameter of the contact surface       | m         | float
-6 | m_Rough        | Pipe roughness                        | m         | float
+6 | rough        | Pipe roughness                        | m         | float
 7 | L_pipe       | Length of pipe for pressure drop      | m         | float
 8 | Nexp         | Number of expansions                  | none      | float
 9 | Ncon         | Number of contractions                | none      | float
@@ -5600,7 +5613,7 @@ Outputs
 ----------------------------
 1. PressureDrop  (Pa)
 */
-double C_csp_trough_collector_receiver::PressureDrop(double m_dot, double T, double P, double D, double m_Rough, double L_pipe,
+double C_csp_trough_collector_receiver::PressureDrop(double m_dot, double T, double P, double D, double rough, double L_pipe,
 	double Nexp, double Ncon, double Nels, double Nelm, double Nell, double Ngav, double Nglv,
 	double Nchv, double Nlw, double Nlcv, double Nbja){
 
@@ -5619,7 +5632,7 @@ double C_csp_trough_collector_receiver::PressureDrop(double m_dot, double T, dou
 	//if(Re<2300.) then
 	//    f = 64./max(Re,1.0)
 	//else
-	f = FricFactor(m_Rough / D, Re);
+	f = FricFactor(rough / D, Re);
 	if (f == 0) return std::numeric_limits<double>::quiet_NaN();
 	//}
 
@@ -5651,7 +5664,7 @@ Friction factor (taken from Piping loss model)
 Uses an iterative method to solve the implicit friction factor function.
 For more on this method, refer to Fox, et al., 2006 Introduction to m_Fluid Mechanics.			 */
 
-double C_csp_trough_collector_receiver::FricFactor(double m_Rough, double Reynold){
+double C_csp_trough_collector_receiver::FricFactor(double rough, double Reynold){
 
 	double Test, TestOld, X, Xold, Slope;
 	double Acc = .01; //0.0001
@@ -5662,14 +5675,14 @@ double C_csp_trough_collector_receiver::FricFactor(double m_Rough, double Reynol
 	}
 
 	X = 33.33333;  //1. / 0.03
-	TestOld = X + 2. * log10(m_Rough / 3.7 + 2.51 * X / Reynold);
+	TestOld = X + 2. * log10(rough / 3.7 + 2.51 * X / Reynold);
 	Xold = X;
 	X = 28.5714;  //1. / (0.03 + 0.005)
 	NumTries = 0;
 
 	while (NumTries < 21){
 		NumTries++;
-		Test = X + 2 * log10(m_Rough / 3.7 + 2.51 * X / Reynold);
+		Test = X + 2 * log10(rough / 3.7 + 2.51 * X / Reynold);
 		if (fabs(Test - TestOld) <= Acc) {
 			return 1. / (X * X);
 		}

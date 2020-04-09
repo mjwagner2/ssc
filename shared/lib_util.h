@@ -27,8 +27,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 #include <cassert>
+#include <stdexcept>
 
 #include <unordered_map>
+
 using std::unordered_map;
 
 #ifdef _MSC_VER
@@ -68,9 +70,12 @@ Define _DEBUG if compile with debugging
 #define RTOD 57.295779513082320876798154814105
 #endif
 
-
+#ifndef MAX
 #define MAX(a,b) ( (a)>(b) ? (a) : (b) )
+#endif
+#ifndef MIN
 #define MIN(a,b) ( (a)<(b) ? (a) : (b) )
+#endif
 
 #define sind(x) sin( DTOR*(x) )
 #define cosd(x) cos( DTOR*(x) )
@@ -117,6 +122,8 @@ namespace util
 	size_t hour_of_day(size_t hour_of_year); /* return the hour of day (0 - 23) given the hour of year (0 - 8759) */
 	double percent_of_year(int month, int hours); /* returns the fraction of a year, based on months and hours */
 	int month_of(double time); /* hour: 0 = jan 1st 12am-1am, returns 1-12 */
+	int day_of(double time); /* hour: 0 = jan 1st Monday 12am-1am, returns 0-6 */
+	int week_of(double time); /* hour: 0 = jan 1st Monday 12am-1am, returns 0-6 */
 	int day_of_month(int month, double time); /* month: 1-12 time: hours, starting 0=jan 1st 12am, returns 1-nday*/
 	int days_in_month(int month); /*month: 0-11, return 0-30, depending on the month*/
 	void month_hour(size_t hour_of_year, size_t & out_month, size_t & out_hour); /*given the hour of year, return the month, and hour of day*/
@@ -434,6 +441,16 @@ namespace util
 		{
 			resize_fill( 1, len, val );
 		}
+
+        void resize_preserve(size_t nr, size_t nc, const T &val){
+            matrix_t<T> old( *this );
+            resize(nr, nc);
+            fill(val);
+            for (size_t r=0; r<nr && r<old.nrows(); r++)
+                for (size_t c=0; c<nc && c<old.ncols(); c++)
+                    at(r,c) = old(r,c);
+        }
+
 		void set_value(const T &val, size_t r, size_t c)
 		{
 			t_array[n_cols*r + c] = val;

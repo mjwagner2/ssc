@@ -450,7 +450,7 @@ var( 'equip_reserve_depr_sta', 0 );
 var( 'equip_reserve_depr_fed', 0 );
 var( 'salvage_percentage', 0 );
 var( 'ppa_soln_mode', 0 );
-var( 'ppa_price_input', 0.13 );
+var( 'ppa_price_input', [0.13] );
 var( 'ppa_escalation', 1 );
 //var( 'construction_financing_cost', 33673272 ); //calculated by performance module
 var( 'term_tenor', 18 );
@@ -511,6 +511,16 @@ var( 'pbi_uti_for_ds', 0 );
 var( 'pbi_oth_for_ds', 0 );
 var( 'depr_stabas_method', 1 );
 var( 'depr_fedbas_method', 1 );
+var( 'cp_capacity_payment_esc', 0 );
+var( 'cp_capacity_payment_type', 0 );
+var( 'cp_capacity_payment_amount', [ 0 ] );
+var( 'cp_capacity_credit_percent', [ 0 ] );
+p_ref = var( 'P_ref' );
+gross_to_net = var( 'gross_net_conversion_factor' );
+var( 'cp_system_nameplate', p_ref * gross_to_net );
+var( 'cp_battery_nameplate', 0 );
+var( 'grid_curtailment_price', [ 0 ] );
+var( 'grid_curtailment_price_esc', 0 );
 
 run('singleowner');
 
@@ -751,7 +761,7 @@ for(k=0; k<#tshourss; k++)
 		run('singleowner');
 		
 		outln('Annual energy for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + round(var('annual_energy')*1e-6) +
-		' x 10^6 [MWe]' + ' and LCOE = ' + var('lcoe_real') + ' capacity factor = ' + var('capacity_factor'));
+		' [GWhe]' + ' and LCOE = ' + var('lcoe_real') + ' capacity factor = ' + var('capacity_factor'));
 		//outln('LCOE for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + var('lcoe_real');
 	}
 }

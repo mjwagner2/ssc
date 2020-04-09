@@ -6,9 +6,11 @@
 
 static char geothermal_weather_path[256];
 static char geothermal_dispatch_path[256];
+static char geothermal_curtailment_path[256];
 
 static int n1 = sprintf(geothermal_weather_path, "%s/test/input_cases/general_data/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv", SSCDIR);
 static int n2 = sprintf(geothermal_dispatch_path, "%s/test/input_cases/geothermal_data/dispatch_factors_ts.csv", SSCDIR);
+static int n3 = sprintf(geothermal_curtailment_path, "%s/test/input_cases/general_data/grid_curtailment_default_MW.csv", SSCDIR);
 
 /**
 *  Default data for no-financial pvsamv1 run that can be further modified
@@ -87,6 +89,11 @@ static void geothermal_singleowner_default(ssc_data_t &data)
 	ssc_data_set_number(data, "hc_ctl9", 0);
 	ssc_data_set_string(data, "hybrid_dispatch_schedule", "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111");
 	ssc_data_set_number(data, "adjust:constant", 0);
+
+	ssc_data_set_number(data, "enable_interconnection_limit", 0);
+	set_array(data, "grid_curtailment", geothermal_curtailment_path, 8760);
+	ssc_data_set_number(data, "grid_interconnection_limit_kwac", 100000);
+	
 	ssc_data_set_number(data, "analysis_period", 25);
 	ssc_number_t p_federal_tax_rate[1] = { 21 };
 	ssc_data_set_array(data, "federal_tax_rate", p_federal_tax_rate, 1);
@@ -262,7 +269,14 @@ static void geothermal_singleowner_default(ssc_data_t &data)
 	ssc_data_set_number(data, "equip_reserve_depr_fed", 0);
 	ssc_data_set_number(data, "salvage_percentage", 0);
 	ssc_data_set_number(data, "ppa_soln_mode", 0);
-	ssc_data_set_number(data, "ppa_price_input", 0.079999998211860657);
+	ssc_number_t p_ppa_price_input[1] = { 0 };
+	ssc_data_set_array(data, "ppa_price_input", p_ppa_price_input, 1);
+	ssc_data_set_number(data, "cp_capacity_payment_esc", 0);
+	ssc_data_set_number(data, "cp_capacity_payment_type", 0);
+	ssc_data_set_number(data, "cp_system_nameplate", 0);
+	ssc_data_set_number(data, "cp_battery_nameplate", 0);
+	ssc_data_set_array(data, "cp_capacity_credit_percent", p_ppa_price_input, 1);
+	ssc_data_set_array(data, "cp_capacity_payment_amount", p_ppa_price_input, 1);
 	ssc_data_set_number(data, "ppa_escalation", 1);
 	ssc_data_set_number(data, "construction_financing_cost", 6701963.5);
 	ssc_data_set_number(data, "term_tenor", 18);

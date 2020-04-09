@@ -392,7 +392,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
-        double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
+        double P_prev = htf_state_in_next.m_pres * 1.e-2;  //[bar]
         double dP_rec = P_prev * dP_rec_perc / 100.;
         cr_out_solver.m_dP_sf += dP_rec;
         P_prev -= dP_rec;
@@ -575,7 +575,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
-        double P_prev = htf_state_in.m_pres * 1.e-2;  //[bar]
+        double P_prev = htf_state_in_next.m_pres * 1.e-2;  //[bar]
         double dP_rec = P_prev * dP_rec_perc / 100.;
         cr_out_solver.m_dP_sf += dP_rec;
         P_prev -= dP_rec;

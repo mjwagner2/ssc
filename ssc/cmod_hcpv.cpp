@@ -155,7 +155,7 @@ static var_info _cm_vtab_hcpv[] = {
 	{ SSC_OUTPUT,        SSC_NUMBER,     "dc_nominal",                      "Annual DC nominal",                                               "kWh",    "",        "Annual",          "*",                    "",                                         "" },
 
 	{ SSC_OUTPUT, SSC_NUMBER, "capacity_factor", "Capacity factor", "%", "", "", "*", "", "" },
-	{ SSC_OUTPUT, SSC_NUMBER, "kwh_per_kw", "First year kWh/kW", "kWh/kW", "", "", "*", "", "" },
+	{ SSC_OUTPUT, SSC_NUMBER, "kwh_per_kw", "Energy yield", "kWh/kW", "", "", "*", "", "" },
 
 
 var_info_invalid };
@@ -409,7 +409,7 @@ public:
 			irr.set_location(wFile.lat(), wFile.lon(), wFile.tz());
 			irr.set_sky_model(0, 0.2); // isotropic sky, 0.2 albedo (doesn't matter for CPV) and diffuse shading factor not enabled (set to 1.0 by default)
 			irr.set_beam_diffuse(wf.dn, wf.df);
-			irr.set_surface(2, 0, 0, 90, true, -1); // 2 axis tracking, other parameters don't matter
+			irr.set_surface(2, 0, 0, 90, true, -1, false, 0.0); // 2 axis tracking, other parameters don't matter
 			int code = irr.calc();
 
 			if (code < 0)

@@ -610,6 +610,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		dispatch.params.rsu_cost = mc_tou.mc_dispatch_params.m_rsu_cost;
 		dispatch.params.csu_cost = mc_tou.mc_dispatch_params.m_csu_cost;
 		dispatch.params.pen_delta_w = mc_tou.mc_dispatch_params.m_pen_delta_w;
+        dispatch.params.disp_inventory_incentive = mc_tou.mc_dispatch_params.m_disp_inventory_incentive;
 		dispatch.params.q_rec_standby = mc_tou.mc_dispatch_params.m_q_rec_standby;
 		
 		dispatch.params.w_rec_ht = mc_tou.mc_dispatch_params.m_w_rec_ht;
@@ -623,7 +624,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		//add zero point
 		dispatch.params.eff_table_load.add_point(0., 0.);    //this is required to allow the model to converge
 
-		int neff = 2;
+		int neff = 2;   //mjw: if using something other than 2, the linear approximation assumption and associated code in csp_dispatch.cpp/calculate_parameters() needs to be reformulated.
 		for(int i=0; i<neff; i++)
 		{
 			double x = dispatch.params.q_pb_min + (dispatch.params.q_pb_max - dispatch.params.q_pb_min)/(double)(neff - 1)*i;
@@ -796,6 +797,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
         double W_pc_min = m_cycle_cutoff_frac * m_cycle_W_dot_des;	//[MW]
         double W_pc_max = m_cycle_max_frac * m_cycle_W_dot_des;		//[MW]
 
+        if (mc_tou.mc_dispatch_params.m_is_tod_pc_target_also_pc_max)
+        {
+            q_pc_max = q_pc_target;     //[MW]
+        }
+
 
 		double m_dot_htf_ND_max = std::numeric_limits<double>::quiet_NaN();
 		double W_dot_ND_max = std::numeric_limits<double>::quiet_NaN();
@@ -840,6 +846,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		m_T_htf_pc_cold_est = mc_pc_out_solver.m_T_htf_cold;	//[C]
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
 		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
+		mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
 		C_csp_collector_receiver::S_csp_cr_est_out est_out;
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,

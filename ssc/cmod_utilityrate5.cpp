@@ -29,12 +29,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static var_info vtab_utility_rate5[] = {
 
 /*   VARTYPE           DATATYPE         NAME                         LABEL                                           UNITS     META                      GROUP          REQUIRED_IF                 CONSTRAINTS                      UI_HINTS*/
-	{ SSC_INPUT,        SSC_NUMBER,     "en_electricity_rates",           "Optionally enable/disable electricity_rate",                   "years",  "",                      "",             "",                         "INTEGER,MIN=0,MAX=1",              "" },
+	{ SSC_INPUT,        SSC_NUMBER,     "en_electricity_rates",           "Optionally enable/disable electricity_rate",                   "years",  "",                      "Electricity Rates",             "",                         "INTEGER,MIN=0,MAX=1",              "" },
 	{ SSC_INPUT,        SSC_NUMBER,     "analysis_period",           "Number of years in analysis",                   "years",  "",                      "Lifetime",             "*",                         "INTEGER,POSITIVE",              "" },
 
 	{ SSC_INPUT, SSC_NUMBER, "system_use_lifetime_output", "Lifetime hourly system outputs", "0/1", "0=hourly first year,1=hourly lifetime", "Lifetime", "*", "INTEGER,MIN=0,MAX=1", "" },
 
-	{ SSC_INPUT, SSC_NUMBER, "TOU_demand_single_peak", "Use single monthly peak for TOU demand charge", "0/1", "0=use TOU peak,1=use flat peak", "", "?=0", "INTEGER,MIN=0,MAX=1", "" },
+	{ SSC_INPUT, SSC_NUMBER, "TOU_demand_single_peak", "Use single monthly peak for TOU demand charge", "0/1", "0=use TOU peak,1=use flat peak", "Electricity Rates", "?=0", "INTEGER,MIN=0,MAX=1", "" },
 	
 	// First year or lifetime hourly or subhourly
 	// load and gen expected to be > 0
@@ -42,64 +42,64 @@ static var_info vtab_utility_rate5[] = {
 	{ SSC_INPUT, SSC_ARRAY, "gen", "System power generated", "kW", "", "System Output", "*", "", "" },
 	 
 	// input from user as kW and output as kW
-	{ SSC_INOUT, SSC_ARRAY, "load", "Electricity load (year 1)", "kW", "", "Time Series", "", "", "" },
+	{ SSC_INOUT, SSC_ARRAY, "load", "Electricity load (year 1)", "kW", "", "Load", "", "", "" },
 	//  output as kWh - same as load (kW) for hourly simulations
-	{ SSC_OUTPUT, SSC_ARRAY, "bill_load", "Bill load (year 1)", "kWh", "", "Time Series", "*", "", "" },
+	{ SSC_OUTPUT, SSC_ARRAY, "bill_load", "Bill load (year 1)", "kWh", "", "Load", "*", "", "" },
 
 	{ SSC_INPUT, SSC_NUMBER, "inflation_rate", "Inflation rate", "%", "", "Lifetime", "*", "MIN=-99", "" },
 
 	{ SSC_INPUT, SSC_ARRAY, "degradation", "Annual energy degradation", "%", "", "System Output", "*", "", "" },
-	{ SSC_INPUT, SSC_ARRAY, "load_escalation", "Annual load escalation", "%/year", "", "", "?=0", "", "" },
-	{ SSC_INPUT,        SSC_ARRAY,      "rate_escalation",          "Annual electricity rate escalation",  "%/year", "",                      "",             "?=0",                       "",                              "" },
-	{ SSC_INPUT, SSC_NUMBER, "ur_metering_option", "Metering options", "0=Single meter with monthly rollover credits in kWh,1=Single meter with monthly rollover credits in $,2=Single meter with no monthly rollover credits (Net Billing),3=Single meter with monthly rollover credits in $ (Net Billing $),4=Two meters with all generation sold and all load purchased", "Net metering monthly excess", "", "?=0", "INTEGER,MIN=0,MAX=4", "" },
+	{ SSC_INPUT, SSC_ARRAY, "load_escalation", "Annual load escalation", "%/year", "", "Load", "?=0", "", "" },
+	{ SSC_INPUT,        SSC_ARRAY,      "rate_escalation",          "Annual electricity rate escalation",  "%/year", "",                      "Electricity Rates",             "?=0",                       "",                              "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_metering_option", "Metering options", "0=net energy metering,1=net energy metering with $ credits,2=net billing,3=net billing with carryover to next month,4=buy all - sell all", "Net metering monthly excess", "Electricity Rates", "?=0", "INTEGER,MIN=0,MAX=4", "" },
 
 	
-	{ SSC_INPUT, SSC_NUMBER, "ur_nm_yearend_sell_rate", "Year end sell rate", "$/kWh", "", "", "?=0.0", "", "" },
-	{ SSC_INPUT,        SSC_NUMBER,     "ur_monthly_fixed_charge",  "Monthly fixed charge",            "$",      "",                      "",             "?=0.0",                     "",                              "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_nm_yearend_sell_rate", "Year end sell rate", "$/kWh", "", "Electricity Rates", "?=0.0", "", "" },
+	{ SSC_INPUT,        SSC_NUMBER,     "ur_monthly_fixed_charge",  "Monthly fixed charge",            "$",      "",                      "Electricity Rates",             "?=0.0",                     "",                              "" },
 
 
 // optional input that allows sell rates to be overridden with buy rates - defaults to not override
-	{ SSC_INPUT, SSC_NUMBER, "ur_sell_eq_buy", "Set sell rate equal to buy rate", "0/1", "Optional override", "", "?=0", "BOOLEAN", "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_sell_eq_buy", "Set sell rate equal to buy rate", "0/1", "Optional override", "Electricity Rates", "?=0", "BOOLEAN", "" },
 
 
 
 	// urdb minimums
-	{ SSC_INPUT, SSC_NUMBER, "ur_monthly_min_charge", "Monthly minimum charge", "$", "", "", "?=0.0", "", "" },
-	{ SSC_INPUT, SSC_NUMBER, "ur_annual_min_charge", "Annual minimum charge", "$", "", "", "?=0.0", "", "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_monthly_min_charge", "Monthly minimum charge", "$", "", "Electricity Rates", "?=0.0", "", "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_annual_min_charge", "Annual minimum charge", "$", "", "Electricity Rates", "?=0.0", "", "" },
 
 
 	// time step rates
-	{ SSC_INPUT, SSC_NUMBER, "ur_en_ts_sell_rate", "Enable time step sell rates", "0/1", "", "", "?=0", "BOOLEAN", "" },
-	{ SSC_INPUT, SSC_ARRAY, "ur_ts_sell_rate", "Time step sell rates", "0/1", "", "", "", "", "" },
-	{ SSC_INPUT, SSC_ARRAY, "ur_ts_buy_rate", "Time step buy rates", "0/1", "", "", "", "", "" },
+	{ SSC_INPUT, SSC_NUMBER, "ur_en_ts_sell_rate", "Enable time step sell rates", "0/1", "", "Electricity Rates", "?=0", "BOOLEAN", "" },
+	{ SSC_INPUT, SSC_ARRAY, "ur_ts_sell_rate", "Time step sell rates", "0/1", "", "Electricity Rates", "", "", "" },
+	{ SSC_INPUT, SSC_ARRAY, "ur_ts_buy_rate", "Time step buy rates", "0/1", "", "Electricity Rates", "", "", "" },
 
 
 
 
 	// Energy Charge Inputs
-	{ SSC_INPUT, SSC_MATRIX, "ur_ec_sched_weekday", "Energy charge weekday schedule", "", "12x24", "", "*", "", "" },
-	{ SSC_INPUT, SSC_MATRIX, "ur_ec_sched_weekend", "Energy charge weekend schedule", "", "12x24", "", "*", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_ec_sched_weekday", "Energy charge weekday schedule", "", "12x24", "Electricity Rates", "*", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_ec_sched_weekend", "Energy charge weekend schedule", "", "12x24", "Electricity Rates", "*", "", "" },
 
 	// ur_ec_tou_mat has 6 columns period, tier, max usage, max usage units, buy rate, sell rate
 	// replaces 12(P)*6(T)*(max usage+buy+sell) = 216 single inputs
-	{ SSC_INPUT, SSC_MATRIX, "ur_ec_tou_mat", "Energy rates table", "", "", "", "*", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_ec_tou_mat", "Energy rates table", "", "", "Electricity Rates", "*", "", "" },
 
 
 	// Demand Charge Inputs
-	{ SSC_INPUT,        SSC_NUMBER,     "ur_dc_enable",            "Enable demand charge",        "0/1",    "",                      "",             "?=0",                       "BOOLEAN",                       "" },
+	{ SSC_INPUT,        SSC_NUMBER,     "ur_dc_enable",            "Enable demand charge",        "0/1",    "",                      "Electricity Rates",             "?=0",                       "BOOLEAN",                       "" },
 	// TOU demand charge
-	{ SSC_INPUT, SSC_MATRIX, "ur_dc_sched_weekday", "Demand charge weekday schedule", "", "12x24", "", "", "", "" },
-	{ SSC_INPUT, SSC_MATRIX, "ur_dc_sched_weekend", "Demand charge weekend schedule", "", "12x24", "", "", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_dc_sched_weekday", "Demand charge weekday schedule", "", "12x24", "Electricity Rates", "", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_dc_sched_weekend", "Demand charge weekend schedule", "", "12x24", "Electricity Rates", "", "", "" },
 
 	// ur_dc_tou_mat has 4 columns period, tier, peak demand (kW), demand charge
 	// replaces 12(P)*6(T)*(peak+charge) = 144 single inputs
-	{ SSC_INPUT, SSC_MATRIX, "ur_dc_tou_mat", "Demand rates (TOU) table", "", "", "", "ur_dc_enable=1", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_dc_tou_mat", "Demand rates (TOU) table", "", "", "Electricity Rates", "ur_dc_enable=1", "", "" },
 
 
 	// flat demand charge
 	// ur_dc_tou_flat has 4 columns month, tier, peak demand (kW), demand charge
 	// replaces 12(P)*6(T)*(peak+charge) = 144 single inputs
-	{ SSC_INPUT, SSC_MATRIX, "ur_dc_flat_mat", "Demand rates (flat) table", "", "", "", "ur_dc_enable=1", "", "" },
+	{ SSC_INPUT, SSC_MATRIX, "ur_dc_flat_mat", "Demand rates (flat) table", "", "", "Electricity Rates", "ur_dc_enable=1", "", "" },
 	
 
 	// outputs
@@ -780,7 +780,8 @@ public:
 					e_sys_cy[j] = pgen[idx] * ts_hour_gen;
 					p_sys_cy[j] = pgen[idx];
 					// until lifetime load fully implemented
-					lifetime_load[idx] = -e_load_cy[j];
+					// report lifetime load in kW and not kWh
+					lifetime_load[idx] = -e_load_cy[j] / ts_hour_gen;
 					idx++;
 				}
 				else
@@ -1393,10 +1394,10 @@ public:
 				size_t cnt;
 				ssc_number_t * ts_sr, *ts_br;
 				ts_sr = as_array("ur_ts_sell_rate", &cnt);
-				ts_br = as_array("ur_ts_buy_rate", &cnt);
 				size_t ts_step_per_hour = cnt / 8760;
 				if (ts_step_per_hour < 1 || ts_step_per_hour > 60 || ts_step_per_hour * 8760 != cnt)
 					throw exec_error("utilityrate5", util::format("invalid number of sell rate records (%d): must be an integer multiple of 8760", (int)cnt));
+				ts_br = as_array("ur_ts_buy_rate", &cnt);
 				if ((cnt != m_num_rec_yearly) && (cnt != 8760))
 					throw exec_error("utilityrate5", util::format("number of sell rate records (%d) must be equal to number of gen records (%d) or 8760 for each year", (int)cnt, (int)m_num_rec_yearly));
 
@@ -1577,11 +1578,11 @@ public:
 					}
 					period = (*per_num);
 					int ndx = (int)(per_num - m_ec_periods.begin());
+					num_tiers = (int)m_ec_periods_tiers_init[ndx].size();
 					if (i == 0)
 					{
 						// redimension ec_ field of ur_month class
 						num_periods = (int)m_month[m].ec_periods.size();
-						num_tiers = (int)m_ec_periods_tiers_init[ndx].size();
 						m_month[m].ec_tou_ub.resize_fill(num_periods, num_tiers, (ssc_number_t)1e+38);
 						m_month[m].ec_tou_units.resize_fill(num_periods, num_tiers, 0); // kWh
 						m_month[m].ec_tou_br.resize_fill(num_periods, num_tiers, 0);

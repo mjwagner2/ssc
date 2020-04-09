@@ -510,7 +510,32 @@ int C_sco2_phx_air_cooler::optimize_N_mc_and_N_rc__max_eta(C_sco2_phx_air_cooler
 
     if (err_mc_od != 0)
     {
-        return err_mc_od;
+        f_N_mc_2 = f_N_mc - scope_step;
+        f_N_rc_opt_local_2 = std::numeric_limits<double>::quiet_NaN();
+
+        if (is_optimize_N_rc)
+        {
+            err_mc_od = optimize_N_rc__max_eta(od_par,
+                false, f_N_mc_2,
+                is_PHX_dP_input, PHX_f_dP,
+                off_design_strategy,
+                eta_rc_max, f_N_rc_opt_local_2, W_dot_at_rc_opt_max,
+                f_N_rc_opt_local, od_opt_tol);
+        }
+        else
+        {
+            err_mc_od = optimize_off_design(od_par,
+                false, 1.0,
+                false, f_N_mc_2,
+                is_PHX_dP_input, PHX_f_dP,
+                off_design_strategy,
+                od_opt_tol);
+        }
+
+        if (err_mc_od != 0)
+        {
+            return err_mc_od;
+        }
     }
 
     double eta_f_N_mc_2 = ms_od_solved.ms_rc_cycle_od_solved.m_eta_thermal;   //[-]
@@ -1246,11 +1271,14 @@ void C_sco2_phx_air_cooler::solve_T_mc_in_for_cooler_constraint(double W_dot_mc_
         {
             return;
         }
-        if (W_dot_fan_err_code > C_monotonic_eq_solver::CONVERGED && fabs(W_dot_fan_tol_solved) < 0.1)
+        /*if (W_dot_fan_err_code > C_monotonic_eq_solver::CONVERGED && fabs(W_dot_fan_tol_solved) < 0.1)
         {
             return;
+        }*/
+        if (W_dot_fan_err_code < C_monotonic_eq_solver::CONVERGED)
+        {
+            throw(C_csp_exception("Iteration on main compressor inlet temp to achieve target fan power failed"));
         }
-        throw(C_csp_exception("Iteration on main compressor inlet temp to achieve target fan power failed"));
     }
 
 }
@@ -1411,11 +1439,15 @@ void C_sco2_phx_air_cooler::solve_nested_T_pc_in__T_mc_in_for_cooler_constrains(
         {
             return;
         }
-        if (W_dot_fan_err_code > C_monotonic_eq_solver::CONVERGED && fabs(W_dot_fan_tol_solved) < 0.1)
+        /*if (W_dot_fan_err_code > C_monotonic_eq_solver::CONVERGED && fabs(W_dot_fan_tol_solved) < 0.1)
         {
             return;
         }
-        throw(C_csp_exception("Iteration on compressor inlet temp to achieve target fan power failed"));
+        throw(C_csp_exception("Iteration on compressor inlet temp to achieve target fan power failed"));*/
+        if (W_dot_fan_err_code < C_monotonic_eq_solver::CONVERGED)
+        {
+            throw(C_csp_exception("Iteration on main compressor inlet temp to achieve target fan power failed"));
+        }
     }
 
     return;
@@ -1584,28 +1616,60 @@ int C_sco2_phx_air_cooler::optimize_off_design(C_sco2_phx_air_cooler::S_od_par o
             T_comp_in_min = ms_cycle_od_par.m_T_mc_in;     //[K]
         }
 
-		if (opt_P_LP_err == -31)
-		{
-            while (opt_P_LP_err == -31 && ms_cycle_od_par.m_f_mc_pc_bypass < 0.9)
-			{
-				ms_cycle_od_par.m_f_mc_pc_bypass += 0.01;
-                if (is_modified_P_mc_in_solver)
+        if (opt_P_LP_err == -31)
+        {
+            while (opt_P_LP_err != 0 && ms_cycle_od_par.m_f_mc_pc_bypass < 0.9)
+            {
+                while (opt_P_LP_err != 0 && ms_cycle_od_par.m_f_mc_pc_bypass < 0.9)
                 {
-                    opt_P_LP_err = solve_P_LP_in__target_W_dot();
-                }
-                else
-                {
-                    opt_P_LP_err = opt_P_LP_comp_in__fixed_N_turbo();
-                }
+                    ms_cycle_od_par.m_f_mc_pc_bypass += 0.01;
+                    if (is_modified_P_mc_in_solver)
+                    {
+                        opt_P_LP_err = solve_P_LP_in__target_W_dot();
+                    }
+                    else
+                    {
+                        opt_P_LP_err = opt_P_LP_comp_in__fixed_N_turbo();
+                    }
 
-				if (opt_P_LP_err != 0 && opt_P_LP_err != -31)
-				{
-					throw(C_csp_exception("2D nested optimization to maximize efficiency failed"));
-				}
-			}
-			if(opt_P_LP_err != 0)
-				throw(C_csp_exception("off design optimization, fixed shaft speed config, failed"));
-		}
+                    if (opt_P_LP_err != 0 && opt_P_LP_err != -31)
+                    {
+                        throw(C_csp_exception("2D nested optimization to maximize efficiency failed"));
+                    }
+                }
+                if (opt_P_LP_err != 0)
+                    throw(C_csp_exception("off design optimization, fixed shaft speed config, failed"));
+
+                if (is_mc_cooler_fan_limit && cycle_config == 2)
+                {
+                    try
+                    {
+                        solve_nested_T_pc_in__T_mc_in_for_cooler_constrains(W_dot_pc_cooler_fan_target,
+                            W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        opt_P_LP_err = -1;
+                    }
+                }
+                else if (is_mc_cooler_fan_limit)
+                {
+                    try
+                    {
+                        solve_T_mc_in_for_cooler_constraint(W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        return -1;
+                    }
+                }
+            }
+            if (opt_P_LP_err != 0)
+            {
+                throw(C_csp_exception("off design iteration on compressor bypass failed"));
+            }
+
+        }
 		else
 		{
             bool is_iterate_for_power_and_eta = true;
@@ -1617,7 +1681,14 @@ int C_sco2_phx_air_cooler::optimize_off_design(C_sco2_phx_air_cooler::S_od_par o
             }
             else if (is_mc_cooler_fan_limit)
             {
-                solve_T_mc_in_for_cooler_constraint(W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                try
+                {
+                    solve_T_mc_in_for_cooler_constraint(W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                }
+                catch (C_csp_exception)
+                {
+                    return -1;
+                }
             } 
             			
             if (is_iterate_for_power_and_eta)
@@ -1639,17 +1710,31 @@ int C_sco2_phx_air_cooler::optimize_off_design(C_sco2_phx_air_cooler::S_od_par o
 
                 double T_mc_in_opt_global = ms_cycle_od_par.m_T_mc_in;		//[K]
 
-                check_increasing_T_mc_in(W_dot_target, W_dot_pc_cooler_fan_target*1.001,
-                    is_modified_P_mc_in_solver,
-                    W_dot_opt_global, eta_max_global,
-                    P_LP_in_opt_global, T_mc_in_opt_global);
+                try
+                {
+                    check_increasing_T_mc_in(W_dot_target, W_dot_pc_cooler_fan_target*1.001,
+                        is_modified_P_mc_in_solver,
+                        W_dot_opt_global, eta_max_global,
+                        P_LP_in_opt_global, T_mc_in_opt_global);
+                }
+                catch (C_csp_exception)
+                {
+                    return -1;
+                }
 
                 while (cycle_config == 2)
                 {
                     ms_cycle_od_par.m_T_pc_in += 0.5;   //[K]
 
                     // find ms_cycle_od_par.m_T_mc_in that satisfies cooler requirement
-                    solve_T_mc_in_for_cooler_constraint(W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                    try
+                    {
+                        solve_T_mc_in_for_cooler_constraint(W_dot_mc_cooler_fan_target, T_comp_in_min, is_modified_P_mc_in_solver);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        break;
+                    }
 
                     double W_dot_opt_mc = std::numeric_limits<double>::quiet_NaN(); 	//[kWe]
 
@@ -2176,6 +2261,12 @@ int C_sco2_phx_air_cooler::solve_P_LP_in__target_W_dot()
     return 0;
 }
 
+void C_sco2_phx_air_cooler::check_od_solution(double & diff_m_dot, double & diff_E_cycle,
+    double & diff_Q_LTR, double & diff_Q_HTR)
+{
+    mpc_sco2_cycle->check_od_solution(diff_m_dot, diff_E_cycle, diff_Q_LTR, diff_Q_HTR);
+}
+
 int C_sco2_phx_air_cooler::opt_P_LP_comp_in__fixed_N_turbo()
 {
     ms_cycle_od_par.m_count_off_design_core = 0;
@@ -2624,9 +2715,10 @@ int C_sco2_phx_air_cooler::off_design_core(double & eta_solved)
     {
         double diff_T_t_in_local = std::numeric_limits<double>::quiet_NaN();
 
+        int test_code = 0;
         try
         {
-            c_phx_cycle_solver.test_member_function(ms_phx_od_par.m_T_h_in, &diff_T_t_in_local);        //[K] Use hot HTF temp as turbine inlet temperature
+            test_code = c_phx_cycle_solver.test_member_function(ms_phx_od_par.m_T_h_in, &diff_T_t_in_local);        //[K] Use hot HTF temp as turbine inlet temperature
         }
         catch (C_csp_exception)
         {
@@ -2634,6 +2726,12 @@ int C_sco2_phx_air_cooler::off_design_core(double & eta_solved)
             ms_od_solved.m_od_error_code = -1;
             ms_od_solved.m_is_converged = false;
             return ms_od_solved.m_od_error_code;
+        }
+        if (test_code != 0)
+        {
+            ms_od_solved.m_od_error_code = test_code;
+            ms_od_solved.m_is_converged = false;
+            return test_code;
         }
     }
     else if (T_t_in_mode == C_sco2_cycle_core::E_SOLVE_PHX)

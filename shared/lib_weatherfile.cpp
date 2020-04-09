@@ -62,7 +62,7 @@ static std::string trimboth(std::string &buf)
 	const auto strRange = strEnd - strBegin + 1;
 	return buf.substr(strBegin, strRange);
 }
-
+ 
 static std::vector<std::string> split(const std::string &buf, char delim = ',')
 {
 	std::string token;
@@ -466,7 +466,7 @@ bool is_missing(double v) {
 }
 
 float check_missing(double v, double missing = -999.) {
-	if (std::abs(v - missing) <= 0.01) {
+	if (std::fabs(v - missing) <= 0.01) {
 		return std::numeric_limits<float>::quiet_NaN();
 	}
 	else return (float)v;
@@ -950,7 +950,7 @@ bool weatherfile::open(const std::string &file, bool header_only)
 				else if (lowname == "dni" || lowname == "dn" || lowname == "beam" || lowname == "direct normal" || lowname == "direct normal irradiance" || lowname == "direct (beam) normal irradiance") m_columns[DNI].index = i;
 				else if (lowname == "dhi" || lowname == "df" || lowname == "diffuse" || lowname == "diffuse horizontal" || lowname == "diffuse horizontal irradiance") m_columns[DHI].index = i;
 				else if (lowname == "poa" || lowname == "pa" || lowname == "plane" || lowname == "plane of array" || lowname == "plane of array irradiance") m_columns[POA].index = i;
-				else if (lowname == "tdry" || lowname == "dry bulb" || lowname == "dry bulb temp" || lowname == "dry bulb temperature" || lowname == "temperature" || lowname == "ambient" || lowname == "ambient temp" || lowname == "tamb") m_columns[TDRY].index = i;
+				else if (lowname == "tdry" || lowname == "dry bulb" || lowname == "dry bulb temp" || lowname == "dry bulb temperature" || lowname == "temperature" || lowname == "ambient" || lowname == "ambient temp" || lowname == "tamb" || lowname == "air temperature" || lowname == "air temerature" ) m_columns[TDRY].index = i;
 				else if (lowname == "twet" || lowname == "wet bulb" || lowname == "wet bulb temperature") m_columns[TWET].index = i;
 				else if (lowname == "tdew" || lowname == "dew point" || lowname == "dew point temperature") m_columns[TDEW].index = i;
 				else if (lowname == "wspd" || lowname == "wind speed" || lowname == "windspeed" || lowname == "ws" || lowname == "windvel") m_columns[WSPD].index = i;
@@ -1262,7 +1262,7 @@ bool weatherfile::open(const std::string &file, bool header_only)
 				m_columns[TDEW].data[i] = check_missing(col_or_nan(cols[7]), 99.9);
 
 				m_columns[RH].data[i] = check_missing(col_or_nan(cols[8]), 999.);
-				m_columns[PRES].data[i] = check_missing(col_or_nan(cols[6]) * 0.01, 999999.*0.01);
+				m_columns[PRES].data[i] = check_missing(col_or_nan(cols[9]) * 0.01, 999999.*0.01);
 				m_columns[SNOW].data[i] = check_missing(col_or_nan(cols[30]), 999.); // snowfall
 				m_columns[ALB].data[i] = -999; /* no albedo in EPW file */
 				m_columns[AOD].data[i] = -999; /* no AOD in EPW */

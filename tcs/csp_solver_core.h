@@ -283,6 +283,7 @@ public:
         double m_csu_cost;
         double m_q_rec_standby;
         double m_pen_delta_w;
+        double m_disp_inventory_incentive;
 		double m_w_rec_ht;
 		std::vector<double> m_w_lim_full;
 
@@ -291,6 +292,8 @@ public:
         std::string m_ampl_data_dir;
         std::string m_ampl_exec_call;
 		
+        bool m_is_tod_pc_target_also_pc_max;
+
 		bool m_is_block_dispatch;
 
 		bool m_use_rule_1;
@@ -320,6 +323,7 @@ public:
             m_rsu_cost = 952.;
             m_csu_cost = 10000.;
             m_pen_delta_w = 0.1;
+            m_disp_inventory_incentive = 0.;
             m_q_rec_standby = 9.e99;
 			m_w_rec_ht = 0.0;
 			m_w_lim_full.resize(8760);
@@ -330,6 +334,8 @@ public:
             m_ampl_data_dir = "";               //directory where files should be written 
             m_ampl_exec_call = "";
 			
+            m_is_tod_pc_target_also_pc_max = false;
+
 			m_is_block_dispatch = true;			// Either this or m_dispatch_optimize must be true
 			
 			// Rule 1: if the sun sets (or does not rise) in m_standby_off_buffer [hours], then do not allow power cycle standby

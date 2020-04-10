@@ -175,9 +175,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
         
         if (i == 0) {
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
-            solved_params.m_P_cold_des = _solved_params.m_P_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
-            P_prev = solved_params.m_P_cold_des * 1.e-2;    //[bar]
+            P_prev = _solved_params.m_P_cold_des * 1.e-2;    //[bar]
         }
         q_dot_rec_des += _solved_params.m_q_dot_rec_des;
         A_aper_total += _solved_params.m_A_aper_total;

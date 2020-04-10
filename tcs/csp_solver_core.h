@@ -622,6 +622,7 @@ public:
 
 		// The following may not be set for sensible HTF systems
 		double m_P_hot_des;			//[kPa]
+		double m_P_cold_des;		//[kPa]
 		double m_x_hot_des;			//[-]
 
 		S_solved_params()
@@ -708,11 +709,11 @@ public:
     {
         double T_to_cr_at_des;		    //[K]
         double T_from_cr_at_des;		//[K]
-        double P_to_cr_at_des;          //[bar]
+        double P_lthx_in_at_des;        //[kPa]
 
         S_csp_tes_init_inputs()
         {
-            T_to_cr_at_des = T_from_cr_at_des = P_to_cr_at_des = std::numeric_limits<double>::quiet_NaN();
+            T_to_cr_at_des = T_from_cr_at_des = P_lthx_in_at_des = std::numeric_limits<double>::quiet_NaN();
         }
     };
 
@@ -729,11 +730,12 @@ public:
 		double m_T_hot_final;	    //[K]    Hot tank temperature at end of timestep
 		double m_T_cold_final;	    //[K]    Cold tank temperature at end of timestep
         double dP_perc;             //[%]    HTF pressure drop as percent of inlet pressure
+		double P_lthx_out;			//[kPa]
 	
 		S_csp_tes_outputs()
 		{
 			m_q_heater = m_m_dot = m_W_dot_rhtf_pump = m_q_dot_loss = m_q_dot_dc_to_htf = m_q_dot_ch_from_htf = 
-            m_T_hot_ave = m_T_cold_ave = m_T_hot_final = m_T_cold_final = dP_perc = std::numeric_limits<double>::quiet_NaN();
+            m_T_hot_ave = m_T_cold_ave = m_T_hot_final = m_T_cold_final = dP_perc = P_lthx_out = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 
@@ -1052,6 +1054,7 @@ private:
 	double m_cycle_T_htf_hot_des;		//[K]
     double m_cycle_T_htf_cold_des;      //[K]
 	double m_cycle_P_hot_des;			//[kPa]
+	double m_cycle_P_cold_des;			//[kPa]
 	double m_cycle_x_hot_des;			//[-]
 	double m_m_dot_pc_des;				//[kg/hr]
 	double m_m_dot_pc_min;				//[kg/hr]
@@ -1289,14 +1292,16 @@ public:
 	private:
 		C_csp_solver *mpc_csp_solver;
 		double m_T_htf_cold;		//[C]
+		double m_P_pc_out;			//[kPa]
 		int m_pc_mode;				//[-]
 
 	public:
 		C_mono_eq_pc_target_tes_dc__m_dot(C_csp_solver *pc_csp_solver, 
-				int pc_mode /*-*/, double T_htf_cold /*C*/)
+				int pc_mode /*-*/, double T_htf_cold /*C*/, double P_pc_out /*kPa*/)
 		{
 			mpc_csp_solver = pc_csp_solver;
 			m_T_htf_cold = T_htf_cold;
+			m_P_pc_out = P_pc_out;
 			m_pc_mode = pc_mode;
 		}
 
@@ -1858,7 +1863,7 @@ public:
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 
-		void solve_pc(double step /*s*/, double T_htf_pc_hot /*C*/, double m_dot_htf_pc /*kg/hr*/);
+		void solve_pc(double step /*s*/, double T_htf_pc_hot /*C*/, double P_pc_in /*kPa*/, double m_dot_htf_pc /*kg/hr*/);
 	};
 
 	class C_MEQ_cr_on__pc_target__tes_empty__step : public C_monotonic_equation
@@ -1877,10 +1882,12 @@ public:
 			m_T_htf_cold = T_htf_cold;				//[C]
 			m_m_dot_pc = std::numeric_limits<double>::quiet_NaN();		//[kg/hr]
 			m_T_htf_pc_hot = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+			m_P_pc_in = std::numeric_limits<double>::quiet_NaN();	    //[kPa]
 		}
 
 		double m_m_dot_pc;			//[kg/hr]
 		double m_T_htf_pc_hot;		//[C]
+		double m_P_pc_in;			//[kPa]
 
 		virtual int operator()(double step /*s*/, double *q_dot_pc /*MWt*/);
 	};

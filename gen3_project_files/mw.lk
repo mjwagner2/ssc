@@ -164,6 +164,8 @@ var( 'cold_tank_Thtr', 280 );
 var( 'h_tank_min', 1 );
 var( 'hot_tank_Thtr', 500 );
 var( 'hot_tank_max_heat', 0 );
+var( 'dP_LTHX_perc', 0.5 );
+var( 'dP_HTHX_perc', 1.5 );
 
 
 

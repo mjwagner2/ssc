@@ -564,10 +564,6 @@ class C_csp_two_tank_two_hx_tes : public C_csp_tes
 {
 private:
 
-    const double P_kPa_default = 22.e3;     // Assumed pressure of the sco2 fluid
-    const double dP_LTHX_perc = 0.5;        // [%] HTF pressure drop in low-temp TES HX as percent of inlet pressure
-    const double dP_HTHX_perc = 1.5;        // [%] HTF pressure drop in high-temp TES HX as percent of inlet pressure
-
     sco2Properties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
     HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
 
@@ -684,6 +680,9 @@ public:
         double m_htf_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through power cycle
         double m_tes_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through tes loop
         double eta_pump;            //[-] Pump efficiency, for newer pumping calculations
+        double P_avg;               //[kPa] Assumed pressure of the sco2 fluid
+        double dP_LTHX_perc;        //[%] HTF pressure drop in low-temp TES HX as percent of inlet pressure
+        double dP_HTHX_perc;        //[%] HTF pressure drop in high-temp TES HX as percent of inlet pressure
         bool tanks_in_parallel;     //[-] Whether the tanks are in series or parallel with the solar field. Series means field htf must go through storage tanks.
         bool has_hot_tank_bypass;   //[-] True if the bypass valve causes the field htf to bypass just the hot tank and enter the cold tank before flowing back to the field.
         double T_tank_hot_inlet_min; //[C] Minimum field htf temperature that may enter the hot tank

@@ -36,7 +36,6 @@ class C_mspt_receiver_222 : public C_pt_receiver
 
 private:
 	//ngcc_power_cycle cycle_calcs;
-    const double P_kPa_default = 22.e3;     // Assumed pressure of the sco2 fluid
 
 	double m_id_tube;
 	double m_A_tube;

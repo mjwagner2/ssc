@@ -473,7 +473,6 @@ void C_csp_solver::init()
 	mc_csp_messages.transfer_messages(mc_collector_receiver.mc_csp_messages);
 	
 	m_T_htf_cold_des = cr_solved_params.m_T_htf_cold_des;		//[K]
-	m_P_cold_des = cr_solved_params.m_P_cold_des;				//[kPa]
 	m_x_cold_des = cr_solved_params.m_x_cold_des;				//[-]
     m_rec_T_htf_hot_des = cr_solved_params.m_T_htf_hot_des;     //[K]
 	m_q_dot_rec_des = cr_solved_params.m_q_dot_rec_des;			//[MW]
@@ -495,15 +494,18 @@ void C_csp_solver::init()
 	m_m_dot_pc_max = pc_solved_params.m_m_dot_max;		//[kg/hr]				
 	
 	m_cycle_P_hot_des = pc_solved_params.m_P_hot_des;					//[kPa]
+	m_cycle_P_cold_des = pc_solved_params.m_P_cold_des;					//[kPa]
 	m_cycle_x_hot_des = pc_solved_params.m_x_hot_des;					//[-]
 		// TES
     C_csp_tes::S_csp_tes_init_inputs tes_init_inputs;
     C_csp_tes::S_csp_tes_outputs tes_solved_params;
     tes_init_inputs.T_to_cr_at_des = cr_solved_params.m_T_htf_cold_des;
     tes_init_inputs.T_from_cr_at_des = cr_solved_params.m_T_htf_hot_des;
-    tes_init_inputs.P_to_cr_at_des = cr_solved_params.m_P_cold_des * 1.e-2;  //[bar]
+    tes_init_inputs.P_lthx_in_at_des = pc_solved_params.m_P_cold_des;   //[kPa]
 	mc_tes.init(tes_init_inputs, tes_solved_params);
     m_m_dot_tes_des = tes_solved_params.m_m_dot * 3600.;  //[kg/hr]
+	m_P_cold_des = tes_solved_params.P_lthx_out;          //[kPa]  collector-receiver
+
 		// TOU
     mc_tou.mc_dispatch_params.m_isleapyear = mc_weather.ms_solved_params.m_leapyear;
 	mc_tou.init();

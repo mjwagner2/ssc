@@ -602,6 +602,8 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	solved_params.m_m_dot_design = m_m_dot_design;		//[kg/hr]
 	solved_params.m_m_dot_min = m_m_dot_min;			//[kg/hr]
 	solved_params.m_m_dot_max = m_m_dot_max;			//[kg/hr]
+	solved_params.m_P_hot_des = ms_params.m_P_turb_in_co2_des * 1.E3;	//[kPa]
+	solved_params.m_P_cold_des = ms_params.m_P_phx_in_co2_des * 1.E3;	//[kPa]
 	
 
 	// Cold storage and radiator setup ARD 

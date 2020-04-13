@@ -188,6 +188,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     // Direct CO2 User Defined
     { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_des",                  "CO2 turbine inlet pressure",                                                                                                              "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_off_sun_des",          "CO2 turbine inlet pressure at off sun",                                                                                                   "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
 
     // System Control
     { SSC_INPUT,     SSC_NUMBER, "time_start",                         "Simulation start time",                                                                                                                   "s",            "",                                  "System Control",                           "?=0",                                                              "",              ""},
@@ -624,6 +625,7 @@ public:
 
         pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des");
         pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des");
+        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des");
 
         pc->m_cycle_max_frac = as_double("cycle_max_frac");
         pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");

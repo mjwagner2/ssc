@@ -192,6 +192,7 @@ var( 'ud_T_amb_ind_od', [ [ 0 ] ] );
 var( 'ud_m_dot_htf_ind_od', [ [ 0 ] ] );
 var( 'P_phx_in_co2_des', 24.750625 );
 var( 'P_turb_in_co2_des', 20.790525 );
+var( 'P_turb_in_co2_off_sun_des', 24.504 );
 
 var( 'pb_fixed_par', 0); //0.0055 );
 /*

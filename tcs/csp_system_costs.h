@@ -38,11 +38,14 @@ public:
 		double heliostat_fixed_cost;	//[$] Heliostat fixed cost
 
 			// Tower
-		double h_tower;					//[m] Tower height
-		double h_rec;					//[m] Receiver height
-		double h_helio;					//[m] Heliostat height
-		double tower_fixed_cost;		//[$] Tower fixed cost
-		double tower_cost_scaling_exp;	//[-] Tower cost scaling exponent
+		double h_tower;					            //[m] Tower height
+		double h_rec;					            //[m] Receiver height
+		double h_helio;					            //[m] Heliostat height
+		double tower_fixed_cost;		            //[$] Tower fixed cost
+		double tower_cost_scaling_exp;	            //[-] Tower cost scaling exponent
+        double foundation_fixed_cost;               //[$] Foundation fixed cost
+        double foundation_cost_scaling_quadratic;   //[$/m^2] Foundation cost scaling quadratic
+        double foundation_cost_scaling_linear;      //[$/m] Foundation cost scaling linear
 
 			// Receiver
 		double A_rec;					//[m^2] Receiver area
@@ -160,7 +163,8 @@ namespace N_mspt
 
 	double heliostat_cost(double A_refl /*m^2*/, double heliostat_spec_cost /*$/m^2*/, double heliostate_fixed_cost /*$*/ );
 
-	double tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_helio /*m*/, double tower_fixed_cost /*$*/, double tower_cost_scaling_exp /*-*/);
+	double tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_helio /*m*/, double tower_fixed_cost /*$*/, double tower_cost_scaling_exp /*-*/,
+        double foundation_fixed_cost /*$*/, double foundation_cost_scaling_quadratic, /*$/m^2*/ double foundation_cost_scaling_linear /*$/m*/);
 
 	double receiver_cost(double A_rec /*m^2*/, double rec_ref_cost /*$*/, double rec_ref_area /*m^2*/, double rec_cost_scaling_exp /*-*/);
 	

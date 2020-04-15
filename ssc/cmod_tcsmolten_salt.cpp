@@ -82,6 +82,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
     { SSC_INPUT,     SSC_NUMBER, "tower_fixed_cost",                   "Tower fixed cost",                                                                                                                        "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "tower_exp",                          "Tower cost scaling exponent",                                                                                                             "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "foundation_fixed_cost",              "Tower foundation fixed cost",                                                                                                             "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "foundation_cost_scaling_quadratic",  "Tower foundation cost scaling quadratic",                                                                                                 "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "foundation_cost_scaling_linear",     "Tower foundation cost scaling linear",                                                                                                    "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "rec_ref_cost",                       "Receiver reference cost",                                                                                                                 "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "rec_ref_area",                       "Receiver reference area for cost scale",                                                                                                  "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "rec_cost_exp",                       "Receiver cost scaling exponent",                                                                                                          "",             "",                                  "System Costs",                             "*",                                                                "",              "" },
@@ -910,7 +913,6 @@ public:
         tes->m_hot_tank_max_heat = as_double("hot_tank_max_heat");
         tes->m_cold_tank_Thtr = as_double("cold_tank_Thtr");
         tes->m_cold_tank_max_heat = as_double("cold_tank_max_heat");
-        //tes->m_dt_hot = as_double("dt_hot");                    //[C]
         tes->m_dt_hthx = as_double("dt_ht_discharging");        //[C]
         tes->m_dt_lthx = as_double("dt_lt_discharging");        //[C]
         tes->m_T_tes_hot_des = as_double("T_tes_hot_des");
@@ -1200,6 +1202,9 @@ public:
         sys_costs.ms_par.h_helio = as_double("helio_height");
         sys_costs.ms_par.tower_fixed_cost = as_double("tower_fixed_cost");
         sys_costs.ms_par.tower_cost_scaling_exp = as_double("tower_exp");
+        sys_costs.ms_par.foundation_fixed_cost = as_double("foundation_fixed_cost");
+        sys_costs.ms_par.foundation_cost_scaling_quadratic = as_double("foundation_cost_scaling_quadratic");
+        sys_costs.ms_par.foundation_cost_scaling_linear = as_double("foundation_cost_scaling_linear");
 
         sys_costs.ms_par.A_rec = A_rec;
         sys_costs.ms_par.rec_ref_cost = as_double("rec_ref_cost");

@@ -154,6 +154,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "h_tank_min",                         "Minimum allowable HTF height in storage tank",                                                                                            "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "hot_tank_Thtr",                      "Minimum allowable hot tank HTF temperature",                                                                                              "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "hot_tank_max_heat",                  "Rated heater capacity for hot tank heating",                                                                                              "MW",           "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dP_LTHX_perc",                       "HTF pressure drop in low-temp TES HX as percent of inlet pressure",                                                                       "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dP_HTHX_perc",                       "HTF pressure drop in high-temp TES HX as percent of inlet pressure",                                                                      "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
 
     // Power Cycle Inputs
     { SSC_INPUT,     SSC_NUMBER, "T_pc_cold_des",                      "Power cycle design cold temperature",                                                                                                     "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
@@ -186,6 +188,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     // Direct CO2 User Defined
     { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_des",                  "CO2 turbine inlet pressure",                                                                                                              "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_off_sun_des",          "CO2 turbine inlet pressure at off sun",                                                                                                   "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
 
     // System Control
     { SSC_INPUT,     SSC_NUMBER, "time_start",                         "Simulation start time",                                                                                                                   "s",            "",                                  "System Control",                           "?=0",                                                              "",              ""},
@@ -622,6 +625,7 @@ public:
 
         pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des");
         pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des");
+        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des");
 
         pc->m_cycle_max_frac = as_double("cycle_max_frac");
         pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
@@ -796,7 +800,7 @@ public:
         
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = std::numeric_limits<double>::quiet_NaN(); // as_double("epsilon");
-        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * 1.e3 * (1. - 0.5/100.);       //[kPa]
+        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * 1.e3 * (1. - as_double("dP_LTHX_perc")/100.);       //[kPa]
         receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
         receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
@@ -917,6 +921,9 @@ public:
         tes->m_htf_pump_coef = as_double("pb_pump_coef");
         tes->m_tes_pump_coef = as_double("tes_pump_coef");             //[kWe/kg/s]
         tes->eta_pump = as_double("eta_pump");                  //[-]
+        tes->P_avg = (as_double("P_phx_in_co2_des") + as_double("P_turb_in_co2_des")) / 2 * 1.e3;  //[kPa]
+        tes->dP_LTHX_perc = as_double("dP_LTHX_perc");          //[%]
+        tes->dP_HTHX_perc = as_double("dP_HTHX_perc");          //[%]
 
 
         // TOU parameters

@@ -630,7 +630,7 @@ void C_mspt_receiver_222::call(const C_csp_weatherreader::S_outputs &weather,
 				// Calculations for the inside of the tube						
 				double mu_coolant = field_htfProps.visc(T_coolant_prop);					//[kg/m-s] Absolute viscosity of the coolant
 				double k_coolant = field_htfProps.cond(T_coolant_prop);					//[W/m-K] Conductivity of the coolant
-				rho_coolant = field_htfProps.dens(T_coolant_prop, P_kPa_default * 1.e3); //[kg/m^3] Density of the coolant
+				rho_coolant = field_htfProps.dens(T_coolant_prop, field_htfProps.P_kPa_default * 1.e3); //[kg/m^3] Density of the coolant
 
 				u_coolant = m_dot_salt / (m_n_t*rho_coolant*pow((m_id_tube / 2.0), 2)*CSP::pi);	//[m/s] Average velocity of the coolant through the receiver tubes
 				double Re_inner = rho_coolant*u_coolant*m_id_tube / mu_coolant;				//[-] Reynolds number of internal flow

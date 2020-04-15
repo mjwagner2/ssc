@@ -845,8 +845,9 @@ void C_csp_two_tank_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inputs
     }
 
     if (ms_params.calc_design_pipe_vals) {
+        double P_to_cr_at_des = init_inputs.P_lthx_in_at_des * (1. - 0.5 / 100.);   // [kPa]
         if (size_tes_piping_TandP(mc_field_htfProps, init_inputs.T_to_cr_at_des, init_inputs.T_from_cr_at_des,
-            init_inputs.P_to_cr_at_des * 1.e5, ms_params.DP_SGS * 1.e5, // bar to Pa
+            P_to_cr_at_des * 1.e3, ms_params.DP_SGS * 1.e5, // bar to Pa
             ms_params.tes_lengths, ms_params.k_tes_loss_coeffs, ms_params.pipe_rough, ms_params.tanks_in_parallel,
             this->pipe_diams, this->pipe_vel_des,
             this->pipe_T_des, this->pipe_P_des,
@@ -2850,7 +2851,7 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         error_msg = "The number of custom TES pipe sections is not correct.";
         throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
     }
-    double rho_avg = mc_field_htfProps.dens((ms_params.m_T_lt_in_des + T_ht_out_des) / 2, P_kPa_default * 1.e3);
+    double rho_avg = mc_field_htfProps.dens((ms_params.m_T_lt_in_des + T_ht_out_des) / 2, ms_params.P_avg * 1.e3);
     double cp_avg = mc_field_htfProps.Cp((ms_params.m_T_lt_in_des + T_ht_out_des) / 2);
     double m_dot_pb_design = ms_params.m_W_dot_pc_design * 1.e3 /   // convert MWe to kWe for cp [kJ/kg-K]
         (ms_params.m_eta_pc * cp_avg * (T_ht_out_des - ms_params.m_T_lt_in_des));
@@ -2864,11 +2865,12 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         throw(C_csp_exception(error_msg, "Two Tank TES Initialization"));
     }
 
+    solved_params.P_lthx_out = init_inputs.P_lthx_in_at_des * (1. - ms_params.dP_LTHX_perc / 100.);  // kPa
     if (ms_params.calc_design_pipe_vals) {
-        double P_field_in = init_inputs.P_to_cr_at_des;  // bar
-        if (std::isnan(P_field_in)) P_field_in = P_kPa_default * 1.e-2;     // kPa to bar
+        double P_field_in = solved_params.P_lthx_out;
+        if (std::isnan(P_field_in)) P_field_in = ms_params.P_avg;     // kPa
         if (size_tes_piping_TandP(mc_field_htfProps, ms_params.m_T_lt_in_des, T_ht_out_des,
-            P_field_in * 1.e5, ms_params.DP_SGS * 1.e5, // bar to Pa
+            P_field_in * 1.e3, ms_params.DP_SGS * 1.e5, // bar to Pa
             ms_params.tes_lengths, ms_params.k_tes_loss_coeffs, ms_params.pipe_rough, ms_params.tanks_in_parallel,
             this->pipe_diams, this->pipe_vel_des,
             this->pipe_T_des, this->pipe_P_des,
@@ -3088,7 +3090,7 @@ void C_csp_two_tank_two_hx_tes::discharge_full_lt(double timestep /*s*/, double 
     outputs.m_T_cold_ave = T_cold_ave;
     outputs.m_T_hot_final = mc_warm_tank.get_m_T_calc();
     outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();
-    outputs.dP_perc = dP_LTHX_perc;
+    outputs.dP_perc = ms_params.dP_LTHX_perc;
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_warm_out);		//[K]
@@ -3136,7 +3138,7 @@ void C_csp_two_tank_two_hx_tes::discharge_full(double timestep /*s*/, double T_a
     outputs.m_T_cold_ave = T_warm_ave;
     outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();
     outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();
-    outputs.dP_perc = dP_HTHX_perc;
+    outputs.dP_perc = ms_params.dP_HTHX_perc;
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
@@ -3184,7 +3186,7 @@ void C_csp_two_tank_two_hx_tes::discharge_full_both(double timestep /*s*/, doubl
     outputs.m_T_cold_ave = T_cold_ave;
     outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();
     outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();
-    outputs.dP_perc = dP_LTHX_perc + dP_HTHX_perc - dP_LTHX_perc * dP_HTHX_perc / 100;  //[%]
+    outputs.dP_perc = ms_params.dP_LTHX_perc + ms_params.dP_HTHX_perc - ms_params.dP_LTHX_perc * ms_params.dP_HTHX_perc / 100;  //[%]
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
@@ -3336,7 +3338,7 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
     outputs.m_T_cold_ave = T_warm_ave;							//[K]
     outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
     outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();		//[K]
-    outputs.dP_perc = dP_HTHX_perc;
+    outputs.dP_perc = ms_params.dP_HTHX_perc;
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
@@ -3398,7 +3400,7 @@ bool C_csp_two_tank_two_hx_tes::discharge_tes_side(double timestep /*s*/, double
     outputs.m_T_cold_ave = T_warm_ave;							//[K]
     outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
     outputs.m_T_cold_final = mc_warm_tank.get_m_T_calc();		//[K]
-    outputs.dP_perc = dP_HTHX_perc;
+    outputs.dP_perc = ms_params.dP_HTHX_perc;
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]
@@ -3550,7 +3552,7 @@ bool C_csp_two_tank_two_hx_tes::discharge_both(double timestep /*s*/, double T_a
     outputs.m_T_cold_ave = T_cold_ave;							//[K]
     outputs.m_T_hot_final = mc_hot_tank.get_m_T_calc();			//[K]
     outputs.m_T_cold_final = mc_cold_tank.get_m_T_calc();		//[K]
-    outputs.dP_perc = dP_LTHX_perc + dP_HTHX_perc - dP_LTHX_perc * dP_HTHX_perc / 100;  //[%]
+    outputs.dP_perc = ms_params.dP_LTHX_perc + ms_params.dP_HTHX_perc - ms_params.dP_LTHX_perc * ms_params.dP_HTHX_perc / 100;  //[%]
 
     // Calculate thermal power to HTF
     double T_htf_ave = 0.5*(T_htf_cold_in + T_htf_hot_out);		//[K]

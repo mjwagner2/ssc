@@ -181,8 +181,9 @@ public:
 		double m_T_htf_hot_ref;		//[C] design HTF inlet temperature
 		double m_T_htf_cold_ref;	//[C] design HTF output temperature
 		
-        double m_P_phx_in_co2_des;  //[MPa] design inlet pressure to PHX
-        double m_P_turb_in_co2_des; //[MPa] design turbine inlet pressure to turbine
+        double m_P_phx_in_co2_des;          //[MPa] design inlet pressure to PHX
+        double m_P_turb_in_co2_des;         //[MPa] design turbine inlet pressure to turbine
+        double m_P_turb_in_co2_off_sun_des; //[MPa] design turbine inlet pressure to turbine at off sun
 
         double m_cycle_max_frac;	//[-] Maximum turbine over-design operation fraction
 		double m_cycle_cutoff_frac;	//[-] Minimum turbine operation fraction

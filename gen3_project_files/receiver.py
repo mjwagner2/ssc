@@ -32,6 +32,29 @@ def density_co2(T_C, P_MPa):
     return P_MPa*1e6 / ((T_C+273.15) * 188.92)
 
 #----------------------------------------------------------------------------
+def calculate_tower_height(q_solarfield_in_kw, is_north = True, wp_data = False):
+    """
+    Inputs
+        q_solarfield_in_kw - design point incident power on all receivers (kW)
+        is_north - use north-field configuration
+        wp_data - use Worley-Parsons curve
+    
+    Returns
+        Tower height (m)
+    """
+    q = q_solarfield_in_kw/1000.
+
+    if wp_data:
+        tht = 3.3627e-07*q**3 - 6.4330E-04*q**2 + 5.3928E-01*q + 3.7892E+01
+    else:
+        if is_north:
+            tht = 11.376 * q**0.4554
+        else:
+            tht = 13.231 * q**0.4031
+
+    return tht
+
+#----------------------------------------------------------------------------
 def calculate_efficiency(L):
     return interp(L, __raw_data['length'], __raw_data['efficiency'])
 

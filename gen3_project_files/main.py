@@ -1,8 +1,11 @@
 from PySSC import PySSC
 import numpy as np
 import os
+
+#modules with cost/performance functions
 import piping
 import receiver
+import tes
 
 """
 ####################################################
@@ -88,17 +91,17 @@ class Gen3opt:
         ####################################################
         """
 
-        ssc.data_set_string( data, b'solar_resource_file', b'daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
+        ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
         
 
-        ssc.data_set_array_from_csv( data, b'wlim_series', b'wlim_series.csv');
-        ssc.data_set_array_from_csv( data, b'dispatch_factors_ts', b'dispatch_factors_ts.csv');
-        ssc.data_set_matrix_from_csv( data, b'ud_ind_od', b'ud_ind_od.csv');
-        ssc.data_set_matrix_from_csv( data, b'ud_ind_od_off_sun', b'ud_ind_od_off_sun.csv');
-        ssc.data_set_matrix_from_csv( data, b'rec_efficiency_lookup', b'rec_efficiency.csv');
-        ssc.data_set_matrix_from_csv( data, b'rec_pressure_lookup', b'rec_pressure.csv');
+        ssc.data_set_array_from_csv( data, b'wlim_series', b'resource/wlim_series.csv');
+        ssc.data_set_array_from_csv( data, b'dispatch_factors_ts', b'resource/dispatch_factors_ts.csv');
+        ssc.data_set_matrix_from_csv( data, b'ud_ind_od', b'resource/ud_ind_od.csv');
+        ssc.data_set_matrix_from_csv( data, b'ud_ind_od_off_sun', b'resource/ud_ind_od_off_sun.csv');
+        ssc.data_set_matrix_from_csv( data, b'rec_efficiency_lookup', b'resource/rec_efficiency.csv');
+        ssc.data_set_matrix_from_csv( data, b'rec_pressure_lookup', b'resource/rec_pressure.csv');
 
-        eta_map = [[float(v) for v in line.split(',')] for line in open('eta_map.csv','r').readlines()] 
+        eta_map = [[float(v) for v in line.split(',')] for line in open('resource/eta_map.csv','r').readlines()] 
 
         solarm_ref = 3.;
         # solarm = 2.8;
@@ -714,7 +717,7 @@ class Gen3opt:
 if __name__ == "__main__":
 
 
-    # g = Gen3opt()
-    # g.settings.print_summary_output = True
-    # g.initialize_variables()
-    # g.exec()
+    g = Gen3opt()
+    g.settings.print_summary_output = True
+    g.initialize_variables()
+    g.exec()

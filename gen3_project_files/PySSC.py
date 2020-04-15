@@ -5,11 +5,11 @@ c_number = c_double # must be c_double or c_float depending on how defined in ss
 class PySSC:
 	def __init__(self):
 		if sys.platform == 'win32' or sys.platform == 'cygwin':
-			self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/sam-model/ssc.dll") 
-		elif sys.platform == 'darwin':
-			self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.dylib") 
-		elif sys.platform == 'linux2':
-			self.pdll = CDLL('C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.so')   # instead of relative path, require user to have on LD_LIBRARY_PATH
+			self.pdll = CDLL(os.getcwd() + "/ssc.dll") 
+		# elif sys.platform == 'darwin':
+		# 	self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.dylib") 
+		# elif sys.platform == 'linux2':
+		# 	self.pdll = CDLL('C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.so')   # instead of relative path, require user to have on LD_LIBRARY_PATH
 		else:
 			print ('Platform not supported ', sys.platform)
 	INVALID=0

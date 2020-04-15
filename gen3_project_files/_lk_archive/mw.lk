@@ -126,6 +126,8 @@ var( 'tower_fixed_cost', 2.3602 * 0.78232e6 );  // 2.3602 * 0.78232e6 = 1846432,
 var( 'foundation_fixed_cost', 6684590 );
 var( 'foundation_cost_scaling_quadratic', 154.343 );
 var( 'foundation_cost_scaling_linear', 115727 );
+var( 'particle_lift_cost', 60e6 );
+var( 'riser_and_downcomer_cost', (233*1.5 + 50/2)*(38e3 + 137e3) );  // not sure where the extra 50 m is, and if it's total or per receiver
 var( 'rec_ref_cost', 29455500. );
 var( 'rec_ref_area', 1574 );
 var( 'rec_cost_exp', 0.7 );

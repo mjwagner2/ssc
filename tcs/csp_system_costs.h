@@ -46,6 +46,8 @@ public:
         double foundation_fixed_cost;               //[$] Foundation fixed cost
         double foundation_cost_scaling_quadratic;   //[$/m^2] Foundation cost scaling quadratic
         double foundation_cost_scaling_linear;      //[$/m] Foundation cost scaling linear
+        double particle_lift_cost;                  //[$] Particle lift fixed cost
+        double riser_and_downcomer_cost;            //[$] Riser and downcomer fixed cost
 
 			// Receiver
 		double A_rec;					//[m^2] Receiver area

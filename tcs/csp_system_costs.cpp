@@ -37,6 +37,11 @@ void C_mspt_system_costs::check_parameters_are_set()
 		ms_par.h_helio != ms_par.h_helio ||
 		ms_par.tower_fixed_cost != ms_par.tower_fixed_cost ||
 		ms_par.tower_cost_scaling_exp != ms_par.tower_cost_scaling_exp ||
+        ms_par.foundation_fixed_cost != ms_par.foundation_fixed_cost ||
+        ms_par.foundation_cost_scaling_quadratic != ms_par.foundation_cost_scaling_quadratic ||
+        ms_par.foundation_cost_scaling_linear != ms_par.foundation_cost_scaling_linear ||
+        ms_par.particle_lift_cost != ms_par.particle_lift_cost ||
+        ms_par.riser_and_downcomer_cost != ms_par.riser_and_downcomer_cost ||
 
 		ms_par.A_rec != ms_par.A_rec ||
 		ms_par.rec_ref_cost != ms_par.rec_ref_cost ||
@@ -128,7 +133,7 @@ void C_mspt_system_costs::calculate_costs()
 		N_mspt::direct_capital_precontingency_cost(
 			ms_out.site_improvement_cost,
 			ms_out.heliostat_cost,
-			ms_out.tower_cost,
+			ms_out.tower_cost + ms_par.particle_lift_cost + ms_par.riser_and_downcomer_cost,
 			ms_out.receiver_cost,
 			ms_out.tes_cost,
 			ms_out.power_cycle_cost,

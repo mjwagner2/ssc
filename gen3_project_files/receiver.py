@@ -1,6 +1,7 @@
-from numpy import interp, pi
+from numpy import interp, pi, array, argsort
 
 
+#----------------------------------------------------------------------------
 #lookup for receiver performance versus height (length) in m
 __raw_data = {
     'length':[3, 3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8],
@@ -9,18 +10,24 @@ __raw_data = {
     'm_dot_tube':[0.01627, 0.02775, 0.04279, 0.04555, 0.05554, 0.06157, 0.08409, 0.08757, 0.109, 0.1229, 0.1238, 0.1386, 0.1535, 0.1682], #kg/s
 }
 
+#----------------------------------------------------------------------------
 def calculate_efficiency(L):
     return interp(L, __raw_data['length'], __raw_data['efficiency'])
 
+#----------------------------------------------------------------------------
 def calculate_pressure_drop(L):
     return interp(L, __raw_data['length'], __raw_data['pressure_drop'])
 
+#----------------------------------------------------------------------------
 def calculate_m_dot_tube(L):
     return interp(L, __raw_data['length'], __raw_data['m_dot_tube'])
 
+#----------------------------------------------------------------------------
 def calculate_area():
+
     return
 
+#----------------------------------------------------------------------------
 def calculate_cost(L, N_tubes):
     """
     Calculate the receiver cost as a function of height (L) and number of tubes (N_tubes)
@@ -139,6 +146,131 @@ def calculate_cost(L, N_tubes):
     return {'total_cost':total_cost, 'A_rec':A_rec}
 
 
+#----------------------------------------------------------------------------
+def __poly_coefs(X,Y):
+    """
+    Solve for polynomial coefficients that give an exact fit on a 3-point array.
+
+    Input
+        X - dim 3 array of x-axis values
+        Y - dim 3 array of y-axis values
+    
+    Returns
+        array[3] : polynomial coefficients [const, linear, quad]
+    """
+
+    if len(X) != len(Y) or len(X) != 3:
+        raise Exception("__poly_coefs(X,Y) requires X,Y arrays of length 3")
+
+    x1,x2,x3 = X
+    y1,y2,y3 = Y
+
+    #solve explicitly for coefficients based on x,y data
+    c2 = (y3-y1 - (x3-x1)/(x2-x1)*(y2-y1))/(x3**2 - x1**2 + (x3-x1)/(x2-x1)*(x1**2 - x2**2))
+    c1 = (y2-y1 + c2*(x1**2 - x2**2))/(x2-x1)
+    c0 = y1 - c2*x1**2 - c1*x1
+
+    return [c0, c1, c2]
+
+def __interp_poly(X,Y,x):
+    c0,c1,c2 = __poly_coefs(X,Y)
+    return (lambda v: c0 + c1*v + c2*v**2)(x)
+#----------------------------------------------------------------------------
+    
+
+def create_heliostat_field_lookup(efficiency_file_path, q_solarfield_in_kw, heliostat_area_m2):
+    """
+    Read the efficiency file and interpolate between power levels to produce a single, power-appropriate
+    efficiency lookup table for use in the performance simulation.\n\n
+
+    Inputs\n
+        efficiency_file_path\n
+            Relative path to efficiency file. The first row of the file lists included power levels.
+            The second and following rows list efficiency and active area of each subfield as a function
+            of sun position. Columns are:\n
+                                 | Power level 1 .........................................| Power level 2.......\n
+            SolAz(deg)|SolEl(deg)|Sf1Eff(-)|Sf2Eff(-)|Sf3Eff(-)|Sf1A(m2)|Sf2A(m2)|Sf3A(m3)|Sf1Eff(-)|Sf2Eff(-)|...\n
+        q_solarfield_in_kw\n
+            Nominal power level for the solar field at design (kw)\n
+        heliostat_area_m2\n
+            Active reflective area of a *single* heliostat (m2)\n\n
+
+    Returns:\n
+        Lookup table expressing efficiency and number of heliostats active for each receiver. The table
+        contains the following for an array of solar angles:\n
+        SolAz(deg)|SolEl(deg)|Sf1Eff(-)|Sf2Eff(-)|Sf3Eff(-)|Sf1A(m2)|Sf2A(m2)|Sf3A(m3)
+    """
+
+    #load the file
+    fdat = open(efficiency_file_path, 'r').readlines()
+    
+    #collect the power levels
+    power_levels = fdat[0].replace('\n','').split(",")
+    while ("" in power_levels):
+        power_levels.remove("")
+    power_levels = [float(v) for v in power_levels]
+
+    #read raw data
+    raw_data = [[float(v) for v in line.split(",")] for line in fdat[1:]]
+
+    #there should be 2 + 6*len(power_levels) columns
+    if len(raw_data[0]) != (2 + 6*len(power_levels)):
+        raise Exception("The number of columns in the heliostat efficiency data file does not match "
+                        "the number of power levels. Expected {:d} columns for {:d} power levels but "
+                        "read in {:d}.".format(2+6*len(power_levels), len(power_levels), len(raw_data[0])))
+    
+    raw_data_T = array(raw_data).T
+
+    #structure data
+    all_data = {}
+    
+    interp_data = {
+        "azimuth" : raw_data_T[0],
+        "zenith"  : raw_data_T[1],
+    }
+
+    cols = ['azimuth','zenith','eta_1','eta_2','eta_3','nh_1','nh_2','nh_3']
+
+    #find the 3-point region closest to the given power level
+    power_level_indices = argsort( array([(q-q_solarfield_in_kw)**2 for q in power_levels]) )[:3]
+    power_levels_used = [power_levels[i] for i in power_level_indices]
+
+    #collate all available data by sun position, with a list of values corresponding to each power level
+    for j,lab in enumerate(cols[2:]):
+        zcols = []
+        #convert heliostat total area to heliostat count, if applicable
+        scale = heliostat_area_m2 if "nh" in str(lab) else 1.
+        #get all of the related columns by power level
+        for i in power_level_indices:
+            zcols.append(raw_data_T[2+6*i+j]/scale)
+
+        #zip columns into lists
+        all_data[lab] = list(zip(*zcols))
+
+        interp_data[lab] = []
+
+        for datset in all_data[lab]:
+            interp_data[lab].append( __interp_poly(power_levels_used, datset, q_solarfield_in_kw) )
+        
+    return array([interp_data[col] for col in cols]).T.tolist()
+
+
+#----------------------------------------------------------------------------
 if __name__ == "__main__":
     #test
-    print(calculate_cost(5.3, 14124))
+    # print(calculate_cost(5.3, 14124))
+    
+    # import matplotlib.pyplot as plt
+    # import numpy
+
+    # X = [3, 12, 33]
+    # Y = [15, 5, 40]    
+    # c0,c1,c2 = __poly_coefs(X,Y)
+    # Xa = numpy.arange(0, 50, .2)
+    # Ya = [(lambda x: c0 + c1*x + c2*x**2)(x) for x in Xa]
+    # plt.plot(X,Y, 'ks')
+    # plt.plot(Xa,Ya, 'b-')
+    # plt.show()
+
+    tab = create_heliostat_field_lookup("resource/eta_lookup_north.csv", 100, 8.6**2)
+    x=1

@@ -666,7 +666,9 @@ public:
         double m_hot_tank_max_heat;	//[MW]
         double m_cold_tank_Thtr;	//[C] convert to K in init()
         double m_cold_tank_max_heat;//[MW]
-        double m_dt_hot;			//[C] Temperature difference across heat exchanger - assume hot and cold deltaTs are equal
+        //double m_dt_hot;			//[C] Temperature difference across heat exchanger - assume hot and cold deltaTs are equal
+        double m_dt_lthx;           //[C] Approach temperature (hot side) for low temperature discharge HX
+        double m_dt_hthx;           //[C] Approach temperature (hot side) for high temperature discharge HX
         double m_T_tes_hot_des; 	//[C] convert to K in init()
         double m_T_tes_warm_des;    //[C] convert to K in init()
         double m_T_tes_cold_des;	//[C] convert to K in init()
@@ -712,7 +714,7 @@ public:
             m_ts_hours = 0.0;		//[hr] Default to 0 so that if storage isn't defined, simulation won't crash
 
             m_W_dot_pc_design = m_eta_pc = m_solarm = m_h_tank = m_u_tank = m_hot_tank_Thtr = m_hot_tank_max_heat = m_cold_tank_Thtr =
-                m_cold_tank_max_heat = m_dt_hot = m_T_tes_hot_des = m_T_tes_warm_des = m_T_tes_cold_des = m_T_ht_in_des = m_T_lt_in_des =
+                m_cold_tank_max_heat = m_dt_lthx = m_dt_hthx = m_T_tes_hot_des = m_T_tes_warm_des = m_T_tes_cold_des = m_T_ht_in_des = m_T_lt_in_des =
                 m_dP_field_des = m_T_tank_hot_ini = m_T_tank_cold_ini = m_h_tank_min = m_f_V_hot_ini = m_htf_pump_coef = m_tes_pump_coef =
                 eta_pump = T_tank_hot_inlet_min = V_tes_des = pipe_rough = DP_SGS = std::numeric_limits<double>::quiet_NaN();
 

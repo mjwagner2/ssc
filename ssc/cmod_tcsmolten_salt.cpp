@@ -146,7 +146,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.tes.init_hot_htf_percent",    "Initial fraction of available volume that is hot",                                                                                        "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "h_tank",                             "Total height of tank (height of HTF when tank is full)",                                                                                  "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "cold_tank_max_heat",                 "Rated heater capacity for cold tank heating",                                                                                             "MW",           "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "dt_hot",                             "Hot side HX approach temp",                                                                                                               "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dt_charging",                        "Charging HX approach temp",                                                                                                               "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dt_ht_discharging",                  "High temperature discharging HX approach temp",                                                                                           "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dt_lt_discharging",                  "Low temperature discharging HX approach temp",                                                                                            "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "u_tank",                             "Loss coefficient from the tank",                                                                                                          "W/m2-K",       "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "tank_pairs",                         "Number of equivalent tank pairs",                                                                                                         "",             "",                                  "Thermal Storage",                          "*",                                                                "INTEGER",       ""},
     { SSC_INPUT,     SSC_NUMBER, "cold_tank_Thtr",                     "Minimum allowable cold tank HTF temperature",                                                                                             "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
@@ -824,7 +826,7 @@ public:
         tower.m_tes_fl = as_integer("store_htf");
         tower.m_tes_fl_props = as_matrix("store_fl_props");
         tower.hx_duty = as_double("P_ref") / as_double("design_eff") * 1.E6;  //[Wt], indiv. HX duty = q_pb_design
-        tower.m_dt_hot = as_double("dt_hot");                    //[C]
+        tower.m_dt_hot = as_double("dt_charging");               //[C]
         tower.T_rec_hot_des = as_double("T_rec_hot_des");        //[C]
         tower.T_hx_cold_des = as_double("T_tes_cold_des");       //[C]
 
@@ -908,7 +910,9 @@ public:
         tes->m_hot_tank_max_heat = as_double("hot_tank_max_heat");
         tes->m_cold_tank_Thtr = as_double("cold_tank_Thtr");
         tes->m_cold_tank_max_heat = as_double("cold_tank_max_heat");
-        tes->m_dt_hot = as_double("dt_hot");                    //[C]
+        //tes->m_dt_hot = as_double("dt_hot");                    //[C]
+        tes->m_dt_hthx = as_double("dt_ht_discharging");        //[C]
+        tes->m_dt_lthx = as_double("dt_lt_discharging");        //[C]
         tes->m_T_tes_hot_des = as_double("T_tes_hot_des");
         tes->m_T_tes_warm_des = as_double("T_tes_warm_des");
         tes->m_T_tes_cold_des = as_double("T_tes_cold_des");

@@ -55,15 +55,15 @@ var( 'store_htf', 34 );
 ####################################################
 */
 
-var( 'solar_resource_file', 'daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
-var( 'dispatch_factors_ts', real_array(read_text_file('dispatch_factors_ts.csv')));
-var( 'ud_ind_od', csvread('ud_ind_od.csv'));
-var( 'ud_ind_od_off_sun', csvread('ud_ind_od_off_sun.csv'));
-var( 'wlim_series', real_array(read_text_file('wlim_series.csv')));
-var( 'rec_efficiency_lookup', csvread('rec_efficiency.csv'));
-var( 'rec_pressure_lookup', csvread('rec_pressure.csv'));
+var( 'solar_resource_file', '../resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
+var( 'dispatch_factors_ts', real_array(read_text_file('../resource/dispatch_factors_ts.csv')));
+var( 'ud_ind_od', csvread('../resource/ud_ind_od.csv'));
+var( 'ud_ind_od_off_sun', csvread('../resource/ud_ind_od_off_sun.csv'));
+var( 'wlim_series', real_array(read_text_file('../resource/wlim_series.csv')));
+var( 'rec_efficiency_lookup', csvread('../resource/rec_efficiency.csv'));
+var( 'rec_pressure_lookup', csvread('../resource/rec_pressure.csv'));
 
-eta_map = csvread('eta_map.csv');
+eta_map = csvread('../resource/eta_map.csv');
 
 solarm_ref = 3.;
 solarm = 2.8;
@@ -181,13 +181,17 @@ var( 'T_tes_cold_des', 546.6 );
 var( 'csp.pt.tes.init_hot_htf_percent', 30 );
 var( 'h_tank', 20 );
 var( 'cold_tank_max_heat', 0 );
-var( 'dt_hot', 15 );
+var( 'dt_charging', 15 );
+var( 'dt_ht_discharging', 15 );
+var( 'dt_lt_discharging', 15 );
 var( 'u_tank', 0.4 );
 var( 'tank_pairs', 1 );
 var( 'cold_tank_Thtr', 280 );
 var( 'h_tank_min', 1 );
 var( 'hot_tank_Thtr', 500 );
 var( 'hot_tank_max_heat', 0 );
+var( 'dP_LTHX_perc', 0.5 );
+var( 'dP_HTHX_perc', 1.5 );
 
 
 
@@ -214,6 +218,7 @@ var( 'ud_T_amb_ind_od', [ [ 0 ] ] );
 var( 'ud_m_dot_htf_ind_od', [ [ 0 ] ] );
 var( 'P_phx_in_co2_des', 24.750625 );
 var( 'P_turb_in_co2_des', 20.790525 );
+var( 'P_turb_in_co2_off_sun_des', 24.504 );
 
 var( 'pb_fixed_par', 0); //0.0055 );
 /*
@@ -671,4 +676,128 @@ for(j=0; j<#outs; j++)
 		allout[i+2][j] = data[i]*outs[j][2];
 }
 
-csvwrite("output_dview.csv", allout);
+csvwrite("output_case3.csv", allout);
+
+output_filename = 'output_dview.csv';
+output.Operating_mode_1 = var( 'op_mode_1' );
+units.Operating_mode_1 = '-';
+output.Operating_mode_2 = var( 'op_mode_2' );
+units.Operating_mode_2 = '-';
+output.Operating_mode_3 = var( 'op_mode_3' );
+units.Operating_mode_3 = '-';
+output.TES_V_hot_tank_initial = var( 'V_hot_tank_initial' );
+units.TES_V_hot_tank_initial = '-';
+output.PC_power = var( 'P_cycle' );
+units.PC_power = 'MWe';
+output.PC_efficiency = var( 'eta' );
+units.PC_efficiency = '-';
+output.DNI = var( 'beam' );
+units.DNI = 'W/m^2';
+output.Receiver_1_inlet_temp = var( 'T_rec_in1' );
+units.Receiver_1_inlet_temp = 'C';
+output.Receiver_1_outlet_temp = var( 'T_rec_out1' );
+units.Receiver_1_outlet_temp = 'C';
+output.Receiver_2_inlet_temp = var( 'T_rec_in2' );
+units.Receiver_2_inlet_temp = 'C';
+output.Receiver_2_outlet_temp = var( 'T_rec_out2' );
+units.Receiver_2_outlet_temp = 'C';
+output.Receiver_3_inlet_temp = var( 'T_rec_in3' );
+units.Receiver_3_inlet_temp = 'C';
+output.Receiver_3_outlet_temp = var( 'T_rec_out3' );
+units.Receiver_3_outlet_temp = 'C';
+output.HX_1_particle_outlet_temp = var( 'T_HX_tes_out1' );
+units.HX_1_particle_outlet_temp = 'C';
+output.HX_2_particle_outlet_temp = var( 'T_HX_tes_out2' );
+units.HX_2_particle_outlet_temp = 'C';
+output.HX_3_particle_outlet_temp = var( 'T_HX_tes_out3' );
+units.HX_3_particle_outlet_temp = 'C';
+output.Receiver_1_HTF_mass_flow = var( 'm_dot_rec1' );
+units.Receiver_1_HTF_mass_flow = 'kg/hr';
+output.Receiver_1_particle_mass_flow = var( 'm_dot_HX_tes1' );
+units.Receiver_1_particle_mass_flow = 'kg/hr';
+output.Receiver_2_HTF_mass_flow = var( 'm_dot_rec2' );
+units.Receiver_2_HTF_mass_flow = 'kg/hr';
+output.Receiver_2_particle_mass_flow = var( 'm_dot_HX_tes2' );
+units.Receiver_2_particle_mass_flow = 'kg/hr';
+output.Receiver_3_HTF_mass_flow = var( 'm_dot_rec3' );
+units.Receiver_3_HTF_mass_flow = 'kg/hr';
+output.Receiver_3_particle_mass_flow = var( 'm_dot_HX_tes3' );
+units.Receiver_3_particle_mass_flow = 'kg/hr';
+output.Tower_HTF_inlet_temp = var( 'T_rec_in' );
+units.Tower_HTF_inlet_temp = 'C';
+output.Tower_HTF_outlet_temp = var( 'T_rec_out' );
+units.Tower_HTF_outlet_temp = 'C';
+output.TES_hot_tank_temp = var( 'T_tes_hot' );
+units.TES_hot_tank_temp = 'C';
+output.TES_cold_tank_temp = var( 'T_tes_cold' );
+units.TES_cold_tank_temp = 'C';
+output.TES_discharge_mass_flow = var( 'm_dot_tes_dc' );
+units.TES_discharge_mass_flow = 'kg/hr';
+output.TES_charge_mass_flow = var( 'm_dot_tes_ch' );
+units.TES_charge_mass_flow = 'kg/hr';
+output.PC_inlet_temp = var( 'T_pc_in' );
+units.PC_inlet_temp = 'C';
+output.PC_outlet_temp = var( 'T_pc_out' );
+units.PC_outlet_temp = 'C';
+output.PC_mass_flow = var( 'm_dot_pc' );
+units.PC_mass_flow = 'kg/hr';
+
+ok = csvwrite( output_filename, output );
+
+// Add unit row
+filenum = open( output_filename, 'r' );
+firstline = '';
+read_line( filenum, firstline );
+close( filenum );
+headers = split(firstline, ',');
+for ( i=0; i<#headers; i++ ) {
+	units_arr[i] = units{headers[i]};
+}
+units_str = join(units_arr, ',');
+newfirstline = firstline + '\n' + units_str;
+file = read_text_file( output_filename );
+newfile = replace( file, firstline, newfirstline );
+write_text_file( output_filename, newfile );
+
+/*
+//parametric
+//solarms = [2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4];
+//solarms = [2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4];
+//solarms = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6];
+solarms = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6];
+//tshourss = [5, 10, 15.5, 20];
+//tshourss = [4, 8, 12, 16, 20, 24];
+tshourss = [4, 7, 10, 13, 16, 19, 22];
+for(k=0; k<#tshourss; k++)
+{
+	for(l=0; l<#solarms; l++)
+	{
+		clear(['solarm', 'tshours', 'eta_map', 'D_rec']);
+		
+		solarm = solarms[l];
+		tshours = tshourss[k];
+		var( 'tshours', tshours );
+		var( 'solarm', solarm );
+	
+		eta_map = csvread('eta_map.csv');
+		for(i=0; i<#eta_map; i++)
+		{
+			for(j=5; j<8; j++)
+			{
+				eta_map[i][j] = to_string( to_int( to_real(eta_map[i][j])*sf_area_scaling ));
+			}
+		
+		}
+
+		var( 'eta_map', eta_map);	
+		var( 'D_rec', 22.9*3*solarm/solarm_ref );
+		
+		run('tcsmolten_salt');
+		run('singleowner');
+		
+		outln('Annual energy for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + round(var('annual_energy')*1e-6) +
+		' [GWhe]' + ' and LCOE = ' + var('lcoe_real') + ' capacity factor = ' + var('capacity_factor'));
+		//outln('LCOE for SM=' + var('solarm') + ' and tshours=' + var('tshours') + " is: " + var('lcoe_real');
+	}
+}
+*/

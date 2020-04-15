@@ -1,4 +1,5 @@
 from numpy import interp, pi, array, argsort
+from math import ceil
 
 
 #----------------------------------------------------------------------------
@@ -9,6 +10,26 @@ __raw_data = {
     'pressure_drop':[0.01905, 0.05688, 0.141, 0.1609, 0.2459, 0.3071, 0.6068, 0.6636, 1.086, 1.478, 1.507, 2.027, 2.666, 3.435],  # MPa
     'm_dot_tube':[0.01627, 0.02775, 0.04279, 0.04555, 0.05554, 0.06157, 0.08409, 0.08757, 0.109, 0.1229, 0.1238, 0.1386, 0.1535, 0.1682], #kg/s
 }
+
+def specheat_co2(T_C):
+    """
+    Inputs
+        T_C - temperature in deg C
+    Returns
+        specific heat (kJ/kg-K)
+    """
+    return 0.412972 * T_C**0.165755
+
+def density_co2(T_C, P_MPa):
+    """
+    Inputs
+        T_C - temperature of the gas (C)
+        P_MPa - pressure of the gas (MPa)
+
+    Returns
+        Density - kg/m3
+    """
+    return P_MPa*1e6 / ((T_C+273.15) * 188.92)
 
 #----------------------------------------------------------------------------
 def calculate_efficiency(L):
@@ -23,9 +44,27 @@ def calculate_m_dot_tube(L):
     return interp(L, __raw_data['length'], __raw_data['m_dot_tube'])
 
 #----------------------------------------------------------------------------
-def calculate_area():
+def calculate_n_tubes(q_solarfield_out_kw, T_rec_in_des_C, T_rec_out_des_C, L):
+    """
+    Calculate the receiver number of tubes.
 
-    return
+    Inputs
+        q_solarfield_out_kw - Design-point receiver power output (kW)
+        T_rec_in_des_C - Design-point receiver CO2 inlet temperature (C)
+        T_rec_out_des_C - Design-point receiver CO2 outlet temperature (C)
+        L - Specified receiver tube height (m)
+
+    Outputs
+        n_tubes - number of parallel tubes in the receiver (-)
+    """
+
+    m_dot_rec_tot = q_solarfield_out_kw / (specheat_co2((T_rec_in_des_C + T_rec_out_des_C)/2) * (T_rec_out_des_C - T_rec_in_des_C))
+
+    m_dot_tube = calculate_m_dot_tube(L)
+
+    n_tubes = ceil(m_dot_rec_tot/m_dot_tube)
+
+    return {'n_tubes':n_tubes, 'm_dot_rec_tot':m_dot_rec_tot, 'm_dot_tube':m_dot_tube}
 
 #----------------------------------------------------------------------------
 def calculate_cost(L, N_tubes):
@@ -272,5 +311,7 @@ if __name__ == "__main__":
     # plt.plot(Xa,Ya, 'b-')
     # plt.show()
 
-    tab = create_heliostat_field_lookup("resource/eta_lookup_north.csv", 100, 8.6**2)
-    x=1
+    # tab = create_heliostat_field_lookup("resource/eta_lookup_north.csv", 100, 8.6**2)
+
+    # print(specheat_co2(550))
+    # print(density_co2(550, 25))

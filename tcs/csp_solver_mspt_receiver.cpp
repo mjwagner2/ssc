@@ -342,7 +342,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 				rec_is_off = true;
 
                 //look up receiver pressure drop
-                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in / m_P_cold_des);
+                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in/1000. ); //returns MPa
 
 			    break;
 			}
@@ -397,7 +397,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 					}
 				}
 				q_thermal = m_dot_salt*c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
-                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in / m_P_cold_des);
+                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in / 1000.); //returns MPa
 
 			    if (q_dot_inc_sum*1.E3 < m_q_dot_inc_min)
 				    rec_is_off = true;

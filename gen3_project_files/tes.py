@@ -1,4 +1,9 @@
 from math import exp
+from receiver import calculate_tower_height
+
+__particle_specheat = 1.3 #[kJ/kg-K]
+__particle_density = 1600 #[kg/m3]
+__media_cost = 50. #$/ton
 
 #----------------------------------------------------------------------
 def calculate_hx_cost(q_solarfield_out_kw, q_cycle_in_kw, dT_approach_chg):
@@ -35,17 +40,18 @@ def calculate_hx_cost(q_solarfield_out_kw, q_cycle_in_kw, dT_approach_chg):
 def calculate_silo_cost(q_cycle_in_kw, hours_tes, dt_cycle):
     """
     Inputs:
-    q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
-    hours_tes - hours of full load thermal storage (hr)
-    dt_cycle - nominal temperature drop across the cycle (C)
+        q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
+        hours_tes - hours of full load thermal storage (hr)
+        dt_cycle - nominal temperature drop across the cycle (C)
 
     Returns:
-    Cost of a pair of silos, each able to handle full particle capacity ($)
+        silo_cost - Cost of a pair of silos, each able to handle full particle capacity ($)
+        media_cost - Bulk media purchase cost ($)
     """
 
     #assume material properties from UW
-    cp = 1.3 #[kJ/kg-K]
-    rho = 1600 #[kg/m3]
+    cp = __particle_specheat #[kJ/kg-K]
+    rho = __particle_density #[kg/m3]
 
     #total energy stored (kJ)
     E = q_cycle_in_kw * hours_tes * 3600
@@ -58,12 +64,60 @@ def calculate_silo_cost(q_cycle_in_kw, hours_tes, dt_cycle):
     #cost curve from Megan/Jack's old spreadsheet cost-model-jh_ROM BOM Baseload100MW.xlsx
     cost = 1.551e6 * exp(4.2662e-5 * m_ton) * 2
 
-    return {'cost':cost}
+    #media cost
+    media = __media_cost * (m_ton + m_ton*.02*30 + m_ton*0.1)   #assume 2% annual replacement, 10% extra inventory
+
+    return {'silo_cost':cost, 'media_cost':media}
+#----------------------------------------------------------------------
+
+def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, lift_type):
+    """
+    Calculate lift cost as a function of solar field rating and lift type. 
+
+    Inputs
+        q_solarfield_out_kw - total absorbed power at design from all receivers (kWt)
+        q_solarfield_in_kw - total incident power at design from all receivers (kWt)
+        lift_type - one of 'bucket' or 'skip'
+    Returns
+        Lift cost ($)
+    """
+
+    #look up power from WP curve
+    x = q_solarfield_out_kw/1000
+    if lift_type == 'bucket':
+        lift_power = 1.487E-02*x**2 + 1.025E+01*x - 2.901E+02
+    elif lift_type == 'skip':
+        lift_power = 6.931E-03*x**2 + 1.373E+01*x - 6.519E+02
+    else:
+        raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
+    
+    #assumed tower height is WP model
+    tht = calculate_tower_height(q_solarfield_in_kw, wp_data=True)
+    bulk_power = __particle_density * 9.81 * tht*1.1 / 1000 #kW
+    
+    return bulk_power / lift_power
+
+def calculate_lift_cost(q_solarfield_out_kw, lift_type):
+    """
+    Calculate lift cost as a function of solar field rating and lift type. 
+
+    Inputs
+        q_solarfield_out_kw - total absorbed power at design from all receivers (kWt)
+        lift_type - one of 'bucket' or 'skip'
+    Returns
+        Lift cost ($)
+    """
+    x = q_solarfield_out_kw /1000.
+
+    if lift_type == 'bucket':
+        return -7.640E-02*x**3 + 1.624E+02*x**2 + 1.806E+04*x + 2.923E+05
+    elif lift_type == 'skip':
+        return 5.536E-02*x**3 - 1.516E+01*x**2 + 6.626E+04*x + 1.354E+06
+    else:
+        raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 
 
 #----------------------------------------------------------------------
-
-
 if __name__ == "__main__":
 
     qc=100000/.43

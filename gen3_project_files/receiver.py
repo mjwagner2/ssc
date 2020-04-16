@@ -92,12 +92,20 @@ def calculate_n_tubes(q_solarfield_out_kw, T_rec_in_des_C, T_rec_out_des_C, L):
 #----------------------------------------------------------------------------
 def calculate_cost(L, N_tubes):
     """
-    Calculate the receiver cost as a function of height (L) and number of tubes (N_tubes)
+    Calculate the receiver cost 
+    
+    Inputs
+        L - Receiver tube length / aka, receiver height (m)
+        N_tubes - Number of parallel tubes in the receiver (-)
+
+    Returns
+        'total_cost' - Total receiver cost ($)
+        'A_rec' - Receiver aperture area (m2)
+        'W_rec' - Receiver width (m)
 
     The defaults are:
     L = 5.3 [m]
     N_tubes = 14124 
-
     This model provided by Brayton
     """
     
@@ -205,7 +213,7 @@ def calculate_cost(L, N_tubes):
     
     # "total cost"
     total_cost = mat_cost + toll_cost_total + weld_cost + frame_cost +  ins_cost
-    return {'total_cost':total_cost, 'A_rec':A_rec}
+    return {'total_cost':total_cost, 'A_rec':A_rec, 'W_rec':W_rec}
 
 
 #----------------------------------------------------------------------------
@@ -234,12 +242,62 @@ def __poly_coefs(X,Y):
 
     return [c0, c1, c2]
 
+#----------------------------------------------------------------------------
 def __interp_poly(X,Y,x):
     c0,c1,c2 = __poly_coefs(X,Y)
     return (lambda v: c0 + c1*v + c2*v**2)(x)
-#----------------------------------------------------------------------------
-    
 
+#----------------------------------------------------------------------------
+def create_receiver_efficiency_lookup(file_path, L):
+    """
+    Generate a lookup table with themral efficiency (-) as a function of fractional load and inlet co2 temperature (C). 
+    The normalized efficiency is multiplied by the nominal efficiency obtained from the receiver length lookup
+    table.
+
+    Inputs
+        L - Receiver tube length (m)
+
+    Returns
+        Table with columns:
+        fractional mass flow | Inlet temperature (C) | Rec. efficiency (-)
+    """
+    #get nominal efficiency
+    eff_nom = calculate_efficiency(L)
+
+    #load table
+    raw_data = [[float(v) for v in line.split(",")] for line in open(file_path,'r').readlines()]
+    for row in raw_data:
+        row[2] *= eff_nom
+
+    return raw_data
+
+#----------------------------------------------------------------------------
+def create_receiver_pressure_lookup(file_path, L):
+    """
+    Generate a lookup table with pressure loss (MPa) as a function of fractional load and inlet fluid pressure (MPa). 
+    The normalized pressure loss is multiplied by the nominal pressure loss obtained from the receiver length lookup
+    table.
+
+    Inputs
+        L - Receiver tube length (m)
+
+    Returns
+        Table with columns:
+        fractional mass flow | Inlet pressure (MPa) | Rec. pressure drop (MPa)
+    """
+
+    #get nominal pressure drop
+    dp_nom = calculate_pressure_drop(L)
+
+    #load table
+    raw_data = [[float(v) for v in line.split(",")] for line in open(file_path,'r').readlines()]
+    for row in raw_data:
+        row[2] *= dp_nom
+
+    return raw_data
+
+
+#----------------------------------------------------------------------------
 def create_heliostat_field_lookup(efficiency_file_path, q_solarfield_in_kw, heliostat_area_m2):
     """
     Read the efficiency file and interpolate between power levels to produce a single, power-appropriate
@@ -293,8 +351,10 @@ def create_heliostat_field_lookup(efficiency_file_path, q_solarfield_in_kw, heli
 
     cols = ['azimuth','zenith','eta_1','eta_2','eta_3','nh_1','nh_2','nh_3']
 
+    q_solarfield_in = q_solarfield_in_kw/1000.
+
     #find the 3-point region closest to the given power level
-    power_level_indices = argsort( array([(q-q_solarfield_in_kw)**2 for q in power_levels]) )[:3]
+    power_level_indices = argsort( array([(q-q_solarfield_in)**2 for q in power_levels]) )[:3]
     power_levels_used = [power_levels[i] for i in power_level_indices]
 
     #collate all available data by sun position, with a list of values corresponding to each power level
@@ -312,7 +372,7 @@ def create_heliostat_field_lookup(efficiency_file_path, q_solarfield_in_kw, heli
         interp_data[lab] = []
 
         for datset in all_data[lab]:
-            interp_data[lab].append( __interp_poly(power_levels_used, datset, q_solarfield_in_kw) )
+            interp_data[lab].append( __interp_poly(power_levels_used, datset, q_solarfield_in) )
         
     return array([interp_data[col] for col in cols]).T.tolist()
 
@@ -338,3 +398,7 @@ if __name__ == "__main__":
 
     # print(specheat_co2(550))
     # print(density_co2(550, 25))
+    # create_receiver_pressure_lookup(5.3)
+    # create_receiver_efficiency_lookup(5.3)
+
+    x=None

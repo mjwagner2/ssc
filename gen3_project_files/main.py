@@ -7,12 +7,6 @@ import piping
 import receiver
 import tes
 
-"""
-####################################################
-Functions
-####################################################
-"""
-
 
 """
 ####################################################
@@ -26,11 +20,12 @@ class Variables:
         self.receiver_design_power = None   # MWt
         self.dni_design_point = None        # W/m2
         self.receiver_height = None         # m
-        self.tower_height = None            # m
         self.lift_technology = None         # type-int
-        self.solar_multiple = None          # -
         self.pipe_inner_diameter = None     # m
         self.hours_tes = None               # hr
+        self.is_north = None                # is field north or surround
+        # self.tower_height = None            # m
+        # self.solar_multiple = None          # -
 
 class Settings:
     def __init__(self):
@@ -38,22 +33,28 @@ class Settings:
         self.print_summary_output = False
         self.save_dview_results = False
 
+
 class Gen3opt:
     def __init__(self):
         self.variables = Variables()
         self.settings = Settings()
+        
+        #local parameters
+        self.__dni_des_ref = 976.;
+
 
     def initialize_variables(self):
         #initialize variable values
         self.variables.cycle_design_power = 100.      # MWe
-        self.variables.receiver_design_power = None   # MWt
+        self.variables.receiver_design_power = 100/.43*3   # MWt
         self.variables.dni_design_point = 976.        # W/m2
         self.variables.receiver_height = 22.9         # m
-        self.variables.tower_height = 233.            # m
-        self.variables.lift_technology = None         # type-int
-        self.variables.solar_multiple = 2.8           # -
-        self.variables.pipe_inner_diameter = None     # m
+        self.variables.pipe_inner_diameter = 0.490     # m
         self.variables.hours_tes = 13                 # hr        
+        self.variables.lift_technology = 1         # type-int
+        self.variables.is_north = True
+        # self.variables.tower_height = 233.            # m
+        # self.variables.solar_multiple = 2.8           # -
 
     #----------------------------------------------------------------
     def exec(self):
@@ -101,21 +102,19 @@ class Gen3opt:
         ssc.data_set_matrix_from_csv( data, b'rec_efficiency_lookup', b'resource/rec_efficiency.csv');
         ssc.data_set_matrix_from_csv( data, b'rec_pressure_lookup', b'resource/rec_pressure.csv');
 
-        eta_map = [[float(v) for v in line.split(',')] for line in open('resource/eta_map.csv','r').readlines()] 
+        # Do initial calculations for parameters used in cost/performance models
+        helio_area = 8.66**2*.97
+        solarm  = self.variables.receiver_design_power / self.variables.cycle_design_power
+        receiver_eff_des = receiver.calculate_efficiency(self.variables.receiver_height)
+        q_sf_des = self.variables.receiver_design_power / receiver_eff_des * self.variables.dni_design_point / self.__dni_des_ref
 
-        solarm_ref = 3.;
-        # solarm = 2.8;
-
-        dni_des_ref = 976.;
-        # dni_des = 976.;
-
-        sf_area_scaling = self.variables.solar_multiple / solarm_ref * dni_des_ref / self.variables.dni_design_point;
-
-        for i in range(len(eta_map)): 
-            for j in range(5,8):
-                eta_map[i][j] = eta_map[i][j]*sf_area_scaling
-
+        #get the heliostat field for the rated solar field power
+        eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.variables.is_north else 'surround'), 
+                                                q_sf_des*1000, helio_area)
         ssc.data_set_matrix( data, b'eta_map', eta_map);
+
+        #tower height
+        tht = receiver.calculate_tower_height(q_sf_des, self.variables.is_north)
 
 
         """
@@ -128,7 +127,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'P_ref', self.variables.cycle_design_power );
         ssc.data_set_number( data, b'design_eff', 0.43);     # 0.43; 
         ssc.data_set_number( data, b'tshours', self.variables.hours_tes );     # 10.3
-        ssc.data_set_number( data, b'solarm', self.variables.solar_multiple );
+        ssc.data_set_number( data, b'solarm',  );
 
         #heliostat field
         ssc.data_set_number( data, b'helio_width', 8.66 );
@@ -149,7 +148,7 @@ class Gen3opt:
         #total height and width of all recievers (cost calculation)
         ssc.data_set_number( data, b'rec_height', self.variables.receiver_height );     #524.67 m^2
         ssc.data_set_number( data, b'D_rec', self.variables.receiver_height*3*self.variables.solar_multiple/solarm_ref );
-        ssc.data_set_number( data, b'h_tower', self.variables.tower_height );
+        ssc.data_set_number( data, b'h_tower', tht );
 
         ssc.data_set_number( data, b'water_usage_per_wash', 0.7 );
         ssc.data_set_number( data, b'washing_frequency', 63 );

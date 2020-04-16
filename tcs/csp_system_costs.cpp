@@ -37,6 +37,11 @@ void C_mspt_system_costs::check_parameters_are_set()
 		ms_par.h_helio != ms_par.h_helio ||
 		ms_par.tower_fixed_cost != ms_par.tower_fixed_cost ||
 		ms_par.tower_cost_scaling_exp != ms_par.tower_cost_scaling_exp ||
+        ms_par.foundation_fixed_cost != ms_par.foundation_fixed_cost ||
+        ms_par.foundation_cost_scaling_quadratic != ms_par.foundation_cost_scaling_quadratic ||
+        ms_par.foundation_cost_scaling_linear != ms_par.foundation_cost_scaling_linear ||
+        ms_par.particle_lift_cost != ms_par.particle_lift_cost ||
+        ms_par.riser_and_downcomer_cost != ms_par.riser_and_downcomer_cost ||
 
 		ms_par.A_rec != ms_par.A_rec ||
 		ms_par.rec_ref_cost != ms_par.rec_ref_cost ||
@@ -97,7 +102,8 @@ void C_mspt_system_costs::calculate_costs()
 		N_mspt::heliostat_cost(ms_par.A_sf_refl, ms_par.heliostat_spec_cost, ms_par.heliostat_fixed_cost);
 
 	ms_out.tower_cost = 
-		N_mspt::tower_cost(ms_par.h_tower, ms_par.h_rec, ms_par.h_helio, ms_par.tower_fixed_cost, ms_par.tower_cost_scaling_exp);
+		N_mspt::tower_cost(ms_par.h_tower, ms_par.h_rec, ms_par.h_helio, ms_par.tower_fixed_cost, ms_par.tower_cost_scaling_exp,
+            ms_par.foundation_fixed_cost, ms_par.foundation_cost_scaling_quadratic, ms_par.foundation_cost_scaling_linear);
 
 	ms_out.receiver_cost = 
 		N_mspt::receiver_cost(ms_par.A_rec, ms_par.rec_ref_cost, ms_par.A_rec_ref, ms_par.rec_cost_scaling_exp);
@@ -127,7 +133,7 @@ void C_mspt_system_costs::calculate_costs()
 		N_mspt::direct_capital_precontingency_cost(
 			ms_out.site_improvement_cost,
 			ms_out.heliostat_cost,
-			ms_out.tower_cost,
+			ms_out.tower_cost + ms_par.particle_lift_cost + ms_par.riser_and_downcomer_cost,
 			ms_out.receiver_cost,
 			ms_out.tes_cost,
 			ms_out.power_cycle_cost,
@@ -176,9 +182,13 @@ double N_mspt::heliostat_cost(double A_refl /*m^2*/, double heliostat_spec_cost 
 	return A_refl*heliostat_spec_cost + heliostate_fixed_cost;	//[$]
 }
 
-double N_mspt::tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_helio /*m*/, double tower_fixed_cost /*$*/, double tower_cost_scaling_exp /*-*/)
+double N_mspt::tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_helio /*m*/, double tower_fixed_cost /*$*/, double tower_cost_scaling_exp /*-*/,
+    double foundation_fixed_cost /*$*/, double foundation_cost_scaling_quadratic, /*$/m^2*/ double foundation_cost_scaling_linear /*$/m*/)
 {
-	return tower_fixed_cost * exp(tower_cost_scaling_exp * (h_tower - h_rec / 2.0 + h_helio / 2.0));	//[$]
+    double tower_height = h_tower - h_rec / 2. + h_helio / 2.;
+    double cost_tower = tower_fixed_cost * exp(tower_cost_scaling_exp * tower_height);	//[$]
+    double cost_foundation = foundation_cost_scaling_quadratic * pow(tower_height, 2.) + foundation_cost_scaling_linear * tower_height; //[$]
+    return cost_tower + cost_foundation;
 }
 
 double N_mspt::receiver_cost(double A_rec /*m^2*/, double rec_ref_cost /*$*/, double rec_ref_area /*m^2*/, double rec_cost_scaling_exp /*-*/)

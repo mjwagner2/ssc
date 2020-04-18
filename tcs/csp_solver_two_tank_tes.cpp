@@ -3307,7 +3307,7 @@ bool C_csp_two_tank_two_hx_tes::discharge(double timestep /*s*/, double T_amb /*
         {
             int m_dot_bal_code = c_tes_disch_solver.solve(m_dot_tank_guess_1, m_dot_tank_guess_2, -1.E-3, m_dot_tank, tol_solved, iter_solved);
             if (m_dot_bal_code != C_monotonic_eq_solver::solver_exit_modes::CONVERGED) {
-                throw(C_csp_exception("Failed to find a solution for the hot tank mass flow"));
+                return false;
             }
         }
         catch (C_csp_exception)
@@ -3525,7 +3525,7 @@ bool C_csp_two_tank_two_hx_tes::discharge_both(double timestep /*s*/, double T_a
         {
             int m_dot_bal_code = c_tes_disch_solver.solve(m_dot_tank_guess_1, m_dot_tank_guess_2, -1.E-3, m_dot_tank, tol_solved, iter_solved);
             if (m_dot_bal_code != C_monotonic_eq_solver::solver_exit_modes::CONVERGED) {
-                throw(C_csp_exception("Failed to find a solution for the hot tank mass flow"));
+                return false;
             }
         }
         catch (C_csp_exception)

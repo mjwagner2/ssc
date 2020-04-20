@@ -36,7 +36,7 @@ class Settings:
     def __init__(self):
         self.print_ssc_messages = False
         self.print_summary_output = False
-        self.save_dview_results = False
+        self.save_hourly_results = False
         self.dni_des_ref = 976.
         self.cycle_temperature_drop = 700 - 562
         self.lift_technology = 'skip'    #or 'bucket'
@@ -45,28 +45,16 @@ class Settings:
 
 class Gen3opt:
     def __init__(self):
+        self.clear()
+
+    def clear(self):
         self.variables = Variables()
         self.settings = Settings()
         self.results_dict = {}
-        
+        self.hourly_data_dict = {}
+    
     #----------------------------------------------------------------
-    def exec(self):
-
-        ssc = PySSC()
-        print('Process ID ', os.getpid())
-        # import time
-        # print("Pausing for 10 sec")
-        # time.sleep(10)
-        # print("Resuming")
-        if self.settings.print_ssc_messages:
-            print ('Current folder = ' + os.getcwd() )
-            print ('SSC Version = ', ssc.version())
-            print ('SSC Build Information = ', ssc.build_info().decode("utf - 8"))
-            ssc.module_exec_set_print(1)
-        else:
-            ssc.module_exec_set_print(0)
-
-        data = ssc.data_create()
+    def load_ssc_constants(self, ssc, data):
 
         """
         ####################################################
@@ -88,67 +76,9 @@ class Gen3opt:
                     files
         ####################################################
         """
-
-        ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
-        
-
         ssc.data_set_array_from_csv( data, b'wlim_series', b'resource/wlim_series.csv');
         ssc.data_set_array_from_csv( data, b'dispatch_factors_ts', b'resource/dispatch_factors_ts.csv');
-        # ssc.data_set_matrix_from_csv( data, b'rec_efficiency_lookup', b'resource/rec_efficiency.csv');
-        # ssc.data_set_matrix_from_csv( data, b'rec_pressure_lookup', b'resource/rec_pressure.csv');
-
-        #calculate system temperatures
-        T_rec_hot_des = 730  #C this is fixed
-        T_pc_hot_des = T_rec_hot_des - (self.variables.dT_approach_charge_hx + self.variables.dT_approach_disch_hx)
-        T_rec_cold_des = T_rec_hot_des - self.settings.cycle_temperature_drop
-        T_tes_hot_des = T_rec_hot_des - self.variables.dT_approach_charge_hx
-        T_tes_cold_des = T_tes_hot_des - self.settings.cycle_temperature_drop 
-        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_disch_hx
-        T_pc_cold_des = T_pc_hot_des - self.settings.cycle_temperature_drop
-
-        #cycle efficiency
-        ssc.data_set_matrix( data, b'ud_ind_od', cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des) );
-        ssc.data_set_matrix( data, b'ud_ind_od_off_sun', cycle.create_updc_lookup('resource/ud_ind_od_off_sun.csv', T_pc_hot_des) );
-        cycle_efficiency = self.settings.cycle_efficiency_nominal/0.489 * cycle.calculate_nominal_efficiency(T_pc_hot_des, self.variables.cycle_design_power*1000.)
-
-        # Do initial calculations for parameters used in cost/performance models
-        helio_area = 8.66**2*.97
-        q_pb_des = self.variables.cycle_design_power/cycle_efficiency  #MWt
-        solarm  = self.variables.receiver_design_power / q_pb_des
-        receiver_eff_des = receiver.calculate_efficiency(self.variables.receiver_height)
-        q_sf_des = self.variables.receiver_design_power / receiver_eff_des * self.variables.dni_design_point / self.settings.dni_des_ref
-
-        #get the heliostat field for the rated solar field power
-        eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
-                                                q_sf_des*1000, helio_area)
-        ssc.data_set_matrix( data, b'eta_map', eta_map);
-
-        #tower height
-        tht = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
-
-
-        #receiver
-        ntd = receiver.calculate_n_tubes(self.variables.receiver_design_power*1000, T_rec_cold_des, T_rec_hot_des, self.variables.receiver_height)
-        n_tubes = ntd['n_tubes']
-        recd = receiver.calculate_cost(self.variables.receiver_height, n_tubes)
-        rec_total_cost = recd['total_cost'] 
-        rec_area = recd['A_rec']
-        D_rec = recd['W_rec']
-        ssc.data_set_matrix(data, b'rec_efficiency_lookup', receiver.create_receiver_efficiency_lookup("resource/rec_efficiency.csv", self.variables.receiver_height) )
-        ssc.data_set_matrix(data, b'rec_pressure_lookup', receiver.create_receiver_pressure_lookup("resource/rec_pressure.csv", self.variables.receiver_height) )
-
-        #lift power and cost
-        lift_cost = tes.calculate_lift_cost(self.variables.receiver_design_power*1000, self.settings.lift_technology)
-        lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, self.variables.receiver_design_power*1000, self.settings.lift_technology)
-
-        #TES costs
-        e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
-        dtes = tes.calculate_silo_cost( q_pb_des*1000, self.variables.hours_tes, self.settings.cycle_temperature_drop)
-        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des)
-        hx_cost = dhx['total_cost']
-        # tes_spec_cost = (hx_cost + dtes['silo_cost'] + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
-        tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
-
+        
         """
         ####################################################
                     parameters
@@ -156,10 +86,10 @@ class Gen3opt:
         """
         #design
         ssc.data_set_number( data, b'gross_net_conversion_factor', 0.9 );
-        ssc.data_set_number( data, b'P_ref', self.variables.cycle_design_power );
-        ssc.data_set_number( data, b'design_eff', cycle_efficiency);     # 0.43; 
-        ssc.data_set_number( data, b'tshours', self.variables.hours_tes );     # 10.3
-        ssc.data_set_number( data, b'solarm',  solarm);
+        ssc.data_set_number( data, b'P_ref', 100 );
+        ssc.data_set_number( data, b'design_eff', .43);     # 0.43; 
+        ssc.data_set_number( data, b'tshours', 13 );     # 10.3
+        ssc.data_set_number( data, b'solarm',  3);
 
         #heliostat field
         ssc.data_set_number( data, b'helio_width', 8.66 );
@@ -171,16 +101,16 @@ class Gen3opt:
         ssc.data_set_number( data, b'rec_hl_perm2', 0 );
         ssc.data_set_number( data, b'land_max', 9.5 );
         ssc.data_set_number( data, b'land_min', 0.75 );
-        ssc.data_set_number( data, b'dni_des', self.variables.dni_design_point );
+        ssc.data_set_number( data, b'dni_des', 950 );
         ssc.data_set_number( data, b'p_start', 0.025 );
         ssc.data_set_number( data, b'p_track', 0.055 );
         ssc.data_set_number( data, b'hel_stow_deploy', 8 );
         ssc.data_set_number( data, b'v_wind_max', 15 );
 
         #total height and width of all recievers (cost calculation)
-        ssc.data_set_number( data, b'rec_height', self.variables.receiver_height );     #524.67 m^2
-        ssc.data_set_number( data, b'D_rec', D_rec );
-        ssc.data_set_number( data, b'h_tower', tht );
+        ssc.data_set_number( data, b'rec_height', 22 );     #524.67 m^2
+        ssc.data_set_number( data, b'D_rec', 15 );
+        ssc.data_set_number( data, b'h_tower', 230 );
 
         ssc.data_set_number( data, b'water_usage_per_wash', 0.7 );
         ssc.data_set_number( data, b'washing_frequency', 63 );
@@ -190,11 +120,11 @@ class Gen3opt:
         ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', 115727. );
-        ssc.data_set_number( data, b'particle_lift_cost', lift_cost )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost', (tht*1.5+50/2)*(38e3+137e3) );
+        ssc.data_set_number( data, b'particle_lift_cost', 0. )  #  60e6 );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost', 0. );
 
-        ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost );
-        ssc.data_set_number( data, b'rec_ref_area', rec_area );
+        ssc.data_set_number( data, b'rec_ref_cost', 1e7 );
+        ssc.data_set_number( data, b'rec_ref_area', 1110 );
         ssc.data_set_number( data, b'rec_cost_exp', 0.7 );
 
         #field costs
@@ -206,7 +136,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'bop_spec_cost', 0 );        #<<<< hx included in tes_spec_cost, lift is separate line item
 
         #TES
-        ssc.data_set_number( data, b'tes_spec_cost', tes_spec_cost)  #152895955./(100000/0.372*15.5) );  #$/kwht
+        ssc.data_set_number( data, b'tes_spec_cost', 80.)  #152895955./(100000/0.372*15.5) );  #$/kwht
 
         #land
         ssc.data_set_number( data, b'land_spec_cost', 0); #10000 );
@@ -239,23 +169,23 @@ class Gen3opt:
         ssc.data_set_number( data, b'piping_loss', 10200 );
         ssc.data_set_number( data, b'piping_length_mult', 2.6 );
         ssc.data_set_number( data, b'piping_length_const', 0 );
-        ssc.data_set_number( data, b'eta_pump', lift_eff );
+        ssc.data_set_number( data, b'eta_pump', 0.85 );
 
 
-        ssc.data_set_number( data, b'T_rec_hot_des', T_rec_hot_des );
-        ssc.data_set_number( data, b'T_rec_cold_des', T_rec_cold_des );
+        ssc.data_set_number( data, b'T_rec_hot_des', 730 );
+        ssc.data_set_number( data, b'T_rec_cold_des', 590 );
         store_fl_props = [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ]
         ssc.data_set_matrix( data, b'store_fl_props', store_fl_props );
         ssc.data_set_number( data, b'tes_pump_coef', 0.15 );
-        ssc.data_set_number( data, b'T_tes_hot_des', T_tes_hot_des );
-        ssc.data_set_number( data, b'T_tes_warm_des', T_tes_warm_des );
-        ssc.data_set_number( data, b'T_tes_cold_des', T_tes_cold_des );
+        ssc.data_set_number( data, b'T_tes_hot_des', 715 );
+        ssc.data_set_number( data, b'T_tes_warm_des', 615 );
+        ssc.data_set_number( data, b'T_tes_cold_des', 565 );
         ssc.data_set_number( data, b'csp.pt.tes.init_hot_htf_percent', 30 );
         ssc.data_set_number( data, b'h_tank', 20 );
         ssc.data_set_number( data, b'cold_tank_max_heat', 0 );
-        ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
-        ssc.data_set_number( data, b'dt_ht_discharging', 0.8 * self.variables.dT_approach_disch_hx );
-        ssc.data_set_number( data, b'dt_lt_discharging', 0.2 * self.variables.dT_approach_disch_hx );
+        ssc.data_set_number( data, b'dt_charging', 15 );
+        ssc.data_set_number( data, b'dt_ht_discharging', 12 );
+        ssc.data_set_number( data, b'dt_lt_discharging', 3 );
         ssc.data_set_number( data, b'dP_LTHX_perc', 0.5 );
         ssc.data_set_number( data, b'dP_HTHX_perc', 1.5 );
 
@@ -266,8 +196,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'hot_tank_Thtr', 500 );
         ssc.data_set_number( data, b'hot_tank_max_heat', 0 );
 
-        ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
-        ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
+        ssc.data_set_number( data, b'T_pc_hot_des', 700 );
+        ssc.data_set_number( data, b'T_pc_cold_des', 535 );
         ssc.data_set_number( data, b'pb_pump_coef', 0.55 );
         ssc.data_set_number( data, b'startup_time', 0.5 );
         ssc.data_set_number( data, b'startup_frac', 0.5 );
@@ -295,13 +225,6 @@ class Gen3opt:
         ssc.data_set_number( data, b'P_turb_in_co2_off_sun_des', 24.504);
 
         ssc.data_set_number( data, b'pb_fixed_par', 0); #0.0055 );
-        """
-        ssc.data_set_number( data, b'aux_par', 0.023 );
-        ssc.data_set_number( data, b'aux_par_f', 1 );
-        ssc.data_set_number( data, b'aux_par_0', 0.483 );
-        ssc.data_set_number( data, b'aux_par_1', 0.571 );
-        ssc.data_set_number( data, b'aux_par_2', 0 );
-        """
         ssc.data_set_number( data, b'bop_par', 0 );
         ssc.data_set_number( data, b'bop_par_f', 1 );
         ssc.data_set_number( data, b'bop_par_0', 0 );
@@ -381,20 +304,6 @@ class Gen3opt:
         ssc.data_set_number( data, b'const_per_upfront_rate5', 0 );
         ssc.data_set_number( data, b'adjust:constant', 4 );
         ssc.data_set_number( data, b'sf_adjust:constant', 0 );
-        # run('tcsmolten_salt');
-
-        module = ssc.module_create(b'tcsmolten_salt') 
-        ssc.module_exec_set_print( 0 );
-        if ssc.module_exec(module, data) == 0:
-            print ('tcsmolten_salt simulation error')
-            idx = 1
-            msg = ssc.module_log(module, 0)
-            while (msg != None):
-                print ('    : ' + msg.decode("utf - 8"))
-                msg = ssc.module_log(module, idx)
-                idx = idx + 1
-            SystemExit( "Simulation Error" );
-        ssc.module_free(module)
 
         #------------------------------------------------------------------------------
 
@@ -409,7 +318,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'real_discount_rate', 4.4 );
         ssc.data_set_number( data, b'inflation_rate', 2.5 );
         ssc.data_set_number( data, b'insurance_rate', 0.5 );
-        ssc.data_set_number( data, b'system_capacity', ssc.data_get_number(data, b"P_ref")*1000. );
+        ssc.data_set_number( data, b'system_capacity', 1e5 );
         om_fixed = [ 0 ]
         ssc.data_set_array( data, b'om_fixed', om_fixed );
         ssc.data_set_number( data, b'om_fixed_escal', 0 );
@@ -628,16 +537,190 @@ class Gen3opt:
         ssc.data_set_array( data, b'cp_capacity_payment_amount', cp_capacity_payment_amount );
         cp_capacity_credit_percent = [ 0 ]
         ssc.data_set_array( data, b'cp_capacity_credit_percent', cp_capacity_credit_percent );
-        p_ref = ssc.data_get_number( data, b'P_ref' );
-        gross_to_net = ssc.data_get_number( data, b'gross_net_conversion_factor' );
-        ssc.data_set_number( data, b'cp_system_nameplate', p_ref * gross_to_net );
+        ssc.data_set_number( data, b'cp_system_nameplate', 90 );
         ssc.data_set_number( data, b'cp_battery_nameplate', 0 );
         grid_curtailment_price = [ 0 ]
         ssc.data_set_array( data, b'grid_curtailment_price', grid_curtailment_price );
         ssc.data_set_number( data, b'grid_curtailment_price_esc', 0 );
 
-        #run('singleowner');
+        return
 
+    #----------------------------------------------------------------
+    def exec(self):
+
+        ssc = PySSC()
+        print('Process ID ', os.getpid())
+        if self.settings.print_ssc_messages:
+            print ('Current folder = ' + os.getcwd() )
+            print ('SSC Version = ', ssc.version())
+            print ('SSC Build Information = ', ssc.build_info().decode("utf - 8"))
+            ssc.module_exec_set_print(1)
+        else:
+            ssc.module_exec_set_print(0)
+
+        data = ssc.data_create()
+
+        #load in the default parameters
+        self.load_ssc_constants(ssc, data)
+
+        """
+        ####################################################
+                    files
+        ####################################################
+        """
+        ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
+        
+        #calculate system temperatures
+        T_rec_hot_des = 730  #C this is fixed
+        T_pc_hot_des = T_rec_hot_des - (self.variables.dT_approach_charge_hx + self.variables.dT_approach_disch_hx)
+        T_rec_cold_des = T_rec_hot_des - self.settings.cycle_temperature_drop
+        T_tes_hot_des = T_rec_hot_des - self.variables.dT_approach_charge_hx
+        T_tes_cold_des = T_tes_hot_des - self.settings.cycle_temperature_drop 
+        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_disch_hx
+        T_pc_cold_des = T_pc_hot_des - self.settings.cycle_temperature_drop
+
+        #cycle efficiency
+        cycle_efficiency = self.settings.cycle_efficiency_nominal/0.489 * cycle.calculate_nominal_efficiency(T_pc_hot_des, self.variables.cycle_design_power*1000.)
+        ssc.data_set_matrix( data, b'ud_ind_od', cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des) );
+        ssc.data_set_matrix( data, b'ud_ind_od_off_sun', cycle.create_updc_lookup('resource/ud_ind_od_off_sun.csv', T_pc_hot_des) );
+
+        # Do initial calculations for parameters used in cost/performance models
+        helio_area = 8.66**2*.97
+        q_pb_des = self.variables.cycle_design_power/cycle_efficiency  #MWt
+        solarm  = self.variables.receiver_design_power / q_pb_des
+        receiver_eff_des = receiver.calculate_efficiency(self.variables.receiver_height)
+        q_sf_des = self.variables.receiver_design_power / receiver_eff_des * self.variables.dni_design_point / self.settings.dni_des_ref
+
+        #get the heliostat field for the rated solar field power
+        eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
+                                                q_sf_des*1000, helio_area)
+        ssc.data_set_matrix( data, b'eta_map', eta_map);
+
+        #tower height
+        tht = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
+
+
+        #receiver
+        ntd = receiver.calculate_n_tubes(self.variables.receiver_design_power*1000, T_rec_cold_des, T_rec_hot_des, self.variables.receiver_height)
+        n_tubes = ntd['n_tubes']
+        recd = receiver.calculate_cost(self.variables.receiver_height, n_tubes)
+        rec_total_cost = recd['total_cost'] 
+        rec_area = recd['A_rec']
+        D_rec = recd['W_rec']
+        ssc.data_set_matrix(data, b'rec_efficiency_lookup', receiver.create_receiver_efficiency_lookup("resource/rec_efficiency.csv", self.variables.receiver_height) )
+        ssc.data_set_matrix(data, b'rec_pressure_lookup', receiver.create_receiver_pressure_lookup("resource/rec_pressure.csv", self.variables.receiver_height) )
+
+        #lift power and cost
+        lift_cost = tes.calculate_lift_cost(self.variables.receiver_design_power*1000, self.settings.lift_technology)
+        lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, self.variables.receiver_design_power*1000, self.settings.lift_technology)
+
+        #TES costs
+        e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
+        dtes = tes.calculate_silo_cost( q_pb_des*1000, self.variables.hours_tes, self.settings.cycle_temperature_drop)
+        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des)
+        hx_cost = dhx['total_cost']
+        # tes_spec_cost = (hx_cost + dtes['silo_cost'] + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
+        tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
+
+        """
+        ####################################################
+                    parameters
+        ####################################################
+        """
+        #design
+        ssc.data_set_number( data, b'P_ref', self.variables.cycle_design_power );
+        ssc.data_set_number( data, b'design_eff', cycle_efficiency);     # 0.43; 
+        ssc.data_set_number( data, b'tshours', self.variables.hours_tes );     # 10.3
+        ssc.data_set_number( data, b'solarm',  solarm);
+
+        #heliostat field
+        ssc.data_set_number( data, b'helio_width', 8.66 );
+        ssc.data_set_number( data, b'helio_height', 8.66 );
+        ssc.data_set_number( data, b'dens_mirror', 0.97 );
+        ssc.data_set_number( data, b'dni_des', self.variables.dni_design_point );
+
+        #total height and width of all recievers (cost calculation)
+        ssc.data_set_number( data, b'rec_height', self.variables.receiver_height );     #524.67 m^2
+        ssc.data_set_number( data, b'D_rec', D_rec );
+        ssc.data_set_number( data, b'h_tower', tht );
+
+        ssc.data_set_number( data, b'tower_fixed_cost', 2.3602 * 0.78232e6 );
+        ssc.data_set_number( data, b'tower_exp', 0.0113 );
+        ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
+        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
+        ssc.data_set_number( data, b'foundation_cost_scaling_linear', 115727. );
+        ssc.data_set_number( data, b'particle_lift_cost', lift_cost )  #  60e6 );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost', (tht*1.5+50/2)*(38e3+137e3) );
+
+        ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost );
+        ssc.data_set_number( data, b'rec_ref_area', rec_area );
+
+        #field costs
+        ssc.data_set_number( data, b'site_spec_cost', 10. );
+        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );
+
+        #Plant and BOP
+        ssc.data_set_number( data, b'plant_spec_cost', 600 );
+
+        #TES
+        ssc.data_set_number( data, b'tes_spec_cost', tes_spec_cost)  #$/kwht
+
+        #land
+        ssc.data_set_number( data, b'contingency_rate', 7 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 17.6 );
+
+
+        #receiver parameters
+        ssc.data_set_number( data, b'f_rec_min', 0.05 );
+        ssc.data_set_number( data, b'rec_su_delay', 0.1); #0.2 );
+        ssc.data_set_number( data, b'rec_qf_delay', 0.1); #0.25 );
+        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 2 );
+        ssc.data_set_number( data, b'piping_loss', 10200 );
+        ssc.data_set_number( data, b'piping_length_mult', 2.6 );
+        ssc.data_set_number( data, b'piping_length_const', 0 );
+        ssc.data_set_number( data, b'eta_pump', lift_eff );
+
+
+        ssc.data_set_number( data, b'T_rec_hot_des', T_rec_hot_des );
+        ssc.data_set_number( data, b'T_rec_cold_des', T_rec_cold_des );
+        ssc.data_set_number( data, b'T_tes_hot_des', T_tes_hot_des );
+        ssc.data_set_number( data, b'T_tes_warm_des', T_tes_warm_des );
+        ssc.data_set_number( data, b'T_tes_cold_des', T_tes_cold_des );
+        ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
+        ssc.data_set_number( data, b'dt_ht_discharging', 0.8 * self.variables.dT_approach_disch_hx );
+        ssc.data_set_number( data, b'dt_lt_discharging', 0.2 * self.variables.dT_approach_disch_hx );
+        ssc.data_set_number( data, b'dP_LTHX_perc', 0.5 );
+        ssc.data_set_number( data, b'dP_HTHX_perc', 1.5 );
+
+        ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
+        ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
+
+        #------------------------------------------------------------------------------
+
+        module = ssc.module_create(b'tcsmolten_salt') 
+        ssc.module_exec_set_print( 0 );
+        if ssc.module_exec(module, data) == 0:
+            print ('tcsmolten_salt simulation error')
+            idx = 1
+            msg = ssc.module_log(module, 0)
+            while (msg != None):
+                print ('    : ' + msg.decode("utf - 8"))
+                msg = ssc.module_log(module, idx)
+                idx = idx + 1
+            SystemExit( "Simulation Error" );
+        ssc.module_free(module)
+
+        #------------------------------------------------------------------------------
+        #------------------------------------------------------------------------------
+
+        p_ref = ssc.data_get_number( data, b'P_ref' );
+        ssc.data_set_number( data, b'system_capacity', p_ref*1000. );
+
+        #ssc.data_set_number( data, b'construction_financing_cost', 33673272 ); #calculated by performance module
+        gross_to_net = ssc.data_get_number( data, b'gross_net_conversion_factor' );
+        ssc.data_set_number( data, b'cp_system_nameplate', p_ref * gross_to_net );
+
+        #------------------------------------------------------------------------------
         module = ssc.module_create(b'singleowner')
         ssc.module_exec_set_print( 0 );
         if ssc.module_exec(module, data) == 0:
@@ -650,6 +733,10 @@ class Gen3opt:
                 idx = idx + 1
             SystemExit( "Simulation Error" );
         ssc.module_free(module)
+
+        #------------------------------------------------------------------------------
+        #------------------------------------------------------------------------------
+
 
         #if printing summary results...
         printouts = [
@@ -685,7 +772,7 @@ class Gen3opt:
                     vals = "{:.3f}".format(val)
                 print("{:20s}\t{:>15s}".format(lab, vals))
 
-        if self.settings.save_dview_results:
+        if self.settings.save_hourly_results:
             #outputs
             outs=[
                 ["a_sf1", "m2", 1],
@@ -748,16 +835,31 @@ class Gen3opt:
                 ["tdry", "C", 1]
             ];
 
-            # allout = np.array([])
-            allout = []
             for name, units, mult in outs:
-                allout.append(np.concatenate( ([name, units], np.array(ssc.data_get_array(data, name.encode()))*mult) ) )
+                self.hourly_results_dict[name] = {'units':units, 'data':ssc.data_get_array(data, name.encode())*mult}
 
-            allout = np.array(allout).T.astype(np.str)
+    
+    #----------------------------------------------------------------
+    def write_hourly_results_to_file(self, file_path="output_dview.csv"):
 
-            with open("output_dview.csv", 'w') as fout:
-                txt = "\n".join([",".join(line) for line in allout])
-                fout.write(txt)
+        if not self.settings.save_hourly_results:
+            print("Hourly results were not saved for this simulation and connot be written to file.")
+            return
+
+        datakeys = self.hourly_results_dict.keys()
+        datakeys.sort()
+
+        allout = []
+        for name in datakeys:
+            allout.append( np.concatenate( ([name, self.hourly_results_dict['name']['units']], self.hourly_results_dict['name']['data']) ) )
+
+        allout = np.array(allout).T.astype(np.str)
+
+        with open(file_path, 'w') as fout:
+            txt = "\n".join([",".join(line) for line in allout])
+            fout.write(txt)
+
+        return
 
 #------------------------------------------------------------------------------
 
@@ -765,9 +867,29 @@ if __name__ == "__main__":
 
 
     g = Gen3opt()
-    g.settings.print_summary_output = True    
-    g.settings.save_dview_results = True
+    g.settings.print_summary_output = True
+    g.settings.save_hourly_results = False
     
-    g.variables.dT_approach_charge_hx = 30
-    g.variables.dT_approach_disch_hx = 30
+    # dt_step = 5
+    # dt_ca = np.arange(5,35+dt_step,dt_step)
+    # dt_da = np.arange(5,35+dt_step,dt_step)
+
+    # lcoe_a = np.zeros((dt_ca.size, dt_da.size))
+
+    # for i,dt_c in enumerate(dt_ca):
+    #     for j,dt_d in enumerate(dt_da):
+    #         g.variables.dT_approach_charge_hx = dt_c
+    #         g.variables.dT_approach_disch_hx = dt_d
+            
+    #         g.exec()
+
+    #         lcoe = g.results_dict['LCOE (real)']
+
+    #         lcoe_a[i][j] = lcoe
+    #         print("Chg: {:.1f} C\t\tDis: {:.1f}\t\tLCOE: {:.3f}".format(dt_c, dt_d, lcoe))
+    
+    # print(lcoe_a)
+
+    g.variables.dT_approach_charge_hx = 10
+    g.variables.dT_approach_disch_hx = 15
     g.exec()

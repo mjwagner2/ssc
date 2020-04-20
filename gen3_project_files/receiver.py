@@ -212,7 +212,7 @@ def calculate_cost(L, N_tubes):
     ins_cost = ins_spec_cost * A_ins
     
     # "total cost"
-    total_cost = mat_cost + toll_cost_total + weld_cost + frame_cost +  ins_cost
+    total_cost = (mat_cost + toll_cost_total + weld_cost + frame_cost +  ins_cost)*3  #3 receivers
     return {'total_cost':total_cost, 'A_rec':A_rec, 'W_rec':W_rec}
 
 

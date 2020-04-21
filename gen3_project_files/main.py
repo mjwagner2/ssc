@@ -1,6 +1,7 @@
 from PySSC import PySSC
 import numpy as np
 import os
+import pandas as pd
 
 #modules with cost/performance functions
 import piping
@@ -50,8 +51,8 @@ class Gen3opt:
     def clear(self):
         self.variables = Variables()
         self.settings = Settings()
-        self.results_dict = {}
-        self.hourly_data_dict = {}
+        self.summary_results = []
+        self.hourly_data = None
     
     #----------------------------------------------------------------
     def load_ssc_constants(self, ssc, data):
@@ -180,7 +181,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_tes_hot_des', 715 );
         ssc.data_set_number( data, b'T_tes_warm_des', 615 );
         ssc.data_set_number( data, b'T_tes_cold_des', 565 );
-        ssc.data_set_number( data, b'csp.pt.tes.init_hot_htf_percent', 30 );
+        ssc.data_set_number( data, b'csp.pt.tes.init_hot_htf_percent', 0 );
         ssc.data_set_number( data, b'h_tank', 20 );
         ssc.data_set_number( data, b'cold_tank_max_heat', 0 );
         ssc.data_set_number( data, b'dt_charging', 15 );
@@ -201,7 +202,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'pb_pump_coef', 0.55 );
         ssc.data_set_number( data, b'startup_time', 0.5 );
         ssc.data_set_number( data, b'startup_frac', 0.5 );
-        ssc.data_set_number( data, b'cycle_max_frac', 1.1); #1.05 );
+        ssc.data_set_number( data, b'cycle_max_frac', 1.2); #1.05 );
         ssc.data_set_number( data, b'cycle_cutoff_frac', 0.2 );
         ssc.data_set_number( data, b'q_sby_frac', 0.2 );
 
@@ -220,9 +221,9 @@ class Gen3opt:
         ssc.data_set_matrix( data, b'ud_T_amb_ind_od', ud_T_amb_ind_od );
         ud_m_dot_htf_ind_od = [[0]]
         ssc.data_set_matrix( data, b'ud_m_dot_htf_ind_od', ud_m_dot_htf_ind_od );
-        ssc.data_set_number( data, b'P_phx_in_co2_des', 24.750625 );
-        ssc.data_set_number( data, b'P_turb_in_co2_des', 20.790525 );
-        ssc.data_set_number( data, b'P_turb_in_co2_off_sun_des', 24.504);
+        ssc.data_set_number( data, b'P_phx_in_co2_des', 24750.625 );
+        ssc.data_set_number( data, b'P_turb_in_co2_des', 20790.525 );
+        ssc.data_set_number( data, b'P_turb_in_co2_off_sun_des', 24504.);
 
         ssc.data_set_number( data, b'pb_fixed_par', 0); #0.0055 );
         ssc.data_set_number( data, b'bop_par', 0 );
@@ -549,8 +550,8 @@ class Gen3opt:
     def exec(self):
 
         ssc = PySSC()
-        print('Process ID ', os.getpid())
         if self.settings.print_ssc_messages:
+            print('Process ID ', os.getpid())
             print ('Current folder = ' + os.getcwd() )
             print ('SSC Version = ', ssc.version())
             print ('SSC Build Information = ', ssc.build_info().decode("utf - 8"))
@@ -611,8 +612,9 @@ class Gen3opt:
         ssc.data_set_matrix(data, b'rec_pressure_lookup', receiver.create_receiver_pressure_lookup("resource/rec_pressure.csv", self.variables.receiver_height) )
 
         #lift power and cost
+        m_dot_p = self.variables.receiver_design_power*1e3 / (tes.cp_particle() * (T_tes_hot_des - T_tes_cold_des))  #kg/s
         lift_cost = tes.calculate_lift_cost(self.variables.receiver_design_power*1000, self.settings.lift_technology)
-        lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, self.variables.receiver_design_power*1000, self.settings.lift_technology)
+        lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, self.variables.receiver_design_power*1000, m_dot_p, self.settings.lift_technology)
 
         #TES costs
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
@@ -737,49 +739,18 @@ class Gen3opt:
         #------------------------------------------------------------------------------
         #------------------------------------------------------------------------------
 
-
-        #if printing summary results...
-        printouts = [
-            ['Annual energy', 'annual_energy'],
-            ['Capacity factor', 'capacity_factor'],
-            ['LCOE (real)', 'lcoe_real'],
-            ['Site improvement', 'csp.pt.cost.site_improvements'],
-            ['Heliostats', 'csp.pt.cost.heliostats'],
-            ['Tower', 'csp.pt.cost.tower'],
-            ['Receiver', 'csp.pt.cost.receiver'],
-            ['Storage', 'csp.pt.cost.storage'],
-            ['Power block', 'csp.pt.cost.power_block'],
-            ['Direct costs subtotal', 'ui_direct_subtotal'],
-            ['Contingency', 'csp.pt.cost.contingency'],
-            ['Direct costs subtotal', 'total_direct_cost'],
-            # ['EPC', 'csp.pt.cost.epc.total'],
-            # ['Total land cost', 'csp.pt.cost.plm.total'],
-            # ['Sales tax', 'csp.pt.cost.sales_tax.total'],
-            ['Indirect costs subtotal', 'total_indirect_cost'],
-            ['Net capital cost', 'cost_installed'],
-            ['Cost per capacity', 'csp.pt.cost.installed_per_capacity'],
-        ]
-
-        for lab,var in printouts:
-            val = ssc.data_get_number(data, var.encode())
-            
-            self.results_dict[lab] = val
-
-            if self.settings.print_summary_output:
-                if val > 1000:
-                    vals = "{:,d}".format(int(val))
-                else:
-                    vals = "{:.3f}".format(val)
-                print("{:20s}\t{:>15s}".format(lab, vals))
-
         if self.settings.save_hourly_results:
+        
             #outputs
-            outs=[
+            self.hourly_output_columns=[
                 ["a_sf1", "m2", 1],
                 ["a_sf2", "m2", 1],
                 ["a_sf3", "m2", 1],
                 ["beam", "W/m2", 1],
                 ["defocus", "-", 1],
+                ["dp_rec1", "kPa", 1],
+                ["dp_rec2", "kPa", 1],
+                ["dp_rec3", "kPa", 1],
                 ["e_ch_tes", "MWh", 1],
                 ["eta", "-", 1],
                 ["eta_field_tot", "-", 1],
@@ -804,6 +775,8 @@ class Gen3opt:
                 ["p_cooling_tower_tot", "MW", 1],
                 ["p_cycle", "MW", 1],
                 ["p_out_net", "MW", 1],
+                ["p_phx_in", "kPa", 1],
+                ["p_phx_out", "kPa", 1],
                 ["p_tower_pump", "MW", 1],
                 ["pparasi", "MW", 1],
                 ["q_ch_tes", "MW", 1],
@@ -835,9 +808,86 @@ class Gen3opt:
                 ["tdry", "C", 1]
             ];
 
-            for name, units, mult in outs:
-                self.hourly_results_dict[name] = {'units':units, 'data':ssc.data_get_array(data, name.encode())*mult}
+            alldata = []
+            colnames = []
+            for name, units, mult in self.hourly_output_columns:
+                newcol = np.array(ssc.data_get_array(data, name.encode()))*mult
+                alldata.append( newcol )
+                colnames.append(name)
+            alldata = np.array(alldata).T
+            self.hourly_data = df = pd.DataFrame(alldata, columns=colnames, index=pd.date_range('1/1/2019', periods=8760, freq='h'))
 
+            # print(df[df.index.month == 3].describe())
+
+            dfsun = df[df.q_dot_rec_inc > 0]
+            dfnight = df[df.q_pb > 0][df.q_dot_rec_inc == 0]
+
+        self.summary_results = []
+
+        printouts = [
+            ['Annual energy', 'annual_energy'],
+            ['Capacity factor', 'capacity_factor'],
+            ['LCOE (real)', 'lcoe_real'],
+            ['Site improvement', 'csp.pt.cost.site_improvements'],
+            ['Heliostats', 'csp.pt.cost.heliostats'],
+            ['Tower', 'csp.pt.cost.tower'],
+            ['Receiver', 'csp.pt.cost.receiver'],
+            ['Storage', 'csp.pt.cost.storage'],
+            ['Power block', 'csp.pt.cost.power_block'],
+            ['Direct costs subtotal', 'ui_direct_subtotal'],
+            ['Contingency', 'csp.pt.cost.contingency'],
+            ['Direct costs subtotal', 'total_direct_cost'],
+            # ['EPC', 'csp.pt.cost.epc.total'],
+            # ['Total land cost', 'csp.pt.cost.plm.total'],
+            # ['Sales tax', 'csp.pt.cost.sales_tax.total'],
+            ['Indirect costs subtotal', 'total_indirect_cost'],
+            ['Net capital cost', 'cost_installed'],
+            ['Cost per capacity', 'csp.pt.cost.installed_per_capacity'],
+        ]
+
+        for lab,var in printouts:
+            val = ssc.data_get_number(data, var.encode())
+            self.summary_results.append([lab, val])
+
+        if self.settings.save_hourly_results:
+            #dni-weighted annual field efficiency
+            dni_sum = df.beam.sum()
+            self.summary_results.append(['Field efficiency - annual', (df.beam * df.eta_field_tot).sum() / dni_sum*100])
+            #... and by subfield
+            self.summary_results.append(['Field 1 efficiency - annual', (df.beam * df.eta_field1).sum() / dni_sum*100])
+            self.summary_results.append(['Field 2 efficiency - annual', (df.beam * df.eta_field2).sum() / dni_sum*100])
+            self.summary_results.append(['Field 3 efficiency - annual', (df.beam * df.eta_field3).sum() / dni_sum*100])
+            #annual receiver efficiency
+            self.summary_results.append(['Receiver efficiency - annual', (df.eta_therm * df.q_dot_rec_inc).sum() / df.q_dot_rec_inc.sum()*100])
+            #... and by subfield
+            self.summary_results.append(['Receiver 1 efficiency - annual', (df.eta_rec_therm1 * df.q_dot_rec_inc1).sum() / df.q_dot_rec_inc1.sum()*100])
+            self.summary_results.append(['Receiver 2 efficiency - annual', (df.eta_rec_therm2 * df.q_dot_rec_inc2).sum() / df.q_dot_rec_inc2.sum()*100])
+            self.summary_results.append(['Receiver 3 efficiency - annual', (df.eta_rec_therm3 * df.q_dot_rec_inc3).sum() / df.q_dot_rec_inc3.sum()*100])
+            #annual cycle efficiency
+            self.summary_results.append(['Cycle efficiency - annual', (df.eta * df.q_pb).sum() / df.q_pb.sum()*100])
+            #... on sun
+            self.summary_results.append(['Cycle on-sun efficiency - annual', (dfsun.eta * dfsun.q_pb).sum() / dfsun.q_pb.sum()*100])
+            #... off sun
+            self.summary_results.append(['Cycle off-sun efficiency annual', (dfnight.eta * dfnight.q_pb).sum() / dfnight.q_pb.sum()*100])
+            #
+
+        #if printing summary results...
+        if self.settings.print_summary_output:
+            for lab,val in self.summary_results:
+                if val > 1000:
+                    vals = "{:,d}".format(int(val))
+                else:
+                    vals = "{:.3f}".format(val)
+                print("{:35s}\t{:>15s}".format(lab, vals))
+
+        return
+
+    #----------------------------------------------------------------
+    def get_result_value(self, name):
+        for row in self.summary_results:
+            if row[0] == name:
+                return row[1]
+        print("Variable not found: " + name)
     
     #----------------------------------------------------------------
     def write_hourly_results_to_file(self, file_path="output_dview.csv"):
@@ -846,12 +896,9 @@ class Gen3opt:
             print("Hourly results were not saved for this simulation and connot be written to file.")
             return
 
-        datakeys = self.hourly_results_dict.keys()
-        datakeys.sort()
-
         allout = []
-        for name in datakeys:
-            allout.append( np.concatenate( ([name, self.hourly_results_dict['name']['units']], self.hourly_results_dict['name']['data']) ) )
+        for name,units,_ in self.hourly_output_columns:
+            allout.append( np.concatenate( ([name, units], self.hourly_data[name].values) ) )
 
         allout = np.array(allout).T.astype(np.str)
 
@@ -867,9 +914,14 @@ if __name__ == "__main__":
 
 
     g = Gen3opt()
-    g.settings.print_summary_output = True
-    g.settings.save_hourly_results = False
+
+    # g.settings.print_summary_output = True
+    # g.settings.save_hourly_results = True
+    # g.settings.print_ssc_messages = True
     
+    # g.exec()
+    # g.write_hourly_results_to_file()
+
     # dt_step = 5
     # dt_ca = np.arange(5,35+dt_step,dt_step)
     # dt_da = np.arange(5,35+dt_step,dt_step)
@@ -889,7 +941,13 @@ if __name__ == "__main__":
     #         print("Chg: {:.1f} C\t\tDis: {:.1f}\t\tLCOE: {:.3f}".format(dt_c, dt_d, lcoe))
     
     # print(lcoe_a)
+    
+    # g.variables.dT_approach_charge_hx = 15
+    # g.variables.dT_approach_disch_hx = 15
+    
+    # for h in np.arange(4,8,.2):
+    #     g.variables.receiver_height = h
+    #     g.exec()
+    #     print("{:.1f}\t{:f}".format(h, g.get_result_value('LCOE (real)')))
+    
 
-    g.variables.dT_approach_charge_hx = 10
-    g.variables.dT_approach_disch_hx = 15
-    g.exec()

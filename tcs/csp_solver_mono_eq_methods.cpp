@@ -1573,7 +1573,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     // Get receiver HTF outputs
     double m_dot_rec_out = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;   //[kg/hr]
     double T_htf_rec_out = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15;  //[K]
-    double P_rec_out = mpc_csp_solver->mc_cr_htf_state_in.m_pres - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double P_rec_out = mpc_csp_solver->mc_cr_htf_state_in.m_pres - mpc_csp_solver->mc_cr_out_solver.m_dP_sf;  //[kPa]
     double m_dot_store = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;    //[kg/hr]
     double T_store_in = mpc_csp_solver->mc_cr_out_solver.m_T_store_hot + 273.15;   //[K]
 
@@ -3318,7 +3318,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     // Get the receiver mass flow rate
     double m_dot_rec_full_ts = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;   //[kg/hr]
     double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;   //[C]
-    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf;  //[kPa]
 
     // Get the maximum possible mass flow rate from TES discharge
     // ... using the guess value for the TES cold inlet temperature
@@ -3578,7 +3578,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__step::operator()(double ste
     // Get the receiver mass flow rate
     double m_dot_rec = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;           //[kg/hr]
     double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;           //[C]
-    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf;  //[kPa]
     double q_dot_rec = mpc_csp_solver->mc_cr_out_solver.m_q_thermal;                //[MWt]
 
     double T_htf_tes_hot, m_dot_tes_dc = std::numeric_limits<double>::quiet_NaN();
@@ -3826,7 +3826,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     // Get receiver HTF outputs
     double m_dot_rec_out = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;   //[kg/hr]
     double T_htf_rec_out = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15;  //[K]
-    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf * 100.;  //[kPa]
+    double P_rec_out = P_rec_in - mpc_csp_solver->mc_cr_out_solver.m_dP_sf;  //[kPa]
     double m_dot_rec_store = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;    //[kg/hr]
     double T_store_in = mpc_csp_solver->mc_cr_out_solver.m_T_store_hot + 273.15;   //[K]
 

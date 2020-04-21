@@ -7,7 +7,7 @@ from math import ceil
 __raw_data = {
     'length':[3, 3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8],
     'efficiency':[0.6047, 0.6821, 0.7351, 0.742, 0.7627, 0.7728, 0.8002, 0.8035, 0.8195, 0.824, 0.8243, 0.8281, 0.8312, 0.8338],  # -
-    'pressure_drop':[0.01905, 0.05688, 0.141, 0.1609, 0.2459, 0.3071, 0.6068, 0.6636, 1.086, 1.478, 1.507, 2.027, 2.666, 3.435],  # MPa
+    'pressure_drop':[19.05, 56.88, 141, 160.9, 245.9, 307.1, 606.8, 663.6, 1086, 1478, 1507, 2027, 2666, 3435],  # kPa
     'm_dot_tube':[0.01627, 0.02775, 0.04279, 0.04555, 0.05554, 0.06157, 0.08409, 0.08757, 0.109, 0.1229, 0.1238, 0.1386, 0.1535, 0.1682], #kg/s
 }
 
@@ -20,16 +20,16 @@ def specheat_co2(T_C):
     """
     return 0.412972 * T_C**0.165755
 
-def density_co2(T_C, P_MPa):
+def density_co2(T_C, P_kPa):
     """
     Inputs
         T_C - temperature of the gas (C)
-        P_MPa - pressure of the gas (MPa)
+        P_kPa - pressure of the gas (kPa)
 
     Returns
         Density - kg/m3
     """
-    return P_MPa*1e6 / ((T_C+273.15) * 188.92)
+    return P_kPa*1e3 / ((T_C+273.15) * 188.92)
 
 #----------------------------------------------------------------------------
 def calculate_tower_height(q_solarfield_in_kw, is_north = True, wp_data = False):
@@ -283,7 +283,7 @@ def create_receiver_pressure_lookup(file_path, L):
 
     Returns
         Table with columns:
-        fractional mass flow | Inlet pressure (MPa) | Rec. pressure drop (MPa)
+        fractional mass flow | Inlet pressure (kPa) | Rec. pressure drop (kPa)
     """
 
     #get nominal pressure drop
@@ -398,7 +398,7 @@ if __name__ == "__main__":
 
     # print(specheat_co2(550))
     # print(density_co2(550, 25))
-    # create_receiver_pressure_lookup(5.3)
+    create_receiver_pressure_lookup("resource/rec_pressure.csv", 4)
     # create_receiver_efficiency_lookup(5.3)
 
     x=None

@@ -193,9 +193,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_MATRIX, "ud_ind_od_off_sun",                  "Off design for OFF SUN user-defined power cycle performance as function of T_htf, m_dot_htf [ND], and T_amb",                                         "",             "",                      "User Defined Power Cycle",                 "*",                                                      "",              "" },
 
     // Direct CO2 User Defined
-    { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_des",                  "CO2 turbine inlet pressure",                                                                                                              "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_off_sun_des",          "CO2 turbine inlet pressure at off sun",                                                                                                   "MPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_phx_in_co2_des",                   "CO2 PHX inlet pressure",                                                                                                                  "kPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_des",                  "CO2 turbine inlet pressure",                                                                                                              "kPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "P_turb_in_co2_off_sun_des",          "CO2 turbine inlet pressure at off sun",                                                                                                   "kPa",          "",                                  "User Defined Power cycle",                 "*",                                                      "",              ""},
 
     // System Control
     { SSC_INPUT,     SSC_NUMBER, "time_start",                         "Simulation start time",                                                                                                                   "s",            "",                                  "System Control",                           "?=0",                                                              "",              ""},
@@ -398,6 +398,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm1",                     "Receiver 1 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm2",                     "Receiver 2 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "eta_rec_therm3",                     "Receiver 3 thermal efficiency",                                                                                                           "-",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec1",                            "Receiver 1 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec2",                            "Receiver 2 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec3",                            "Receiver 3 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
 
         // Power cycle outputs
     { SSC_OUTPUT,    SSC_ARRAY,  "eta",                                "PC efficiency, gross",                                                                                                                    "",             "",                                  "",                                         "*",                                                                "",              ""},
@@ -417,8 +420,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "T_rad_out",                          "Radiator outlet temperature",                                                                                                             "C",            "",                                  "PC",                                       "?",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "A_radfield",                         "Radiator field surface area",                                                                                                             "m^2",          "",                                  "PC",                                       "?",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "P_cond",                             "PC condensing presssure",                                                                                                                 "Pa",           "",                                  "PC",                                       "?",                                                                "",              ""},
-    { SSC_OUTPUT,    SSC_ARRAY,  "radcool_control",                    "Radiative cooling status code",                                                                                                           "-",            "",                                  "PC",                                       "?",                                                                "",              ""},
-
+    { SSC_OUTPUT,    SSC_ARRAY,  "radcool_control",                    "Radiative cooling status code",                                                                                                           "-",            "",                                  "PC",                                       "?",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "P_phx_in",                           "Primary HX/receiver inlet pressure",                                                                                                      "kPa",          "",                                  "PC",                                       "?",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "P_phx_out",                          "Primary HX return/cycle inlet pressure",                                                                                                  "kPa",          "",                                  "PC",                                       "?",                                                                "",              "" },
 
         // Thermal energy storage outputs
     { SSC_OUTPUT,    SSC_ARRAY,  "tank_losses",                        "TES thermal losses",                                                                                                                      "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
@@ -538,6 +542,85 @@ public:
 
 	void exec() override
 	{
+ //       FILE* fp = fopen("input_log.txt", "w");
+
+ //       std::vector<var_info*> tables = { _cm_vtab_tcsmolten_salt, vtab_adjustment_factors, vtab_sf_adjustment_factors };
+
+ //       for (size_t t = 0; t < 3; t++)
+ //       {
+ //           var_info* table = tables[t];
+
+ //           for (size_t i = 0; true; i++)
+ //           {
+ //               if (table[i].data_type == SSC_INVALID)
+ //                   break;
+
+ //               if (! (table[i].var_type == SSC_INPUT || table[i].var_type == SSC_INOUT))
+ //                   continue;
+ //               if (!is_assigned(table[i].name))
+ //                   continue;
+
+ //               fprintf(fp, "var(\"%s\", ", table[i].name);
+ //           
+ //               switch (table[i].data_type)
+ //               {
+ //               case SSC_NUMBER:
+ //               {
+ //                   double val = as_double(table[i].name);
+ //                   if(val > 9e12)
+ //                       fprintf(fp, "1e38");
+ //                   else
+ //                       fprintf(fp, "%f", val);
+ //                   break;
+ //               }
+ //               case SSC_STRING:
+ //                   fprintf(fp, "%s", as_string(table[i].name));
+ //                   break;
+ //               case SSC_ARRAY:
+ //               {
+ //                   size_t nval;
+ //                   ssc_number_t* pval = as_array(table[i].name, &nval);
+ //                   fprintf(fp, "[");
+ //                   for (int j = 0; j < nval; j++)
+ //                   {
+ //                       if (pval[j] > 9e12)
+ //                           fprintf(fp, "1e38%s", j < nval - 1 ? "," : "");
+ //                       else
+ //                           fprintf(fp, "%f%s", pval[j], j < nval - 1 ? "," : "");
+ //                   }
+ //                   fprintf(fp, "]");
+ //                   break;
+ //               }
+ //               case SSC_MATRIX:
+ //               {
+ //                   size_t nrow, ncol;
+ //                   ssc_number_t* pval = as_matrix(table[i].name, &nrow, &ncol);
+ //                   fprintf(fp, "[");
+ //                   for (int j = 0; j < nrow; j++)
+ //                   {
+ //                       fprintf(fp, "[");
+ //                       for (int k = 0; k < ncol; k++)
+ //                           fprintf(fp, "%f%s", pval[j*ncol + k], k < ncol - 1 ? "," : "");
+ //                       fprintf(fp, "]%s", j < nrow-1 ? "," : "");
+ //                   }
+ //                   fprintf(fp, "]");
+ //                   break;
+ //               }
+ //               default:
+ //                   break;
+ //               }
+
+ //               fprintf(fp, ");\n");
+ //           }
+ //       }
+
+ //       fclose(fp);
+
+
+
+
+
+
 		// Weather reader
 		C_csp_weatherreader weather_reader;
 		if (is_assigned("solar_resource_file")){
@@ -630,9 +713,9 @@ public:
         pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
         pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
 
-        pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des");
-        pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des");
-        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des");
+        pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
+        pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
+        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des") / 1000.;  //convert to MPa from kPa
 
         pc->m_cycle_max_frac = as_double("cycle_max_frac");
         pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
@@ -683,6 +766,8 @@ public:
         p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_T_HTF_OUT, allocate("T_pc_out", n_steps_fixed), n_steps_fixed);
         p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_M_DOT_WATER, allocate("m_dot_water_pc", n_steps_fixed), n_steps_fixed);
         p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_T_COND_OUT, allocate("T_cond_out", n_steps_fixed), n_steps_fixed);
+        p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_P_PHX_IN, allocate("P_phx_in", n_steps_fixed), n_steps_fixed);
+        p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_P_PHX_OUT, allocate("P_phx_out", n_steps_fixed), n_steps_fixed);
 
         //heliostat field class
         C_pt_sf_perf_interp heliostatfield;
@@ -807,7 +892,7 @@ public:
         
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = std::numeric_limits<double>::quiet_NaN(); // as_double("epsilon");
-        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * 1.e3 * (1. - as_double("dP_LTHX_perc")/100.);       //[kPa]
+        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * (1. - as_double("dP_LTHX_perc")/100.);       //[kPa]
         receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
         receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
@@ -834,6 +919,7 @@ public:
         tower.m_dt_hot = as_double("dt_charging");               //[C]
         tower.T_rec_hot_des = as_double("T_rec_hot_des");        //[C]
         tower.T_hx_cold_des = as_double("T_tes_cold_des");       //[C]
+        tower.h_lift = as_double("h_tower") * 1.1;      //[m] Lift height is 10% taller than receiver optical midline
 
 
         // *******************************************************
@@ -894,6 +980,9 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM1, allocate("eta_rec_therm1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM2, allocate("eta_rec_therm2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_ETA_THERM3, allocate("eta_rec_therm3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC1, allocate("dp_rec1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC2, allocate("dp_rec2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC3, allocate("dp_rec3", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;

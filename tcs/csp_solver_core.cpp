@@ -3447,7 +3447,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				{
 					if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
 					{
-						throw(C_csp_exception("CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
+						//throw(C_csp_exception("CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
 					}
 					else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
 					{

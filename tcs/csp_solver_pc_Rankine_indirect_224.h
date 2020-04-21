@@ -138,6 +138,8 @@ public:
 		E_M_DOT_WATER,		//[kg/hr] Cycle water consumption: makeup + cooling	
 		E_P_COND,			//[Pa] Cycle condensing pressure
 		E_RADCOOL_CNTRL,	//Code showing the status of radiative cooling with cold storage
+		E_P_PHX_IN,			//[kPa?] Primary heat exchanger (cold) inlet pressure
+		E_P_PHX_OUT,		//[kPa?] Turbine (hot) inlet pressure
 
 		// Variables added for backwards compatability with TCS
 		E_M_DOT_HTF_REF		//[kg/hr] HTF mass flow rate at design

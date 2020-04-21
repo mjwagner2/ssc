@@ -437,7 +437,7 @@ public:
         double m_T_htf_hot_des;         //[K]
 		double m_q_dot_rec_des;			//[MW]
 		double m_A_aper_total;			//[m^2] Total solar field aperture area
-        double m_dP_sf;                 //[bar] Total field pressure drop
+        double m_dP_sf;                 //[kPa] Total field pressure drop
 
 		S_csp_cr_solved_params()
 		{
@@ -481,7 +481,7 @@ public:
 		double m_E_fp_total;			//[MW] Solar field freeze protection power
 		double m_W_dot_col_tracking;	//[MWe] Collector tracking power
 		double m_W_dot_htf_pump;		//[MWe] HTF pumping power
-        double m_dP_sf;                 //[bar] Total field pressure drop
+        double m_dP_sf;                 //[kPa] Total field pressure drop
 		double m_q_rec_heattrace;		//[MW] Receiver heat trace parasitic power
 
 		// 07/08/2016, GZ: add new variables for DSG LF 

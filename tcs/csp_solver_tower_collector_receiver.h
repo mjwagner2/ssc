@@ -36,7 +36,7 @@ class C_csp_tower_collector_receiver : public C_csp_collector_receiver
 {
 
 private:
-    const double dP_rec_perc = 3.5;         // [%] HTF pressure drop in individual receiver as percent of inlet pressure
+    //const double dP_rec_perc = 3.5;         // [%] HTF pressure drop in individual receiver as percent of inlet pressure
     const double dP_recHX_perc = 0.9;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
 
     std::vector<C_csp_mspt_collector_receiver> collector_receivers;
@@ -105,6 +105,9 @@ public:
         E_ETA_THERM1,               //[-] Receiver 1 thermal efficiency
         E_ETA_THERM2,               //[-] Receiver 2 thermal efficiency
         E_ETA_THERM3,               //[-] Receiver 3 thermal efficiency
+        E_DP_REC1,                  //[kPa] Receiver 1 pressure drop
+        E_DP_REC2,                  //[kPa] Receiver 2 pressure drop
+        E_DP_REC3,                  //[kPa] Receiver 3 pressure drop
     };
 	
     int m_field_fl;
@@ -115,6 +118,7 @@ public:
     double m_dt_hot;
     double T_rec_hot_des;
     double T_hx_cold_des;       // design cold inlet temperature on storage side
+    double h_lift;              // [m] Effective lift height
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

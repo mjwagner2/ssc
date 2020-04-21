@@ -80,6 +80,9 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_ETA_THERM1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_ETA_THERM2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_ETA_THERM3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_DP_REC1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_DP_REC2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_DP_REC3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -167,8 +170,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
     double q_dot_rec_des = 0.;
     double A_aper_total = 0.;
-    double dP_sf = 0.;              //[bar]
-    double P_prev = std::numeric_limits<double>::quiet_NaN();   //[bar]
+    double dP_sf = 0.;              //[kPa]
+    double P_prev = std::numeric_limits<double>::quiet_NaN();   //[kPa]
 
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
@@ -176,14 +179,12 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
         if (i == 0) {
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
-            P_prev = _solved_params.m_P_cold_des * 1.e-2;    //[bar]
+            P_prev = _solved_params.m_P_cold_des;    //[kPa]
         }
         q_dot_rec_des += _solved_params.m_q_dot_rec_des;
         A_aper_total += _solved_params.m_A_aper_total;
-        //dP_sf += _solved_params.m_dP_sf;  //uncomment and comment lines below when receiver has a calculated pressure drop
-        double dP_rec = P_prev * dP_rec_perc / 100.;
-        dP_sf += dP_rec;
-        P_prev -= dP_rec;
+        dP_sf += _solved_params.m_dP_sf;
+        P_prev -= _solved_params.m_dP_sf;
         
         hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
         //comment lines below when HX has a calculated pressure drop
@@ -381,6 +382,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
 
+        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
+        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
+
         cr_out_solver.m_q_startup += cr_out_solver_prev.m_q_startup;
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
@@ -391,8 +395,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
-        double P_prev = htf_state_in_next.m_pres * 1.e-2;  //[bar]
-        double dP_rec = P_prev * dP_rec_perc / 100.;
+        double P_prev = htf_state_in_next.m_pres;  //[kPa]
+        //double dP_rec = P_prev * dP_rec_perc / 100.;
+        double dP_rec = receiver_outputs.m_dP_total;
         cr_out_solver.m_dP_sf += dP_rec;
         P_prev -= dP_rec;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
@@ -418,10 +423,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
         htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;
-        htf_state_in_next.m_pres = P_prev * 1.e2;       //[kPa]
+        htf_state_in_next.m_pres = P_prev;       //[kPa]
 
-        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
-        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
         q_dot_field_inc += field_outputs.m_q_dot_field_inc;
         eta_weighted_sum += field_outputs.m_eta_field * collector_receivers.at(i).get_collector_area();
         sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * collector_receivers.at(i).get_collector_area();
@@ -455,6 +458,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_FIELD_AREA1, field_outputs.m_A_sf);
 	        mc_reported_outputs.value(E_FIELD_ETA_OPT1, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM1, receiver_outputs.m_eta_therm);
+            mc_reported_outputs.value(E_DP_REC1, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
         else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -467,6 +471,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_FIELD_AREA2, field_outputs.m_A_sf);
 	        mc_reported_outputs.value(E_FIELD_ETA_OPT2, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM2, receiver_outputs.m_eta_therm);
+            mc_reported_outputs.value(E_DP_REC2, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
         else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -479,6 +484,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_FIELD_AREA3, field_outputs.m_A_sf);
 	        mc_reported_outputs.value(E_FIELD_ETA_OPT3, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM3, receiver_outputs.m_eta_therm);
+            mc_reported_outputs.value(E_DP_REC3, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
     }
 
@@ -564,6 +570,9 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         // SHOULD THIS BE IN REVERSE ORDER?
         collector_receivers.at(i).off(weather, htf_state_in_next, cr_out_solver_prev, sim_info);
 
+        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
+        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
+
         cr_out_solver.m_q_startup += cr_out_solver_prev.m_q_startup;
         cr_out_solver.m_time_required_su = std::max(cr_out_solver.m_time_required_su, cr_out_solver_prev.m_time_required_su);
         cr_out_solver.m_m_dot_salt_tot = std::max(cr_out_solver.m_m_dot_salt_tot, cr_out_solver_prev.m_m_dot_salt_tot);
@@ -574,8 +583,9 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
-        double P_prev = htf_state_in_next.m_pres * 1.e-2;  //[bar]
-        double dP_rec = P_prev * dP_rec_perc / 100.;
+        double P_prev = htf_state_in_next.m_pres;  //[kPa]
+        //double dP_rec = P_prev * dP_rec_perc / 100.;
+        double dP_rec = receiver_outputs.m_dP_total;
         cr_out_solver.m_dP_sf += dP_rec;
         P_prev -= dP_rec;
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
@@ -600,10 +610,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
         htf_state_in_next.m_m_dot = cr_out_solver_prev.m_m_dot_salt_tot / 3600.;
-        htf_state_in_next.m_pres = P_prev * 1.e2;       //[kPa]
+        htf_state_in_next.m_pres = P_prev;       //[kPa]
 
-        C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
-        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
         q_dot_field_inc += field_outputs.m_q_dot_field_inc;
         eta_weighted_sum += field_outputs.m_eta_field * collector_receivers.at(i).get_collector_area();
         sf_adjust_weighted_sum += field_outputs.m_sf_adjust_out * collector_receivers.at(i).get_collector_area();
@@ -633,6 +641,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_Q_DOT_HX1, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_DP_REC1, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
         else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -642,6 +651,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_Q_DOT_HX2, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_DP_REC2, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
         else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -651,6 +661,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_Q_DOT_HX3, q_trans);		                                //[MWt]
             mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
+            mc_reported_outputs.value(E_DP_REC3, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
     }
 
@@ -671,7 +682,10 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     mc_reported_outputs.value(E_FIELD_Q_DOT_INC, q_dot_field_inc);	                                //[MWt]
     mc_reported_outputs.value(E_FIELD_ADJUST, sf_adjust_weighted_sum / collector_areas);			//[-]
     mc_reported_outputs.value(E_Q_DOT_INC, q_dot_rec_inc);	                                        //[MWt]
-    mc_reported_outputs.value(E_ETA_THERMAL, std::max(1. - q_losses / q_dot_rec_inc, 0.));		    //[-]
+    if(q_dot_field_inc < 1e-5)
+        mc_reported_outputs.value(E_ETA_THERMAL, 0.);		    //[-]
+    else
+        mc_reported_outputs.value(E_ETA_THERMAL, std::max(1. - q_losses / q_dot_rec_inc, 0.));		    //[-]
     mc_reported_outputs.value(E_Q_DOT_THERMAL, q_thermal);	                                        //[MWt]
     mc_reported_outputs.value(E_M_DOT_HTF, m_dot_salt_tot);	                                        //[kg/hr]
     // If startup, then timestep may have changed (why not report this from 222 in MWt?)
@@ -780,13 +794,12 @@ double C_csp_tower_collector_receiver::get_collector_area()
 
 double C_csp_tower_collector_receiver::conveyor_power(double m_dot_particle /*kg/hr*/)
 {
-    // Electrical power needed to run particle conveyor in MWe
-    
-    const double P_cvr_des = 6.867;             //[MWe] particle conveyor power at design conditions, 100% efficiency
-    const double eff = 0.8;                     //[-] particle conveyor efficiency
-    const double m_dot_particle_des = 4116.;    //[kg/s] particle flow rate through the tower at design
 
-    return P_cvr_des / eff * m_dot_particle / (m_dot_particle_des * 3600.);   //[MWe]
+    // Electrical power needed to run particle conveyor in MWe
+    double eta_lift = collector_receivers.front().get_pumping_parasitic_coef();
+    //double rho_particle = mc_store_htfProps.dens(T_hx_cold_des + 273.15, 101.3 /*kPa*/);
+    
+    return m_dot_particle/3600. * 9.81 * h_lift / eta_lift / 1e6;         //[MWe]
 }
 
 double C_csp_tower_collector_receiver::calculate_thermal_efficiency_approx( const C_csp_weatherreader::S_outputs &weather, double q_inc )

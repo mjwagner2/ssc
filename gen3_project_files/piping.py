@@ -11,17 +11,18 @@ __raw_data = {
 
 #-------------------------------------------------------------------------------------
 
-def solve(D_in, L_LT, P):
+def solve(D_in, L_LT, P_kPa):
     """
     material is 347 seam welded pipe with filler material, UNS code S34700, Class 1 & 3, deformation allowed
     
     Defaults:
     D_in = 0.490 [m]
     L_LT = 550 [m]
-    P = 27.5 [MPa]	"needs to be 110% of maximum operating pressure"
+    P_kPa = 27500 [kPa]	"needs to be 110% of maximum operating pressure"
     """
     T = 580 #[C]	"Should be the maximum expected operating temperature, however code allows some excursions"
     # T_f = converttemp(C,F,T)
+    P = P_kPa / 1000.       #Mpa
     
     # sigma_allow = interpolate1('347', 'T', 'S_allow', 'T' = T_f) * convert(ksi,MPa)
     sigma_allow = interp(T, __raw_data['T'], __raw_data['S_allow'])

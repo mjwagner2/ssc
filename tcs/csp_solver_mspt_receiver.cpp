@@ -118,6 +118,8 @@ void C_mspt_receiver::init()
     //calculate reference receiver efficiency
     m_eta_rec_des = m_efficiency_lookup.bilinear_2D_interp(1., m_T_htf_cold_des - 273.15); 
 
+	//calculate receiver nominal pressure drop - informational
+	m_dp_rec_des = m_pressure_lookup.bilinear_2D_interp(1., m_P_cold_des/1000.);	//kPa
 
 	param_inputs.T_amb = std::numeric_limits<double>::quiet_NaN();
     param_inputs.T_sky = std::numeric_limits<double>::quiet_NaN();
@@ -160,7 +162,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 
 	// Get applicable htf state info
 	double T_salt_cold_in = htf_state_in.m_temp;		//[C]
-    double P_in = htf_state_in.m_pres;
+    double P_in = htf_state_in.m_pres;				//[kPa]
 
 	// Complete necessary conversions/calculations of input variables
 	T_salt_cold_in += 273.15;				//[K] Cold salt inlet temp, convert from C
@@ -342,7 +344,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 				rec_is_off = true;
 
                 //look up receiver pressure drop
-                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in/1000. ); //returns MPa
+                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
 			    break;
 			}
@@ -397,7 +399,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 					}
 				}
 				q_thermal = m_dot_salt*c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
-                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in / 1000.); //returns MPa
+                Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
 			    if (q_dot_inc_sum*1.E3 < m_q_dot_inc_min)
 				    rec_is_off = true;
@@ -453,7 +455,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	outputs.m_q_dot_rec_inc = q_dot_inc_sum / 1.E3;			//[MW] convert from kW
 	outputs.m_q_startup = q_startup/1.E6;					//[MW-hr] convert from W-hr
 	//outputs.m_dP_receiver = DELTAP*m_n_panels / m_n_lines / 1.E5;	//[bar] receiver pressure drop, convert from Pa
-	outputs.m_dP_total = Pres_D*10.0;						//[bar] total pressure drop, convert from MPa
+	outputs.m_dP_total = Pres_D;							//[kPa] total pressure drop
 	//outputs.m_vel_htf = u_coolant;							//[m/s]
 	outputs.m_T_salt_cold = T_salt_cold_in - 273.15;			//[C] convert from K
 	//outputs.m_m_dot_ss = m_dot_salt_tot_ss*3600.0;			//[kg/hr] convert from kg/s
@@ -500,8 +502,8 @@ void C_mspt_receiver::off(const C_csp_weatherreader::S_outputs &weather,
 	outputs.m_component_defocus = 1.0;	//[-]
 	outputs.m_q_dot_rec_inc = 0.0;		//[MW] convert from kW
 	outputs.m_q_startup = 0.0;			//[MW-hr] convert from W-hr
-	outputs.m_dP_receiver = 0.0;			//[bar] receiver pressure drop, convert from Pa
-	outputs.m_dP_total = 0.0;			//[bar] total pressure drop, convert from MPa
+	outputs.m_dP_receiver = 0.0;			//[kPa] receiver pressure drop
+	outputs.m_dP_total = 0.0;			//[kPa] total pressure drop
 	outputs.m_vel_htf = 0.0;				//[m/s]
 	outputs.m_T_salt_cold = 0.0;			//[C] convert from K
 	outputs.m_m_dot_ss = 0.0;			//[kg/hr] convert from kg/s
@@ -567,7 +569,8 @@ void C_mspt_receiver::calc_pump_performance(double rho_f, double mdot, double ff
 
 double C_mspt_receiver::get_pumping_parasitic_coef()
 {
-    return std::numeric_limits<double>::quiet_NaN();
+	return m_eta_pump;
+    //return std::numeric_limits<double>::quiet_NaN();
 }
 
 double C_mspt_receiver::area_proj()

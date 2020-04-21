@@ -53,6 +53,8 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
 	{C_pc_Rankine_indirect_224::E_P_COND,C_csp_reported_outputs::TS_LAST },
 	{ C_pc_Rankine_indirect_224::E_RADCOOL_CNTRL,C_csp_reported_outputs::TS_WEIGHTED_AVE },
 	{C_pc_Rankine_indirect_224::E_M_DOT_HTF_REF, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_pc_Rankine_indirect_224::E_P_PHX_IN, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+	{C_pc_Rankine_indirect_224::E_P_PHX_OUT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid
 };
@@ -1851,6 +1853,8 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	
 	out_solver.m_P_phx_out = P_phx_out_co2;		//[MPa]
     out_solver.m_P_phx_in = P_phx_in_co2;       //[MPa]
+	mc_reported_outputs.value(E_P_PHX_OUT, P_phx_out_co2*1000.);
+	mc_reported_outputs.value(E_P_PHX_IN, P_phx_in_co2*1000.);
 
 	//out_report.m_m_dot_htf_ref = m_dot_htf_ref;		//[kg/hr] Calculated reference HTF flow rate at design
 	mc_reported_outputs.value(E_M_DOT_HTF_REF, m_dot_htf_ref);	//[kg/hr]

@@ -5,6 +5,12 @@ __particle_specheat = 1.3 #[kJ/kg-K]
 __particle_density = 1600 #[kg/m3]
 __media_cost = 50. #$/ton
 
+def cp_particle():
+    """
+    kJ/kg-K
+    """
+    return __particle_specheat
+
 #----------------------------------------------------------------------
 def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out_C, T_rec_in_C):
     """
@@ -134,13 +140,14 @@ def calculate_silo_cost(q_cycle_in_kw, hours_tes, dt_cycle):
     return {'silo_cost':cost, 'media_cost':media}
 #----------------------------------------------------------------------
 
-def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, lift_type):
+def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, m_dot_p, lift_type):
     """
     Calculate lift cost as a function of solar field rating and lift type. 
 
     Inputs
         q_solarfield_out_kw - total absorbed power at design from all receivers (kWt)
         q_solarfield_in_kw - total incident power at design from all receivers (kWt)
+        m_dot_p - lift particle mass flow rate (kg/s)
         lift_type - one of 'bucket' or 'skip'
     Returns
         Lift cost ($)
@@ -157,7 +164,7 @@ def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, lift_type
     
     #assumed tower height is WP model
     tht = calculate_tower_height(q_solarfield_in_kw, wp_data=True)
-    bulk_power = __particle_density * 9.81 * tht*1.1 / 1000 #kW
+    bulk_power = m_dot_p * 9.81 * tht*1.1 / 1e3 #kW
     
     return bulk_power / lift_power
 

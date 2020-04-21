@@ -69,6 +69,7 @@ public:
     double m_T_htf_hot_des;			    //[C] hot outlet HTF temperature at design, converted to [K] in init()
     double m_T_htf_cold_des;		    //[C] cold inlet HTF temperature at design, converted to [K] in init()
     double m_P_cold_des;                //[kPa] design inlet pressure
+    double m_dp_rec_des;                //[kPa] design pressure drop
     double m_f_rec_min;				    //[-] minimum receiver thermal output as fraction of design
     double m_q_rec_des;				    //[MW] design recever thermal output, converted to [W] in init()
     double m_rec_su_delay;			    //[hr] required startup time
@@ -108,8 +109,8 @@ public:
         double m_component_defocus;		//[-] defocus applied by receiver to stay within mass flow or other constraints
         double m_q_dot_rec_inc;			//[MWt] receiver incident thermal power (after reflection losses)
         double m_q_startup;				//[MWt-hr] thermal energy used to start receiver
-        double m_dP_receiver;			//[bar] receiver pressure drop
-        double m_dP_total;				//[bar] total pressure drop
+        double m_dP_receiver;			//[kPa] receiver pressure drop
+        double m_dP_total;				//[kPa] total pressure drop
         double m_vel_htf;				//[m/s] HTF flow velocity through receiver tubes
         double m_T_salt_cold;			//[C] HTF inlet temperature
         double m_m_dot_ss;				//[kg/hr] HTF mass flow during steady-state operation (e.g., not equal to m_m_dot_salt_tot during startup)

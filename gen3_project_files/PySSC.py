@@ -6,8 +6,7 @@ class PySSC:
 	def __init__(self):
 		
 		if sys.platform == 'win32' or sys.platform == 'cygwin':
-			if False: # getattr(sys, 'gettrace', None):
-			# self.pdll = CDLL(os.getcwd() + "/sscd.dll") 
+			if False: #getattr(sys, 'gettrace', None):
 				self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Debug/sscd.dll") 
 			else:
 				self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Release/ssc.dll") 

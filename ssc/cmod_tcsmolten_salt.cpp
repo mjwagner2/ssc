@@ -137,6 +137,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "piping_length_mult",                 "Piping length multiplier",                                                                                                                "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "piping_length_const",                "Piping constant length",                                                                                                                  "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "piping_loss_coeff",                  "Wetted loss coefficient for riser or downcomer",                                                                                          "W/m2/K",       "",                                  "Tower and Receiver",                       "?=5.0",                                                            "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "piping_riser_diam",                  "Piping riser inner diameter",                                                                                                             "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
 
@@ -401,6 +402,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec1",                            "Receiver 1 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec2",                            "Receiver 2 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_rec3",                            "Receiver 3 pressure drop",                                                                                                                "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "dp_riser",                           "Riser pressure drop",                                                                                                                     "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
 
         // Power cycle outputs
     { SSC_OUTPUT,    SSC_ARRAY,  "eta",                                "PC efficiency, gross",                                                                                                                    "",             "",                                  "",                                         "*",                                                                "",              ""},
@@ -920,6 +922,8 @@ public:
         tower.T_rec_hot_des = as_double("T_rec_hot_des");        //[C]
         tower.T_hx_cold_des = as_double("T_tes_cold_des");       //[C]
         tower.h_lift = as_double("h_tower") * 1.1;      //[m] Lift height is 10% taller than receiver optical midline
+        tower.riser_length = as_double("h_tower") * as_double("piping_length_mult") + as_double("piping_length_const");  //[m]
+        tower.riser_diam = as_double("piping_riser_diam");  //[m]
 
 
         // *******************************************************
@@ -983,6 +987,7 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC1, allocate("dp_rec1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC2, allocate("dp_rec2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_REC3, allocate("dp_rec3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_RISER, allocate("dp_riser", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;

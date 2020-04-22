@@ -83,6 +83,7 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_REC1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_DP_REC2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_DP_REC3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_DP_RISER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -96,6 +97,40 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
 {}
+
+static double f_dP_riser(double m_dot, double T_avg_C, double P_in, double D_inner, double L, HTFProperties& fluid)
+{
+    /* 
+    Calculate the pressure drop in the riser assuming smooth pipe with turbulent flow using Blasius friction factor
+
+    Inputs:
+        m_dot       [kg/s]  Total riser flow rate
+        T_avg_C     [C]     Mean temperature in riser
+        P_in        [kPa]   Fluid inlet pressure
+        D_inner     [m]     Inner diameter of the riser pipe
+        L           [m]     Length of the riser
+        fluid       [-]     Fluid properties object
+
+    Returns:
+        Pressure loss [kPa]
+    */
+
+    //calculate fluid propertise
+    double rho = fluid.dens(T_avg_C + 273.15, P_in);
+    double mu = fluid.visc(T_avg_C + 273.15);
+
+    //fluid velocity
+    double V = m_dot / (rho * PI / 4 * D_inner*D_inner);
+    //Reynolds number
+    double Re = rho * V * D_inner / mu;
+    //Blasius
+    double ff = 0.316 / std::powf(Re, 0.25);
+
+    //pressure drop
+    double dp = rho * ff * L / D_inner * V * V / 2.;    //[Pa]
+
+    return dp/1000.;        //kPa
+}
 
 void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 				C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
@@ -173,15 +208,27 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     double dP_sf = 0.;              //[kPa]
     double P_prev = std::numeric_limits<double>::quiet_NaN();   //[kPa]
 
+
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
         
+        q_dot_rec_des += _solved_params.m_q_dot_rec_des;
+
         if (i == 0) {
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
-            P_prev = _solved_params.m_P_cold_des;    //[kPa]
+            
+            //calculate mass flow based on the power from the first receiver
+            double cp_avg = mc_field_htfProps.Cp(solved_params.m_T_htf_cold_des);
+            double m_dot_co2_tot = q_dot_rec_des*1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
+            
+            //riser pressure loss
+            double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+            
+            //set downstream pressure, now including riser loss
+            P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]
         }
-        q_dot_rec_des += _solved_params.m_q_dot_rec_des;
+
         A_aper_total += _solved_params.m_A_aper_total;
         dP_sf += _solved_params.m_dP_sf;
         P_prev -= _solved_params.m_dP_sf;
@@ -374,11 +421,37 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     double T_downc = std::numeric_limits<double>::quiet_NaN();
     double eta_therm_rec_tot = 0.;
     double T_store_hot_weighted_sum = 0.;
-   
+    double dP_riser = std::numeric_limits<double>::quiet_NaN();
+
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
+    /* 
+    We first need to calculate riser pressure drop, because it affects downstream performance. 
+    This is an implicit calculation, so we will estimate using only the first receiver.
+    */
+    {
+        C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_temp;
+        collector_receivers.front().call(weather, htf_state_in, inputs, cr_out_solver_temp, sim_info);
+        double m_dot_salt_temp = cr_out_solver_temp.m_m_dot_salt_tot/3600.;     //kg/s from kg/hr
 
+        if (m_dot_salt_temp > 0.)
+        {
+            //calculate mass flow based on the power from the first receiver
+            C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
+
+            //riser pressure loss
+            dP_riser = f_dP_riser(m_dot_salt_temp, receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+        }
+        else
+        {
+            dP_riser = 0.;
+        }
+    }
+
+    htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
+
+    //now calculate performance again over all receivers
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
 
@@ -515,7 +588,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
 	mc_reported_outputs.value(E_T_WALL_INLET, T_wall_inlet);	                                    //[C]
 	mc_reported_outputs.value(E_T_WALL_OUTLET, T_wall_outlet);	                                    //[C]
 	mc_reported_outputs.value(E_T_RISER, T_riser);	                                                //[C]
-	mc_reported_outputs.value(E_T_DOWNC, T_downc);	                                                //[C]
+    mc_reported_outputs.value(E_T_DOWNC, T_downc);	                                                //[C]
+    mc_reported_outputs.value(E_DP_RISER, dP_riser);	                                            //[kPa]
 
     return;
 }
@@ -561,10 +635,12 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     double T_riser = std::numeric_limits<double>::quiet_NaN();
     double T_downc = std::numeric_limits<double>::quiet_NaN();
     double T_store_hot_weighted_sum = 0.;
+    double dP_riser = std::numeric_limits<double>::quiet_NaN();
 
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
+    //we will ignore estimated riser pressure loss if the receivers are in off mode
     
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         // SHOULD THIS BE IN REVERSE ORDER?
@@ -632,6 +708,15 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         T_wall_outlet = receiver_outputs.m_Twall_outlet;        // of last receiver
         if (i == 0) T_riser = receiver_outputs.m_Triser;                 // of first receiver
         T_downc = T_cold_rec_K - 273.15;                    // of last receiver
+        //riser pressure loss
+        if (i == 0)
+        {
+            if(cr_out_solver.m_m_dot_salt_tot > 0.)
+                dP_riser = f_dP_riser(cr_out_solver.m_m_dot_salt_tot/3600., receiver_outputs.m_T_salt_cold, 
+                                      htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+            else
+                dP_riser = 0.;
+        }
 
         if (i == 0) {
             mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -703,6 +788,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     mc_reported_outputs.value(E_T_WALL_OUTLET, T_wall_outlet);	                                    //[C]
     mc_reported_outputs.value(E_T_RISER, T_riser);	                                                //[C]
     mc_reported_outputs.value(E_T_DOWNC, T_downc);	                                                //[C]
+    mc_reported_outputs.value(E_DP_RISER, dP_riser);                                                //[kPa]
 
     return;
 }

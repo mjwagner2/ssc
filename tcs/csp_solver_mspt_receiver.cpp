@@ -455,7 +455,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	outputs.m_q_dot_rec_inc = q_dot_inc_sum / 1.E3;			//[MW] convert from kW
 	outputs.m_q_startup = q_startup/1.E6;					//[MW-hr] convert from W-hr
 	//outputs.m_dP_receiver = DELTAP*m_n_panels / m_n_lines / 1.E5;	//[bar] receiver pressure drop, convert from Pa
-	outputs.m_dP_total = Pres_D;							//[kPa] total pressure drop
+	outputs.m_dP_receiver = outputs.m_dP_total = Pres_D;							//[kPa] total pressure drop
 	//outputs.m_vel_htf = u_coolant;							//[m/s]
 	outputs.m_T_salt_cold = T_salt_cold_in - 273.15;			//[C] convert from K
 	//outputs.m_m_dot_ss = m_dot_salt_tot_ss*3600.0;			//[kg/hr] convert from kg/s

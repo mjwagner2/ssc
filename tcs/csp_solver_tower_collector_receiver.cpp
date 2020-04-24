@@ -116,18 +116,18 @@ static double f_dP_riser(double m_dot, double T_avg_C, double P_in, double D_inn
     */
 
     //calculate fluid propertise
-    double rho = fluid.dens(T_avg_C + 273.15, P_in);
+    double rho = fluid.dens(T_avg_C + 273.15, P_in * 1.e3);
     double mu = fluid.visc(T_avg_C + 273.15);
 
     //fluid velocity
     double V = m_dot / (rho * PI / 4 * D_inner*D_inner);
     //Reynolds number
     double Re = rho * V * D_inner / mu;
-    //Blasius
-    double ff = 0.316 / std::powf(Re, 0.25);
+    //double ff = 0.316 / std::powf(Re, 0.25);                 // Blasius
+    double ff = CSP::FrictionFactor(0.02e-3 / D_inner, Re);  // Zigrang, Sylvester 1982 for Re = 4e3 to 1e8 and e/D = 4e-5 to 5e-2
 
     //pressure drop
-    double dp = rho * ff * L / D_inner * V * V / 2.;    //[Pa]
+    double dp = rho * ff * L / D_inner * V * V / 2.;        //[Pa]
 
     return dp/1000.;        //kPa
 }
@@ -211,7 +211,7 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
 
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
-        
+
         q_dot_rec_des += _solved_params.m_q_dot_rec_des;
 
         if (i == 0) {
@@ -224,18 +224,18 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
             
             //riser pressure loss
             double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
-            
-            //set downstream pressure, now including riser loss
-            P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]
+            dP_sf += dpr;
+            P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]      // pressure after riser before first receiver
         }
 
         A_aper_total += _solved_params.m_A_aper_total;
-        dP_sf += _solved_params.m_dP_sf;
-        P_prev -= _solved_params.m_dP_sf;
+        double dP_rec = _solved_params.m_dP_sf;
+        dP_sf += dP_rec;
+        P_prev -= dP_rec;
         
         hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
         //comment lines below when HX has a calculated pressure drop
-        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         dP_sf += dP_hx;
         P_prev -= dP_hx;
     }
@@ -449,6 +449,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         }
     }
 
+    cr_out_solver.m_dP_sf += dP_riser;
     htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
 
     //now calculate performance again over all receivers
@@ -468,8 +469,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         cr_out_solver.m_W_dot_col_tracking += cr_out_solver_prev.m_W_dot_col_tracking;
         //cr_out_solver.m_W_dot_htf_pump += cr_out_solver_prev.m_W_dot_htf_pump;
         //cr_out_solver.m_dP_sf += cr_out_solver_prev.m_dP_sf;
-        double P_prev = htf_state_in_next.m_pres;  //[kPa]
-        //double dP_rec = P_prev * dP_rec_perc / 100.;
+        double P_prev = htf_state_in_next.m_pres;  //[kPa]      // pressure into the receiver
         double dP_rec = receiver_outputs.m_dP_total;
         cr_out_solver.m_dP_sf += dP_rec;
         P_prev -= dP_rec;
@@ -478,7 +478,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
-        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         cr_out_solver.m_dP_sf += dP_hx;
         P_prev -= dP_hx;
 
@@ -669,7 +669,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
-        double dP_hx = P_prev * dP_recHX_perc / 100.;
+        double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         cr_out_solver.m_dP_sf += dP_hx;
         P_prev -= dP_hx;
 

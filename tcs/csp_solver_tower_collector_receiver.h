@@ -109,6 +109,7 @@ public:
         E_DP_REC2,                  //[kPa] Receiver 2 pressure drop
         E_DP_REC3,                  //[kPa] Receiver 3 pressure drop
         E_DP_RISER,                 //[kPa] Riser pressure drop
+        E_DP_DOWNCOMER,             //[kPa] Downcomer pressure drop
     };
 	
     int m_field_fl;
@@ -121,6 +122,7 @@ public:
     double T_hx_cold_des;       // design cold inlet temperature on storage side
     double h_lift;              // [m] Effective lift height
     double riser_diam;          // [m] Riser inner diameter
+    double downcomer_diam;          // [m] Downcomer inner diameter
     double riser_length;        // [m] Total riser length for pressure drop calc
 
 	C_csp_reported_outputs mc_reported_outputs;

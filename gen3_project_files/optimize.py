@@ -15,7 +15,8 @@ def f_eval(x, data):
         data.variables.solar_multiple,\
         data.variables.dni_design_point,\
         data.variables.receiver_height,\
-        data.variables.pipe_inner_diameter, \
+        data.variables.riser_inner_diam, \
+        data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
         data.variables.dT_approach_disch_hx = x_unscaled
@@ -61,7 +62,8 @@ def optimize(casenum):
         g.variables.solar_multiple,
         g.variables.dni_design_point,
         g.variables.receiver_height,
-        g.variables.pipe_inner_diameter, 
+        g.variables.riser_inner_diam, 
+        g.variables.downcomer_inner_diam, 
         g.variables.hours_tes,
         g.variables.dT_approach_charge_hx,
         g.variables.dT_approach_disch_hx,
@@ -71,7 +73,7 @@ def optimize(casenum):
 
     x0 = [1. for v in x0]
 
-    res = scipy.optimize.fmin(f_eval, x0, args = ((g,)), ftol=0.01, xtol=0.001, maxfun=250, callback=f_callback) #, callback=f_update)
+    res = scipy.optimize.fmin(f_eval, x0, args = ((g,)), ftol=0.01, xtol=0.01, maxfun=250, callback=f_callback) #, callback=f_update)
 
     fout = open('optimization-log-'+case+'.txt', 'w')
     fout.write(g.optimization_log)
@@ -87,4 +89,4 @@ if __name__ == "__main__":
     pool.starmap(optimize, all_args)
     
     
-    # optimize(3)
+    # optimize(0)

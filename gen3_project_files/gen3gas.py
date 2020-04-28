@@ -26,7 +26,8 @@ class Variables:
         self.solar_multiple = 3.
         self.dni_design_point = 976.          # W/m2
         self.receiver_height = 5.3           # m
-        self.pipe_inner_diameter = 0.490      # m
+        self.riser_inner_diam = 0.490      # m
+        self.downcomer_inner_diam = 0.490      # m
         self.hours_tes = 13                   # hr        
         self.dT_approach_charge_hx = 15       # C  charge hx approach temp
         self.dT_approach_disch_hx = 15        # C  discharge hx total approach temp
@@ -599,10 +600,9 @@ class Gen3opt:
         tht = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #riser cost
-        # (tht*1.5+50/2)*(38e3+137e3)
-        L_riser = tht * 1.5 + 50
-        pdict = piping.solve(self.variables.pipe_inner_diameter, L_riser, 25000)
-        riser_cost = pdict['cost']
+        L_riser = tht * ssc.data_get_number(data, b'piping_length_mult') + ssc.data_get_number(data, b'piping_length_const')
+        riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
+        downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
 
         #receiver
         ntd = receiver.calculate_n_tubes(receiver_design_power*1000, T_rec_cold_des, T_rec_hot_des, self.variables.receiver_height)
@@ -655,7 +655,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', 115727. );
         ssc.data_set_number( data, b'particle_lift_cost', lift_cost )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost',  riser_cost );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost',  riser_cost + downcomer_cost );
 
         ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost );
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
@@ -683,7 +683,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'piping_loss', 10200 );
         ssc.data_set_number( data, b'piping_length_mult', 1.5 );
         ssc.data_set_number( data, b'piping_length_const', 50 );
-        ssc.data_set_number( data, b'piping_riser_diam', self.variables.pipe_inner_diameter );
+        ssc.data_set_number( data, b'piping_riser_diam', self.variables.riser_inner_diam );
+        ssc.data_set_number( data, b'piping_downcomer_diam', self.variables.downcomer_inner_diam );
         ssc.data_set_number( data, b'eta_pump', lift_eff );
 
 
@@ -756,6 +757,7 @@ class Gen3opt:
                 ["dp_rec2", "kPa", 1],
                 ["dp_rec3", "kPa", 1],
                 ["dp_riser", "kPa", 1],
+                ["dp_downcomer", "kPa", 1],
                 ["e_ch_tes", "MWh", 1],
                 ["eta", "-", 1],
                 ["eta_field_tot", "-", 1],
@@ -931,13 +933,14 @@ if __name__ == "__main__":
     g.variables.solar_multiple = 2.545
     g.variables.dni_design_point = 773.8
     g.variables.receiver_height = 5.538
-    g.variables.pipe_inner_diameter = 0.180
+    g.variables.riser_inner_diam = 0.5 # 0.180
+    g.variables.downcomer_inner_diam = 0.5 
     g.variables.hours_tes = 21.6
     g.variables.dT_approach_charge_hx = 42.9
     g.variables.dT_approach_disch_hx = 31.5
 
     g.exec()
-    # g.write_hourly_results_to_file('optimal-north-bucket-sm.csv')
+    g.write_hourly_results_to_file('debug.csv')
 
     # dt_step = 5
     # dt_ca = np.arange(5,35+dt_step,dt_step)

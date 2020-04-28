@@ -487,6 +487,7 @@ public:
 	
     bool is_param;	//Is this variable parameterizable?
 	bool is_disabled;	//Is this variable disabled (overridden)?
+    bool is_output;     //is this variable datatype spout?
 
     //virtual bool set_from_string(std::string &Val){ (void)Val; return false;};
     virtual bool set_from_string(const char* Val){(void)Val; return false;};
@@ -650,6 +651,7 @@ public:
 	    long_desc = Description;	//Long description
         is_param = Is_param;	//Is this variable parameterizable?
 	    is_disabled = UI_disable;	//Is this variable disabled (overridden)?
+        is_output = false;      //hard set of variable for spvar initializer
 
         choices.clear();
         if( ctype == "combo" )
@@ -701,6 +703,7 @@ private:
 	
     using spbase::is_param;	//Is this variable parameterizable?
 	using spbase::is_disabled;	//Is this variable disabled (overridden)?
+    using spbase::is_output;
 
     T _val;
 public:
@@ -744,6 +747,7 @@ public:
 
         is_param = Is_param;	//Is this variable parameterizable?
 	    is_disabled = UI_disable;	//Is this variable disabled (overridden)?
+        is_output = true;       //hard set for spout
 
     }
 

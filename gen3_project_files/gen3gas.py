@@ -841,7 +841,6 @@ class Gen3opt:
             ['Receiver', 'csp.pt.cost.receiver'],
             ['Storage', 'csp.pt.cost.storage'],
             ['Power block', 'csp.pt.cost.power_block'],
-            ['Direct costs subtotal', 'ui_direct_subtotal'],
             ['Contingency', 'csp.pt.cost.contingency'],
             ['Direct costs subtotal', 'total_direct_cost'],
             # ['EPC', 'csp.pt.cost.epc.total'],
@@ -850,6 +849,7 @@ class Gen3opt:
             ['Indirect costs subtotal', 'total_indirect_cost'],
             ['Net capital cost', 'cost_installed'],
             ['Cost per capacity', 'csp.pt.cost.installed_per_capacity'],
+            ['Tower height', 'h_tower'],
         ]
 
         for lab,var in printouts:
@@ -919,55 +919,67 @@ class Gen3opt:
 
 if __name__ == "__main__":
 
+    cases = [
+        ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
+        ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
+        ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['optimal', 'north', 'skip', 48.626, 2.47, 701.404, 5.768, 0.339, 0.264, 24.214, 42.807, 30.383],
+        ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
+    ]
 
-    g = Gen3opt()
+    all_sum_results = {}
+    casenames = []
 
-    g.settings.print_summary_output = True
-    g.settings.save_hourly_results = True
-    g.settings.print_ssc_messages = True
+    for case in cases:
     
-    g.settings.is_north = True
-    g.settings.lift_technology = 'bucket'
+        g = Gen3opt()
 
-    g.variables.cycle_design_power = 36.7
-    g.variables.solar_multiple = 2.545
-    g.variables.dni_design_point = 773.8
-    g.variables.receiver_height = 5.538
-    g.variables.riser_inner_diam = 0.5 # 0.180
-    g.variables.downcomer_inner_diam = 0.5 
-    g.variables.hours_tes = 21.6
-    g.variables.dT_approach_charge_hx = 42.9
-    g.variables.dT_approach_disch_hx = 31.5
+        g.settings.print_summary_output = True
+        g.settings.save_hourly_results = True
+        # g.settings.print_ssc_messages = True
+        
+        evaltype, \
+        northstr, \
+        g.settings.lift_technology, \
+        g.variables.cycle_design_power, \
+        g.variables.solar_multiple, \
+        g.variables.dni_design_point, \
+        g.variables.receiver_height, \
+        g.variables.riser_inner_diam, \
+        g.variables.downcomer_inner_diam, \
+        g.variables.hours_tes, \
+        g.variables.dT_approach_charge_hx, \
+        g.variables.dT_approach_disch_hx = case
 
-    g.exec()
-    g.write_hourly_results_to_file('debug.csv')
+        g.settings.is_north = 'north' in northstr
 
-    # dt_step = 5
-    # dt_ca = np.arange(5,35+dt_step,dt_step)
-    # dt_da = np.arange(5,35+dt_step,dt_step)
+        g.exec()
 
-    # lcoe_a = np.zeros((dt_ca.size, dt_da.size))
+        if case == cases[0]:
+            keyord = []
+            for res,v in g.summary_results:
+                keyord.append(res)
+                all_sum_results[res] = [v]
+        else:
+            for res,v in g.summary_results:
+                all_sum_results[res].append(v)
 
-    # for i,dt_c in enumerate(dt_ca):
-    #     for j,dt_d in enumerate(dt_da):
-    #         g.variables.dT_approach_charge_hx = dt_c
-    #         g.variables.dT_approach_disch_hx = dt_d
-            
-    #         g.exec()
+        casename = northstr + '-' + g.settings.lift_technology + '-' + evaltype
+        casenames.append(casename)
 
-    #         lcoe = g.results_dict['LCOE (real)']
+        g.write_hourly_results_to_file( casename + '.csv')
 
-    #         lcoe_a[i][j] = lcoe
-    #         print("Chg: {:.1f} C\t\tDis: {:.1f}\t\tLCOE: {:.3f}".format(dt_c, dt_d, lcoe))
+        
+
+    fsum = open('optimal-summary-results.csv', 'w')
+    fsum.write("," + ",".join(casenames) + '\n')
     
-    # print(lcoe_a)
-    
-    # g.variables.dT_approach_charge_hx = 15
-    # g.variables.dT_approach_disch_hx = 15
-    
-    # for h in np.arange(4,8,.2):
-    #     g.variables.receiver_height = h
-    #     g.exec()
-    #     print("{:.1f}\t{:f}".format(h, g.get_result_value('LCOE (real)')))
-    
+    for key in keyord:
+        fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
+
+    fsum.close()
+
 

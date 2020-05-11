@@ -1,4 +1,4 @@
-from math import exp
+from math import exp, log
 from receiver import calculate_tower_height, specheat_co2
 
 __particle_specheat = 1.3 #[kJ/kg-K]
@@ -71,9 +71,13 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     eta_cold_disch = q_cold_disch_duty / (cr_min_cold_disch*(T_hot_disch_particle_out - T_cycle_out))
 
     #UA
-    UA_charge = m_dot_co2 * cp_co2_cycle * (eta_charge / (1.-eta_charge)) * 3 
-    UA_hot_disch = cr_min_hot_disch * (eta_hot_disch / (1.-eta_hot_disch))
-    UA_cold_disch = cr_min_cold_disch * (eta_cold_disch / (1.-eta_cold_disch))
+    UA_charge = m_dot_co2 * cp_co2_cycle * (eta_charge / (1.-eta_charge))  
+    
+    cr_hot_disch = cr_min_hot_disch / max([m_dot_co2*cp_co2_cold_disch, m_dot_particle*__particle_specheat])
+    UA_hot_disch = cr_min_hot_disch * log( (1 - eta_hot_disch*cr_hot_disch) / (1.-eta_hot_disch)) / (1 - cr_hot_disch)
+    
+    cr_cold_disch = cr_min_cold_disch / max([m_dot_co2*cp_co2_cold_disch, m_dot_particle*__particle_specheat])
+    UA_cold_disch = cr_min_cold_disch * log( (1 - eta_cold_disch*cr_cold_disch) / (1.-eta_cold_disch)) / (1 - cr_cold_disch)
 
     cost_charge = 3400 * scale_cost * UA_charge * 3         # $3.40/UA
     cost_hot_disch = 3400 * scale_cost * UA_hot_disch

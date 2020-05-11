@@ -1019,7 +1019,7 @@ if __name__ == "__main__":
 
         
 
-    fsum = open('optimal-summary-results.csv', 'w')
+    fsum = open('optimal-summary-results-100hx-cost.csv', 'w')
     fsum.write("," + ",".join(casenames) + '\n')
     
     for key in keyord:

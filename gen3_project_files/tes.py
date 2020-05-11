@@ -82,19 +82,59 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     cost_charge = 3400 * scale_cost * UA_charge * 3         # $3.40/UA
     cost_hot_disch = 3400 * scale_cost * UA_hot_disch
     cost_cold_disch = 9800 * scale_cost * UA_cold_disch  # $9.80/UA --- costs from Brayton study
+    
+    ### Specify parameters and factors
 
-    #the fraction of discharge HX duty on the high-temp unit
-    # f_ht = (176405)/(176405 + 44956)
+    #Performance confidence derate (1 -> full confidence)
+    x_safety = 1.0
+    #assumed future cost reduction multiplier
+    x_future = 0.7      
+    #reduced cost factor at low temperature
+    x_lt_cost = 0.75
+    #max particle flow rate per cell
+    m_dot_particle_c_max = 0.056    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
+    #Max cell length
+    L_cell_max = 1.65       #m
+    # cell width
+    W_cell = 0.2032         #m
+    
+    #Calculate cell surface area based on assumed conductance
+    U = 0.450               #kW/m2-K
+    A_charge = UA_charge / U
+    A_hot_disch = UA_hot_disch / U
+    A_cold_disch = UA_cold_disch / U
 
-    # if dT_approach_chg == 20:
-    #     cost_charge = 182. * q_solarfield_out_kw
-    #     cost_discharge = 368.*f_ht*q_cycle_in_kw + 988*(1-f_ht)*q_cycle_in_kw
+    #Determine the minimum number of cells
+    N_cells_min = m_dot_particle / (x_safety * m_dot_particle_c_max)
 
-    # elif dT_approach_chg == 15:
-    #     cost_charge = 245. * q_solarfield_out_kw
-    #     cost_discharge = 232.*f_ht*q_cycle_in_kw + 637*(1-f_ht)*q_cycle_in_kw
-    # else:
-    #     raise Exception("Invalid approach temperature passed to heat exchanger cost calculation. Requires 15 or 20C, got " + str(dT_approach_chg) + " C.")
+    #Calculate the length of each cell, limiting to the maximum cell length
+    L_cell_charge =     min([A_charge     / (2 * W_cell * N_cells_min), L_cell_max])
+    L_cell_hot_disch =  min([A_hot_disch  / (2 * W_cell * N_cells_min), L_cell_max])
+    L_cell_cold_disch = min([A_cold_disch / (2 * W_cell * N_cells_min), L_cell_max])
+
+    #Ensure cell count matches if the max length constraint is active
+    N_cells_charge     = A_charge     / (2 * W_cell * L_cell_charge)
+    N_cells_hot_disch  = A_hot_disch  / (2 * W_cell * L_cell_hot_disch)
+    N_cells_cold_disch = A_cold_disch / (2 * W_cell * L_cell_cold_disch)
+
+    #Fraction of total costs associated with low cost materials
+    x_m_charge     = (0.1466 * L_cell_charge     + 0.2681) * x_lt_cost \
+                        if max([ T_rec_out_C, T_charge_particle_out]) < 600 else 0.
+    x_m_hot_disch  = (0.1466 * L_cell_hot_disch  + 0.2681) * x_lt_cost \
+                        if max([ T_hot_disch_co2_out, T_hot_disch_particle_in]) < 600 else 0.
+    x_m_cold_disch = (0.1466 * L_cell_cold_disch + 0.2681) * x_lt_cost \
+                        if max([ T_cold_disch_co2_out, T_hot_disch_particle_out]) < 600 else 0.
+
+    #Cost of the cells ($/cell)
+    c_cell_charge     = 271.1 * L_cell_charge     + 603
+    c_cell_hot_disch  = 271.1 * L_cell_hot_disch  + 603
+    c_cell_cold_disch = 271.1 * L_cell_cold_disch + 603
+
+    #Total heat exchanger cost
+    cost_charge     = c_cell_charge     * N_cells_charge     * x_future * (1. - x_m_charge) * 3
+    cost_hot_disch  = c_cell_hot_disch  * N_cells_hot_disch  * x_future * (1. - x_m_hot_disch)
+    cost_cold_disch = c_cell_cold_disch * N_cells_cold_disch * x_future * (1. - x_m_cold_disch)
+
 
     return { 
         'total_cost':(cost_charge + cost_hot_disch + cost_cold_disch), 
@@ -113,6 +153,12 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
         'eta_charge':eta_charge,
         'eta_hot_disch':eta_hot_disch,
         'eta_cold_disch':eta_cold_disch,
+        'L_cell_charge':L_cell_charge,
+        'L_cell_hot_disch':L_cell_hot_disch,
+        'L_cell_cold_disch':L_cell_cold_disch,
+        'N_cells_charge':N_cells_charge,
+        'N_cells_hot_disch':N_cells_hot_disch,
+        'N_cells_cold_disch':N_cells_cold_disch,
     }
 
 #----------------------------------------------------------------------
@@ -207,5 +253,5 @@ if __name__ == "__main__":
 
     # print(calculate_silo_cost(qc, 13, 715-560))
 
-    print( calculate_hx_cost(qc*3, 30, 15, 730, 592) )
+    print( calculate_hx_cost(qc*3, 20, 15, 730, 592) )
     

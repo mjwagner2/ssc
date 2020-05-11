@@ -12,7 +12,7 @@ def cp_particle():
     return __particle_specheat
 
 #----------------------------------------------------------------------
-def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out_C, T_rec_in_C):
+def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out_C, T_rec_in_C, scale_cost=1.):
     """
     Inputs: 
     q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
@@ -75,9 +75,9 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     UA_hot_disch = cr_min_hot_disch * (eta_hot_disch / (1.-eta_hot_disch))
     UA_cold_disch = cr_min_cold_disch * (eta_cold_disch / (1.-eta_cold_disch))
 
-    cost_charge = 3400 * UA_charge          # $3.40/UA
-    cost_hot_disch = 3400 * UA_hot_disch
-    cost_cold_disch = 9800 * UA_cold_disch  # $9.80/UA --- costs from Brayton study
+    cost_charge = 3400 * scale_cost * UA_charge * 3         # $3.40/UA
+    cost_hot_disch = 3400 * scale_cost * UA_hot_disch
+    cost_cold_disch = 9800 * scale_cost * UA_cold_disch  # $9.80/UA --- costs from Brayton study
 
     #the fraction of discharge HX duty on the high-temp unit
     # f_ht = (176405)/(176405 + 44956)
@@ -197,5 +197,5 @@ if __name__ == "__main__":
 
     # print(calculate_silo_cost(qc, 13, 715-560))
 
-    print( calculate_hx_cost(qc*3, qc, 15, 15, 730, 592) )
+    print( calculate_hx_cost(qc*3, 30, 15, 730, 592) )
     

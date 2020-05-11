@@ -42,6 +42,7 @@ class Settings:
         self.lift_technology = 'skip'    #or 'bucket'
         self.is_north = False                  # is field north or surround
         self.cycle_efficiency_nominal = 0.43  #must correspond to the nominal efficiency used to develop the cycle lookup tables
+        self.scale_hx_cost = 1.
 
 class Gen3opt:
     def __init__(self):
@@ -622,7 +623,7 @@ class Gen3opt:
         #TES costs
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
         dtes = tes.calculate_silo_cost( q_pb_des*1000, self.variables.hours_tes, self.settings.cycle_temperature_drop)
-        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des)
+        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
         # tes_spec_cost = (hx_cost + dtes['silo_cost'] + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
         tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
@@ -919,6 +920,7 @@ class Gen3opt:
 
 if __name__ == "__main__":
 
+    # 100% HX Cost
     cases = [
         ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
@@ -930,6 +932,30 @@ if __name__ == "__main__":
         ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
     ]
 
+    # 75% HX Cost
+    # cases = [
+    #     ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'skip', 98.5, 2.18, 704, 7.94, 0.392, 0.674, 14.4, 26.7, 36.2],
+    #     ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'bucket', 52.2, 2.46, 730, 8.47, 0.394, 0.367, 15.9, 33.8, 30.5],
+    #     ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'skip', 68.6, 2.38, 777, 7.32, 0.302, 0.388, 14.2, 43.2, 38.9],
+    #     ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'bucket', 30.7, 2.59, 737, 5.31, 0.27, 0.294, 18.1, 47.1, 25.1],
+    # ]
+
+    # 50% HX Cost
+    # cases = [
+        # ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'surround', 'skip', 89.6, 2.51, 769, 6.08, 0.363, 0.446, 16.5, 41.4, 22.4],
+        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'surround', 'bucket', 29.145,     2.450,   740.121,     6.284,     0.234,     0.192,    18.375,    33.216,    39.647],
+        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'north', 'skip', 82.6, 2.38, 746, 6.42, 0.354, 0.382, 12.9, 32.4, 34.0],
+        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'north', 'bucket', 50.5, 2.43, 756, 6.18, 0.315, 0.395, 16.9, 42.8, 29.9],
+    # ]
+
     all_sum_results = {}
     casenames = []
 
@@ -940,6 +966,8 @@ if __name__ == "__main__":
         g.settings.print_summary_output = True
         g.settings.save_hourly_results = True
         # g.settings.print_ssc_messages = True
+
+        g.settings.scale_hx_cost = 0.5
         
         evaltype, \
         northstr, \

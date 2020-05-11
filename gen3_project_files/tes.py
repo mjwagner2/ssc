@@ -103,6 +103,12 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
         'UA_charge':UA_charge,
         'UA_hot_discharge':UA_hot_disch,
         'UA_cold_discharge':UA_cold_disch,
+        'duty_charge':q_charge_duty,
+        'duty_discharge_hot':q_hot_disch_duty,
+        'duty_discharge_cold':q_cold_disch_duty,
+        'eta_charge':eta_charge,
+        'eta_hot_disch':eta_hot_disch,
+        'eta_cold_disch':eta_cold_disch,
     }
 
 #----------------------------------------------------------------------

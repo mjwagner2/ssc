@@ -857,6 +857,16 @@ class Gen3opt:
             val = ssc.data_get_number(data, var.encode())
             self.summary_results.append([lab, val])
 
+        self.summary_results.append(["Charge HX duty", dhx['duty_charge']])
+        self.summary_results.append(["Discharge HX (hot) duty", dhx['duty_discharge_hot']])
+        self.summary_results.append(["Discharge HX (cold) duty", dhx['duty_discharge_cold']])
+        self.summary_results.append(["Charge HX UA", dhx['UA_charge']])
+        self.summary_results.append(["Discharge HX (hot) UA", dhx['UA_hot_discharge']])
+        self.summary_results.append(["Discharge HX (cold) UA", dhx['UA_cold_discharge']])
+        self.summary_results.append(["Charge HX effectiveness", dhx['eta_charge']])
+        self.summary_results.append(["Discharge HX (hot) effectiveness", dhx['eta_hot_disch']])
+        self.summary_results.append(["Discharge HX (cold) effectiveness", dhx['eta_cold_disch']])
+
         if self.settings.save_hourly_results:
             #dni-weighted annual field efficiency
             dni_sum = df.beam.sum()
@@ -988,10 +998,17 @@ if __name__ == "__main__":
 
         if case == cases[0]:
             keyord = []
+            for v in g.variables.__dict__.keys():
+                keyord.append(v)
+                all_sum_results[v] = [g.variables.__getattribute__(v)]
+
             for res,v in g.summary_results:
                 keyord.append(res)
                 all_sum_results[res] = [v]
         else:
+            for v in g.variables.__dict__.keys():
+                all_sum_results[v].append(g.variables.__getattribute__(v))
+
             for res,v in g.summary_results:
                 all_sum_results[res].append(v)
 

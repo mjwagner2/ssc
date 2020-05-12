@@ -734,9 +734,9 @@ class Gen3opt:
         ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
         ssc.data_set_number( data, b'dt_ht_discharging', 0.8 * self.variables.dT_approach_disch_hx );
         ssc.data_set_number( data, b'dt_lt_discharging', 0.2 * self.variables.dT_approach_disch_hx );
-        ssc.data_set_number( data, b'dP_LTHX_perc', 0.15 );
-        ssc.data_set_number( data, b'dP_HTHX_perc', 0.15 );
-        ssc.data_set_number( data, b'dP_recHX_perc', 0.15 );
+        ssc.data_set_number( data, b'dP_LTHX_perc', dhx['dp_cold_disch']*100 );
+        ssc.data_set_number( data, b'dP_HTHX_perc', dhx['dp_hot_disch']*100 );
+        ssc.data_set_number( data, b'dP_recHX_perc', dhx['dp_charge']*100 );
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
         ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );

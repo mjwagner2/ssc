@@ -163,6 +163,23 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
 
 #----------------------------------------------------------------------
 
+def calculate_balance_tes_cost(q_cycle_in_kw):
+    """
+    Inputs:
+        q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
+
+    Returns:
+        Specific cost ($/kWht) of thermal storage balance of system costs
+    """
+
+    #the correlation 
+    cycle_power_mw = 0.001 * q_cycle_in_kw * 0.43       #convert to equivalent cycle power using original assumed efficiency
+
+    return -2.27525e-5 * cycle_power_mw**3 + 6.42615e-3 * cycle_power_mw**2 - 6.76546e-1 * cycle_power_mw + 4.61456e1
+
+
+#----------------------------------------------------------------------
+
 def calculate_silo_cost(q_cycle_in_kw, hours_tes, dt_cycle):
     """
     Inputs:
@@ -234,12 +251,33 @@ def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     Returns
         Lift cost ($)
     """
-    x = q_solarfield_out_kw /1000.
+    x = q_solarfield_out_kw /1000. * 0.43 / 3       #Convert to nominal cycle power assuming SM=3 and 43% cycle eff.
 
     if lift_type == 'bucket':
-        return -7.640E-02*x**3 + 1.624E+02*x**2 + 1.806E+04*x + 2.923E+05
+        return 8.65829e3 * x**2 + 5.41087e5 * x - 5.38127e5
     elif lift_type == 'skip':
-        return 5.536E-02*x**3 - 1.516E+01*x**2 + 6.626E+04*x + 1.354E+06
+        return 1.84708e3 * x**2 + 3.91687e5 * x + 1.27537e6
+    else:
+        raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
+
+#----------------------------------------------------------------------
+
+def calculate_lift_availability(q_cycle_in_kw, lift_type):
+    """
+    Inputs
+        q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
+        lift_type - one of 'bucket' or 'skip'
+
+    Returns
+        Availability (-) of the lift system
+    """
+
+    x = q_cycle_in_kw /1000. * 0.43      #Convert to nominal cycle power assuming 43% cycle eff.
+
+    if lift_type == 'bucket':
+        return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x**+ 9.79899E-01
+    elif lift_type == 'skip':
+        return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x** + 9.79998E-01
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 

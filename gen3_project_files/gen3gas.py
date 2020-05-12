@@ -57,6 +57,8 @@ class Gen3opt:
     #----------------------------------------------------------------
     def load_ssc_constants(self, ssc, data):
 
+        NaN = float('nan')
+
         """
         ####################################################
             Configurations and simulation options
@@ -600,6 +602,20 @@ class Gen3opt:
         #tower height
         tht = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
+        #Permitting cost for the tower
+        if tht < 70.:
+            c_tower_permit = 0.
+        elif tht < 150.:
+            c_tower_permit = 30e3
+        else:
+            c_tower_permit = 82.5e3
+
+        #permitting cost for the power block
+        c_cycle_permit = 5e3 * self.variables.cycle_design_power
+
+        #O&M cost 
+        c_om_fixed = -3.85366E+01*self.variables.cycle_design_power**2 - 1.51756E+04*self.variables.cycle_design_power + 1.01400E+07
+        
         #riser cost
         L_riser = tht * ssc.data_get_number(data, b'piping_length_mult') + ssc.data_get_number(data, b'piping_length_const')
         riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
@@ -623,10 +639,13 @@ class Gen3opt:
         #TES costs
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
         dtes = tes.calculate_silo_cost( q_pb_des*1000, self.variables.hours_tes, self.settings.cycle_temperature_drop)
+        
         dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
-        # tes_spec_cost = (hx_cost + dtes['silo_cost'] + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
-        tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + 5  #need to assume some overage (5) for balance of equipment. 
+
+        tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
+
+        tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
 
         """
         ####################################################
@@ -663,7 +682,7 @@ class Gen3opt:
 
         #field costs
         ssc.data_set_number( data, b'site_spec_cost', 10. );
-        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );
+        ssc.data_set_number( data, b'heliostat_spec_cost', 100. );  #Using $100/m2 per Shaun's email 5/12/2020
 
         #Plant and BOP
         ssc.data_set_number( data, b'plant_spec_cost', 600 );
@@ -673,7 +692,16 @@ class Gen3opt:
 
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 17.6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 16.6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', c_tower_permit + c_cycle_permit + 5e6 );
+
+        #O&M cost
+        om_fixed = [ c_om_fixed ]
+        ssc.data_set_array( data, b'om_fixed', om_fixed );
+        om_production = [0]
+        ssc.data_set_array( data, b'om_production', om_production); 
+        om_capacity = [ 0 ]
+        ssc.data_set_array( data, b'om_capacity', om_capacity );    
 
 
         #receiver parameters

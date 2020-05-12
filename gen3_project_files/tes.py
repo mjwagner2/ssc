@@ -275,9 +275,9 @@ def calculate_lift_availability(q_cycle_in_kw, lift_type):
     x = q_cycle_in_kw /1000. * 0.43      #Convert to nominal cycle power assuming 43% cycle eff.
 
     if lift_type == 'bucket':
-        return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x**+ 9.79899E-01
+        return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
     elif lift_type == 'skip':
-        return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x** + 9.79998E-01
+        return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 

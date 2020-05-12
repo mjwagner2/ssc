@@ -89,73 +89,73 @@ class Gen3opt:
         """
         #design
         ssc.data_set_number( data, b'gross_net_conversion_factor', 0.9 );
-        ssc.data_set_number( data, b'P_ref', 100 );
-        ssc.data_set_number( data, b'design_eff', .43);     # 0.43; 
-        ssc.data_set_number( data, b'tshours', 13 );     # 10.3
-        ssc.data_set_number( data, b'solarm',  3);
+        ssc.data_set_number( data, b'P_ref', NaN );
+        ssc.data_set_number( data, b'design_eff', NaN);     # 0.43; 
+        ssc.data_set_number( data, b'tshours', NaN );     # 10.3
+        ssc.data_set_number( data, b'solarm',  NaN );
 
         #heliostat field
-        ssc.data_set_number( data, b'helio_width', 8.66 );
-        ssc.data_set_number( data, b'helio_height', 8.66 );
+        ssc.data_set_number( data, b'helio_width', NaN );
+        ssc.data_set_number( data, b'helio_height', NaN );
         ssc.data_set_number( data, b'helio_active_fraction', 0.99 );
-        ssc.data_set_number( data, b'dens_mirror', 0.97 );
+        ssc.data_set_number( data, b'dens_mirror', NaN );
         ssc.data_set_number( data, b'helio_reflectance', 999 );     #0.9 not used in user field mode
         ssc.data_set_number( data, b'rec_absorptance', 999 );        #0.94 not used in user field mode
         ssc.data_set_number( data, b'rec_hl_perm2', 0 );
         ssc.data_set_number( data, b'land_max', 9.5 );
         ssc.data_set_number( data, b'land_min', 0.75 );
-        ssc.data_set_number( data, b'dni_des', 950 );
+        ssc.data_set_number( data, b'dni_des', NaN );
         ssc.data_set_number( data, b'p_start', 0.025 );
         ssc.data_set_number( data, b'p_track', 0.055 );
         ssc.data_set_number( data, b'hel_stow_deploy', 8 );
         ssc.data_set_number( data, b'v_wind_max', 15 );
 
         #total height and width of all recievers (cost calculation)
-        ssc.data_set_number( data, b'rec_height', 22 );     #524.67 m^2
-        ssc.data_set_number( data, b'D_rec', 15 );
-        ssc.data_set_number( data, b'h_tower', 230 );
+        ssc.data_set_number( data, b'rec_height', NaN );     #524.67 m^2
+        ssc.data_set_number( data, b'D_rec', NaN );
+        ssc.data_set_number( data, b'h_tower', NaN );
 
         ssc.data_set_number( data, b'water_usage_per_wash', 0.7 );
         ssc.data_set_number( data, b'washing_frequency', 63 );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 2.3602 * 0.78232e6 );
-        ssc.data_set_number( data, b'tower_exp', 0.0113 );
-        ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_linear', 115727. );
-        ssc.data_set_number( data, b'particle_lift_cost', 0. )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost', 0. );
+        ssc.data_set_number( data, b'tower_fixed_cost', NaN );
+        ssc.data_set_number( data, b'tower_exp', NaN );
+        ssc.data_set_number( data, b'foundation_fixed_cost', NaN );
+        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', NaN );
+        ssc.data_set_number( data, b'foundation_cost_scaling_linear', NaN );
+        ssc.data_set_number( data, b'particle_lift_cost', NaN )  
+        ssc.data_set_number( data, b'riser_and_downcomer_cost', NaN );
 
-        ssc.data_set_number( data, b'rec_ref_cost', 1e7 );
-        ssc.data_set_number( data, b'rec_ref_area', 1110 );
+        ssc.data_set_number( data, b'rec_ref_cost', NaN );
+        ssc.data_set_number( data, b'rec_ref_area', NaN );
         ssc.data_set_number( data, b'rec_cost_exp', 0.7 );
 
         #field costs
-        ssc.data_set_number( data, b'site_spec_cost', 10. );
-        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );
+        ssc.data_set_number( data, b'site_spec_cost', NaN );
+        ssc.data_set_number( data, b'heliostat_spec_cost', NaN );
 
         #Plant and BOP
-        ssc.data_set_number( data, b'plant_spec_cost', 600 );
-        ssc.data_set_number( data, b'bop_spec_cost', 0 );        #<<<< hx included in tes_spec_cost, lift is separate line item
+        ssc.data_set_number( data, b'plant_spec_cost', NaN );
+        ssc.data_set_number( data, b'bop_spec_cost', 0 );      
 
         #TES
-        ssc.data_set_number( data, b'tes_spec_cost', 80.)  #152895955./(100000/0.372*15.5) );  #$/kwht
+        ssc.data_set_number( data, b'tes_spec_cost', NaN)  
 
         #land
-        ssc.data_set_number( data, b'land_spec_cost', 0); #10000 );
+        ssc.data_set_number( data, b'land_spec_cost', 0); 
         ssc.data_set_number( data, b'csp.pt.sf.fixed_land_area', 0 );
         ssc.data_set_number( data, b'csp.pt.sf.land_overhead_factor', 1 );
         ssc.data_set_number( data, b'land_area_base', 2822 );         #from spreadsheet
 
-        ssc.data_set_number( data, b'contingency_rate', 7 );
+        ssc.data_set_number( data, b'contingency_rate', NaN );
         ssc.data_set_number( data, b'sales_tax_rate', 5 );
         ssc.data_set_number( data, b'sales_tax_frac', 0 );
         ssc.data_set_number( data, b'cost_sf_fixed', 0 );
         ssc.data_set_number( data, b'fossil_spec_cost', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.per_acre', 0 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 17.6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', NaN );
         ssc.data_set_number( data, b'csp.pt.cost.epc.per_watt', 0 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', 0 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', NaN );
         ssc.data_set_number( data, b'csp.pt.cost.plm.percent', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.plm.per_watt', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.plm.fixed', 0 );
@@ -165,32 +165,32 @@ class Gen3opt:
         ssc.data_set_number( data, b'rec_htf', 5 );
         field_fl_props = [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ]
         ssc.data_set_matrix( data, b'field_fl_props', field_fl_props );
-        ssc.data_set_number( data, b'f_rec_min', 0.05 );
-        ssc.data_set_number( data, b'rec_su_delay', 0.1); #0.2 );
-        ssc.data_set_number( data, b'rec_qf_delay', 0.1); #0.25 );
-        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 2 );
-        ssc.data_set_number( data, b'piping_loss', 10200 );
-        ssc.data_set_number( data, b'piping_length_mult', 2.6 );
-        ssc.data_set_number( data, b'piping_length_const', 0 );
-        ssc.data_set_number( data, b'eta_pump', 0.85 );
+        ssc.data_set_number( data, b'f_rec_min', NaN );
+        ssc.data_set_number( data, b'rec_su_delay', NaN); 
+        ssc.data_set_number( data, b'rec_qf_delay', NaN); 
+        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', NaN );
+        ssc.data_set_number( data, b'piping_loss', NaN );
+        ssc.data_set_number( data, b'piping_length_mult', NaN );
+        ssc.data_set_number( data, b'piping_length_const', NaN );
+        ssc.data_set_number( data, b'eta_pump', NaN );
 
 
-        ssc.data_set_number( data, b'T_rec_hot_des', 730 );
-        ssc.data_set_number( data, b'T_rec_cold_des', 590 );
+        ssc.data_set_number( data, b'T_rec_hot_des', NaN );
+        ssc.data_set_number( data, b'T_rec_cold_des', NaN );
         store_fl_props = [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ]
         ssc.data_set_matrix( data, b'store_fl_props', store_fl_props );
         ssc.data_set_number( data, b'tes_pump_coef', 0.15 );
-        ssc.data_set_number( data, b'T_tes_hot_des', 715 );
-        ssc.data_set_number( data, b'T_tes_warm_des', 615 );
-        ssc.data_set_number( data, b'T_tes_cold_des', 565 );
+        ssc.data_set_number( data, b'T_tes_hot_des', NaN );
+        ssc.data_set_number( data, b'T_tes_warm_des', NaN );
+        ssc.data_set_number( data, b'T_tes_cold_des', NaN );
         ssc.data_set_number( data, b'csp.pt.tes.init_hot_htf_percent', 0 );
         ssc.data_set_number( data, b'h_tank', 20 );
         ssc.data_set_number( data, b'cold_tank_max_heat', 0 );
-        ssc.data_set_number( data, b'dt_charging', 15 );
-        ssc.data_set_number( data, b'dt_ht_discharging', 12 );
-        ssc.data_set_number( data, b'dt_lt_discharging', 3 );
-        ssc.data_set_number( data, b'dP_LTHX_perc', 0.5 );
-        ssc.data_set_number( data, b'dP_HTHX_perc', 1.5 );
+        ssc.data_set_number( data, b'dt_charging', NaN );
+        ssc.data_set_number( data, b'dt_ht_discharging', NaN );
+        ssc.data_set_number( data, b'dt_lt_discharging', NaN );
+        ssc.data_set_number( data, b'dP_LTHX_perc', NaN );
+        ssc.data_set_number( data, b'dP_HTHX_perc', NaN );
 
         ssc.data_set_number( data, b'u_tank', 0.4 );
         ssc.data_set_number( data, b'tank_pairs', 1 );
@@ -199,8 +199,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'hot_tank_Thtr', 500 );
         ssc.data_set_number( data, b'hot_tank_max_heat', 0 );
 
-        ssc.data_set_number( data, b'T_pc_hot_des', 700 );
-        ssc.data_set_number( data, b'T_pc_cold_des', 535 );
+        ssc.data_set_number( data, b'T_pc_hot_des', NaN );
+        ssc.data_set_number( data, b'T_pc_cold_des', NaN );
         ssc.data_set_number( data, b'pb_pump_coef', 0.55 );
         ssc.data_set_number( data, b'startup_time', 0.5 );
         ssc.data_set_number( data, b'startup_frac', 0.5 );
@@ -305,7 +305,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'const_per_upfront_rate3', 0 );
         ssc.data_set_number( data, b'const_per_upfront_rate4', 0 );
         ssc.data_set_number( data, b'const_per_upfront_rate5', 0 );
-        ssc.data_set_number( data, b'adjust:constant', 4 );
+        ssc.data_set_number( data, b'adjust:constant', NaN );
         ssc.data_set_number( data, b'sf_adjust:constant', 0 );
 
         #------------------------------------------------------------------------------
@@ -322,13 +322,13 @@ class Gen3opt:
         ssc.data_set_number( data, b'inflation_rate', 2.5 );
         ssc.data_set_number( data, b'insurance_rate', 0.5 );
         ssc.data_set_number( data, b'system_capacity', 1e5 );
-        om_fixed = [ 0 ]
+        om_fixed = [ NaN ]
         ssc.data_set_array( data, b'om_fixed', om_fixed );
         ssc.data_set_number( data, b'om_fixed_escal', 0 );
-        om_production = [4]
+        om_production = [ NaN ]
         ssc.data_set_array( data, b'om_production', om_production); 
         ssc.data_set_number( data, b'om_production_escal', 0 );
-        om_capacity = [ 40 ]
+        om_capacity = [ NaN ]
         ssc.data_set_array( data, b'om_capacity', om_capacity );    
         ssc.data_set_number( data, b'om_capacity_escal', 0 );
         om_fuel_cost = [ 0 ]
@@ -617,7 +617,9 @@ class Gen3opt:
         c_om_fixed = -3.85366E+01*self.variables.cycle_design_power**2 - 1.51756E+04*self.variables.cycle_design_power + 1.01400E+07
         
         #riser cost
-        L_riser = tht * ssc.data_get_number(data, b'piping_length_mult') + ssc.data_get_number(data, b'piping_length_const')
+        piping_length_mult = 1.5
+        piping_length_const = 50
+        L_riser = tht * piping_length_mult + piping_length_const
         riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
         downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
 
@@ -646,6 +648,10 @@ class Gen3opt:
         tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
 
         tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
+
+        #availability
+        base_avail = 0.92
+        total_avail = base_avail * tes.calculate_lift_availability(q_pb_des*1000, self.settings.lift_technology)
 
         """
         ####################################################
@@ -703,6 +709,8 @@ class Gen3opt:
         om_capacity = [ 0 ]
         ssc.data_set_array( data, b'om_capacity', om_capacity );    
 
+        #Availability
+        ssc.data_set_number( data, b'adjust:constant', (1-total_avail)*100 );
 
         #receiver parameters
         ssc.data_set_number( data, b'f_rec_min', 0.05 );
@@ -710,8 +718,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'rec_qf_delay', 0.1); #0.25 );
         ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 1.1 );
         ssc.data_set_number( data, b'piping_loss', 10200 );
-        ssc.data_set_number( data, b'piping_length_mult', 1.5 );
-        ssc.data_set_number( data, b'piping_length_const', 50 );
+        ssc.data_set_number( data, b'piping_length_mult', piping_length_mult );
+        ssc.data_set_number( data, b'piping_length_const', piping_length_const );
         ssc.data_set_number( data, b'piping_riser_diam', self.variables.riser_inner_diam );
         ssc.data_set_number( data, b'piping_downcomer_diam', self.variables.downcomer_inner_diam );
         ssc.data_set_number( data, b'eta_pump', lift_eff );
@@ -725,8 +733,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
         ssc.data_set_number( data, b'dt_ht_discharging', 0.8 * self.variables.dT_approach_disch_hx );
         ssc.data_set_number( data, b'dt_lt_discharging', 0.2 * self.variables.dT_approach_disch_hx );
-        ssc.data_set_number( data, b'dP_LTHX_perc', 0.5 );
-        ssc.data_set_number( data, b'dP_HTHX_perc', 1.5 );
+        ssc.data_set_number( data, b'dP_LTHX_perc', 0.15 );
+        ssc.data_set_number( data, b'dP_HTHX_perc', 0.15 );
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
         ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
@@ -961,13 +969,13 @@ if __name__ == "__main__":
     # 100% HX Cost
     cases = [
         ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
-        ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
-        ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'north', 'skip', 48.626, 2.47, 701.404, 5.768, 0.339, 0.264, 24.214, 42.807, 30.383],
-        ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
+        # ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
+        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
+        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'north', 'skip', 48.626, 2.47, 701.404, 5.768, 0.339, 0.264, 24.214, 42.807, 30.383],
+        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
     ]
 
     # 75% HX Cost
@@ -1003,7 +1011,7 @@ if __name__ == "__main__":
 
         g.settings.print_summary_output = True
         g.settings.save_hourly_results = True
-        # g.settings.print_ssc_messages = True
+        g.settings.print_ssc_messages = True
 
         g.settings.scale_hx_cost = 0.5
         
@@ -1047,7 +1055,7 @@ if __name__ == "__main__":
 
         
 
-    fsum = open('optimal-summary-results-100hx-cost.csv', 'w')
+    fsum = open('optimal-summary-results.csv', 'w')
     fsum.write("," + ",".join(casenames) + '\n')
     
     for key in keyord:

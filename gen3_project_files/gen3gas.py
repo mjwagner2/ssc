@@ -191,6 +191,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'dt_lt_discharging', NaN );
         ssc.data_set_number( data, b'dP_LTHX_perc', NaN );
         ssc.data_set_number( data, b'dP_HTHX_perc', NaN );
+        ssc.data_set_number( data, b'dP_recHX_perc', NaN );
 
         ssc.data_set_number( data, b'u_tank', 0.4 );
         ssc.data_set_number( data, b'tank_pairs', 1 );
@@ -735,6 +736,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'dt_lt_discharging', 0.2 * self.variables.dT_approach_disch_hx );
         ssc.data_set_number( data, b'dP_LTHX_perc', 0.15 );
         ssc.data_set_number( data, b'dP_HTHX_perc', 0.15 );
+        ssc.data_set_number( data, b'dP_recHX_perc', 0.15 );
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
         ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );

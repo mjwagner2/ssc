@@ -717,7 +717,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'f_rec_min', 0.05 );
         ssc.data_set_number( data, b'rec_su_delay', 0.1); #0.2 );
         ssc.data_set_number( data, b'rec_qf_delay', 0.1); #0.25 );
-        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 1.1 );
+        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 1.0 );
         ssc.data_set_number( data, b'piping_loss', 10200 );
         ssc.data_set_number( data, b'piping_length_mult', piping_length_mult );
         ssc.data_set_number( data, b'piping_length_const', piping_length_const );
@@ -926,6 +926,8 @@ class Gen3opt:
             #... off sun
             self.summary_results.append(['Cycle off-sun efficiency annual', (dfnight.eta * dfnight.q_pb).sum() / dfnight.q_pb.sum()*100])
             #
+
+        ssc.data_free(data)
 
         #if printing summary results...
         if self.settings.print_summary_output:

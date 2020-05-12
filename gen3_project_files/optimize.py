@@ -43,7 +43,7 @@ def f_eval(x, data):
     print(logline)
 
     data.current_iteration += 1
-    return lcoe
+    return lcoe #+ max([ (data.variables.dT_approach_charge_hx + data.variables.dT_approach_disch_hx - 30), 0 ])*2.
 
 def f_callback(xk): #, data):
     # print(".... Iteration complete")
@@ -68,15 +68,15 @@ def optimize(thread_id):
     g.current_iteration = 0
     
     x0 = [
-        g.variables.cycle_design_power      *(0.3 + random.random()*1.0),
+        g.variables.cycle_design_power      *(0.2 + random.random()*(0.5 if 'bucket' in g.settings.lift_technology else 1.0)),
         g.variables.solar_multiple          *(0.6 + random.random()*0.6),
         g.variables.dni_design_point        *(0.6 + random.random()*0.6),
-        g.variables.receiver_height         *(0.5 + random.random()*1.5),
+        g.variables.receiver_height         *(0.8 + random.random()*1.3),
         g.variables.riser_inner_diam        *(0.6 + random.random()*1.0), 
         g.variables.downcomer_inner_diam    *(0.6 + random.random()*1.0), 
         g.variables.hours_tes               *(0.5 + random.random()*1.2),
-        g.variables.dT_approach_charge_hx   *(0.4 + random.random()*2.0),
-        g.variables.dT_approach_disch_hx    *(0.4 + random.random()*2.0),
+        g.variables.dT_approach_charge_hx   *(0.4 + random.random()*0.6),
+        g.variables.dT_approach_disch_hx    *(0.4 + random.random()*0.6),
     ]
 
     g.x_initial = [v for v in x0]
@@ -84,12 +84,12 @@ def optimize(thread_id):
 
     x0 = [1. for v in x0]
 
-    scipy.optimize.fmin(f_eval, x0, args = ((g,)), ftol=0.01, xtol=0.01, maxfun=250, callback=f_callback) #, callback=f_update)
+    scipy.optimize.fmin(f_eval, x0, args = ((g,)), xtol=0.01, maxfun=150, callback=f_callback) #, callback=f_update)
 
     logline = log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['iter'], "***Best point:")
     g.optimization_log += "\n\n" + logline
 
-    fout = open('optimization-log-'+case+'.txt', 'w')
+    fout = open('rev4-runs/optimization-log-'+case+'.txt', 'w')
     fout.write(g.optimization_log)
     fout.close()
 

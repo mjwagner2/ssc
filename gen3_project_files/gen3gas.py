@@ -34,8 +34,8 @@ class Variables:
 
     def guess_h_tower(self):
         return receiver.calculate_tower_height(self.cycle_design_power*1000. / 0.43 * self.solar_multiple, wp_data=True)  #guess the tower height based on current variable values
-    def guess_h_tower(self, cycle_design_power, solar_multiple):
-        return receiver.calculate_tower_height(cycle_design_power*1000. / 0.43 * solar_multiple, wp_data=True)
+    # def guess_h_tower(self, cycle_design_power, solar_multiple):
+    #     return receiver.calculate_tower_height(cycle_design_power*1000. / 0.43 * solar_multiple, wp_data=True)
 
 class Settings:
     def __init__(self):
@@ -605,6 +605,9 @@ class Gen3opt:
         #get the heliostat field for the rated solar field power
         # eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
                                                 # q_sf_des*1000, helio_area)
+        
+        #tower height
+        # self.variables.h_tower = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #check whether a heliostat field interpolation provider has been initialized. If not, create one now
         if not hasattr(self, "sf_interp_provider"):
@@ -615,9 +618,6 @@ class Gen3opt:
         eta_map = receiver.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
 
         ssc.data_set_matrix( data, b'eta_map', eta_map);
-
-        #tower height
-        # tht_guess = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #Permitting cost for the tower
         if self.variables.h_tower < 70.:
@@ -761,16 +761,23 @@ class Gen3opt:
 
         module = ssc.module_create(b'tcsmolten_salt') 
         ssc.module_exec_set_print( 0 );
-        if ssc.module_exec(module, data) == 0:
-            print ('tcsmolten_salt simulation error')
-            idx = 1
-            msg = ssc.module_log(module, 0)
-            while (msg != None):
-                print ('    : ' + msg.decode("utf - 8"))
-                msg = ssc.module_log(module, idx)
-                idx = idx + 1
+        sim_failed = ssc.module_exec(module, data) == 0
+        if sim_failed:
+            if self.settings.print_ssc_messages:
+                print ('tcsmolten_salt simulation error')
+                idx = 1
+                msg = ssc.module_log(module, 0)
+                while (msg != None):
+                    print ('    : ' + msg.decode("utf - 8"))
+                    msg = ssc.module_log(module, idx)
+                    idx = idx + 1
             SystemExit( "Simulation Error" );
+
         ssc.module_free(module)
+
+        if sim_failed:
+            ssc.data_free(data)
+            return False
 
         #------------------------------------------------------------------------------
         #------------------------------------------------------------------------------
@@ -954,7 +961,7 @@ class Gen3opt:
                     vals = "{:.3f}".format(val)
                 print("{:35s}\t{:>15s}".format(lab, vals))
 
-        return
+        return True
 
     #----------------------------------------------------------------
     def get_result_value(self, name):
@@ -986,41 +993,16 @@ class Gen3opt:
 
 if __name__ == "__main__":
 
-    # 100% HX Cost
     cases = [
-        ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
-        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
-        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'skip', 48.626, 2.47, 701.404, 5.768, 0.339, 0.264, 24.214, 42.807, 30.383],
-        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
+        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'surround', 'skip', 138.925, 2.691, 999, 831.078, 5.559, 0.59, 0.686, 14.168, 25.592, 16.803],
+        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303],
+        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['optimal', 'north', 'skip', 126.375, 2.72, 999, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651],
+        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725],
     ]
-
-    # 75% HX Cost
-    # cases = [
-    #     ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'surround', 'skip', 98.5, 2.18, 704, 7.94, 0.392, 0.674, 14.4, 26.7, 36.2],
-    #     ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'surround', 'bucket', 52.2, 2.46, 730, 8.47, 0.394, 0.367, 15.9, 33.8, 30.5],
-    #     ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'north', 'skip', 68.6, 2.38, 777, 7.32, 0.302, 0.388, 14.2, 43.2, 38.9],
-    #     ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'north', 'bucket', 30.7, 2.59, 737, 5.31, 0.27, 0.294, 18.1, 47.1, 25.1],
-    # ]
-
-    # 50% HX Cost
-    # cases = [
-        # ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'skip', 89.6, 2.51, 769, 6.08, 0.363, 0.446, 16.5, 41.4, 22.4],
-        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'bucket', 29.145,     2.450,   740.121,     6.284,     0.234,     0.192,    18.375,    33.216,    39.647],
-        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'skip', 82.6, 2.38, 746, 6.42, 0.354, 0.382, 12.9, 32.4, 34.0],
-        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'bucket', 50.5, 2.43, 756, 6.18, 0.315, 0.395, 16.9, 42.8, 29.9],
-    # ]
 
     all_sum_results = {}
     casenames = []

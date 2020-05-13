@@ -329,7 +329,10 @@ def calculate_lift_availability(q_cycle_in_kw, lift_type):
     x = q_cycle_in_kw /1000. * 0.43      #Convert to nominal cycle power assuming 43% cycle eff.
 
     if lift_type == 'bucket':
-        return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
+        if x > 100:
+            return 0.8575 - (x-100) * 0.00188       #use linear extrapolation
+        else:
+            return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
     elif lift_type == 'skip':
         return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01
     else:
@@ -347,6 +350,22 @@ if __name__ == "__main__":
 
     # print( calculate_hx_cost(qc*3, 20, 15, 730, 592) )
 
-    print( calculate_hx_base_dp(0.13, 660, 1.5) )
+    
+    # print( calculate_hx_base_dp(0.13, 660, 1.5) )
+
+    import numpy
+
+    Q = numpy.arange(50, 350, 5)
+    Y1 = [calculate_lift_availability(q*1000, 'bucket') for q in Q]
+    Y2 = [calculate_lift_availability(q*1000, 'skip') for q in Q]
+    import matplotlib.pyplot as plt 
+
+    plt.plot(Q,Y1, label='bucket')
+    plt.plot(Q,Y2, label='skip')
+    plt.legend()
+    plt.xlabel("Cycle power (MW)")
+    plt.ylabel("lift availability")
+    plt.show()
+    plt.savefig("lift-avail-fix.png", dpi=200)
 
     

@@ -1,6 +1,7 @@
-from numpy import interp, pi, array, argsort
+from numpy import interp, pi, array, argsort, zeros
+from scipy.interpolate import SmoothBivariateSpline
 from math import ceil
-
+import pandas
 
 #----------------------------------------------------------------------------
 #lookup for receiver performance versus height (length) in m
@@ -296,85 +297,132 @@ def create_receiver_pressure_lookup(file_path, L):
 
     return raw_data
 
+#----------------------------------------------------------------------------
+def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
+    """
+    Path to the database (csv) file for heliostat field efficiency and active area 
+    as a function of sun position, power, tower height, and field type.
+
+    Specify the data provider to generate by:
+        field_type      'surround' OR 'north'
+
+    Produces a dictionary with keys:
+        'az','zen','eta1','eta2','eta3','a1','a2','a3'
+    and value lists with an entry for each solar position. 
+
+    The data in lists 'az' and 'zen' are of type float and correspond to sun position 
+    angles in degrees. Entries in the remaining lists are function providers that
+    can be called directly with arguments for power and tower height. For example,
+
+    >> p = load_heliostat_interpolator_provider(<data file path>, <field type>)
+    >> p['eta2'] ( <field power>, <tower height> )
+        <return type float>
+
+    Interpolation is provided using order=2 smooth bivariate splining from the scipy.interpolate library.
+    """
+
+    df = pandas.read_csv(efficiency_file_path)
+
+    #get only the relevant field configuration rows
+    df = df[df.type == (0 if field_type == 'surround' else 1)]
+
+    cols = ['az','zen','eta1','eta2','eta3','a1','a2','a3']
+    interp_funcs = {}
+    for c in cols:
+        interp_funcs[c] = []
+
+
+    sunid_values = list(set(df.sunid.values))
+    sunid_values.sort()
+
+    for id in sunid_values:
+        df_group = df[df.sunid == id]
+
+        interp_funcs['az'].append(df_group.az.values[0])
+        interp_funcs['zen'].append(df_group.zen.values[0])
+
+        power_levels = df_group.power.values
+        tower_heights = df_group.tht.values
+        
+
+        for col in cols[2:]:
+            interp_funcs[col].append( 
+                    #works better than scipy.interpolate.interp2d in this case
+                    SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 ) 
+                )    
+
+    return interp_funcs
 
 #----------------------------------------------------------------------------
-def create_heliostat_field_lookup(efficiency_file_path, q_solarfield_in_kw, heliostat_area_m2):
+def create_heliostat_field_lookup(field_interp_provider, q_solarfield_in_kw, h_tower, heliostat_area_m2):
     """
     Read the efficiency file and interpolate between power levels to produce a single, power-appropriate
-    efficiency lookup table for use in the performance simulation.\n\n
+    efficiency lookup table for use in the performance simulation.
 
-    Inputs\n
-        efficiency_file_path\n
+    Inputs
+        efficiency_file_path
             Relative path to efficiency file. The first row of the file lists included power levels.
             The second and following rows list efficiency and active area of each subfield as a function
-            of sun position. Columns are:\n
-                                 | Power level 1 .........................................| Power level 2.......\n
-            SolAz(deg)|SolEl(deg)|Sf1Eff(-)|Sf2Eff(-)|Sf3Eff(-)|Sf1A(m2)|Sf2A(m2)|Sf3A(m3)|Sf1Eff(-)|Sf2Eff(-)|...\n
-        q_solarfield_in_kw\n
-            Nominal power level for the solar field at design (kw)\n
-        heliostat_area_m2\n
-            Active reflective area of a *single* heliostat (m2)\n\n
+            of sun position. 
+            
+            Columns are:
+                type    |   0=surround, 1=north
+                power   |   (MWt) Receiver nominal power output
+                tht     |   (m) Tower optical height
+                az      |   (deg) Solar azimuth angle
+                zen     |   (deg) Solar zenith angle
+                sunid   |   (-) order index of az/zen combinations
+                eta1    |   (-) Optical efficiency of subfield 1
+                eta2    |   (-) Optical efficiency of subfield 2
+                eta3    |   (-) Optical efficiency of subfield 3
+                a1      |   (m2) Active heliostat area of subfield 1
+                a2      |   (m2) Active heliostat area of subfield 2
+                a3      |   (m2) Active heliostat area of subfield 3
 
-    Returns:\n
+        q_solarfield_in_kw
+            Nominal power level for the solar field at design (kw)
+        h_tower
+            Tower optical height (m)
+        field_type
+            'surround' or 'north'
+        heliostat_area_m2
+            Active reflective area of a *single* heliostat (m2)
+
+    Returns:
         Lookup table expressing efficiency and number of heliostats active for each receiver. The table
-        contains the following for an array of solar angles:\n
-        SolAz(deg)|SolEl(deg)|Sf1Eff(-)|Sf2Eff(-)|Sf3Eff(-)|Sf1A(m2)|Sf2A(m2)|Sf3A(m3)
+        contains the following columns for an array of solar az-zen angle combinations:
+            az      |   (deg) Solar azimuth angle
+            zen     |   (deg) Solar zenith angle
+            eta1    |   (-) Optical efficiency of subfield 1
+            eta2    |   (-) Optical efficiency of subfield 2
+            eta3    |   (-) Optical efficiency of subfield 3
+            nh1     |   (-) Active heliostat count for subfield 1
+            nh2     |   (-) Active heliostat count for subfield 2
+            nh3     |   (-) Active heliostat count for subfield 3
     """
-
-    #load the file
-    fdat = open(efficiency_file_path, 'r').readlines()
-    
-    #collect the power levels
-    power_levels = fdat[0].replace('\n','').split(",")
-    while ("" in power_levels):
-        power_levels.remove("")
-    power_levels = [float(v) for v in power_levels]
-
-    #read raw data
-    raw_data = [[float(v) for v in line.split(",")] for line in fdat[1:]]
-
-    #there should be 2 + 6*len(power_levels) columns
-    if len(raw_data[0]) != (2 + 6*len(power_levels)):
-        raise Exception("The number of columns in the heliostat efficiency data file does not match "
-                        "the number of power levels. Expected {:d} columns for {:d} power levels but "
-                        "read in {:d}.".format(2+6*len(power_levels), len(power_levels), len(raw_data[0])))
-    
-    raw_data_T = array(raw_data).T
 
     #structure data
     all_data = {}
     
-    interp_data = {
-        "azimuth" : raw_data_T[0],
-        "zenith"  : raw_data_T[1],
-    }
+    interp_data = [
+        field_interp_provider['az'],
+        field_interp_provider['zen'],
+    ]
 
-    cols = ['azimuth','zenith','eta_1','eta_2','eta_3','nh_1','nh_2','nh_3']
+    cols = ['eta1','eta2','eta3','a1','a2','a3']
 
     q_solarfield_in = q_solarfield_in_kw/1000.
 
-    #find the 3-point region closest to the given power level
-    power_level_indices = argsort( array([(q-q_solarfield_in)**2 for q in power_levels]) )[:3]
-    power_levels_used = [power_levels[i] for i in power_level_indices]
 
     #collate all available data by sun position, with a list of values corresponding to each power level
-    for j,lab in enumerate(cols[2:]):
-        zcols = []
-        #convert heliostat total area to heliostat count, if applicable
-        scale = heliostat_area_m2 if "nh" in str(lab) else 1.
-        #get all of the related columns by power level
-        for i in power_level_indices:
-            zcols.append(raw_data_T[2+6*i+j]/scale)
-
-        #zip columns into lists
-        all_data[lab] = list(zip(*zcols))
-
-        interp_data[lab] = []
-
-        for datset in all_data[lab]:
-            interp_data[lab].append( __interp_poly(power_levels_used, datset, q_solarfield_in) )
+    for i,col in enumerate(cols):
         
-    return array([interp_data[col] for col in cols]).T.tolist()
+        #convert heliostat total area to heliostat count, if applicable
+        scale = heliostat_area_m2 if i > 2 else 1.
+
+        interp_data.append( [ f(q_solarfield_in, h_tower)[0][0]/scale for f in field_interp_provider[col] ] )
+        
+    return array(interp_data).T.tolist()
 
 
 #----------------------------------------------------------------------------
@@ -398,7 +446,10 @@ if __name__ == "__main__":
 
     # print(specheat_co2(550))
     # print(density_co2(550, 25))
-    create_receiver_pressure_lookup("resource/rec_pressure.csv", 4)
+    # create_receiver_pressure_lookup("resource/rec_pressure.csv", 4)
     # create_receiver_efficiency_lookup(5.3)
 
+    intp = load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
+
+    create_heliostat_field_lookup(intp, 660000, 215, 88)
     x=None

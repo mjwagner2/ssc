@@ -22,8 +22,8 @@ class Variables:
     def initialize(self):
         #initialize variable values
         self.cycle_design_power = 100.        # MWe
-        # self.receiver_design_power = 100/.43*3   # MWt
         self.solar_multiple = 3.
+        self.h_tower = 200                  # m
         self.dni_design_point = 976.          # W/m2
         self.receiver_height = 5.3           # m
         self.riser_inner_diam = 0.490      # m
@@ -31,6 +31,9 @@ class Variables:
         self.hours_tes = 13                   # hr        
         self.dT_approach_charge_hx = 15       # C  charge hx approach temp
         self.dT_approach_disch_hx = 15        # C  discharge hx total approach temp
+
+    def guess_h_tower(self):
+        receiver.calculate_tower_height(self.cycle_design_power*1000. / 0.43 * self.solar_multiple, wp_data=True)  #guess the tower height based on current variable values
 
 class Settings:
     def __init__(self):
@@ -45,8 +48,10 @@ class Settings:
         self.scale_hx_cost = 1.
 
 class Gen3opt:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.clear()
+        if "sf_interp_provider" in kwargs.keys():
+            self.sf_interp_provider = kwargs["sf_interp_provider"]
 
     def clear(self):
         self.variables = Variables()
@@ -596,17 +601,24 @@ class Gen3opt:
         q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point 
 
         #get the heliostat field for the rated solar field power
-        eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
-                                                q_sf_des*1000, helio_area)
+        # eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
+                                                # q_sf_des*1000, helio_area)
+
+        #check whether a heliostat field interpolation provider has been initialized. If not, create one now
+        if not hasattr(self, "sf_interp_provider"):
+            interp_provider = receiver.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
+
+        eta_map = receiver.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
+
         ssc.data_set_matrix( data, b'eta_map', eta_map);
 
         #tower height
-        tht = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
+        # tht_guess = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #Permitting cost for the tower
-        if tht < 70.:
+        if self.variables.h_tower < 70.:
             c_tower_permit = 0.
-        elif tht < 150.:
+        elif self.variables.h_tower < 150.:
             c_tower_permit = 30e3
         else:
             c_tower_permit = 82.5e3
@@ -620,7 +632,7 @@ class Gen3opt:
         #riser cost
         piping_length_mult = 1.5
         piping_length_const = 50
-        L_riser = tht * piping_length_mult + piping_length_const
+        L_riser = self.variables.h_tower * piping_length_mult + piping_length_const
         riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
         downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
 
@@ -674,7 +686,7 @@ class Gen3opt:
         #total height and width of all recievers (cost calculation)
         ssc.data_set_number( data, b'rec_height', self.variables.receiver_height );     #524.67 m^2
         ssc.data_set_number( data, b'D_rec', D_rec );
-        ssc.data_set_number( data, b'h_tower', tht );
+        ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
         ssc.data_set_number( data, b'tower_fixed_cost', 2.3602 * 0.78232e6 );
         ssc.data_set_number( data, b'tower_exp', 0.0113 );
@@ -972,7 +984,7 @@ if __name__ == "__main__":
 
     # 100% HX Cost
     cases = [
-        ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+        ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         # ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
         # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         # ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
@@ -1024,6 +1036,7 @@ if __name__ == "__main__":
         g.settings.lift_technology, \
         g.variables.cycle_design_power, \
         g.variables.solar_multiple, \
+        g.variables.h_tower, \
         g.variables.dni_design_point, \
         g.variables.receiver_height, \
         g.variables.riser_inner_diam, \

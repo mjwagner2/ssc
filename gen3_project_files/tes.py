@@ -287,9 +287,13 @@ def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, m_dot_p, 
     
     #assumed tower height is WP model
     tht = calculate_tower_height(q_solarfield_in_kw, wp_data=True)
-    bulk_power = m_dot_p * 9.81 * tht*1.1 / 1e3 #kW
+
+    #express lift power per unit height
+    lift_power_perm = lift_power / tht
     
-    return bulk_power / lift_power
+    bulk_power_perm = m_dot_p * 9.81 * 1.1 / 1e3 #kW
+    
+    return bulk_power_perm / lift_power_perm
 
 def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     """

@@ -1,9 +1,37 @@
 from math import exp, log
+from numpy import array
+from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
 
 __particle_specheat = 1.3 #[kJ/kg-K]
 __particle_density = 1600 #[kg/m3]
 __media_cost = 50. #$/ton
+
+__raw_data_dphx = {
+    "m_dot" : [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.07, 0.1, 0.13, 0.15],
+    "T_avg" : [500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780, 800],
+    #dp (fractional) vs temperature (vertical axis) and mass flow (horizontal axis)
+    "dp" : [ \
+                [3.40916e-05, 6.81832e-05, 1.02275e-04, 1.36366e-04, 1.70458e-04, 2.75829e-04, 3.53229e-04, 4.40094e-04, 5.36399e-04, 1.15833e-03, 2.20751e-03, 3.57548e-03, 4.65771e-03],
+                [3.56127e-05, 7.12254e-05, 1.06838e-04, 1.42451e-04, 1.78063e-04, 2.13676e-04, 3.65512e-04, 4.55140e-04, 5.54484e-04, 1.19577e-03, 2.27730e-03, 3.68752e-03, 4.80337e-03],
+                [3.71558e-05, 7.43116e-05, 1.11467e-04, 1.48623e-04, 1.85779e-04, 2.22935e-04, 3.77834e-04, 4.70219e-04, 5.72594e-04, 1.23315e-03, 2.34689e-03, 3.79916e-03, 4.94846e-03],
+                [3.87206e-05, 7.74411e-05, 1.16162e-04, 1.54882e-04, 1.93603e-04, 2.32323e-04, 3.90200e-04, 4.85336e-04, 5.90735e-04, 1.27051e-03, 2.41630e-03, 3.91044e-03, 5.09303e-03],
+                [4.03065e-05, 8.06130e-05, 1.20919e-04, 1.61226e-04, 2.01532e-04, 2.41839e-04, 4.02610e-04, 5.00495e-04, 6.08912e-04, 1.30784e-03, 2.48558e-03, 4.02140e-03, 5.23716e-03],
+                [4.19132e-05, 8.38264e-05, 1.25740e-04, 1.67653e-04, 2.09566e-04, 2.51479e-04, 4.15069e-04, 5.15698e-04, 6.27130e-04, 1.34517e-03, 2.55475e-03, 4.13210e-03, 5.38088e-03],
+                [4.35403e-05, 8.70806e-05, 1.30621e-04, 1.74161e-04, 2.17701e-04, 2.61242e-04, 4.27577e-04, 5.30949e-04, 6.45390e-04, 1.38249e-03, 2.62382e-03, 4.24255e-03, 5.52426e-03],
+                [4.51874e-05, 9.03749e-05, 1.35562e-04, 1.80750e-04, 2.25937e-04, 2.71125e-04, 4.40137e-04, 5.46250e-04, 6.63699e-04, 1.41984e-03, 2.69281e-03, 4.35281e-03, 5.66732e-03],
+                [4.68543e-05, 9.37087e-05, 1.40563e-04, 1.87417e-04, 2.34272e-04, 2.81126e-04, 4.52749e-04, 5.61603e-04, 6.82056e-04, 1.45720e-03, 2.76175e-03, 4.46289e-03, 5.81012e-03],
+                [4.85407e-05, 9.70813e-05, 1.45622e-04, 1.94163e-04, 2.42703e-04, 2.91244e-04, 4.65416e-04, 5.77010e-04, 7.00467e-04, 1.49458e-03, 2.83065e-03, 4.57282e-03, 5.95268e-03],
+                [5.02461e-05, 1.00492e-04, 1.50738e-04, 2.00985e-04, 2.51231e-04, 3.01477e-04, 4.78138e-04, 5.92473e-04, 7.18932e-04, 1.53201e-03, 2.89951e-03, 4.68263e-03, 6.09503e-03],
+                [5.19705e-05, 1.03941e-04, 1.55912e-04, 2.07882e-04, 2.59853e-04, 3.11823e-04, 4.90917e-04, 6.07992e-04, 7.37455e-04, 1.56947e-03, 2.96837e-03, 4.79234e-03, 6.23720e-03],
+                [5.37135e-05, 1.07427e-04, 1.61141e-04, 2.14854e-04, 2.68568e-04, 3.22281e-04, 3.75995e-04, 6.23571e-04, 7.56036e-04, 1.60697e-03, 3.03722e-03, 4.90196e-03, 6.37922e-03],
+                [5.54750e-05, 1.10950e-04, 1.66425e-04, 2.21900e-04, 2.77375e-04, 3.32850e-04, 3.88325e-04, 6.39209e-04, 7.74677e-04, 1.64453e-03, 3.10607e-03, 5.01151e-03, 6.52111e-03],
+                [5.72546e-05, 1.14509e-04, 1.71764e-04, 2.29018e-04, 2.86273e-04, 3.43528e-04, 4.00782e-04, 6.54908e-04, 7.93380e-04, 1.68213e-03, 3.17494e-03, 5.12102e-03, 6.66289e-03],
+                [5.90523e-05, 1.18105e-04, 1.77157e-04, 2.36209e-04, 2.95261e-04, 3.54314e-04, 4.13366e-04, 6.70668e-04, 8.12146e-04, 1.71980e-03, 3.24384e-03, 5.23048e-03, 6.80458e-03],
+            ]
+}
+
+__dp_interp_f = interp2d(array(__raw_data_dphx["m_dot"]), array(__raw_data_dphx["T_avg"]), array(__raw_data_dphx["dp"]))
 
 def cp_particle():
     """
@@ -135,6 +163,10 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     cost_hot_disch  = c_cell_hot_disch  * N_cells_hot_disch  * x_future * (1. - x_m_hot_disch)
     cost_cold_disch = c_cell_cold_disch * N_cells_cold_disch * x_future * (1. - x_m_cold_disch)
 
+    #Fractional pressure loss
+    dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_hot_disch_co2_in )/2.)[0]*L_cell_charge
+    dp_hot_disch  = __dp_interp_f(m_dot_co2 / N_cells_hot_disch,  (T_hot_disch_co2_out  + T_hot_disch_co2_in )/2.)[0]*L_cell_hot_disch
+    dp_cold_disch = __dp_interp_f(m_dot_co2 / N_cells_cold_disch, (T_cold_disch_co2_out + T_cold_disch_co2_in)/2.)[0]*L_cell_cold_disch
 
     return { 
         'total_cost':(cost_charge + cost_hot_disch + cost_cold_disch), 
@@ -159,7 +191,25 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
         'N_cells_charge':N_cells_charge,
         'N_cells_hot_disch':N_cells_hot_disch,
         'N_cells_cold_disch':N_cells_cold_disch,
+        'dp_charge':dp_charge,
+        'dp_hot_disch':dp_hot_disch,
+        'dp_cold_disch':dp_cold_disch,
     }
+
+#----------------------------------------------------------------------
+
+def calculate_hx_base_dp(m_dot_cell, T_avg_C, L):
+    """
+    Inputs:
+        m_dot_cell - (kg/s) mass flow rate of CO2 through a single cell
+        T_avg_C - (C) average temperature of the CO2 through the HX
+        L - (m) cell length
+
+    Returns
+        fractional pressure drop
+    """
+
+    return __dp_interp_f(m_dot_cell, T_avg_C)[0]*L
 
 #----------------------------------------------------------------------
 
@@ -237,9 +287,13 @@ def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, m_dot_p, 
     
     #assumed tower height is WP model
     tht = calculate_tower_height(q_solarfield_in_kw, wp_data=True)
-    bulk_power = m_dot_p * 9.81 * tht*1.1 / 1e3 #kW
+
+    #express lift power per unit height
+    lift_power_perm = lift_power / tht
     
-    return bulk_power / lift_power
+    bulk_power_perm = m_dot_p * 9.81 * 1.1 / 1e3 #kW
+    
+    return bulk_power_perm / lift_power_perm
 
 def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     """
@@ -291,5 +345,8 @@ if __name__ == "__main__":
 
     # print(calculate_silo_cost(qc, 13, 715-560))
 
-    print( calculate_hx_cost(qc*3, 20, 15, 730, 592) )
+    # print( calculate_hx_cost(qc*3, 20, 15, 730, 592) )
+
+    print( calculate_hx_base_dp(0.13, 660, 1.5) )
+
     

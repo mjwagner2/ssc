@@ -141,6 +141,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "piping_downcomer_diam",              "Piping downcomer inner diameter",                                                                                                         "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "dP_recHX_perc",                      "HTF pressure drop in individual receiver HX",                                                                                             "%",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
 
     
     // TES parameters - general
@@ -927,6 +928,7 @@ public:
         tower.riser_length = as_double("h_tower") * as_double("piping_length_mult") + as_double("piping_length_const");  //[m]
         tower.riser_diam = as_double("piping_riser_diam");  //[m]
         tower.downcomer_diam = as_double("piping_downcomer_diam");  //[m]
+        tower.dP_recHX_perc = as_double("dP_recHX_perc"); //[%]
 
 
         // *******************************************************

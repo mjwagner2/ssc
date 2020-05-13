@@ -37,7 +37,7 @@ class C_csp_tower_collector_receiver : public C_csp_collector_receiver
 
 private:
     //const double dP_rec_perc = 3.5;         // [%] HTF pressure drop in individual receiver as percent of inlet pressure
-    const double dP_recHX_perc = 0.15;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
+    //const double dP_recHX_perc = 0.15;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
 
     std::vector<C_csp_mspt_collector_receiver> collector_receivers;
     std::vector<C_heat_exchanger> hxs;
@@ -124,6 +124,7 @@ public:
     double riser_diam;          // [m] Riser inner diameter
     double downcomer_diam;          // [m] Downcomer inner diameter
     double riser_length;        // [m] Total riser length for pressure drop calc
+    double dP_recHX_perc;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

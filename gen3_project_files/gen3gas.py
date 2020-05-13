@@ -33,7 +33,9 @@ class Variables:
         self.dT_approach_disch_hx = 15        # C  discharge hx total approach temp
 
     def guess_h_tower(self):
-        receiver.calculate_tower_height(self.cycle_design_power*1000. / 0.43 * self.solar_multiple, wp_data=True)  #guess the tower height based on current variable values
+        return receiver.calculate_tower_height(self.cycle_design_power*1000. / 0.43 * self.solar_multiple, wp_data=True)  #guess the tower height based on current variable values
+    def guess_h_tower(self, cycle_design_power, solar_multiple):
+        return receiver.calculate_tower_height(cycle_design_power*1000. / 0.43 * solar_multiple, wp_data=True)
 
 class Settings:
     def __init__(self):
@@ -607,6 +609,8 @@ class Gen3opt:
         #check whether a heliostat field interpolation provider has been initialized. If not, create one now
         if not hasattr(self, "sf_interp_provider"):
             interp_provider = receiver.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
+        else:
+            interp_provider = self.sf_interp_provider
 
         eta_map = receiver.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
 

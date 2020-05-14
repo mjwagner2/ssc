@@ -906,6 +906,13 @@ class Gen3opt:
         self.summary_results.append(["Discharge HX (hot) effectiveness", dhx['eta_hot_disch']])
         self.summary_results.append(["Discharge HX (cold) effectiveness", dhx['eta_cold_disch']])
 
+        self.summary_results.append(["Charge HX cost", dhx['cost_charge']])
+        self.summary_results.append(["Discharge (hot) HX cost", dhx['cost_hot_discharge']])
+        self.summary_results.append(["Discharge (cold) HX cost", dhx['cost_cold_discharge']])
+
+        self.summary_results.append(["Riser cost", riser_cost])
+        self.summary_results.append(["Downcomer cost", downcomer_cost])
+
         if self.settings.save_hourly_results:
             #dni-weighted annual field efficiency
             dni_sum = df.beam.sum()

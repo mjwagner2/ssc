@@ -26,7 +26,11 @@ def f_eval(x, data):
         data.variables.dT_approach_charge_hx,\
         data.variables.dT_approach_disch_hx = x_unscaled
     
-    data.exec()
+    try:
+        data.exec()
+    except:
+        return float('nan')
+        
     lcoe = data.get_result_value('LCOE (real)')
     if lcoe < 0.1 or lcoe > 35:
         lcoe = float('nan')

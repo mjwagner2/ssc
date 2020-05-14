@@ -71,37 +71,51 @@ def optimize(thread_id):
 
     g.current_iteration = 0
     
-    x0 = [
-        g.variables.cycle_design_power      *(0.2 + random.random()*(0.5 if 'bucket' in g.settings.lift_technology else 1.0)),
-        g.variables.solar_multiple          *(0.6 + random.random()*0.6),
-        g.variables.dni_design_point        *(0.6 + random.random()*0.6),
-        g.variables.receiver_height         *(0.8 + random.random()*1.3),
-        g.variables.riser_inner_diam        *(0.6 + random.random()*1.0), 
-        g.variables.downcomer_inner_diam    *(0.6 + random.random()*1.0), 
-        g.variables.hours_tes               *(0.5 + random.random()*1.2),
-        g.variables.dT_approach_charge_hx   *(0.4 + random.random()*0.6),
-        g.variables.dT_approach_disch_hx    *(0.4 + random.random()*0.6),
+    #set variable bounds
+    xb = [
+        [   15  ,  150  ],   # cycle_design_power
+        [   2.5 ,  3.5  ],   # solar_multiple
+        [   650 ,  1200 ],   # dni_design_point
+        [   3   ,  8    ],   # receiver_height
+        [   .25 ,  .75  ],   # riser_inner_diam
+        [   .25 ,  .75  ],   # downcomer_inner_diam
+        [   4   ,  20   ],   # hours_tes
+        [   10  ,  40   ],   # dT_approach_charge_hx
+        [   10  ,  40   ],   # dT_approach_disch_hx
     ]
+    
+    #initial guess variable values
+    x0 = [random.uniform(x[0], x[1]) for x in xb]
+    
+    for i in range(len(x0)):
+        for j in range(2):
+            xb[i][j] /= x0[i]
 
+    #save 
     g.x_initial = [v for v in x0]
+    #initialize best point tracker
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}
 
+    #variables will be normalized
     x0 = [1. for v in x0]
 
-    scipy.optimize.fmin(f_eval, x0, args = ((g,)), xtol=0.01, maxfun=150, callback=f_callback) #, callback=f_update)
+    #call optimize
+    scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
+                            options={'maxiter':200, 'eps':0.1, 'ftol':0.001}, 
+                            bounds=xb, callback=f_callback)
 
     logline = log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['iter'], "***Best point:")
     g.optimization_log += "\n\n" + logline
 
-    fout = open('rev4-runs/optimization-log-'+case+'.txt', 'w')
+    fout = open('runs/optimization-log-'+case+'.txt', 'w')
     fout.write(g.optimization_log)
     fout.close()
 
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    nthreads = 12
-    all_args = [[i] for i in range(400)]
+    nthreads = 14
+    all_args = [[i] for i in range(100)]
 
     pool = multiprocessing.Pool(processes=nthreads)
     pool.starmap(optimize, all_args)

@@ -2,6 +2,8 @@ from PySSC import PySSC
 import numpy as np
 import os
 import pandas as pd
+import multiprocessing
+
 
 #modules with cost/performance functions
 import piping
@@ -976,98 +978,128 @@ class Gen3opt:
 
 #------------------------------------------------------------------------------
 
+def run_single_case(casevars):
+
+    g = Gen3opt()
+
+    g.settings.print_summary_output = True
+    g.settings.save_hourly_results = True
+    # g.settings.print_ssc_messages = True
+
+    # g.settings.scale_hx_cost = 0.5
+    
+    evaltype, \
+    northstr, \
+    g.settings.lift_technology, \
+    g.variables.cycle_design_power, \
+    g.variables.solar_multiple, \
+    g.variables.dni_design_point, \
+    g.variables.receiver_height, \
+    g.variables.riser_inner_diam, \
+    g.variables.downcomer_inner_diam, \
+    g.variables.hours_tes, \
+    g.variables.dT_approach_charge_hx, \
+    g.variables.dT_approach_disch_hx = casevars
+
+    g.settings.is_north = 'north' in northstr
+
+    g.exec()
+
+    #collect results
+    sum_results = [['evaltype', evaltype], ['field', northstr], ['lift_technology', g.settings.lift_technology]]
+    for key in g.variables.__dict__.keys():
+        sum_results.append([key, g.variables.__getattribute__(key)])
+    
+    for key,v in g.summary_results:
+        sum_results.append([key, v])
+    
+    return sum_results
+
 if __name__ == "__main__":
 
-    # 100% HX Cost
-    cases = [
-        ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'skip', 78.712, 2.724, 766.321, 5.082, 0.633, 0.597, 17.555, 42.446, 40.663],
-        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'bucket', 24.713, 2.535, 721.602, 5.759, 0.262, 0.23, 15.185, 47.676, 31.107],
-        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'skip', 48.626, 2.47, 701.404, 5.768, 0.339, 0.264, 24.214, 42.807, 30.383],
-        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'bucket', 44.906, 2.435, 784.226, 5.931, 0.496, 0.281, 13.389, 41.356, 40.221],
-    ]
-
-    # 75% HX Cost
+    #full costs
     # cases = [
     #     ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'surround', 'skip', 98.5, 2.18, 704, 7.94, 0.392, 0.674, 14.4, 26.7, 36.2],
+    #     ['optimal', 'surround', 'skip', 138.925, 2.691, 831.078, 5.559, 0.59, 0.686, 14.168, 25.592, 16.803],
     #     ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'surround', 'bucket', 52.2, 2.46, 730, 8.47, 0.394, 0.367, 15.9, 33.8, 30.5],
+    #     ['optimal', 'surround', 'bucket', 81.968, 2.821, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303],
     #     ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'north', 'skip', 68.6, 2.38, 777, 7.32, 0.302, 0.388, 14.2, 43.2, 38.9],
+    #     ['optimal', 'north', 'skip', 126.375, 2.72, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651],
     #     ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-    #     ['optimal', 'north', 'bucket', 30.7, 2.59, 737, 5.31, 0.27, 0.294, 18.1, 47.1, 25.1],
+    #     ['optimal', 'north', 'bucket', 74.06, 2.679, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725],
     # ]
 
-    # 50% HX Cost
+    #sunshot 75 and avail
     # cases = [
-        # ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'skip', 89.6, 2.51, 769, 6.08, 0.363, 0.446, 16.5, 41.4, 22.4],
-        # ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'bucket', 29.145,     2.450,   740.121,     6.284,     0.234,     0.192,    18.375,    33.216,    39.647],
-        # ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'skip', 82.6, 2.38, 746, 6.42, 0.354, 0.382, 12.9, 32.4, 34.0],
-        # ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'bucket', 50.5, 2.43, 756, 6.18, 0.315, 0.395, 16.9, 42.8, 29.9],
+    #     ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'skip', 129.902, 2.617, 865.807, 5.233, 0.558, 0.596, 14.434, 37.828, 23.664],
+    #     ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'bucket', 78.753, 2.758, 798.577, 5.146, 0.455, 0.441, 14.082, 34.652, 35.669],
+    #     ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'skip', 130.084, 2.725, 812.36, 5.365, 0.521, 0.588, 14.771, 35.329, 21.804],
+    #     ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'bucket', 79.151, 2.702, 781.2, 4.796, 0.458, 0.464, 14.014, 30.435, 18.596],
     # ]
+
+    # #sunshot 75, avail, tower cost, new balance of tes
+    # cases = [
+    #     ['base', 'surround', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'skip', 119.559, 2.842, 848.329, 4.939, 0.569, 0.597, 15.844, 33.027, 25.012],
+    #     ['base', 'surround', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'surround', 'bucket', 77.281, 2.665, 773.327, 5.47, 0.475, 0.482, 15.583, 41.066, 26.201],
+    #     ['base', 'north', 'skip', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'skip', 118.041, 2.756, 795.838, 5.478, 0.529, 0.523, 14.309, 34.696, 22.654],
+    #     ['base', 'north', 'bucket', 100, 3, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
+    #     ['optimal', 'north', 'bucket', 78.917, 2.728, 798.792, 5.049, 0.433, 0.456, 15.285, 34.017, 18.224],
+    # ]
+
+    import pandas as pd
+    df = pd.read_csv('cycle-power-pareto-points.csv')
+
+    cases = []
+    datcols = df.columns[5:]
+
+    casetypes = list(set(df.case.values))
+    casetypes.sort()
+
+    for ct in casetypes:
+        dfc = df[df.case == ct]
+        for index,row in dfc.iterrows():
+            cases.append(
+                ['pareto'] +
+                row.case.split('-') + 
+                [row[col] for col in datcols]
+            )
+
+
+    multiprocessing.freeze_support()
+    nthreads = 14
+    pool = multiprocessing.Pool(processes=nthreads)
+    results = pool.starmap(run_single_case, [[c] for c in cases])
+
 
     all_sum_results = {}
     casenames = []
 
-    for case in cases:
+    for case in results:
     
-        g = Gen3opt()
-
-        g.settings.print_summary_output = True
-        g.settings.save_hourly_results = True
-        g.settings.print_ssc_messages = True
-
-        g.settings.scale_hx_cost = 0.5
-        
-        evaltype, \
-        northstr, \
-        g.settings.lift_technology, \
-        g.variables.cycle_design_power, \
-        g.variables.solar_multiple, \
-        g.variables.dni_design_point, \
-        g.variables.receiver_height, \
-        g.variables.riser_inner_diam, \
-        g.variables.downcomer_inner_diam, \
-        g.variables.hours_tes, \
-        g.variables.dT_approach_charge_hx, \
-        g.variables.dT_approach_disch_hx = case
-
-        g.settings.is_north = 'north' in northstr
-
-        g.exec()
-
-        if case == cases[0]:
+        if case == results[0]:
             keyord = []
-            for v in g.variables.__dict__.keys():
-                keyord.append(v)
-                all_sum_results[v] = [g.variables.__getattribute__(v)]
-
-            for res,v in g.summary_results:
-                keyord.append(res)
-                all_sum_results[res] = [v]
+            for k,v in case:
+                keyord.append(k)
+                all_sum_results[k] = [v]
         else:
-            for v in g.variables.__dict__.keys():
-                all_sum_results[v].append(g.variables.__getattribute__(v))
+            for k,v in case:
+                all_sum_results[k].append(v)
 
-            for res,v in g.summary_results:
-                all_sum_results[res].append(v)
-
-        casename = northstr + '-' + g.settings.lift_technology + '-' + evaltype
+        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
         casenames.append(casename)
 
-        g.write_hourly_results_to_file( casename + '.csv')
+        # g.write_hourly_results_to_file( casename + '.csv')
 
         
 
-    fsum = open('optimal-summary-results.csv', 'w')
+    fsum = open('cycle-pareto-results.csv', 'w')
     fsum.write("," + ",".join(casenames) + '\n')
     
     for key in keyord:

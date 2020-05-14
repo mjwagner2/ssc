@@ -651,8 +651,9 @@ class Gen3opt:
         tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
 
         #availability
-        base_avail = 0.92
+        base_avail = 0.98
         total_avail = base_avail * tes.calculate_lift_availability(q_pb_des*1000, self.settings.lift_technology)
+        # total_avail = 0.96
 
         """
         ####################################################
@@ -676,7 +677,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', tht );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 2.3602 * 0.78232e6 );
+        ssc.data_set_number( data, b'tower_fixed_cost', 1871733); # 2.3602 * 0.78232e6 );
         ssc.data_set_number( data, b'tower_exp', 0.0113 );
         ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
@@ -689,7 +690,7 @@ class Gen3opt:
 
         #field costs
         ssc.data_set_number( data, b'site_spec_cost', 10. );
-        ssc.data_set_number( data, b'heliostat_spec_cost', 100. );  #Using $100/m2 per Shaun's email 5/12/2020
+        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );  #Using $100/m2 per Shaun's email 5/12/2020
 
         #Plant and BOP
         ssc.data_set_number( data, b'plant_spec_cost', 600 );

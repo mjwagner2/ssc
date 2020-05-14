@@ -225,7 +225,8 @@ def calculate_balance_tes_cost(q_cycle_in_kw):
     #the correlation 
     cycle_power_mw = 0.001 * q_cycle_in_kw * 0.43       #convert to equivalent cycle power using original assumed efficiency
 
-    return -2.27525e-5 * cycle_power_mw**3 + 6.42615e-3 * cycle_power_mw**2 - 6.76546e-1 * cycle_power_mw + 4.61456e1
+    # return -2.27525e-5 * cycle_power_mw**3 + 6.42615e-3 * cycle_power_mw**2 - 6.76546e-1 * cycle_power_mw + 4.61456e1
+    return 3.91973E-06 * cycle_power_mw**3 + 7.25084E-05 *cycle_power_mw**2 - 1.51770E-01 *cycle_power_mw + 2.07886E+01
 
 
 #----------------------------------------------------------------------
@@ -325,7 +326,10 @@ def calculate_lift_availability(q_cycle_in_kw, lift_type):
     x = q_cycle_in_kw /1000. * 0.43      #Convert to nominal cycle power assuming 43% cycle eff.
 
     if lift_type == 'bucket':
-        return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
+        if x < 100:
+            return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
+        else:
+            return 0.85749 - (x-100)*0.00187514
     elif lift_type == 'skip':
         return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01
     else:

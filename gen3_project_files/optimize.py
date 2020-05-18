@@ -39,6 +39,9 @@ def f_eval(x, data):
         data.current_iteration += 1
         return float('nan')
 
+    except:
+        return float('nan')
+        
     lcoe = data.get_result_value('LCOE (real)')
     if lcoe < 0.1 or lcoe > 50:
         lcoe = float('nan')
@@ -131,7 +134,6 @@ def optimize(thread_id, sf_interp_provider):
 
 if __name__ == "__main__":
 
-    # multiprocessing.freeze_support()
 
     north_interp_provider = G3rec.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north')
     surr_interp_provider = G3rec.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')

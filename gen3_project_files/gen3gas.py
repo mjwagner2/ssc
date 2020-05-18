@@ -2,6 +2,8 @@ from PySSC import PySSC
 import numpy as np
 import os
 import pandas as pd
+import multiprocessing
+
 
 #modules with cost/performance functions
 import piping
@@ -667,8 +669,9 @@ class Gen3opt:
         tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
 
         #availability
-        base_avail = 0.92
+        base_avail = 0.98
         total_avail = base_avail * tes.calculate_lift_availability(q_pb_des*1000, self.settings.lift_technology)
+        # total_avail = 0.96
 
         """
         ####################################################
@@ -692,7 +695,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 2.3602 * 0.78232e6 );
+        ssc.data_set_number( data, b'tower_fixed_cost', 1871733); # 2.3602 * 0.78232e6 );
         ssc.data_set_number( data, b'tower_exp', 0.0113 );
         ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
@@ -705,7 +708,7 @@ class Gen3opt:
 
         #field costs
         ssc.data_set_number( data, b'site_spec_cost', 10. );
-        ssc.data_set_number( data, b'heliostat_spec_cost', 100. );  #Using $100/m2 per Shaun's email 5/12/2020
+        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );  #Using $100/m2 per Shaun's email 5/12/2020
 
         #Plant and BOP
         ssc.data_set_number( data, b'plant_spec_cost', 600 );
@@ -928,6 +931,13 @@ class Gen3opt:
         self.summary_results.append(["Discharge HX (hot) effectiveness", dhx['eta_hot_disch']])
         self.summary_results.append(["Discharge HX (cold) effectiveness", dhx['eta_cold_disch']])
 
+        self.summary_results.append(["Charge HX cost", dhx['cost_charge']])
+        self.summary_results.append(["Discharge (hot) HX cost", dhx['cost_hot_discharge']])
+        self.summary_results.append(["Discharge (cold) HX cost", dhx['cost_cold_discharge']])
+
+        self.summary_results.append(["Riser cost", riser_cost])
+        self.summary_results.append(["Downcomer cost", downcomer_cost])
+
         if self.settings.save_hourly_results:
             #dni-weighted annual field efficiency
             dni_sum = df.beam.sum()
@@ -991,6 +1001,43 @@ class Gen3opt:
 
 #------------------------------------------------------------------------------
 
+def run_single_case(casevars):
+
+    g = Gen3opt()
+
+    g.settings.print_summary_output = True
+    g.settings.save_hourly_results = True
+    # g.settings.print_ssc_messages = True
+
+    # g.settings.scale_hx_cost = 0.5
+    
+    evaltype, \
+    northstr, \
+    g.settings.lift_technology, \
+    g.variables.cycle_design_power, \
+    g.variables.solar_multiple, \
+    g.variables.dni_design_point, \
+    g.variables.receiver_height, \
+    g.variables.riser_inner_diam, \
+    g.variables.downcomer_inner_diam, \
+    g.variables.hours_tes, \
+    g.variables.dT_approach_charge_hx, \
+    g.variables.dT_approach_disch_hx = casevars
+
+    g.settings.is_north = 'north' in northstr
+
+    g.exec()
+
+    #collect results
+    sum_results = [['evaltype', evaltype], ['field', northstr], ['lift_technology', g.settings.lift_technology]]
+    for key in g.variables.__dict__.keys():
+        sum_results.append([key, g.variables.__getattribute__(key)])
+    
+    for key,v in g.summary_results:
+        sum_results.append([key, v])
+    
+    return sum_results
+
 if __name__ == "__main__":
 
     cases = [
@@ -1004,61 +1051,53 @@ if __name__ == "__main__":
         # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725],
     ]
 
+    import pandas as pd
+    df = pd.read_csv('cycle-power-pareto-points.csv')
+
+    cases = []
+    datcols = df.columns[5:]
+    
+    casetypes = list(set(df.case.values))
+    casetypes.sort()
+
+    for ct in casetypes:
+        dfc = df[df.case == ct]
+        for index,row in dfc.iterrows():
+            cases.append(
+                ['pareto'] +
+                row.case.split('-') + 
+                [row[col] for col in datcols]
+            )
+
+        
+    multiprocessing.freeze_support()
+    nthreads = 14
+    pool = multiprocessing.Pool(processes=nthreads)
+    results = pool.starmap(run_single_case, [[c] for c in cases])
+
+
     all_sum_results = {}
     casenames = []
 
-    for case in cases:
+    for case in results:
     
-        g = Gen3opt()
-
-        g.settings.print_summary_output = True
-        g.settings.save_hourly_results = True
-        g.settings.print_ssc_messages = True
-
-        g.settings.scale_hx_cost = 0.5
-        
-        evaltype, \
-        northstr, \
-        g.settings.lift_technology, \
-        g.variables.cycle_design_power, \
-        g.variables.solar_multiple, \
-        g.variables.h_tower, \
-        g.variables.dni_design_point, \
-        g.variables.receiver_height, \
-        g.variables.riser_inner_diam, \
-        g.variables.downcomer_inner_diam, \
-        g.variables.hours_tes, \
-        g.variables.dT_approach_charge_hx, \
-        g.variables.dT_approach_disch_hx = case
-
-        g.settings.is_north = 'north' in northstr
-
-        g.exec()
-
-        if case == cases[0]:
+        if case == results[0]:
             keyord = []
-            for v in g.variables.__dict__.keys():
-                keyord.append(v)
-                all_sum_results[v] = [g.variables.__getattribute__(v)]
-
-            for res,v in g.summary_results:
-                keyord.append(res)
-                all_sum_results[res] = [v]
+            for k,v in case:
+                keyord.append(k)
+                all_sum_results[k] = [v]
         else:
-            for v in g.variables.__dict__.keys():
-                all_sum_results[v].append(g.variables.__getattribute__(v))
+            for k,v in case:
+                all_sum_results[k].append(v)
 
-            for res,v in g.summary_results:
-                all_sum_results[res].append(v)
-
-        casename = northstr + '-' + g.settings.lift_technology + '-' + evaltype
+        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
         casenames.append(casename)
 
-        g.write_hourly_results_to_file( casename + '.csv')
+        # g.write_hourly_results_to_file( casename + '.csv')
 
         
 
-    fsum = open('optimal-summary-results.csv', 'w')
+    fsum = open('cycle-pareto-results.csv', 'w')
     fsum.write("," + ",".join(casenames) + '\n')
     
     for key in keyord:

@@ -38,9 +38,6 @@ def f_eval(x, data):
     if not simok:
         data.current_iteration += 1
         return float('nan')
-
-    except:
-        return float('nan')
         
     lcoe = data.get_result_value('LCOE (real)')
     if lcoe < 0.1 or lcoe > 50:
@@ -103,7 +100,7 @@ def optimize(thread_id, sf_interp_provider):
     x0 = [random.uniform(x[0], x[1]) for x in xb]
     
     #tie tower height guess to power
-    x0[2] = g.variables.guess_h_tower(x0[0], x0[1])
+    x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north)
 
     for i in range(len(x0)):
         for j in range(2):

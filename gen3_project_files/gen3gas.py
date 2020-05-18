@@ -34,10 +34,36 @@ class Variables:
         self.dT_approach_charge_hx = 15       # C  charge hx approach temp
         self.dT_approach_disch_hx = 15        # C  discharge hx total approach temp
 
-    def guess_h_tower(self):
-        return receiver.calculate_tower_height(self.cycle_design_power*1000. / 0.43 * self.solar_multiple, wp_data=True)  #guess the tower height based on current variable values
-    # def guess_h_tower(self, cycle_design_power, solar_multiple):
-    #     return receiver.calculate_tower_height(cycle_design_power*1000. / 0.43 * solar_multiple, wp_data=True)
+    def guess_h_tower(self, **kwargs):
+        """
+        Optional arguments include:
+            cycle_design_power - (MWe) Cycle design gross power output
+            solar_multiple  - (-) Solar multiple
+            is_north - (bool) Use north-field correlation
+
+        Returns:
+            Estimated tower height (m)
+        """
+
+        if not 'cycle_design_power' in kwargs:
+            cycle_design_power = self.cycle_design_power
+        else:
+            cycle_design_power = kwargs['cycle_design_power']
+        
+        if not 'solar_multiple' in kwargs:
+            solar_multiple = self.solar_multiple
+        else:
+            solar_multiple = kwargs['solar_multiple']
+
+        if not 'is_north' in kwargs:
+            wp_data = True
+            is_north = True
+        else:
+            wp_data = False
+            is_north = kwargs['is_north']
+
+        #guess the tower height based on current variable values
+        return receiver.calculate_tower_height(cycle_design_power*1000. / 0.43 * solar_multiple, is_north=is_north, wp_data=wp_data)  
 
 class Settings:
     def __init__(self):
@@ -604,10 +630,6 @@ class Gen3opt:
         receiver_eff_des = receiver.calculate_efficiency(self.variables.receiver_height)
         q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point 
 
-        #get the heliostat field for the rated solar field power
-        # eta_map = receiver.create_heliostat_field_lookup('resource/eta_lookup_{:s}.csv'.format('north' if self.settings.is_north else 'surround'), 
-                                                # q_sf_des*1000, helio_area)
-        
         #tower height
         # self.variables.h_tower = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
@@ -1016,6 +1038,7 @@ def run_single_case(casevars):
     g.settings.lift_technology, \
     g.variables.cycle_design_power, \
     g.variables.solar_multiple, \
+    g.variables.h_tower, \
     g.variables.dni_design_point, \
     g.variables.receiver_height, \
     g.variables.riser_inner_diam, \
@@ -1042,67 +1065,71 @@ if __name__ == "__main__":
 
     cases = [
         # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'skip', 138.925, 2.691, 999, 831.078, 5.559, 0.59, 0.686, 14.168, 25.592, 16.803],
+        ['optimal', 'surround', 'skip', 96.094, 2.666, 180.070, 853.323, 4.703, 0.504, 0.458, 14.850, 27.950, 17.905],
         # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303],
         # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'north', 'skip', 126.375, 2.72, 999, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651],
+        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651],
         # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725],
     ]
 
-    import pandas as pd
-    df = pd.read_csv('cycle-power-pareto-points.csv')
 
-    cases = []
-    datcols = df.columns[5:]
+    run_single_case(cases[0])
+
+
+    # import pandas as pd
+    # df = pd.read_csv('cycle-power-pareto-points.csv')
+
+    # cases = []
+    # datcols = df.columns[5:]
     
-    casetypes = list(set(df.case.values))
-    casetypes.sort()
+    # casetypes = list(set(df.case.values))
+    # casetypes.sort()
 
-    for ct in casetypes:
-        dfc = df[df.case == ct]
-        for index,row in dfc.iterrows():
-            cases.append(
-                ['pareto'] +
-                row.case.split('-') + 
-                [row[col] for col in datcols]
-            )
+    # for ct in casetypes:
+    #     dfc = df[df.case == ct]
+    #     for index,row in dfc.iterrows():
+    #         cases.append(
+    #             ['pareto'] +
+    #             row.case.split('-') + 
+    #             [row[col] for col in datcols]
+    #         )
 
         
-    multiprocessing.freeze_support()
-    nthreads = 14
-    pool = multiprocessing.Pool(processes=nthreads)
-    results = pool.starmap(run_single_case, [[c] for c in cases])
+    # multiprocessing.freeze_support()
+    # nthreads = 14
+    # pool = multiprocessing.Pool(processes=nthreads)
+    # results = pool.starmap(run_single_case, [[c] for c in cases])
 
 
-    all_sum_results = {}
-    casenames = []
+    # all_sum_results = {}
+    # casenames = []
 
-    for case in results:
+    # for case in results:
     
-        if case == results[0]:
-            keyord = []
-            for k,v in case:
-                keyord.append(k)
-                all_sum_results[k] = [v]
-        else:
-            for k,v in case:
-                all_sum_results[k].append(v)
+    #     if case == results[0]:
+    #         keyord = []
+    #         for k,v in case:
+    #             keyord.append(k)
+    #             all_sum_results[k] = [v]
+    #     else:
+    #         for k,v in case:
+    #             all_sum_results[k].append(v)
 
-        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
-        casenames.append(casename)
+    #     casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
+    #     casenames.append(casename)
 
-        # g.write_hourly_results_to_file( casename + '.csv')
+    #     # g.write_hourly_results_to_file( casename + '.csv')
 
         
 
-    fsum = open('cycle-pareto-results.csv', 'w')
-    fsum.write("," + ",".join(casenames) + '\n')
+    # fsum = open('cycle-pareto-results.csv', 'w')
+    # fsum.write("," + ",".join(casenames) + '\n')
     
-    for key in keyord:
-        fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
+    # for key in keyord:
+    #     fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
 
-    fsum.close()
+    # fsum.close()
 
 

@@ -4028,7 +4028,9 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             C_monotonic_eq_solver c_solver(c_eq);
 
             // Set up solver
-            c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+            double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 10.;
+            double T_cold_max = mpc_csp_solver->m_T_htf_cold_des - 273.15 + 40.;
+            c_solver.settings(1.E-3, 50, T_cold_min, T_cold_max, false);
 
             // Solve for cold temperature
             double T_cold_guess_low = std::min(T_htf_rec_in, T_htf_rec_out) - 273.15 - 10;  //[C]

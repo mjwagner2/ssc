@@ -1,6 +1,7 @@
 from PySSC import PySSC
 import numpy as np
 import os
+import csv
 import pandas as pd
 import multiprocessing
 
@@ -620,8 +621,18 @@ class Gen3opt:
 
         #cycle efficiency
         cycle_efficiency = self.settings.cycle_efficiency_nominal/0.489 * cycle.calculate_nominal_efficiency(T_pc_hot_des, self.variables.cycle_design_power*1000.)
-        ssc.data_set_matrix( data, b'ud_ind_od', cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des) );
-        ssc.data_set_matrix( data, b'ud_ind_od_off_sun', cycle.create_updc_lookup('resource/ud_ind_od_off_sun.csv', T_pc_hot_des) );
+
+        ud_ind_od = cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des)
+        ssc.data_set_matrix( data, b'ud_ind_od', ud_ind_od );
+        with open('resource/ud_ind_od_python.csv', 'w', newline='') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
+            wr.writerows(ud_ind_od)
+        
+        ud_ind_od_off_sun = cycle.create_updc_lookup('resource/ud_ind_od_off_sun.csv', T_pc_hot_des)
+        ssc.data_set_matrix( data, b'ud_ind_od_off_sun', ud_ind_od_off_sun );
+        with open('resource/ud_ind_od_off_sun_python.csv', 'w', newline='') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
+            wr.writerows(ud_ind_od_off_sun)
 
         # Do initial calculations for parameters used in cost/performance models
         helio_area = 8.66**2*.97
@@ -640,7 +651,9 @@ class Gen3opt:
             interp_provider = self.sf_interp_provider
 
         eta_map = receiver.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
-
+        with open('resource/eta_map_python.csv', 'w', newline='') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
+            wr.writerows(eta_map)
         ssc.data_set_matrix( data, b'eta_map', eta_map);
 
         #Permitting cost for the tower
@@ -671,8 +684,18 @@ class Gen3opt:
         rec_total_cost = recd['total_cost'] 
         rec_area = recd['A_rec']
         D_rec = recd['W_rec']
-        ssc.data_set_matrix(data, b'rec_efficiency_lookup', receiver.create_receiver_efficiency_lookup("resource/rec_efficiency.csv", self.variables.receiver_height) )
-        ssc.data_set_matrix(data, b'rec_pressure_lookup', receiver.create_receiver_pressure_lookup("resource/rec_pressure.csv", self.variables.receiver_height) )
+
+        rec_efficiency_lookup = receiver.create_receiver_efficiency_lookup("resource/rec_efficiency.csv", self.variables.receiver_height)
+        with open('resource/rec_efficiency_python.csv', 'w', newline='') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
+            wr.writerows(rec_efficiency_lookup)
+        ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
+
+        rec_pressure_lookup = receiver.create_receiver_pressure_lookup("resource/rec_pressure.csv", self.variables.receiver_height)
+        with open('resource/rec_pressure_python.csv', 'w', newline='') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
+            wr.writerows(rec_pressure_lookup)
+        ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
 
         #lift power and cost
         m_dot_p = receiver_design_power*1e3 / (tes.cp_particle() * (T_tes_hot_des - T_tes_cold_des))  #kg/s
@@ -1059,6 +1082,8 @@ def run_single_case(casevars):
     for key,v in g.summary_results:
         sum_results.append([key, v])
     
+    g.write_hourly_results_to_file()
+
     return sum_results
 
 if __name__ == "__main__":

@@ -57,29 +57,29 @@ var( 'store_htf', 34 );
 
 var( 'solar_resource_file', '../resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
 var( 'dispatch_factors_ts', real_array(read_text_file('../resource/dispatch_factors_ts.csv')));
-var( 'ud_ind_od', csvread('../resource/ud_ind_od.csv'));
-var( 'ud_ind_od_off_sun', csvread('../resource/ud_ind_od_off_sun.csv'));
+var( 'ud_ind_od', csvread('../resource/ud_ind_od_python.csv'));
+var( 'ud_ind_od_off_sun', csvread('../resource/ud_ind_od_off_sun_python.csv'));
 var( 'wlim_series', real_array(read_text_file('../resource/wlim_series.csv')));
-var( 'rec_efficiency_lookup', csvread('../resource/rec_efficiency.csv'));
-var( 'rec_pressure_lookup', csvread('../resource/rec_pressure.csv'));
+var( 'rec_efficiency_lookup', csvread('../resource/rec_efficiency_python.csv'));
+var( 'rec_pressure_lookup', csvread('../resource/rec_pressure_python.csv'));
 
-eta_map = csvread('../resource/eta_map.csv');
+eta_map = csvread('../resource/eta_map_python.csv');
 
 solarm_ref = 3.;
-solarm = 2.8;
+solarm = 2.666;
 
 dni_des_ref = 976.;
-dni_des = 976.;
+dni_des = 853.323;
 
 sf_area_scaling = solarm / solarm_ref * dni_des_ref / dni_des;
 
-for(i=0; i<#eta_map; i++)
-{
-	for(j=5; j<8; j++)
-	{
-		eta_map[i][j] = to_string( to_int( to_real(eta_map[i][j])*sf_area_scaling ));
-	}
-}
+//for(i=0; i<#eta_map; i++)
+//{
+//	for(j=5; j<8; j++)
+//	{
+//		eta_map[i][j] = to_string( to_int( to_real(eta_map[i][j])*sf_area_scaling ));
+//	}
+//}
 
 var( 'eta_map', eta_map);
 
@@ -92,9 +92,9 @@ var( 'eta_map', eta_map);
 */
 //design
 var( 'gross_net_conversion_factor', 0.9 );
-var( 'P_ref', 100 );
+var( 'P_ref', 96.094 );
 var( 'design_eff', 0.43); 	// 0.43; 
-var( 'tshours', 13 ); 	// 10.3
+var( 'tshours', 14.85 ); 	// 10.3
 var( 'solarm', solarm );
 
 //heliostat field
@@ -114,9 +114,10 @@ var( 'hel_stow_deploy', 8 );
 var( 'v_wind_max', 15 );
 
 //total height and width of all recievers (cost calculation)
-var( 'rec_height', 22.9 );	 //524.67 m^2
-var( 'D_rec', 22.9*3*solarm/solarm_ref );
-var( 'h_tower', 233. );
+var( 'rec_height', 4.703 );	 //524.67 m^2, was 22.9
+var( 'D_rec', 70.981 );
+//var( 'D_rec', 22.9*3*solarm/solarm_ref );
+var( 'h_tower', 180.07 );
 
 var( 'water_usage_per_wash', 0.7 );
 var( 'washing_frequency', 63 );
@@ -171,41 +172,44 @@ var( 'rec_su_delay', 0.1); //0.2 );
 var( 'rec_qf_delay', 0.1); //0.25 );
 var( 'csp.pt.rec.max_oper_frac', 2 );
 var( 'piping_loss', 10200 );
-var( 'piping_length_mult', 2.6 );
-var( 'piping_length_const', 0 );
-var( 'eta_pump', 0.85 );
+var( 'piping_length_mult', 1.5 );
+var( 'piping_length_const', 50 );
+var( 'piping_riser_diam', 0.504 );
+var( 'piping_downcomer_diam', 0.458 );
+var( 'dP_recHX_perc', 0.14 );
+var( 'eta_pump', 0.87 );
 
 
-var( 'T_rec_cold_des', 561.2 );
+var( 'T_rec_cold_des', 592 );				// was 561.2
 var( 'T_rec_hot_des', 730 );
 var( 'store_fl_props', [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ] );
 var( 'tes_pump_coef', 0.15 );
-var( 'T_tes_hot_des', 715 );
-var( 'T_tes_warm_des', 576.1 );
-var( 'T_tes_cold_des', 546.6 );
+var( 'T_tes_hot_des', 702.05 );				// was 715
+var( 'T_tes_warm_des', 581.95 );			// was 576.1
+var( 'T_tes_cold_des', 564.05 );			// was 546.6
 var( 'csp.pt.tes.init_hot_htf_percent', 30 );
 var( 'h_tank', 20 );
 var( 'cold_tank_max_heat', 0 );
-var( 'dt_charging', 15 );
-var( 'dt_ht_discharging', 15 );
-var( 'dt_lt_discharging', 15 );
+var( 'dt_charging', 27.95 );				// was 15
+var( 'dt_ht_discharging', 17.9 );			// was 15
+var( 'dt_lt_discharging', 17.9 );			// was 15
 var( 'u_tank', 0.4 );
 var( 'tank_pairs', 1 );
 var( 'cold_tank_Thtr', 280 );
 var( 'h_tank_min', 1 );
 var( 'hot_tank_Thtr', 500 );
 var( 'hot_tank_max_heat', 0 );
-var( 'dP_LTHX_perc', 0.5 );
-var( 'dP_HTHX_perc', 1.5 );
+var( 'dP_LTHX_perc', 0.09 );				// was 0.5
+var( 'dP_HTHX_perc', 0.14 );
 
 
 
-var( 'T_pc_cold_des', 537.5 );
-var( 'T_pc_hot_des', 700 );
+var( 'T_pc_cold_des', 546.1 );				// was 537.5
+var( 'T_pc_hot_des', 684.1 );				// was 700
 var( 'pb_pump_coef', 0.55 );
 var( 'startup_time', 0.5 );
 var( 'startup_frac', 0.5 );
-var( 'cycle_max_frac', 1.05 );
+var( 'cycle_max_frac', 1.2 );				// was 1.05
 var( 'cycle_cutoff_frac', 0.2 );
 var( 'q_sby_frac', 0.2 );
 
@@ -221,9 +225,9 @@ var( 'ud_m_dot_htf_high', 1.05 );
 var( 'ud_T_htf_ind_od', [ [ 0 ] ] );
 var( 'ud_T_amb_ind_od', [ [ 0 ] ] );
 var( 'ud_m_dot_htf_ind_od', [ [ 0 ] ] );
-var( 'P_phx_in_co2_des', 24.750625 );
-var( 'P_turb_in_co2_des', 20.790525 );
-var( 'P_turb_in_co2_off_sun_des', 24.504 );
+var( 'P_phx_in_co2_des', 24750.625 );				
+var( 'P_turb_in_co2_des', 20790.525 );
+var( 'P_turb_in_co2_off_sun_des', 24504. );
 
 var( 'pb_fixed_par', 0); //0.0055 );
 /*
@@ -265,6 +269,7 @@ var( 'weekend_schedule',
 [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
 [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
 [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ] ] );
+var( 'is_tod_pc_target_also_pc_max', 0 );
 var( 'disp_horizon', 48 );
 var( 'disp_frequency', 24 );
 var( 'disp_max_iter', 35000 );

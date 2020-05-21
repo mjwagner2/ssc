@@ -1372,7 +1372,7 @@ public:
             m_defocus = defocus;				//[-]
             m_hot_tank_discharging = htd;
             m_allow_tes_overfill = allow_tes_overfill;
-            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_is_tes_overfilled = false;
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
             m_meq_error = meq_error::none;
         }
@@ -1431,7 +1431,7 @@ public:
             m_m_dot_tank = m_dot_tank;
             m_hot_tank_discharging = htd;
             m_allow_tes_overfill = allow_tes_overfill;
-            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_is_tes_overfilled = false;
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
         }
 
@@ -1464,7 +1464,7 @@ public:
             m_m_dot_tank = m_dot_tank;
             m_hot_tank_discharging = htd;
             m_allow_tes_overfill = allow_tes_overfill;
-            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_is_tes_overfilled = false;
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
         }
 
@@ -2007,7 +2007,7 @@ public:
 
             m_hot_tank_discharging = htd;
             m_allow_tes_overfill = allow_tes_overfill;
-            m_is_tes_overfilled = std::numeric_limits<double>::quiet_NaN();
+            m_is_tes_overfilled = false;
             m_step_pc_su = std::numeric_limits<double>::quiet_NaN();
             m_meq_error = meq_error::none;
 

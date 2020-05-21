@@ -2030,7 +2030,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defo
 
     C_MEQ_cr_on__pc__tes c_eq(mpc_csp_solver, defocus, m_pc_mode, mpc_csp_solver->m_P_cold_des,
         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        hot_tank_discharging::per_matched_rec_htf, false);
+        hot_tank_discharging::per_matched_rec_htf, true);
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver

@@ -4635,6 +4635,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// The PC is operating between its target and maximum thermal power
 				// The TES is fully charging over the timestep
 
+				// PC standby not currently allowed so this case is not used.
+	
 				if (!mc_collector_receiver.m_is_sensible_htf)
 				{
 					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);

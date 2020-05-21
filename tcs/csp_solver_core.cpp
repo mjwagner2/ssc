@@ -776,7 +776,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
         // Get volume of hot tank, for debugging
         V_hot_tank_frac_initial = mc_tes.get_hot_tank_vol_frac();
 
-		// Get or set decision variables
+		// Get or set decision variables 
 		bool is_rec_su_allowed = true;
 		bool is_pc_su_allowed = true;
 		//bool is_pc_sb_allowed = true;
@@ -2742,7 +2742,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     }
                 }
 
-                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, false);
+                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true);
                 C_monotonic_eq_solver c_solver(c_eq);
 
                 // Get guesses for particle flow

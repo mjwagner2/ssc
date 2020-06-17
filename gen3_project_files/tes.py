@@ -1,4 +1,4 @@
-from math import exp, log
+from math import exp, log, ceil
 from numpy import array
 from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
@@ -73,6 +73,8 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     T_cold_disch_co2_out = T_rec_in_C
     T_hot_disch_particle_in = T_charge_particle_out
     T_hot_disch_particle_out = T_hot_disch_co2_in + dT_approach_dis
+    T_cold_disch_particle_in = T_hot_disch_particle_out
+    T_cold_disch_particle_out = T_cold_disch_co2_in + dT_approach_dis
     
     #heat exchanger mass flows
     cp_co2_cycle = specheat_co2(T_cycle_in + dT_cycle/2)    #kJ/kg-K
@@ -115,10 +117,6 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
 
     #Performance confidence derate (1 -> full confidence)
     x_safety = 1.0
-    #assumed future cost reduction multiplier
-    x_future = 0.7      
-    #reduced cost factor at low temperature
-    x_lt_cost = 0.75
     #max particle flow rate per cell
     m_dot_particle_c_max = 0.056    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
     #Max cell length
@@ -133,38 +131,74 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     A_cold_disch = UA_cold_disch / U
 
     #Determine the minimum number of cells
-    N_cells_min = m_dot_particle / (x_safety * m_dot_particle_c_max)
+    N_cells_min = ceil(m_dot_particle / (x_safety * m_dot_particle_c_max))
 
     #Calculate the length of each cell, limiting to the maximum cell length
-    L_cell_charge =     min([A_charge     / (2 * W_cell * N_cells_min), L_cell_max])
-    L_cell_hot_disch =  min([A_hot_disch  / (2 * W_cell * N_cells_min), L_cell_max])
-    L_cell_cold_disch = min([A_cold_disch / (2 * W_cell * N_cells_min), L_cell_max])
-
-    #Ensure cell count matches if the max length constraint is active
-    N_cells_charge     = A_charge     / (2 * W_cell * L_cell_charge)
-    N_cells_hot_disch  = A_hot_disch  / (2 * W_cell * L_cell_hot_disch)
-    N_cells_cold_disch = A_cold_disch / (2 * W_cell * L_cell_cold_disch)
+    L_cell_charge = A_charge / (2 * W_cell * N_cells_min)
+    if L_cell_charge >= L_cell_max:
+        L_cell_charge = L_cell_max
+        N_cells_charge = ceil(A_charge / (2 * W_cell * L_cell_charge))
+    else:
+        N_cells_charge = N_cells_min
+    
+    L_cell_hot_disch = A_hot_disch / (2 * W_cell * N_cells_min)
+    if L_cell_hot_disch >= L_cell_max:
+        L_cell_hot_disch = L_cell_max
+        N_cells_hot_disch = ceil(A_hot_disch / (2 * W_cell * L_cell_hot_disch))
+    else:
+        N_cells_hot_disch = N_cells_min
+    
+    L_cell_cold_disch = A_cold_disch / (2 * W_cell * N_cells_min)
+    if L_cell_cold_disch >= L_cell_max:
+        L_cell_cold_disch = L_cell_max
+        N_cells_cold_disch = ceil(A_cold_disch / (2 * W_cell * L_cell_cold_disch))
+    else:
+        N_cells_cold_disch = N_cells_min
 
     #Fraction of total costs associated with low cost materials
-    x_m_charge     = (0.1466 * L_cell_charge     + 0.2681) * x_lt_cost \
-                        if max([ T_rec_out_C, T_charge_particle_out]) < 600 else 0.
-    x_m_hot_disch  = (0.1466 * L_cell_hot_disch  + 0.2681) * x_lt_cost \
-                        if max([ T_hot_disch_co2_out, T_hot_disch_particle_in]) < 600 else 0.
-    x_m_cold_disch = (0.1466 * L_cell_cold_disch + 0.2681) * x_lt_cost \
-                        if max([ T_cold_disch_co2_out, T_hot_disch_particle_out]) < 600 else 0.
+    def FracTotalCosts(L_cell):
+        kFracCostPerLength = 0.1466     # [$/m]
+        kFracCostConst = 0.2681         # [$]
 
-    #Cost of the cells ($/cell)
-    c_cell_charge     = 271.1 * L_cell_charge     + 603
-    c_cell_hot_disch  = 271.1 * L_cell_hot_disch  + 603
-    c_cell_cold_disch = 271.1 * L_cell_cold_disch + 603
+        x_material = kFracCostPerLength * L_cell + kFracCostConst
+        return x_material
 
-    #Total heat exchanger cost
-    cost_charge     = c_cell_charge     * N_cells_charge     * x_future * (1. - x_m_charge) * 3
-    cost_hot_disch  = c_cell_hot_disch  * N_cells_hot_disch  * x_future * (1. - x_m_hot_disch)
-    cost_cold_disch = c_cell_cold_disch * N_cells_cold_disch * x_future * (1. - x_m_cold_disch)
+    def CostPerCell(L_cell):
+        kCostPerLength = 271.1          # [$/m]
+        kCostConst = 603                # [$]
+
+        cost_per_cell = kCostPerLength * L_cell + kCostConst
+        return cost_per_cell
+
+    def TotalHxCost(L_cell, N_cells, inlet_and_outlet_temps):
+        kFutureCostReduction = 0.3              # [-]
+        kLowCostMaterialTempLimit = 600         # [C]
+        kLowerTempMaterialCostReduction = 0.75  # [-]
+
+        total_hx_cost = CostPerCell(L_cell) * N_cells * kFutureCostReduction
+        if max(inlet_and_outlet_temps) < kLowCostMaterialTempLimit:
+            x_material = FracTotalCosts(L_cell)
+            total_hx_cost *= (1 - kLowerTempMaterialCostReduction * x_material)
+
+        return total_hx_cost
+
+    # Inlet and outlet temperatures of each HX
+    charge_inlet_and_outlet_temps = (T_rec_in_C, T_rec_out_C, T_charge_particle_in, T_charge_particle_out)
+    hot_disch_inlet_and_outlet_temps = (T_hot_disch_co2_in, T_hot_disch_co2_out, T_hot_disch_particle_in, T_hot_disch_particle_out)
+    cold_disch_inlet_and_outlet_temps = (T_cold_disch_co2_in, T_cold_disch_co2_out, T_cold_disch_particle_in, T_cold_disch_particle_out)
+
+    # Costs of each singular HX
+    cost_charge_hx = TotalHxCost(L_cell_charge, N_cells_charge, charge_inlet_and_outlet_temps)
+    cost_hot_disch_hx = TotalHxCost(L_cell_hot_disch, N_cells_hot_disch, hot_disch_inlet_and_outlet_temps)
+    cost_cold_disch_hx = TotalHxCost(L_cell_cold_disch, N_cells_cold_disch, cold_disch_inlet_and_outlet_temps)
+    
+    # Total Cost of Each Type of HX
+    cost_charge = 3 * cost_charge_hx
+    cost_hot_disch = 1 * cost_hot_disch_hx
+    cost_cold_disch = 1 * cost_cold_disch_hx
 
     #Fractional pressure loss
-    dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_hot_disch_co2_in )/2.)[0]*L_cell_charge
+    dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_rec_in_C )/2.)[0]*L_cell_charge
     dp_hot_disch  = __dp_interp_f(m_dot_co2 / N_cells_hot_disch,  (T_hot_disch_co2_out  + T_hot_disch_co2_in )/2.)[0]*L_cell_hot_disch
     dp_cold_disch = __dp_interp_f(m_dot_co2 / N_cells_cold_disch, (T_cold_disch_co2_out + T_cold_disch_co2_in)/2.)[0]*L_cell_cold_disch
 

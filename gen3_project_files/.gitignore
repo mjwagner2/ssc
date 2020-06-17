@@ -1,3 +1,2 @@
 output_dview.csv
-*.csv
-*.txt
+output_case?.csv

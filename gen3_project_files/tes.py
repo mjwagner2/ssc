@@ -351,25 +351,26 @@ def calculate_lift_cost(cycle_design_power, lift_type):
 
 #----------------------------------------------------------------------
 
-def calculate_lift_availability(q_cycle_in_kw, lift_type):
+def calculate_lift_availability(P_cycle_des, lift_type):
     """
     Inputs
-        q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
+        P_cycle_des (kW)
         lift_type - one of 'bucket' or 'skip'
 
     Returns
         Availability (-) of the lift system
     """
 
-    x = q_cycle_in_kw /1000. * 0.43      #Convert to nominal cycle power assuming 43% cycle eff.
+    x = P_cycle_des / 1e3   # (MWe)
 
+    # These relations return a fraction, the Brayton PDF incorrectly lists it as a percent
     if lift_type == 'bucket':
         if x < 100:
-            return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01
+            return 0.92 * (2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01) # (-)
         else:
             return 0.85749 - (x-100)*0.00187514
     elif lift_type == 'skip':
-        return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01
+        return 0.92 * (-3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01)     # (-)
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 

@@ -715,7 +715,8 @@ class Gen3opt:
 
         #availability
         base_avail = 0.98
-        total_avail = base_avail * tes.calculate_lift_availability(q_pb_des*1000, self.settings.lift_technology)
+        lift_avail = tes.calculate_lift_availability(self.variables.cycle_design_power * 1e3, self.settings.lift_technology)
+        total_avail = base_avail * lift_avail
         # total_avail = 0.96
 
         """

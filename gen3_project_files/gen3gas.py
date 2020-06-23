@@ -699,7 +699,7 @@ class Gen3opt:
 
         #lift power and cost
         m_dot_p = receiver_design_power*1e3 / (tes.cp_particle() * (T_tes_hot_des - T_tes_cold_des))  #kg/s
-        lift_cost = tes.calculate_lift_cost(self.variables.cycle_design_power, self.settings.lift_technology)
+        lift_cost = tes.calculate_lift_cost(receiver_design_power*1000, self.settings.lift_technology)
         lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, receiver_design_power*1000, m_dot_p, self.settings.lift_technology)
 
         #TES costs

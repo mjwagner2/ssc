@@ -331,18 +331,22 @@ def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, m_dot_p, 
     
     return bulk_power_perm / lift_power_perm
 
-def calculate_lift_cost(cycle_design_power, lift_type):
+def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     """
     Calculate lift cost as a function of solar field rating and lift type. 
 
     Inputs
-        cycle_design_power [MW]
+        q_solarfield_out_kw - total absorbed power at design from all receivers (kWt)
         lift_type - one of 'bucket' or 'skip'
     Returns
         Lift cost ($)
     """
 
-    x = cycle_design_power
+    # Assumed values when these relations were made:
+    kCycleEfficiency = 0.43
+    kSolarMult = 3
+
+    x = q_solarfield_out_kw /1000. * kCycleEfficiency / kSolarMult      # [MWe]
     if lift_type == 'bucket':
         return 8.65829e3 * x**2 + 5.41087e5 * x - 5.38257e5
     elif lift_type == 'skip':

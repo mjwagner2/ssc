@@ -1,4 +1,4 @@
-from math import exp, log, ceil
+from math import exp, log
 from numpy import array
 from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
@@ -131,27 +131,28 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     A_cold_disch = UA_cold_disch / U
 
     #Determine the minimum number of cells
-    N_cells_min = ceil(m_dot_particle / (x_safety * m_dot_particle_c_max))
+    #Allow fractional number of cells (i.e., omit functions like ceil() and their discreet outputs) to facilitate optimization routines
+    N_cells_min = m_dot_particle / (x_safety * m_dot_particle_c_max)
 
     #Calculate the length of each cell, limiting to the maximum cell length
     L_cell_charge = A_charge / (2 * W_cell * N_cells_min)
     if L_cell_charge >= L_cell_max:
         L_cell_charge = L_cell_max
-        N_cells_charge = ceil(A_charge / (2 * W_cell * L_cell_charge))
+        N_cells_charge = A_charge / (2 * W_cell * L_cell_charge)
     else:
         N_cells_charge = N_cells_min
     
     L_cell_hot_disch = A_hot_disch / (2 * W_cell * N_cells_min)
     if L_cell_hot_disch >= L_cell_max:
         L_cell_hot_disch = L_cell_max
-        N_cells_hot_disch = ceil(A_hot_disch / (2 * W_cell * L_cell_hot_disch))
+        N_cells_hot_disch = A_hot_disch / (2 * W_cell * L_cell_hot_disch)
     else:
         N_cells_hot_disch = N_cells_min
     
     L_cell_cold_disch = A_cold_disch / (2 * W_cell * N_cells_min)
     if L_cell_cold_disch >= L_cell_max:
         L_cell_cold_disch = L_cell_max
-        N_cells_cold_disch = ceil(A_cold_disch / (2 * W_cell * L_cell_cold_disch))
+        N_cells_cold_disch = A_cold_disch / (2 * W_cell * L_cell_cold_disch)
     else:
         N_cells_cold_disch = N_cells_min
 
@@ -198,7 +199,7 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     cost_cold_disch = 1 * cost_cold_disch_hx
 
     #Fractional pressure loss
-    dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_rec_in_C )/2.)[0]*L_cell_charge
+    dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_hot_disch_co2_in )/2.)[0]*L_cell_charge
     dp_hot_disch  = __dp_interp_f(m_dot_co2 / N_cells_hot_disch,  (T_hot_disch_co2_out  + T_hot_disch_co2_in )/2.)[0]*L_cell_hot_disch
     dp_cold_disch = __dp_interp_f(m_dot_co2 / N_cells_cold_disch, (T_cold_disch_co2_out + T_cold_disch_co2_in)/2.)[0]*L_cell_cold_disch
 

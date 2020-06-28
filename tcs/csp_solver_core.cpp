@@ -783,6 +783,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		bool is_pc_sb_allowed = false;
 		mc_kernel.mc_sim_info.m_tou = 1;	    //[base 1] used ONLY by power cycle model for hybrid cooling - may also want to move this to controller
 
+        //[-] If True, use blower/compressor to circulate fluid through receiver and CHXs, allowing receiver to operate and charge TES
+        // Assume if PC is 'ON', then it will move CO2 through receiver, CHXs
+        bool is_rec_recirc_allowed = false;     
+
 		// Get standby fraction and min operating fraction
 			// Could eventually be a method in PC class...
 		double cycle_sb_frac = m_cycle_sb_frac_des;				//[-]
@@ -1289,20 +1293,19 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 					else if( q_dot_tes_ch > 0.0 )
 					{
-                        operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						//if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-						//	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-						//{
-						//	operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-						//}
-						//else if(m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail)
-						//{
-						//	operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;														
-						//}
-						//else
-						//{
-						//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						//}
+						if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+							m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail && is_rec_recirc_allowed )
+						{
+                            operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+						}
+						else if(m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail && is_rec_recirc_allowed )
+						{
+                            operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+						}
+						else
+						{
+							operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						}
 					}
 					else
 					{

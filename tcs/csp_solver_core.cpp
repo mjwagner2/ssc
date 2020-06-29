@@ -779,6 +779,12 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		// Get or set decision variables 
 		bool is_rec_su_allowed = true;
 		bool is_pc_su_allowed = true;
+
+
+        // Set to false to test recirculator code
+        //is_pc_su_allowed = false;
+
+
 		//bool is_pc_sb_allowed = true;
 		bool is_pc_sb_allowed = false;
 		mc_kernel.mc_sim_info.m_tou = 1;	    //[base 1] used ONLY by power cycle model for hybrid cooling - may also want to move this to controller
@@ -1213,7 +1219,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 		while(!are_models_converged)		// Solve for correct operating mode and performance in following loop:
 		{
-			// Reset timestep info for iterations on the operating mode...
+            // Default to false each operating mode iteration, because should/can only be true for "new" modes added >~6.29.20
+            mc_cr_out_solver.m_is_rec_recirc_in = false;
+
+            // Reset timestep info for iterations on the operating mode...
 			mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.get_baseline_end_time();
 			mc_kernel.mc_sim_info.ms_ts.m_step = mc_kernel.mc_sim_info.ms_ts.m_time - mc_kernel.mc_sim_info.ms_ts.m_time_start;
 
@@ -2578,6 +2587,32 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
 				m_defocus = 1.0;
+
+                mc_cr_out_solver.m_is_rec_recirc_in = true;
+
+                // In recirculate mode, solving for inlet temperature and pressure in tower-receiver code
+                double T_htf_rec_in = std::numeric_limits<double>::quiet_NaN();      //[K]
+                double P_rec_in = std::numeric_limits<double>::quiet_NaN();    //[kPa]
+                mc_cr_htf_state_in.m_temp = T_htf_rec_in - 273.15;      //[C]
+                mc_cr_htf_state_in.m_pres = P_rec_in;
+
+                mc_collector_receiver.on(mc_weather.ms_outputs,
+                    mc_cr_htf_state_in,
+                    m_defocus,
+                    mc_cr_out_solver,
+                    mc_kernel.mc_sim_info);
+
+                // Check if receiver is OFF or didn't solve
+                if (mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mc_cr_out_solver.m_q_thermal == 0.0)
+                {
+                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                    are_models_converged = false;
+                    break;
+                }
+
+
+
 
 				C_MEQ_cr_on__pc_off__tes_ch__T_htf_cold c_eq(this, m_defocus);
 				C_monotonic_eq_solver c_solver(c_eq);

@@ -94,6 +94,10 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
 {
 	mc_reported_outputs.construct(S_output_info);
     hxs.assign(collector_receivers.size(), C_heat_exchanger());
+
+    m_dP_sf_des = std::numeric_limits<double>::quiet_NaN();         // [kPa] Total (all rec + all CHXs) pressure drop at design
+    m_P_rec_in_des = std::numeric_limits<double>::quiet_NaN();      //[kPa]
+    m_T_co2_CHX_out_des = std::numeric_limits<double>::quiet_NaN(); //[K]
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -255,6 +259,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     solved_params.m_q_dot_rec_des = q_dot_rec_des;
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
+
+    m_dP_sf_des = dP_sf;        //[kPa]
 
 	return;
 }
@@ -438,31 +444,58 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
-    /* 
-    We first need to calculate riser pressure drop, because it affects downstream performance. 
-    This is an implicit calculation, so we will estimate using only the first receiver.
-    */
-    {
-        C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_temp;
-        collector_receivers.front().call(weather, htf_state_in, inputs, cr_out_solver_temp, sim_info);
-        double m_dot_salt_temp = cr_out_solver_temp.m_m_dot_salt_tot/3600.;     //kg/s from kg/hr
+    bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
 
-        if (m_dot_salt_temp > 0.)
+    if (!is_rec_recirc) {
+        // Assume no riser if receivers are recirculating
+        /*
+        We first need to calculate riser pressure drop, because it affects downstream performance.
+        This is an implicit calculation, so we will estimate using only the first receiver.
+        */
         {
-            //calculate mass flow based on the power from the first receiver
-            C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
+            C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_temp;
+            collector_receivers.front().call(weather, htf_state_in, inputs, cr_out_solver_temp, sim_info);
+            double m_dot_salt_temp = cr_out_solver_temp.m_m_dot_salt_tot / 3600.;     //kg/s from kg/hr
 
-            //riser pressure loss
-            dP_riser = f_dP_riser(m_dot_salt_temp, receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+            if (m_dot_salt_temp > 0.)
+            {
+                //calculate mass flow based on the power from the first receiver
+                C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
+
+                //riser pressure loss
+                dP_riser = f_dP_riser(m_dot_salt_temp, receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+            }
+            else
+            {
+                dP_riser = 0.;
+            }
         }
-        else
-        {
-            dP_riser = 0.;
-        }
+
+        cr_out_solver.m_dP_sf += dP_riser;
+        htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
     }
 
-    cr_out_solver.m_dP_sf += dP_riser;
-    htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
+    // Guess a compressor inlet pressure and temperature
+    double P_comp_in_guess = m_P_rec_in_des - m_dP_sf_des;  //[kPa]
+    double T_comp_in_guess = m_T_co2_CHX_out_des;           //[K]
+
+    if (is_rec_recirc) {
+        CO2_state co2_props;
+        int co2_code = CO2_TP(T_comp_in_guess, P_comp_in_guess, &co2_props);
+        if (co2_code != 0)
+        {
+            throw(C_csp_exception("CO2 props fail at comp inlet", "CO2 tower receiver"));
+        }
+        double h_comp_in = co2_props.enth;  //[kJ/kg]
+        co2_code = CO2_PH(m_P_rec_in_des, h_comp_in, &co2_props);
+        if (co2_code != 0)
+        {
+            throw(C_csp_exception("CO2 props fail at comp outlet", "CO2 tower receiver"));
+        }
+
+        htf_state_in_next.m_pres = m_P_rec_in_des;  //[kPa]
+        htf_state_in_next.m_temp = co2_props.temp - 273.15;     //[C]
+    }
 
     //now calculate performance again over all receivers
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {

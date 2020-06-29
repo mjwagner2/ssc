@@ -463,7 +463,11 @@ public:
 	
 	struct S_csp_cr_out_solver
 	{	
-		// Collector receiver outputs that must be defined in the CR call() for the solver to succeed.
+        // Add is_rec_recirc input for co2 tower receiver
+        //[-] True - tower model solves for blower/compressor that circulates fluid, False - another component (i.e PC) responsible for providing fluid deltaP
+        bool m_is_rec_recirc_in;      
+
+        // Collector receiver outputs that must be defined in the CR call() for the solver to succeed.
 			// The controller only checks whether this value is > 0. 
 			// If it is <= 0.0, then the controller assumes that startup failed
 			// This value is also reported as a modeled timestep output
@@ -493,7 +497,9 @@ public:
 			
 		S_csp_cr_out_solver()
 		{
-			m_q_thermal = m_q_startup = m_m_dot_salt_tot = m_T_salt_hot = m_W_dot_htf_pump =
+            m_is_rec_recirc_in = false;
+
+            m_q_thermal = m_q_startup = m_m_dot_salt_tot = m_T_salt_hot = m_W_dot_htf_pump =
 				m_W_dot_col_tracking = m_time_required_su = m_E_fp_total =
 				m_dP_sf_sh = m_h_htf_hot = m_xb_htf_hot = m_P_htf_hot = std::numeric_limits<double>::quiet_NaN();
 

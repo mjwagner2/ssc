@@ -930,8 +930,6 @@ public:
         tower.downcomer_diam = as_double("piping_downcomer_diam");  //[m]
         tower.dP_recHX_perc = as_double("dP_recHX_perc"); //[%]
         tower.m_P_rec_in_des = receiver->m_P_cold_des;     //[kPa]
-        tower.m_T_co2_CHX_out_des = receiver->m_T_htf_cold_des + 273.15;    //[K]
-
 
         // *******************************************************
         // *******************************************************

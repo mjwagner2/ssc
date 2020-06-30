@@ -432,17 +432,20 @@ public:
 	struct S_csp_cr_solved_params
 	{
 		double m_T_htf_cold_des;		//[K]
-		double m_P_cold_des;			//[kPa]
+		double m_P_cold_des;			//[kPa] at inlet to riser
 		double m_x_cold_des;			//[-]
         double m_T_htf_hot_des;         //[K]
 		double m_q_dot_rec_des;			//[MW]
 		double m_A_aper_total;			//[m^2] Total solar field aperture area
         double m_dP_sf;                 //[kPa] Total field pressure drop
+        double m_P_rec_in_des;          //[kPa] Receiver inlet pressure after riser
+        double m_P_rec_out_des;         //[kPa] Receiver outlet pressure before downcomer
 
 		S_csp_cr_solved_params()
 		{
 			m_T_htf_cold_des = m_P_cold_des = m_x_cold_des = m_T_htf_cold_des =
-				m_q_dot_rec_des = m_A_aper_total = m_dP_sf = std::numeric_limits<double>::quiet_NaN();
+				m_q_dot_rec_des = m_A_aper_total = m_dP_sf =
+                m_P_rec_in_des = m_P_rec_out_des = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 
@@ -1044,11 +1047,13 @@ private:
 
 		// Collector receiver design parameters
 	double m_T_htf_cold_des;			//[K]
-	double m_P_cold_des;				//[kPa]
+	double m_P_cold_des;				//[kPa] at riser inlet
 	double m_x_cold_des;				//[-]
     double m_rec_T_htf_hot_des;         //[K]
 	double m_q_dot_rec_des;				//[MW]
 	double m_A_aperture;				//[m2]
+    double m_P_rec_in_des;              //[kPa] after riser
+    double m_P_rec_out_des;             //[kPa] before downcomer
 
 		// Power cycle design parameters
 	double m_cycle_W_dot_des;			//[MW]

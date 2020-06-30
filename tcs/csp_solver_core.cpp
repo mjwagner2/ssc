@@ -477,6 +477,8 @@ void C_csp_solver::init()
     m_rec_T_htf_hot_des = cr_solved_params.m_T_htf_hot_des;     //[K]
 	m_q_dot_rec_des = cr_solved_params.m_q_dot_rec_des;			//[MW]
 	m_A_aperture = cr_solved_params.m_A_aper_total;				//[m2]
+    m_P_rec_in_des = cr_solved_params.m_P_rec_in_des;           //[kPa]
+    m_P_rec_out_des = cr_solved_params.m_P_rec_out_des;         //[kPa]
 		// Power cycle
 	C_csp_power_cycle::S_solved_params pc_solved_params;
 	mc_power_cycle.init(pc_solved_params);
@@ -782,7 +784,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 
         // Set to false to test recirculator code
-        //is_pc_su_allowed = false;
+        is_pc_su_allowed = true;
 
 
 		//bool is_pc_sb_allowed = true;
@@ -2591,10 +2593,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 mc_cr_out_solver.m_is_rec_recirc_in = true;
 
                 // In recirculate mode, solving for inlet temperature and pressure in tower-receiver code
-                double T_htf_rec_in = std::numeric_limits<double>::quiet_NaN();      //[K]
-                double P_rec_in = std::numeric_limits<double>::quiet_NaN();    //[kPa]
+                double T_htf_rec_in = m_T_htf_cold_des;     //[K]
+                double P_rec_in = m_P_rec_out_des;          //[kPa]
                 mc_cr_htf_state_in.m_temp = T_htf_rec_in - 273.15;      //[C]
-                mc_cr_htf_state_in.m_pres = P_rec_in;
+                mc_cr_htf_state_in.m_pres = P_rec_in;       //[kPa]
 
                 mc_collector_receiver.on(mc_weather.ms_outputs,
                     mc_cr_htf_state_in,
@@ -2610,6 +2612,10 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     are_models_converged = false;
                     break;
                 }
+
+                // Calculate differences
+                double diff_P_comp_in = (P_rec_in - mc_cr_out_solver.m_P_htf_hot) / mc_cr_out_solver.m_P_htf_hot;       //[-]
+                double diff_T_comp_in = (mc_cr_htf_state_in.m_temp - mc_cr_out_solver.m_T_salt_hot) / mc_cr_out_solver.m_T_salt_hot;    //[-]
 
 
 

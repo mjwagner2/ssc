@@ -22,6 +22,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "csp_solver_tower_collector_receiver.h"
 #include "sam_csp_util.h"
+#include "sco2_cycle_components.h"
 #include <algorithm>
 
 static C_csp_reported_outputs::S_output_info S_output_info[] =
@@ -95,9 +96,7 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
 	mc_reported_outputs.construct(S_output_info);
     hxs.assign(collector_receivers.size(), C_heat_exchanger());
 
-    m_dP_sf_des = std::numeric_limits<double>::quiet_NaN();         // [kPa] Total (all rec + all CHXs) pressure drop at design
     m_P_rec_in_des = std::numeric_limits<double>::quiet_NaN();      //[kPa]
-    m_T_co2_CHX_out_des = std::numeric_limits<double>::quiet_NaN(); //[K]
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -211,8 +210,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     double q_dot_rec_des = 0.;
     double A_aper_total = 0.;
     double dP_sf = 0.;              //[kPa]
+    double dP_sf_no_piping = 0.0;   //[kPa]
     double P_prev = std::numeric_limits<double>::quiet_NaN();   //[kPa]
-
 
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
@@ -231,20 +230,26 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
             double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
             dP_sf += dpr;
             P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]      // pressure after riser before first receiver
+            solved_params.m_P_rec_in_des = P_prev;      //[kPa]
         }
 
         A_aper_total += _solved_params.m_A_aper_total;
         double dP_rec = _solved_params.m_dP_sf;
         dP_sf += dP_rec;
         P_prev -= dP_rec;
+        dP_sf_no_piping += dP_rec;
         
         hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
         //comment lines below when HX has a calculated pressure drop
         double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         dP_sf += dP_hx;
         P_prev -= dP_hx;
+        dP_sf_no_piping += dP_hx;
 
         if (i == collector_receivers.size()-1) {
+
+            solved_params.m_P_rec_out_des = P_prev; //[kPa]
+
             //calculate mass flow based on the power from the first receiver
             double cp_avg = mc_field_htfProps.Cp(solved_params.m_T_htf_cold_des);
             double m_dot_co2_tot = q_dot_rec_des * 1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
@@ -259,8 +264,6 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     solved_params.m_q_dot_rec_des = q_dot_rec_des;
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
-
-    m_dP_sf_des = dP_sf;        //[kPa]
 
 	return;
 }
@@ -395,12 +398,12 @@ void C_csp_tower_collector_receiver::set_tes(C_csp_two_tank_two_hx_tes * tes)
 }
 
 
-void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &weather,
-	const C_csp_solver_htf_1state &htf_state_in,
-	const C_csp_collector_receiver::S_csp_cr_inputs &inputs,
-	C_csp_collector_receiver::S_csp_cr_out_solver &cr_out_solver,
-	//C_csp_collector_receiver::S_csp_cr_out_report &cr_out_report,
-	const C_csp_solver_sim_info &sim_info)
+void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& weather,
+    const C_csp_solver_htf_1state& htf_state_in,
+    const C_csp_collector_receiver::S_csp_cr_inputs& inputs,
+    C_csp_collector_receiver::S_csp_cr_out_solver& cr_out_solver,
+    //C_csp_collector_receiver::S_csp_cr_out_report &cr_out_report,
+    const C_csp_solver_sim_info& sim_info)
 {
     cr_out_solver.m_q_startup = 0.;
     cr_out_solver.m_time_required_su = 0.;
@@ -415,6 +418,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
     cr_out_solver.m_W_dot_htf_pump = 0.;
     cr_out_solver.m_dP_sf = 0.;
     cr_out_solver.m_q_rec_heattrace = 0.;
+    cr_out_solver.m_P_htf_hot = 0.;
 
     double q_dot_field_inc = 0.;
     double eta_weighted_sum = 0.;
@@ -471,31 +475,35 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             }
         }
 
-        cr_out_solver.m_dP_sf += dP_riser;
         htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
     }
+    else {
 
-    // Guess a compressor inlet pressure and temperature
-    double P_comp_in_guess = m_P_rec_in_des - m_dP_sf_des;  //[kPa]
-    double T_comp_in_guess = m_T_co2_CHX_out_des;           //[K]
+        dP_riser = 0.0;         //[kPa]
+        double eta_comp = 0.7;  //[-] compressor isentropic efficiency placeholder - pass as input parameter from cmod
 
-    if (is_rec_recirc) {
-        CO2_state co2_props;
-        int co2_code = CO2_TP(T_comp_in_guess, P_comp_in_guess, &co2_props);
-        if (co2_code != 0)
-        {
-            throw(C_csp_exception("CO2 props fail at comp inlet", "CO2 tower receiver"));
-        }
-        double h_comp_in = co2_props.enth;  //[kJ/kg]
-        co2_code = CO2_PH(m_P_rec_in_des, h_comp_in, &co2_props);
-        if (co2_code != 0)
-        {
-            throw(C_csp_exception("CO2 props fail at comp outlet", "CO2 tower receiver"));
+        int comp_code = 0;
+        double h_comp_in, s_comp_in, rho_comp_in, T_comp_out, h_comp_out, s_comp_out, rho_comp_out, comp_spec_work;
+        h_comp_in = s_comp_in = rho_comp_in = T_comp_out = h_comp_out = s_comp_out = rho_comp_out = comp_spec_work = std::numeric_limits<double>::quiet_NaN();
+
+        calculate_turbomachinery_outlet_1(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, m_P_rec_in_des,
+            eta_comp, true, comp_code,
+            h_comp_in, s_comp_in, rho_comp_in,
+            T_comp_out, h_comp_out, s_comp_out, rho_comp_out, comp_spec_work);
+
+        // Function returns compressor work as negative, so switch to positive
+        comp_spec_work = fabs(comp_spec_work);
+
+        if (comp_code != 0) {
+            throw(C_csp_exception("CO2 rec recirculator compression calcs failed", "CO2 tower receiver"));
         }
 
         htf_state_in_next.m_pres = m_P_rec_in_des;  //[kPa]
-        htf_state_in_next.m_temp = co2_props.temp - 273.15;     //[C]
+        htf_state_in_next.m_temp = T_comp_out - 273.15; //[C]
     }
+    cr_out_solver.m_dP_sf += dP_riser;
+
+    double P_first_rec_in = htf_state_in_next.m_pres;   //[kPa]
 
     //now calculate performance again over all receivers
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
@@ -574,7 +582,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_FIELD_AREA1, field_outputs.m_A_sf);
-	        mc_reported_outputs.value(E_FIELD_ETA_OPT1, field_outputs.m_eta_field);			        //[-]
+            mc_reported_outputs.value(E_FIELD_ETA_OPT1, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM1, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC1, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
@@ -587,7 +595,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_FIELD_AREA2, field_outputs.m_A_sf);
-	        mc_reported_outputs.value(E_FIELD_ETA_OPT2, field_outputs.m_eta_field);			        //[-]
+            mc_reported_outputs.value(E_FIELD_ETA_OPT2, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM2, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC2, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
@@ -600,26 +608,33 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs &
             mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_FIELD_AREA3, field_outputs.m_A_sf);
-	        mc_reported_outputs.value(E_FIELD_ETA_OPT3, field_outputs.m_eta_field);			        //[-]
+            mc_reported_outputs.value(E_FIELD_ETA_OPT3, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM3, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC3, receiver_outputs.m_dP_receiver);                   //[kPa]
         }
     }
 
-    if (cr_out_solver.m_m_dot_salt_tot > 0.)
-    {
-        //calculate mass flow based on the power from the first receiver
-        C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
+    if (!is_rec_recirc) {
+        if (cr_out_solver.m_m_dot_salt_tot > 0.)
+        {
+            //calculate mass flow based on the power from the first receiver
+            C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
 
-        //riser pressure loss
-        dP_downcomer = f_dP_riser(cr_out_solver.m_m_dot_salt_tot/3600., receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+            //riser pressure loss
+            dP_downcomer = f_dP_riser(cr_out_solver.m_m_dot_salt_tot / 3600., receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+        }
+        else
+        {
+            dP_downcomer = 0.;
+        }
     }
     else
     {
-        dP_downcomer = 0.;
+        dP_downcomer = 0.0;
     }
-    cr_out_solver.m_dP_sf += dP_downcomer; 
+    cr_out_solver.m_dP_sf += dP_downcomer;
 
+    cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
 

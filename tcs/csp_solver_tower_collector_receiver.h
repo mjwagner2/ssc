@@ -48,8 +48,6 @@ private:
 
     std::string error_msg;                  // member string for exception messages
 
-    double m_dP_sf_des;           // [kPa] Total (all rec + all CHXs) pressure drop at design
-
 public:
 	
 	enum
@@ -128,7 +126,6 @@ public:
     double riser_length;        // [m] Total riser length for pressure drop calc
     double dP_recHX_perc;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
     double m_P_rec_in_des;        // [kPa] Receiver inlet pressure at design
-    double m_T_co2_CHX_out_des;  //[K] Charging HX CO2 cold outlet temp at design
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

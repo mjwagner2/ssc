@@ -2690,6 +2690,16 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     break;
                 }
 
+                // Set charging inlet/outlet temps to hot/cold ave temps, respectively
+                mc_tes_ch_htf_state.m_m_dot = m_dot_rec_particle;                      //[kg/hr]
+                mc_tes_ch_htf_state.m_temp_in = T_particle_CHX_out - 273.15;            //[C]
+                mc_tes_ch_htf_state.m_temp_out = T_cold_tes_K - 273.15;              //[C]
+
+                // Set discharge HTF state
+                mc_tes_dc_htf_state.m_m_dot = 0.0;                                      //[kg/hr]
+                mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;   //[C]
+                mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;   //[C]
+
 				// If CR ON, TES CH solved, then solve powerblock OFF and get out
 				// Power Cycle: OFF
 					// HTF State
@@ -5033,7 +5043,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 		double W_dot_net = mc_pc_out_solver.m_P_cycle - 
 			mc_cr_out_solver.m_W_dot_col_tracking -
-			mc_cr_out_solver.m_W_dot_htf_pump - 
+			mc_cr_out_solver.m_W_dot_htf_pump -
+            mc_cr_out_solver.m_W_dot_co2_recirc -
 			(mc_pc_out_solver.m_W_dot_htf_pump + W_dot_tes_pump) -
 			mc_cr_out_solver.m_q_rec_heattrace -
 			mc_pc_out_solver.m_W_cool_par -

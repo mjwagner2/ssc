@@ -2590,11 +2590,124 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
 				m_defocus = 1.0;
 
+                double P_comp_in_guess = m_P_rec_out_des;          //[kPa]
+
+                C_MEQ__cr_recirc__P_comp_in c_P_comp_in_eq(this, m_defocus);
+                C_monotonic_eq_solver c_P_comp_in_solver(c_P_comp_in_eq);
+
+                double diff_P_comp_in_guess = std::numeric_limits<double>::quiet_NaN();
+                int P_comp_in_err = c_P_comp_in_solver.test_member_function(P_comp_in_guess, &diff_P_comp_in_guess);
+
+                if (P_comp_in_err != 0) {
+                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                    are_models_converged = false;
+                    break;
+                }
+
+                if (fabs(diff_P_comp_in_guess) > 1.E-3) {
+
+                    C_monotonic_eq_solver::S_xy_pair xy1;
+                    xy1.x = P_comp_in_guess;        //[kPa]
+                    xy1.y = diff_P_comp_in_guess;   //[-]
+
+                    double P_comp_in_guess = mc_cr_out_solver.m_P_htf_hot;  //[kPa]
+
+                    c_P_comp_in_solver.settings(1.E-3, 50, 0.1, m_P_rec_in_des, false);
+
+                    double P_comp_in_solved, tol_solved;
+                    P_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
+
+                    int solver_code = 0;
+                    try
+                    {
+                        solver_code = c_P_comp_in_solver.solve(xy1, P_comp_in_guess, 0.0, P_comp_in_solved, tol_solved, iter_solved);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                    {
+                        if( !(solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1) )
+                        {
+                            m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                            are_models_converged = false;
+                            break;
+                        }
+                    }
+                }
+
                 mc_cr_out_solver.m_is_rec_recirc_in = true;
+                double P_rec_in = m_P_rec_out_des;          //[kPa]
+                double T_htf_rec_in = m_T_htf_cold_des;     //[K]
+
+                C_MEQ__cr_recirc__T_comp_in c_T_comp_in_eq(this, m_defocus, P_rec_in);
+                C_monotonic_eq_solver c_T_comp_in_solver(c_T_comp_in_eq);
+
+                double diff_T_comp_in = std::numeric_limits<double>::quiet_NaN();
+                int T_comp_in_err = c_T_comp_in_solver.test_member_function(T_htf_rec_in - 273.15, &diff_T_comp_in);
+
+                if (T_comp_in_err != 0) {
+                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                    are_models_converged = false;
+                    break;
+                }
+
+                if (fabs(diff_T_comp_in) > 1.E-3) {
+
+                    C_monotonic_eq_solver::S_xy_pair xy1;
+                    xy1.x = T_htf_rec_in - 273.15;      //[C]
+                    xy1.y = diff_T_comp_in;             //[-]
+
+                    double T_comp_in_guess = mc_cr_out_solver.m_T_salt_hot;     //[C]
+
+                    c_T_comp_in_solver.settings(1.E-3, 50, -100.0, std::numeric_limits<double>::quiet_NaN(), false);
+
+                    double T_comp_in_solved, tol_solved;
+                    T_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
+
+                    int solver_code = 0;
+                    try
+                    {
+                        solver_code = c_T_comp_in_solver.solve(xy1, T_comp_in_guess, 0.0, T_comp_in_solved, tol_solved, iter_solved);
+                    }
+                    catch (C_csp_exception)
+                    {
+                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                    {
+                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+                        {
+                            error_msg = util::format("At time = %lg the CR_ON__PC_OFF__TES_CH__AUX_OFF iteration to find the cold HTF temperature connecting the TES and receiver only reached a convergence "
+                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                        else
+                        {
+                            m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
+                            are_models_converged = false;
+                            break;
+                        }
+                    }
+                }
 
                 // In recirculate mode, solving for inlet temperature and pressure in tower-receiver code
-                double T_htf_rec_in = m_T_htf_cold_des;     //[K]
-                double P_rec_in = m_P_rec_out_des;          //[kPa]
                 mc_cr_htf_state_in.m_temp = T_htf_rec_in - 273.15;      //[C]
                 mc_cr_htf_state_in.m_pres = P_rec_in;       //[kPa]
 
@@ -2615,7 +2728,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
                 // Calculate differences
                 double diff_P_comp_in = (P_rec_in - mc_cr_out_solver.m_P_htf_hot) / mc_cr_out_solver.m_P_htf_hot;       //[-]
-                double diff_T_comp_in = (mc_cr_htf_state_in.m_temp - mc_cr_out_solver.m_T_salt_hot) / mc_cr_out_solver.m_T_salt_hot;    //[-]
+                //double diff_T_comp_in = (mc_cr_htf_state_in.m_temp - mc_cr_out_solver.m_T_salt_hot) / mc_cr_out_solver.m_T_salt_hot;    //[-]
 
 
 

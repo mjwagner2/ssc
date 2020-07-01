@@ -230,7 +230,7 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
             double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
             dP_sf += dpr;
             P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]      // pressure after riser before first receiver
-            solved_params.m_P_rec_in_des = P_prev;      //[kPa]
+            m_P_rec_in_des = P_prev;      //[kPa]
         }
 
         A_aper_total += _solved_params.m_A_aper_total;
@@ -264,6 +264,7 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     solved_params.m_q_dot_rec_des = q_dot_rec_des;
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
+    solved_params.m_P_rec_in_des = m_P_rec_in_des;      //[kPa]
 
 	return;
 }
@@ -419,6 +420,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     cr_out_solver.m_dP_sf = 0.;
     cr_out_solver.m_q_rec_heattrace = 0.;
     cr_out_solver.m_P_htf_hot = 0.;
+    cr_out_solver.m_W_dot_co2_recirc = 0.;
+    cr_out_solver.m_q_dot_to_particles = 0.;
 
     double q_dot_field_inc = 0.;
     double eta_weighted_sum = 0.;
@@ -444,9 +447,12 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     double T_store_hot_weighted_sum = 0.;
     double dP_riser = std::numeric_limits<double>::quiet_NaN();
     double dP_downcomer = std::numeric_limits<double>::quiet_NaN();
+    double comp_spec_work = std::numeric_limits<double>::quiet_NaN();
 
     C_csp_solver_htf_1state htf_state_in_next = htf_state_in;
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
+
+    double T_tes_cold = tes->get_cold_temp();       //[K]
 
     bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
 
@@ -483,7 +489,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         double eta_comp = 0.7;  //[-] compressor isentropic efficiency placeholder - pass as input parameter from cmod
 
         int comp_code = 0;
-        double h_comp_in, s_comp_in, rho_comp_in, T_comp_out, h_comp_out, s_comp_out, rho_comp_out, comp_spec_work;
+        double h_comp_in, s_comp_in, rho_comp_in, T_comp_out, h_comp_out, s_comp_out, rho_comp_out;
         h_comp_in = s_comp_in = rho_comp_in = T_comp_out = h_comp_out = s_comp_out = rho_comp_out = comp_spec_work = std::numeric_limits<double>::quiet_NaN();
 
         calculate_turbomachinery_outlet_1(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, m_P_rec_in_des,
@@ -529,7 +535,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
-        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., T_tes_cold,
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
         double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         cr_out_solver.m_dP_sf += dP_hx;
@@ -627,16 +633,21 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         {
             dP_downcomer = 0.;
         }
+        cr_out_solver.m_W_dot_co2_recirc = 0.;
     }
     else
     {
         dP_downcomer = 0.0;
+        cr_out_solver.m_W_dot_co2_recirc = cr_out_solver.m_m_dot_salt_tot / 3600. * comp_spec_work * 1.E-3;     //[MWe]
     }
     cr_out_solver.m_dP_sf += dP_downcomer;
 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+
+    double cp_tes = mc_store_htfProps.Cp(0.5 * (cr_out_solver.m_T_salt_hot + 273.15 + T_tes_cold)); //[kJ/kg-K]
+    cr_out_solver.m_q_dot_to_particles = cr_out_solver.m_m_dot_store_tot / 3600. * cp_tes * (cr_out_solver.m_T_store_hot + 273.15 - T_tes_cold) * 1.E-3;
 
     double collector_areas = get_collector_area();
 	mc_reported_outputs.value(E_FIELD_ADJUST, sf_adjust_weighted_sum / (collector_areas > 0 ? collector_areas : 1.));			//[-]

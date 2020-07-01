@@ -490,6 +490,12 @@ public:
 		double m_W_dot_htf_pump;		//[MWe] HTF pumping power
         double m_dP_sf;                 //[kPa] Total field pressure drop
 		double m_q_rec_heattrace;		//[MW] Receiver heat trace parasitic power
+        double m_W_dot_co2_recirc;      //[MWe] CO2 recirculator power
+
+        // Heat transfer to particles
+        // different than q_dot_thermal if CO2 inlet temp to first receiver is
+        // different than co2 exit temp from final CHX
+        double m_q_dot_to_particles;    //[MWt] 
 
 		// 07/08/2016, GZ: add new variables for DSG LF 
 		int m_standby_control;		//[-]
@@ -506,7 +512,7 @@ public:
 				m_W_dot_col_tracking = m_time_required_su = m_E_fp_total =
 				m_dP_sf_sh = m_h_htf_hot = m_xb_htf_hot = m_P_htf_hot = std::numeric_limits<double>::quiet_NaN();
 
-			m_q_rec_heattrace = 0.0;
+			m_q_rec_heattrace = m_W_dot_co2_recirc = m_q_dot_to_particles = 0.0;
 
 			m_component_defocus = 1.0;
 
@@ -1835,6 +1841,43 @@ public:
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 	};
+
+    class C_MEQ__cr_recirc__P_comp_in : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver* mpc_csp_solver;
+        double m_defocus;       //[-]
+
+    public:
+        C_MEQ__cr_recirc__P_comp_in(C_csp_solver* pc_csp_solver, double defocus /*-*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_defocus = defocus;
+        }
+
+        virtual int operator()(double P_comp_in /*kPa*/, double* diff_P_comp_in /*-*/);
+    };
+
+    class C_MEQ__cr_recirc__T_comp_in : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver* mpc_csp_solver;
+        double m_defocus;       //[-]
+        double m_P_comp_in;     //[kPa]
+
+    public:
+        C_MEQ__cr_recirc__T_comp_in(C_csp_solver *pc_csp_solver,
+                                    double defocus /*-*/, double P_comp_in /*kPa*/)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_defocus = defocus;
+            m_P_comp_in = P_comp_in;        //[kPa]
+        }
+
+        double P_comp_in_calc;      //[kPa] co2 outlet pressure after exiting final charge HX
+
+        virtual int operator()(double T_comp_in /*C*/, double* diff_T_comp_in /*-*/);
+    };
 
 	class C_MEQ_cr_on__pc_off__tes_ch__T_htf_cold : public C_monotonic_equation
 	{

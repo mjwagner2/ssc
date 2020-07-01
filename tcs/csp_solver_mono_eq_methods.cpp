@@ -3240,6 +3240,92 @@ int C_csp_solver::C_MEQ_cr_on__pc_max_m_dot__tes_off__T_htf_cold::operator()(dou
     //return 0;
 }
 
+int C_csp_solver::C_MEQ__cr_recirc__P_comp_in::operator()(double P_comp_in /*kPa*/, double* diff_P_comp_in /*-*/)
+{
+    mpc_csp_solver->mc_cr_out_solver.m_is_rec_recirc_in = true;
+
+    C_MEQ__cr_recirc__T_comp_in c_T_comp_in_eq(mpc_csp_solver, m_defocus, P_comp_in);
+    C_monotonic_eq_solver c_T_comp_in_solver(c_T_comp_in_eq);
+
+    double T_comp_in_guess = mpc_csp_solver->m_T_htf_cold_des - 273.15;     //[C]
+    double diff_T_comp_in = std::numeric_limits<double>::quiet_NaN();
+    int T_comp_in_err = c_T_comp_in_solver.test_member_function(T_comp_in_guess, &diff_T_comp_in);
+
+    if (T_comp_in_err != 0) {
+        *diff_P_comp_in = std::numeric_limits<double>::quiet_NaN();
+        return -1;
+    }
+
+    if (fabs(diff_T_comp_in) > 1.E-3) {
+
+        C_monotonic_eq_solver::S_xy_pair xy1;
+        xy1.x = T_comp_in_guess;      //[C]
+        xy1.y = diff_T_comp_in;             //[-]
+
+        T_comp_in_guess = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;     //[C]
+
+        c_T_comp_in_solver.settings(1.E-3, 50, -100.0, std::numeric_limits<double>::quiet_NaN(), false);
+
+        double T_comp_in_solved, tol_solved;
+        T_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+        int iter_solved = -1;
+
+        int solver_code = 0;
+        try
+        {
+            solver_code = c_T_comp_in_solver.solve(xy1, T_comp_in_guess, 0.0, T_comp_in_solved, tol_solved, iter_solved);
+        }
+        catch (C_csp_exception)
+        {
+            *diff_P_comp_in = std::numeric_limits<double>::quiet_NaN();
+            return -2;
+        }
+
+        if (solver_code != C_monotonic_eq_solver::CONVERGED) {
+            if( !(solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1) ) {
+             
+                *diff_P_comp_in = std::numeric_limits<double>::quiet_NaN();
+                return -3;
+            }
+        }
+    }
+
+    *diff_P_comp_in = (P_comp_in - mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot) / mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot;       //[-]
+
+    return 0;
+}
+
+int C_csp_solver::C_MEQ__cr_recirc__T_comp_in::operator()(double T_comp_in /*C*/, double* diff_T_comp_in /*-*/)
+{
+    P_comp_in_calc = std::numeric_limits<double>::quiet_NaN();
+
+    mpc_csp_solver->mc_cr_out_solver.m_is_rec_recirc_in = true;
+
+    mpc_csp_solver->mc_cr_htf_state_in.m_temp = T_comp_in;      //[C]
+    mpc_csp_solver->mc_cr_htf_state_in.m_pres = m_P_comp_in;    //[kPa]
+
+    mpc_csp_solver->mc_collector_receiver.on(mpc_csp_solver->mc_weather.ms_outputs,
+        mpc_csp_solver->mc_cr_htf_state_in,
+        m_defocus,
+        mpc_csp_solver->mc_cr_out_solver,
+        mpc_csp_solver->mc_kernel.mc_sim_info);
+
+    // Check if receiver is OFF or didn't solve
+    if (mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mpc_csp_solver->mc_cr_out_solver.m_q_thermal == 0.0)
+    {
+        *diff_T_comp_in = std::numeric_limits<double>::quiet_NaN();
+        return -1;
+    }
+
+    // Get calculated co2 pressure at exit of final CHX
+    P_comp_in_calc = mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot;  //[kPa]
+
+    // Calculate difference between guessed and calculated compressor inlet temperature
+    *diff_T_comp_in = (T_comp_in - mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot) / mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;    //[-]
+
+    return 0;
+}
+
 int C_csp_solver::C_MEQ_cr_on__pc_off__tes_ch__T_htf_cold::operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/)
 {
     // Solve the collector-receiver

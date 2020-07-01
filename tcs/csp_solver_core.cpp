@@ -2644,134 +2644,51 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     }
                 }
 
-                mc_cr_out_solver.m_is_rec_recirc_in = true;
-                double P_rec_in = m_P_rec_out_des;          //[kPa]
-                double T_htf_rec_in = m_T_htf_cold_des;     //[K]
+                // If CR ON successful, need to charge TES
+                // Get some receiver outputs
+                double T_particle_CHX_out = mc_cr_out_solver.m_T_store_hot + 273.15;    //[K]
+                double m_dot_rec_particle = mc_cr_out_solver.m_m_dot_store_tot;         //[kg/hr]
 
-                C_MEQ__cr_recirc__T_comp_in c_T_comp_in_eq(this, m_defocus, P_rec_in);
-                C_monotonic_eq_solver c_T_comp_in_solver(c_T_comp_in_eq);
+                // Estimate available charge
+                double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
+                q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
+                mc_tes.charge_avail_est(T_particle_CHX_out,
+                    mc_kernel.mc_sim_info.ms_ts.m_step,
+                    q_dot_tes_ch_max,
+                    m_dot_tes_ch_max,
+                    T_tes_cold_ch_max,
+                    m_dot_store_ch_max);
 
-                double diff_T_comp_in = std::numeric_limits<double>::quiet_NaN();
-                int T_comp_in_err = c_T_comp_in_solver.test_member_function(T_htf_rec_in - 273.15, &diff_T_comp_in);
+                m_dot_tes_ch_max *= 3600.0;     //[kg/hr]
 
-                if (T_comp_in_err != 0) {
+                // Check if TES can accept receiver particle output
+                if (m_dot_rec_particle > m_dot_tes_ch_max) {
                     m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
 
                     are_models_converged = false;
                     break;
                 }
 
-                if (fabs(diff_T_comp_in) > 1.E-3) {
+                // Charge storage
+                    // Set TES parameters?
+                mc_tes.use_calc_vals(false);
+                mc_tes.update_calc_vals(true);
 
-                    C_monotonic_eq_solver::S_xy_pair xy1;
-                    xy1.x = T_htf_rec_in - 273.15;      //[C]
-                    xy1.y = diff_T_comp_in;             //[-]
+                double T_cold_tes_K;
+                bool ch_solved = mc_tes.charge(mc_kernel.mc_sim_info.ms_ts.m_step,
+                    mc_weather.ms_outputs.m_tdry + 273.15,
+                    m_dot_rec_particle / 3600.,
+                    T_particle_CHX_out,
+                    T_cold_tes_K,
+                    mc_tes_outputs);
 
-                    double T_comp_in_guess = mc_cr_out_solver.m_T_salt_hot;     //[C]
-
-                    c_T_comp_in_solver.settings(1.E-3, 50, -100.0, std::numeric_limits<double>::quiet_NaN(), false);
-
-                    double T_comp_in_solved, tol_solved;
-                    T_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                    int iter_solved = -1;
-
-                    int solver_code = 0;
-                    try
-                    {
-                        solver_code = c_T_comp_in_solver.solve(xy1, T_comp_in_guess, 0.0, T_comp_in_solved, tol_solved, iter_solved);
-                    }
-                    catch (C_csp_exception)
-                    {
-                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                        are_models_converged = false;
-                        break;
-                    }
-
-                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                    {
-                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-                        {
-                            error_msg = util::format("At time = %lg the CR_ON__PC_OFF__TES_CH__AUX_OFF iteration to find the cold HTF temperature connecting the TES and receiver only reached a convergence "
-                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-                        }
-                        else
-                        {
-                            m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                            are_models_converged = false;
-                            break;
-                        }
-                    }
-                }
-
-                // In recirculate mode, solving for inlet temperature and pressure in tower-receiver code
-                mc_cr_htf_state_in.m_temp = T_htf_rec_in - 273.15;      //[C]
-                mc_cr_htf_state_in.m_pres = P_rec_in;       //[kPa]
-
-                mc_collector_receiver.on(mc_weather.ms_outputs,
-                    mc_cr_htf_state_in,
-                    m_defocus,
-                    mc_cr_out_solver,
-                    mc_kernel.mc_sim_info);
-
-                // Check if receiver is OFF or didn't solve
-                if (mc_cr_out_solver.m_m_dot_salt_tot == 0.0 || mc_cr_out_solver.m_q_thermal == 0.0)
-                {
+                // Check if TES charge method solved
+                if (!ch_solved) {
                     m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
 
                     are_models_converged = false;
                     break;
                 }
-
-                // Calculate differences
-                double diff_P_comp_in = (P_rec_in - mc_cr_out_solver.m_P_htf_hot) / mc_cr_out_solver.m_P_htf_hot;       //[-]
-                //double diff_T_comp_in = (mc_cr_htf_state_in.m_temp - mc_cr_out_solver.m_T_salt_hot) / mc_cr_out_solver.m_T_salt_hot;    //[-]
-
-
-
-
-				C_MEQ_cr_on__pc_off__tes_ch__T_htf_cold c_eq(this, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				double T_htf_cold_guess_colder = m_T_htf_pc_cold_est;				//[C]
-				double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
-
-				double T_htf_cold_solved, tol_solved;
-				T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-					solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception("CR_ON__PC_OFF__TES_CH__AUX_OFF received exception from mono equation solver"));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-					{
-						error_msg = util::format("At time = %lg the CR_ON__PC_OFF__TES_CH__AUX_OFF iteration to find the cold HTF temperature connecting the TES and receiver only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-					else
-					{
-						m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-				}
 
 				// If CR ON, TES CH solved, then solve powerblock OFF and get out
 				// Power Cycle: OFF

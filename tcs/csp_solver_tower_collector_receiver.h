@@ -114,6 +114,7 @@ public:
         E_DP_DOWNCOMER,             //[kPa] Downcomer pressure drop
 
         E_W_DOT_CO2_RECIRC,         //[MWe] Recirculator power consumption
+        E_Q_DOT_PARTICLES,          //[MWt] Total heat transfer to particles
     };
 	
     int m_field_fl;

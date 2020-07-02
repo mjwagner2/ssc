@@ -88,6 +88,7 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_DOWNCOMER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
     { C_csp_tower_collector_receiver::E_W_DOT_CO2_RECIRC, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_PARTICLES, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -646,8 +647,12 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
-    cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
-
+    if (cr_out_solver.m_m_dot_store_tot <= 0.0) {
+        cr_out_solver.m_T_salt_hot = T_tes_cold - 273.15;   //[C]
+    }
+    else {
+        cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+    }
     double cp_tes = mc_store_htfProps.Cp(0.5 * (cr_out_solver.m_T_salt_hot + 273.15 + T_tes_cold)); //[kJ/kg-K]
     cr_out_solver.m_q_dot_to_particles = cr_out_solver.m_m_dot_store_tot / 3600. * cp_tes * (cr_out_solver.m_T_store_hot + 273.15 - T_tes_cold) * 1.E-3;
 
@@ -680,6 +685,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     mc_reported_outputs.value(E_DP_DOWNCOMER, dP_downcomer);	                                    //[kPa]
 
     mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, cr_out_solver.m_W_dot_co2_recirc);        //[MWe]
+    mc_reported_outputs.value(E_Q_DOT_PARTICLES, cr_out_solver.m_q_dot_to_particles);       //[MWt]
 
     return;
 }
@@ -892,6 +898,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     mc_reported_outputs.value(E_DP_DOWNCOMER, dP_downcomer);                                        //[kPa]
 
     mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, 0.0);        //[MWe]
+    mc_reported_outputs.value(E_Q_DOT_PARTICLES, 0.0);          //[MWt]
 
     return;
 }

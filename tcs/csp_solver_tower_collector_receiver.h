@@ -115,6 +115,9 @@ public:
 
         E_W_DOT_CO2_RECIRC,         //[MWe] Recirculator power consumption
         E_Q_DOT_PARTICLES,          //[MWt] Total heat transfer to particles
+        E_Q_DOT_REC_THERM_1,        //[MWt] Rec 1 CO2 heat absorbed
+        E_Q_DOT_REC_THERM_2,        //[MWt] Rec 2 CO2 heat absorbed
+        E_Q_DOT_REC_THERM_3,        //[MWt] Rec 3 CO2 heat absorbed
     };
 	
     int m_field_fl;

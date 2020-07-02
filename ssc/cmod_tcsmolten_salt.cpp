@@ -409,6 +409,9 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
     { SSC_OUTPUT,    SSC_ARRAY,  "W_dot_recirc",                       "Receiver CO2 recirculator power",                                                                                                         "MWe",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "Q_dot_to_particles",                 "Total CHX heat transfer to particles",                                                                                                    "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "Q_dot_rec_therm_1",                  "Rec 1 CO2 heat absorbed",                                                                                                                 "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "Q_dot_rec_therm_2",                  "Rec 2 CO2 heat absorbed",                                                                                                                 "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "Q_dot_rec_therm_3",                  "Rec 3 CO2 heat absorbed",                                                                                                                 "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
 
 
         // Power cycle outputs
@@ -999,6 +1002,9 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_DOWNCOMER, allocate("dp_downcomer", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_W_DOT_CO2_RECIRC, allocate("W_dot_recirc", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_PARTICLES, allocate("Q_dot_to_particles", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_1, allocate("Q_dot_rec_therm_1", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_2, allocate("Q_dot_rec_therm_2", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_3, allocate("Q_dot_rec_therm_3", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;

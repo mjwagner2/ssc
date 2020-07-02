@@ -89,6 +89,9 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
 
     { C_csp_tower_collector_receiver::E_W_DOT_CO2_RECIRC, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_Q_DOT_PARTICLES, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_REC_THERM_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -594,6 +597,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             mc_reported_outputs.value(E_FIELD_ETA_OPT1, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM1, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC1, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_1, cr_out_solver_prev.m_q_thermal);         //[MWt]
         }
         else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -607,6 +611,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             mc_reported_outputs.value(E_FIELD_ETA_OPT2, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM2, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC2, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_2, cr_out_solver_prev.m_q_thermal);         //[MWt]
         }
         else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -620,6 +625,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             mc_reported_outputs.value(E_FIELD_ETA_OPT3, field_outputs.m_eta_field);			        //[-]
             mc_reported_outputs.value(E_ETA_THERM3, receiver_outputs.m_eta_therm);
             mc_reported_outputs.value(E_DP_REC3, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_3, cr_out_solver_prev.m_q_thermal);         //[MWt]
         }
     }
 
@@ -824,6 +830,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_M_DOT_HX1, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT1, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_DP_REC1, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_1, cr_out_solver_prev.m_q_thermal);         //[MWt]
         }
         else if (i == 1) {
             mc_reported_outputs.value(E_Q_DOT_INC2, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -834,6 +841,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_M_DOT_HX2, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT2, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_DP_REC2, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_2, cr_out_solver_prev.m_q_thermal);         //[MWt]
         }
         else if (i == 2) {
             mc_reported_outputs.value(E_Q_DOT_INC3, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]
@@ -844,6 +852,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_M_DOT_HX3, m_dot_tes * 3600.);                              //[kg/hr]
             mc_reported_outputs.value(E_T_HX_OUT3, T_hot_tes_K - 273.15);                           //[C]
             mc_reported_outputs.value(E_DP_REC3, receiver_outputs.m_dP_receiver);                   //[kPa]
+            mc_reported_outputs.value(E_Q_DOT_REC_THERM_3, cr_out_solver_prev.m_q_thermal);         //[MWt]
 
             //downcomer pressure loss
             if (cr_out_solver.m_m_dot_salt_tot > 0.)

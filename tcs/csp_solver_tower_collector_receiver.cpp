@@ -87,6 +87,8 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_RISER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_DP_DOWNCOMER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
+    { C_csp_tower_collector_receiver::E_W_DOT_CO2_RECIRC, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+
 	csp_info_invalid	
 };
 
@@ -677,6 +679,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     mc_reported_outputs.value(E_DP_RISER, dP_riser);	                                            //[kPa]
     mc_reported_outputs.value(E_DP_DOWNCOMER, dP_downcomer);	                                    //[kPa]
 
+    mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, cr_out_solver.m_W_dot_co2_recirc);        //[MWe]
+
     return;
 }
 
@@ -886,6 +890,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     mc_reported_outputs.value(E_T_DOWNC, T_downc);	                                                //[C]
     mc_reported_outputs.value(E_DP_RISER, dP_riser);                                                //[kPa]
     mc_reported_outputs.value(E_DP_DOWNCOMER, dP_downcomer);                                        //[kPa]
+
+    mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, 0.0);        //[MWe]
 
     return;
 }

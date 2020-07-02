@@ -112,6 +112,8 @@ public:
         E_DP_REC3,                  //[kPa] Receiver 3 pressure drop
         E_DP_RISER,                 //[kPa] Riser pressure drop
         E_DP_DOWNCOMER,             //[kPa] Downcomer pressure drop
+
+        E_W_DOT_CO2_RECIRC,         //[MWe] Recirculator power consumption
     };
 	
     int m_field_fl;

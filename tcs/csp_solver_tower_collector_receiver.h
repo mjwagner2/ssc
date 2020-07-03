@@ -52,7 +52,7 @@ private:
 
 public:
 	
-	enum
+    enum
     {
         E_FIELD_AREA_TOT,            //[m2] Total heliostat field area
         E_FIELD_AREA1,              //[m2] Heliostat field area 1
@@ -64,7 +64,7 @@ public:
         E_FIELD_ETA_OPT2,            //[-] Optical efficiency including Tower refl
         E_FIELD_ETA_OPT3,            //[-] Optical efficiency including Tower refl
         E_FIELD_ADJUST,             //[-] Field adjustment factor
-        
+
         E_Q_DOT_INC,                //[MWt] Tower incident thermal power
         E_ETA_THERMAL,              //[-] Tower thermal efficiency
         E_Q_DOT_THERMAL,            //[MWt] Field incident thermal power
@@ -118,6 +118,10 @@ public:
         E_Q_DOT_REC_THERM_1,        //[MWt] Rec 1 CO2 heat absorbed
         E_Q_DOT_REC_THERM_2,        //[MWt] Rec 2 CO2 heat absorbed
         E_Q_DOT_REC_THERM_3,        //[MWt] Rec 3 CO2 heat absorbed
+
+        E_DP_CO2_HX_1,              //[kPa] HX 1 CO2 pressure drop
+        E_DP_CO2_HX_2,              //[kPa] HX 2 CO2 pressure drop
+        E_DP_CO2_HX_3,              //[kPa] HX 3 CO2 pressure drop
     };
 	
     int m_field_fl;

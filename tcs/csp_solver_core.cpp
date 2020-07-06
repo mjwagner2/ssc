@@ -784,7 +784,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 
         // Set to false to test recirculator code
-        is_pc_su_allowed = false;
+        is_pc_su_allowed = true;
 
 
 		//bool is_pc_sb_allowed = true;
@@ -793,7 +793,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         //[-] If True, use blower/compressor to circulate fluid through receiver and CHXs, allowing receiver to operate and charge TES
         // Assume if PC is 'ON', then it will move CO2 through receiver, CHXs
-        bool is_rec_recirc_allowed = true;
+        bool is_rec_recirc_allowed = false;
 
 		// Get standby fraction and min operating fraction
 			// Could eventually be a method in PC class...
@@ -3101,12 +3101,15 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					throw(C_csp_exception(err_msg, "CSP Solver"));
 				}
 
-				C_MEQ_cr_df__pc_off__tes_full__defocus c_eq(this);
-				C_monotonic_eq_solver c_solver(c_eq);
+                cr_recirc__tes_ch__modes m_dot_particle_mode = cr_recirc__tes_ch__modes::fill_tes;
 
-				double defocus_guess = 1.0;
-				double diff_m_dot = std::numeric_limits<double>::quiet_NaN();
-				int df_code = c_solver.test_member_function(defocus_guess, &diff_m_dot);
+                C_MEQ_cr_recirc_df__pc_off__tes_full__defocus c_df_eq(this, m_dot_particle_mode);
+                C_monotonic_eq_solver c_df_solver(c_df_eq);
+
+                double defocus_guess = 1.0;
+                double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
+
+                int df_code = c_df_solver.test_member_function(defocus_guess, &diff_m_dot_particle);
 				if (df_code != 0)
 				{	// Can't solve models with defocus = 1, so get out
 
@@ -3122,17 +3125,17 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					break;
 				}
 
-				if (diff_m_dot > 0.0)
+				if (diff_m_dot_particle > 0.0)
 				{
 					// At no defocus, mass flow rate to TES is greater than full charge
 					// So need to find a defocus that results in full charge
 
 					// Get another guess value
 					C_monotonic_eq_solver::S_xy_pair xy2;
-					double defocus_guess_2 = defocus_guess * (1.0 / (1.0 + diff_m_dot));
+					double defocus_guess_2 = defocus_guess * (1.0 / (1.0 + diff_m_dot_particle));
 
 					// Set up solver for defocus
-					c_solver.settings(1.E-3, 50, 0.0, 1.0, false);
+					c_df_solver.settings(1.E-3, 50, 0.0, 1.0, false);
 
 					// Now solve for the required defocus
 					double defocus_solved, tol_solved;
@@ -3142,7 +3145,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					int defocus_code = 0;
 					try
 					{
-						defocus_code = c_solver.solve(defocus_guess, defocus_guess_2, -1.E-3, defocus_solved, tol_solved, iter_solved);
+						defocus_code = c_df_solver.solve(defocus_guess, defocus_guess_2, -1.E-3, defocus_solved, tol_solved, iter_solved);
 					}
 					catch (C_csp_exception)
 					{
@@ -3174,71 +3177,24 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 							break;
 						}
 					}
-
-					defocus_guess = defocus_solved;
 				}
-				else
+				else if(diff_m_dot_particle < -1.E-3)
 				{
-					// Haven't actually converged solution yet, so need to basically call CR_ON__PC_OFF__TES_CH
-					C_MEQ_cr_on__pc_off__tes_ch__T_htf_cold c_eq(this, m_defocus);
-					C_monotonic_eq_solver c_solver(c_eq);
+                    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                    m_defocus = 1.0;
+                    cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
+                    double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
+                    int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
 
-					c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+                    if (solver_code != 0) {
+                        m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
 
-					double T_htf_cold_guess_colder = m_T_htf_pc_cold_est;				//[C]
-					double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
+                        are_models_converged = false;
 
-					double T_htf_cold_solved, tol_solved;
-					T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-					int iter_solved = -1;
-
-					int solver_code = 0;
-					try
-					{
-						solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
-					}
-					catch (C_csp_exception)
-					{
-						throw(C_csp_exception("CR_ON__PC_OFF__TES_FULL__AUX_OFF received exception from mono equation solver"));
-					}
-
-					if (solver_code != C_monotonic_eq_solver::CONVERGED)
-					{
-						if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-						{
-							error_msg = util::format("At time = %lg the CR_ON__PC_OFF__TES_FULL__AUX_OFF iteration to find the cold HTF temperature connecting the TES and receiver only reached a convergence "
-								"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-							mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-						}
-						else
-						{
-							m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
-
-							are_models_converged = false;
-							break;
-						}
-					}
+                        break;
+                    }
 				}
 
-				// Set member data defocus
-				m_defocus = defocus_guess;
-
-				// Need to call power cycle at 'OFF'
-					// HTF State
-				mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
-					// Inputs
-				mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
-				mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
-					// Performance Call
-				mc_power_cycle.call(mc_weather.ms_outputs,
-					mc_pc_htf_state_in,
-					mc_pc_inputs,
-					mc_pc_out_solver,
-					mc_kernel.mc_sim_info);
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
 				are_models_converged = true;
 			}
 				break;	// break case CR_DF__PC_OFF__TES_FULL__AUX_OFF

@@ -1848,9 +1848,26 @@ public:
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 	};
 
+    class C_MEQ_cr_recirc_df__pc_off__tes_full__defocus : public C_monotonic_equation
+    {
+    private:
+        C_csp_solver* mpc_csp_solver;
+        cr_recirc__tes_ch__modes m_m_dot_mode;
+
+    public:
+        C_MEQ_cr_recirc_df__pc_off__tes_full__defocus(C_csp_solver* pc_csp_solver,
+            cr_recirc__tes_ch__modes m_dot_mode)
+        {
+            mpc_csp_solver = pc_csp_solver;
+            m_m_dot_mode = m_dot_mode;
+        }
+
+        virtual int operator()(double defocus /*-*/, double* diff_m_dot_particle /*-*/);
+    };
+
     int solve__cr_recirc__tes_ch(double defocus_in,
         cr_recirc__tes_ch__modes m_dot_mode,
-        double& m_dot_particle_diff);
+        double& diff_m_dot_particle);
 
     class C_MEQ__cr_recirc__P_comp_in : public C_monotonic_equation
     {
@@ -1971,20 +1988,6 @@ public:
 		}
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
-	};
-
-	class C_MEQ_cr_df__pc_off__tes_full__defocus : public C_monotonic_equation
-	{
-	private:
-		C_csp_solver *mpc_csp_solver;
-
-	public:
-		C_MEQ_cr_df__pc_off__tes_full__defocus(C_csp_solver *pc_csp_solver)
-		{
-			mpc_csp_solver = pc_csp_solver;
-		}
-
-		virtual int operator()(double defocus /*-*/, double *diff_m_dot /*-*/);
 	};
 
     class C_mono_eq_cr_to_pc_to_cr_m_dot : public C_monotonic_equation

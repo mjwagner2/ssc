@@ -1625,23 +1625,22 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 								{	// Charge storage with receiver output
 
                                     operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-         //                           if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-									//	m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-									//{	// Tolerance is applied so that if CR is *close* to being less than a full TES charge, the controller tries normal operation (no defocus)
+                                    if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+										m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail && is_rec_recirc_allowed )
+									{	// Tolerance is applied so that if CR is *close* to being less than a full TES charge, the controller tries normal operation (no defocus)
 
+                                        operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+									}
+									else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail && is_rec_recirc_allowed )
+									{	// The CR output will overcharge storage, so it needs to defocus.
+										// However, because the CR output is already part-load, it may be close to shutting down before defocus...
 
-									//	operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-									//}
-									//else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
-									//{	// The CR output will overcharge storage, so it needs to defocus.
-									//	// However, because the CR output is already part-load, it may be close to shutting down before defocus...
-
-									//	operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
-									//}
-									//else
-									//{
-									//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-									//}
+										operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+									}
+									else
+									{
+										operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+									}
 								}
 								else
 								{	// No home for receiver output, and not enough thermal power for power cycle
@@ -1654,27 +1653,26 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					else
 					{	// Power cycle startup is not allowed - see if receiver output can go to storage
 
-                        operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						//if( q_dot_tes_ch > 0.0 )
-						//{
-						//	if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
-						//		m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail )
-						//	{
-						//		operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
-						//	}
-						//	else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail )
-						//	{
-						//		operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
-						//	}
-						//	else
-						//	{
-						//		operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						//	}
-						//}
-						//else
-						//{
-						//	operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-						//}
+						if( q_dot_tes_ch > 0.0 )
+						{
+							if( q_dot_cr_on*(1.0 - tol_mode_switching) < q_dot_tes_ch &&
+								m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail && is_rec_recirc_allowed)
+							{
+								operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+							}
+							else if( m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail && is_rec_recirc_allowed)
+							{
+								operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+							}
+							else
+							{
+								operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+							}
+						}
+						else
+						{
+							operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+						}
 
 					}	// End logic else 'pc su is NOT allowed'		
 				}	// End logic if(q_dot_cr_output > 0.0 && is_rec_su_allowed)

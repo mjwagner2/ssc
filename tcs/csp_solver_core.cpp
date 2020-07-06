@@ -784,7 +784,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 
         // Set to false to test recirculator code
-        is_pc_su_allowed = true;
+        is_pc_su_allowed = false;
 
 
 		//bool is_pc_sb_allowed = true;
@@ -793,7 +793,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         //[-] If True, use blower/compressor to circulate fluid through receiver and CHXs, allowing receiver to operate and charge TES
         // Assume if PC is 'ON', then it will move CO2 through receiver, CHXs
-        bool is_rec_recirc_allowed = false;     
+        bool is_rec_recirc_allowed = true;
 
 		// Get standby fraction and min operating fraction
 			// Could eventually be a method in PC class...
@@ -2589,133 +2589,18 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
 				m_defocus = 1.0;
+                cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
+                double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
+                int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
 
-                double P_comp_in_guess = m_P_rec_out_des;          //[kPa]
-
-                C_MEQ__cr_recirc__P_comp_in c_P_comp_in_eq(this, m_defocus);
-                C_monotonic_eq_solver c_P_comp_in_solver(c_P_comp_in_eq);
-
-                double diff_P_comp_in_guess = std::numeric_limits<double>::quiet_NaN();
-                int P_comp_in_err = c_P_comp_in_solver.test_member_function(P_comp_in_guess, &diff_P_comp_in_guess);
-
-                if (P_comp_in_err != 0) {
+                if (solver_code != 0) {
                     m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
 
                     are_models_converged = false;
                     break;
                 }
 
-                if (fabs(diff_P_comp_in_guess) > 1.E-3) {
-
-                    C_monotonic_eq_solver::S_xy_pair xy1;
-                    xy1.x = P_comp_in_guess;        //[kPa]
-                    xy1.y = diff_P_comp_in_guess;   //[-]
-
-                    double P_comp_in_guess = mc_cr_out_solver.m_P_htf_hot;  //[kPa]
-
-                    c_P_comp_in_solver.settings(1.E-3, 50, 0.1, m_P_rec_in_des, false);
-
-                    double P_comp_in_solved, tol_solved;
-                    P_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                    int iter_solved = -1;
-
-                    int solver_code = 0;
-                    try
-                    {
-                        solver_code = c_P_comp_in_solver.solve(xy1, P_comp_in_guess, 0.0, P_comp_in_solved, tol_solved, iter_solved);
-                    }
-                    catch (C_csp_exception)
-                    {
-                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                        are_models_converged = false;
-                        break;
-                    }
-
-                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                    {
-                        if( !(solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1) )
-                        {
-                            m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                            are_models_converged = false;
-                            break;
-                        }
-                    }
-                }
-
-                // If CR ON successful, need to charge TES
-                // Get some receiver outputs
-                double T_particle_CHX_out = mc_cr_out_solver.m_T_store_hot + 273.15;    //[K]
-                double m_dot_rec_particle = mc_cr_out_solver.m_m_dot_store_tot;         //[kg/hr]
-
-                // Estimate available charge
-                double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
-                q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
-                mc_tes.charge_avail_est(T_particle_CHX_out,
-                    mc_kernel.mc_sim_info.ms_ts.m_step,
-                    q_dot_tes_ch_max,
-                    m_dot_tes_ch_max,
-                    T_tes_cold_ch_max,
-                    m_dot_store_ch_max);
-
-                m_dot_tes_ch_max *= 3600.0;     //[kg/hr]
-
-                // Check if TES can accept receiver particle output
-                if (m_dot_rec_particle > m_dot_tes_ch_max) {
-                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                    are_models_converged = false;
-                    break;
-                }
-
-                // Charge storage
-                    // Set TES parameters?
-                mc_tes.use_calc_vals(false);
-                mc_tes.update_calc_vals(true);
-
-                double T_cold_tes_K;
-                bool ch_solved = mc_tes.charge(mc_kernel.mc_sim_info.ms_ts.m_step,
-                    mc_weather.ms_outputs.m_tdry + 273.15,
-                    m_dot_rec_particle / 3600.,
-                    T_particle_CHX_out,
-                    T_cold_tes_K,
-                    mc_tes_outputs);
-
-                // Check if TES charge method solved
-                if (!ch_solved) {
-                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
-
-                    are_models_converged = false;
-                    break;
-                }
-
-                // Set charging inlet/outlet temps to hot/cold ave temps, respectively
-                mc_tes_ch_htf_state.m_m_dot = m_dot_rec_particle;                      //[kg/hr]
-                mc_tes_ch_htf_state.m_temp_in = T_particle_CHX_out - 273.15;            //[C]
-                mc_tes_ch_htf_state.m_temp_out = T_cold_tes_K - 273.15;              //[C]
-
-                // Set discharge HTF state
-                mc_tes_dc_htf_state.m_m_dot = 0.0;                                      //[kg/hr]
-                mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;   //[C]
-                mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;   //[C]
-
-				// If CR ON, TES CH solved, then solve powerblock OFF and get out
-				// Power Cycle: OFF
-					// HTF State
-				mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
-					// Inputs
-				mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
-				mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
-					// Performance Call
-				mc_power_cycle.call(mc_weather.ms_outputs,
-					mc_pc_htf_state_in,
-					mc_pc_inputs,
-					mc_pc_out_solver,
-					mc_kernel.mc_sim_info);
-
-				are_models_converged = true;
-
+                are_models_converged = true;
 			}	// End brace after code for this operating mode - brace required to avoid compiler error for local variables
 
 				break;

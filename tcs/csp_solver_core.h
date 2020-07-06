@@ -32,6 +32,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "numeric_solvers.h"
 
+enum cr_recirc__tes_ch__modes
+{
+    coupled,
+    fill_tes
+};
+
 enum hot_tank_discharging
 {
     specified,
@@ -1841,6 +1847,10 @@ public:
 
 		virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
 	};
+
+    int solve__cr_recirc__tes_ch(double defocus_in,
+        cr_recirc__tes_ch__modes m_dot_mode,
+        double& m_dot_particle_diff);
 
     class C_MEQ__cr_recirc__P_comp_in : public C_monotonic_equation
     {

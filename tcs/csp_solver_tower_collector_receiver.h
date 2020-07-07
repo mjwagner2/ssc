@@ -48,7 +48,8 @@ private:
 
     std::string error_msg;                  // member string for exception messages
 
-    double m_P_rec_in_des;        // [kPa] Receiver (after riser) inlet pressure at design
+    double m_P_rec_in_des;          // [kPa] Receiver (after riser) inlet pressure at design
+    double m_q_dot_piping_one_way;  // [kWt] Thermal loss of tower piping in one direction, e.g. riser heat losses
 
 public:
 	
@@ -137,6 +138,7 @@ public:
     double downcomer_diam;          // [m] Downcomer inner diameter
     double riser_length;        // [m] Total riser length for pressure drop calc
     double dP_recHX_perc;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
+    double pipe_loss_per_m;     // [Wt/m] Thermal losses per meter of riser/downcomer piping
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

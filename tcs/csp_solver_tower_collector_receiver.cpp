@@ -106,6 +106,8 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
     hxs.assign(collector_receivers.size(), C_heat_exchanger());
 
     m_P_rec_in_des = std::numeric_limits<double>::quiet_NaN();      //[kPa]
+    pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();     //[Wt/m]
+    m_q_dot_piping_one_way = std::numeric_limits<double>::quiet_NaN();  //[kWt]
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -267,6 +269,14 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
             double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
             dP_sf += dpr;
         }
+    }
+
+    if (std::isfinite(riser_length) && riser_length > 0.0) {
+        m_q_dot_piping_one_way = pipe_loss_per_m * 1.E-3 * riser_length;    //[kWt]
+    }
+    else
+    {
+        m_q_dot_piping_one_way = 0.0;   
     }
 
     solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver
@@ -471,36 +481,49 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         We first need to calculate riser pressure drop, because it affects downstream performance.
         This is an implicit calculation, so we will estimate using only the first receiver.
         */
+
+        
+        C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_temp;
+        collector_receivers.front().call(weather, htf_state_in, inputs, cr_out_solver_temp, sim_info);
+        double m_dot_salt_temp = cr_out_solver_temp.m_m_dot_salt_tot / 3600.;     //kg/s from kg/hr
+
+        if (m_dot_salt_temp > 0.)
         {
-            C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_temp;
-            collector_receivers.front().call(weather, htf_state_in, inputs, cr_out_solver_temp, sim_info);
-            double m_dot_salt_temp = cr_out_solver_temp.m_m_dot_salt_tot / 3600.;     //kg/s from kg/hr
+            //calculate mass flow based on the power from the first receiver
+            C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
 
-            if (m_dot_salt_temp > 0.)
-            {
-                //calculate mass flow based on the power from the first receiver
-                C_pt_receiver::S_outputs receiver_outputs = collector_receivers.front().get_receiver_outputs();
-
-                //riser pressure loss
-                dP_riser = f_dP_riser(m_dot_salt_temp, receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
-            }
-            else
-            {
-                dP_riser = 0.;
-            }
+            //riser pressure loss
+            dP_riser = std::fmax(0.0, f_dP_riser(m_dot_salt_temp, receiver_outputs.m_T_salt_cold, htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps)); //[kPa]
         }
+        else
+        {
+            dP_riser = 0.;
+        }
+        
+        
+        if ( (std::isfinite(dP_riser) && dP_riser > 0.0) ){ // || (m_q_dot_piping_one_way > 0.0 && m_dot_salt_temp > 0.0)) {
 
-        if (dP_riser > 0.0) {
+            if (!(dP_riser > 0.0)) {
+                double abc = 1.23;
+            }
+
             CO2_state co2_state;
             int co2_prop_code = CO2_TP(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, &co2_state);
             if (co2_prop_code != 0) {
                 throw(C_csp_exception("CO2 riser inlet calcs failed", "CO2 tower receiver"));
             }
 
+            double h_riser_in = co2_state.enth;     //[kJ/kg]
+            double h_riser_out = h_riser_in;       //[kJ/kg]
+
+            if(false) { // (m_dot_salt_temp > 0.0 && false) {
+                h_riser_out = h_riser_in - m_q_dot_piping_one_way;      // / m_dot_salt_temp;
+            }
+
             htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
             co2_prop_code = CO2_PH(htf_state_in_next.m_pres, co2_state.enth, &co2_state);
             if (co2_prop_code != 0) {
-                throw(C_csp_exception("CO2 rec recirculator compression calcs failed", "CO2 tower receiver"));
+                throw(C_csp_exception("CO2 riser outlet calcs failed", "CO2 tower receiver"));
             }
 
             htf_state_in_next.m_temp = co2_state.temp - 273.15;      //[C] convert from K

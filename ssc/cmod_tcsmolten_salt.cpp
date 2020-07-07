@@ -939,6 +939,7 @@ public:
         tower.riser_diam = as_double("piping_riser_diam");  //[m]
         tower.downcomer_diam = as_double("piping_downcomer_diam");  //[m]
         tower.dP_recHX_perc = as_double("dP_recHX_perc"); //[%]
+        tower.pipe_loss_per_m = as_double("piping_loss");                //[Wt/m]
 
         // *******************************************************
         // *******************************************************

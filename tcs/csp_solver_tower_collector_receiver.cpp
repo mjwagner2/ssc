@@ -490,7 +490,21 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             }
         }
 
-        htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
+        if (dP_riser > 0.0) {
+            CO2_state co2_state;
+            int co2_prop_code = CO2_TP(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, &co2_state);
+            if (co2_prop_code != 0) {
+                throw(C_csp_exception("CO2 riser inlet calcs failed", "CO2 tower receiver"));
+            }
+
+            htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
+            co2_prop_code = CO2_PH(htf_state_in_next.m_pres, co2_state.enth, &co2_state);
+            if (co2_prop_code != 0) {
+                throw(C_csp_exception("CO2 rec recirculator compression calcs failed", "CO2 tower receiver"));
+            }
+
+            htf_state_in_next.m_temp = co2_state.temp - 273.15;      //[C] convert from K
+        }
     }
     else {
 
@@ -658,9 +672,26 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     cr_out_solver.m_dP_sf += dP_downcomer;
 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
+
+    if (dP_downcomer > 0.0) {
+        double P_downcomer_in = cr_out_solver.m_P_htf_hot + dP_downcomer;   //[kPa]
+        CO2_state co2_state;
+        int co2_prop_code = CO2_TP(cr_out_solver.m_T_salt_hot + 273.15, P_downcomer_in, &co2_state);
+        if (co2_prop_code != 0) {
+            throw(C_csp_exception("CO2 calcs at downcomer inlet failed", "CO2 tower receiver"));
+        }
+
+        co2_prop_code = CO2_PH(cr_out_solver.m_P_htf_hot, co2_state.enth, &co2_state);
+        if (co2_prop_code != 0) {
+            throw(C_csp_exception("CO2 calcs at downcomer outlet failed", "CO2 tower receiver"));
+        }
+
+        cr_out_solver.m_T_salt_hot = co2_state.temp - 273.15;       //[C], convert from K
+    }
+
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
     if (cr_out_solver.m_m_dot_store_tot <= 0.0) {
-        cr_out_solver.m_T_salt_hot = T_tes_cold - 273.15;   //[C]
+        cr_out_solver.m_T_store_hot = T_tes_cold - 273.15;   //[C]
     }
     else {
         cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]

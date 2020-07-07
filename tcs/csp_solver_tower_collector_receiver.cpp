@@ -218,27 +218,33 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     T_hx_cold_des += 273.15;    //[K] convert from C
 
     C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
-    double q_dot_rec_des = 0.;
     double A_aper_total = 0.;
     double dP_sf = 0.;              //[kPa]
     double dP_sf_no_piping = 0.0;   //[kPa]
     double P_prev = std::numeric_limits<double>::quiet_NaN();   //[kPa]
 
+    double m_dot_co2_des = std::numeric_limits<double>::quiet_NaN();    //[kg/s]
+    double q_dot_rec_des_single = std::numeric_limits<double>::quiet_NaN();    //[MWt]
+    double q_dot_rec_des_total = 0.;
+
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         collector_receivers.at(i).init(init_inputs, _solved_params);
 
-        q_dot_rec_des += _solved_params.m_q_dot_rec_des;
+        q_dot_rec_des_total += _solved_params.m_q_dot_rec_des;      //[MWt]
 
         if (i == 0) {
+
+            q_dot_rec_des_single = _solved_params.m_q_dot_rec_des;     //[MWt]
+
             solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
             solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
             
             //calculate mass flow based on the power from the first receiver
             double cp_avg = mc_field_htfProps.Cp(solved_params.m_T_htf_cold_des);
-            double m_dot_co2_tot = q_dot_rec_des*1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
+            m_dot_co2_des = q_dot_rec_des_single*1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
             
             //riser pressure loss
-            double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
+            double dpr = f_dP_riser(m_dot_co2_des, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
             dP_sf += dpr;
             P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]      // pressure after riser before first receiver
             m_P_rec_in_des = P_prev;      //[kPa]
@@ -261,12 +267,8 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
 
             solved_params.m_P_rec_out_des = P_prev; //[kPa]
 
-            //calculate mass flow based on the power from the first receiver
-            double cp_avg = mc_field_htfProps.Cp(solved_params.m_T_htf_cold_des);
-            double m_dot_co2_tot = q_dot_rec_des * 1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
-
             //downcomer pressure loss
-            double dpr = f_dP_riser(m_dot_co2_tot, solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+            double dpr = f_dP_riser(m_dot_co2_des, solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
             dP_sf += dpr;
         }
     }
@@ -280,7 +282,7 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     }
 
     solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver
-    solved_params.m_q_dot_rec_des = q_dot_rec_des;
+    solved_params.m_q_dot_rec_des = q_dot_rec_des_total;        //[MWt] Total (sum of all three receivers) thermal power
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
     solved_params.m_P_rec_in_des = m_P_rec_in_des;      //[kPa]
@@ -501,11 +503,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         }
         
         
-        if ( (std::isfinite(dP_riser) && dP_riser > 0.0) ){ // || (m_q_dot_piping_one_way > 0.0 && m_dot_salt_temp > 0.0)) {
-
-            if (!(dP_riser > 0.0)) {
-                double abc = 1.23;
-            }
+        if ( (std::isfinite(dP_riser) && dP_riser > 0.0) ) { // || (m_q_dot_piping_one_way > 0.0 && m_dot_salt_temp > 0.0)) {
 
             CO2_state co2_state;
             int co2_prop_code = CO2_TP(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, &co2_state);

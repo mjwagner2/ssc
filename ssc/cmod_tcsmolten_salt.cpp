@@ -415,6 +415,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_1",                        "HX 1 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_2",                        "HX 2 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_3",                        "HX 3 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_downcomer",                    "Downcomer thermal losses",                                                                                                                "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_riser",                        "Riser thermal losses",                                                                                                                    "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
 
 
         // Power cycle outputs
@@ -1012,6 +1014,8 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_1, allocate("dp_CO2_HX_1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_2, allocate("dp_CO2_HX_2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_3, allocate("dp_CO2_HX_3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, allocate("q_dot_downcomer", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_RISER, allocate("q_dot_riser", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;

@@ -10,7 +10,6 @@ class C_mspt_receiver : public C_pt_receiver
 // The transient receiver, including legacy steady-state receiver code for either non-transient startup or non-transient operation
 
 private:
-	double m_Q_dot_piping_loss;		//[Wt] = Constant thermal losses from piping to env. = (THT*length_mult + length_add) * piping_loss_coef
 
 	int m_itermode;
 	double m_od_control;

@@ -311,5 +311,8 @@ struct module_entry_info
 	compute_module * (*f_create)();
 };
 
+void dump_ssc_variable(FILE* fp, ssc_data_t p_data, const char* name);
+
+bool write_cmod_to_lk_script(FILE* fp, ssc_data_t p_data);
 
 #endif

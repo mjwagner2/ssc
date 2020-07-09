@@ -633,8 +633,9 @@ public:
 
  //       fclose(fp);
 
-
-
+        //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
+        
+        //write_cmod_to_lk_script(fp, m_vartab);
 
 
 

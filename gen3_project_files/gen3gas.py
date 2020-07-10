@@ -115,8 +115,9 @@ class Gen3opt:
                     files
         ####################################################
         """
-        ssc.data_set_array_from_csv( data, b'wlim_series', b'resource/wlim_series.csv');
-        ssc.data_set_array_from_csv( data, b'dispatch_factors_ts', b'resource/dispatch_factors_ts.csv');
+        # 7.10.20 ty: commented these out and removed files because simulation is not using them
+        #ssc.data_set_array_from_csv( data, b'wlim_series', b'resource/wlim_series.csv');
+        #ssc.data_set_array_from_csv( data, b'dispatch_factors_ts', b'resource/dispatch_factors_ts.csv');
         
         """
         ####################################################

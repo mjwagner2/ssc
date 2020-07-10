@@ -77,6 +77,7 @@ class Settings:
         self.is_north = False                  # is field north or surround
         self.cycle_efficiency_nominal = 0.43  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
+        self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
 
 class Gen3opt:
     def __init__(self, **kwargs):
@@ -271,36 +272,9 @@ class Gen3opt:
         ssc.data_set_number( data, b'bop_par_0', 0 );
         ssc.data_set_number( data, b'bop_par_1', 0.483 );
         ssc.data_set_number( data, b'bop_par_2', 0 );
-        f_turb_tou_periods = [ 0.99, 1, 1, 1, 1, 1, 1, 1, 1 ]
-        ssc.data_set_array( data, b'f_turb_tou_periods', f_turb_tou_periods );
-        weekday_schedule = \
-            [ [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5 ] ] 
-        ssc.data_set_matrix( data, b'weekday_schedule', weekday_schedule );
-        weekend_schedule = \
-            [ [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ], 
-            [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ], 
-            [ 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ] ] 
-        ssc.data_set_matrix( data, b'weekend_schedule', weekend_schedule);
+        ssc.data_set_array( data, b'f_turb_tou_periods', [NaN] );
+        ssc.data_set_matrix( data, b'weekday_schedule', [[NaN],[NaN]] );
+        ssc.data_set_matrix( data, b'weekend_schedule', [[NaN],[NaN]]);
         ssc.data_set_number( data, b'disp_horizon', 48 );
         ssc.data_set_number( data, b'disp_frequency', 24 );
         ssc.data_set_number( data, b'disp_max_iter', 35000 );
@@ -310,17 +284,17 @@ class Gen3opt:
         ssc.data_set_number( data, b'disp_rsu_cost', 950 );
         ssc.data_set_number( data, b'disp_csu_cost', 10000 );
         ssc.data_set_number( data, b'disp_pen_delta_w', 0.1 );
-        ssc.data_set_matrix( data, b'dispatch_sched_weekday', weekday_schedule);
-        ssc.data_set_matrix( data, b'dispatch_sched_weekend', weekend_schedule);
-        ssc.data_set_number( data, b'dispatch_factor1', 1 );
-        ssc.data_set_number( data, b'dispatch_factor2', 1 );
-        ssc.data_set_number( data, b'dispatch_factor3', 1 );
-        ssc.data_set_number( data, b'dispatch_factor4', 1 );
-        ssc.data_set_number( data, b'dispatch_factor5', 1 );
-        ssc.data_set_number( data, b'dispatch_factor6', 1 );
-        ssc.data_set_number( data, b'dispatch_factor7', 1 );
-        ssc.data_set_number( data, b'dispatch_factor8', 1 );
-        ssc.data_set_number( data, b'dispatch_factor9', 1 );
+        ssc.data_set_matrix( data, b'dispatch_sched_weekday', [[NaN],[NaN]]);
+        ssc.data_set_matrix( data, b'dispatch_sched_weekend', [[NaN],[NaN]]);
+        ssc.data_set_number( data, b'dispatch_factor1', NaN );
+        ssc.data_set_number( data, b'dispatch_factor2', NaN );
+        ssc.data_set_number( data, b'dispatch_factor3', NaN );
+        ssc.data_set_number( data, b'dispatch_factor4', NaN );
+        ssc.data_set_number( data, b'dispatch_factor5', NaN );
+        ssc.data_set_number( data, b'dispatch_factor6', NaN );
+        ssc.data_set_number( data, b'dispatch_factor7', NaN );
+        ssc.data_set_number( data, b'dispatch_factor8', NaN );
+        ssc.data_set_number( data, b'dispatch_factor9', NaN );
         dispatch_series = [ 0 ]
         ssc.data_set_array( data, b'dispatch_series', dispatch_series );
         ssc.data_set_number( data, b'const_per_interest_rate1', 4 );
@@ -586,6 +560,82 @@ class Gen3opt:
 
         return
 
+    def get_turb_and_dispatch_schedules(self, dispatch_profile_type):
+
+        NaN = float('nan')
+
+        f_turb_tou_periods = [NaN]
+        f_dispatch_tou = [NaN]
+        weekday_schedule = [[NaN],[NaN]]
+        weekend_schedule = [[NaN],[NaN]]
+
+        if(dispatch_profile_type == "baseload"):
+
+            f_turb_tou_periods = [0.99, 1, 1, 1, 1, 1, 1, 1, 1]
+            f_dispatch_tou = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+            weekday_schedule = \
+                [[6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5]]
+            weekend_schedule = \
+                [[6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                 [6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]]
+
+        elif(dispatch_profile_type == "peaker"):
+
+            f_turb_tou_periods = [0, 1, 1, 0, 0, 0, 0, 0, 0]
+            f_dispatch_tou = [-0.205, 3.30, 1, 0, 0, 0, 0, 0, 0]
+            weekday_schedule = \
+                [[4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2]]
+            weekend_schedule = \
+                [[4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                 [4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]]
+
+        else:
+            print("\nGen3 Gas Setup Error: Must specify dispatch profile type as input to SSC compute module\n")
+
+        return f_turb_tou_periods, f_dispatch_tou, weekday_schedule, weekend_schedule
+
     #----------------------------------------------------------------
     def exec(self):
 
@@ -806,6 +856,29 @@ class Gen3opt:
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
         ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
+
+        # Turbine output and pricing schedules
+        #dispatch_profile_type = "peaker"
+        f_turb_tou_periods, f_dispatch_tou, \
+        weekday_schedule, weekend_schedule = self.get_turb_and_dispatch_schedules(self.settings.dispatch_profile_type)
+
+        ssc.data_set_array(data, b'f_turb_tou_periods', f_turb_tou_periods);
+
+        ssc.data_set_matrix(data, b'weekday_schedule', weekday_schedule);
+        ssc.data_set_matrix(data, b'weekend_schedule', weekend_schedule);
+
+        ssc.data_set_matrix(data, b'dispatch_sched_weekday', weekday_schedule);
+        ssc.data_set_matrix(data, b'dispatch_sched_weekend', weekend_schedule);
+
+        ssc.data_set_number(data, b'dispatch_factor1', f_dispatch_tou[0]);
+        ssc.data_set_number(data, b'dispatch_factor2', f_dispatch_tou[1]);
+        ssc.data_set_number(data, b'dispatch_factor3', f_dispatch_tou[2]);
+        ssc.data_set_number(data, b'dispatch_factor4', f_dispatch_tou[3]);
+        ssc.data_set_number(data, b'dispatch_factor5', f_dispatch_tou[4]);
+        ssc.data_set_number(data, b'dispatch_factor6', f_dispatch_tou[5]);
+        ssc.data_set_number(data, b'dispatch_factor7', f_dispatch_tou[6]);
+        ssc.data_set_number(data, b'dispatch_factor8', f_dispatch_tou[7]);
+        ssc.data_set_number(data, b'dispatch_factor9', f_dispatch_tou[8]);
 
         #------------------------------------------------------------------------------
 

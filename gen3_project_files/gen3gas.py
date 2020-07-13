@@ -218,7 +218,6 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_rec_cold_des', NaN );
         store_fl_props = [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ]
         ssc.data_set_matrix( data, b'store_fl_props', store_fl_props );
-        ssc.data_set_number( data, b'tes_pump_coef', 0.15 );
         ssc.data_set_number( data, b'T_tes_hot_des', NaN );
         ssc.data_set_number( data, b'T_tes_warm_des', NaN );
         ssc.data_set_number( data, b'T_tes_cold_des', NaN );
@@ -241,7 +240,6 @@ class Gen3opt:
 
         ssc.data_set_number( data, b'T_pc_hot_des', NaN );
         ssc.data_set_number( data, b'T_pc_cold_des', NaN );
-        ssc.data_set_number( data, b'pb_pump_coef', 0.55 );
         ssc.data_set_number( data, b'startup_time', 0.5 );
         ssc.data_set_number( data, b'startup_frac', 0.5 );
         ssc.data_set_number( data, b'cycle_max_frac', 1.2); #1.05 );

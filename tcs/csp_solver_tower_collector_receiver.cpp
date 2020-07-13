@@ -290,6 +290,9 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     solved_params.m_dP_sf = dP_sf;
     solved_params.m_P_rec_in_des = m_P_rec_in_des;      //[kPa]
 
+    // Pass through to solved_params so solver core can access
+    solved_params.m_is_rec_recirc_available = m_is_rec_recirc_available;    //[-]
+
 	return;
 }
 

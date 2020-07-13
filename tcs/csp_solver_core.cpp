@@ -299,6 +299,8 @@ C_csp_solver::C_csp_solver(C_csp_weatherreader &weather,
 		m_cycle_P_hot_des = m_cycle_x_hot_des = 
 		m_m_dot_pc_des = m_m_dot_pc_min = m_m_dot_pc_max = m_T_htf_pc_cold_est = std::numeric_limits<double>::quiet_NaN();
 
+    m_is_rec_recirc_available = false;
+
 	// Reporting and Output Tracking
 	mc_reported_outputs.construct(S_solver_output_info);
 
@@ -479,6 +481,7 @@ void C_csp_solver::init()
 	m_A_aperture = cr_solved_params.m_A_aper_total;				//[m2]
     m_P_rec_in_des = cr_solved_params.m_P_rec_in_des;           //[kPa]
     m_P_rec_out_des = cr_solved_params.m_P_rec_out_des;         //[kPa]
+    m_is_rec_recirc_available = cr_solved_params.m_is_rec_recirc_available; //[-]
 		// Power cycle
 	C_csp_power_cycle::S_solved_params pc_solved_params;
 	mc_power_cycle.init(pc_solved_params);
@@ -793,7 +796,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         //[-] If True, use blower/compressor to circulate fluid through receiver and CHXs, allowing receiver to operate and charge TES
         // Assume if PC is 'ON', then it will move CO2 through receiver, CHXs
-        bool is_rec_recirc_allowed = false;
+        bool is_rec_recirc_allowed = m_is_rec_recirc_available;     // false;
 
 		// Get standby fraction and min operating fraction
 			// Could eventually be a method in PC class...

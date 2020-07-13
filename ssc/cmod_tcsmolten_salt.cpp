@@ -142,6 +142,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "dP_recHX_perc",                      "HTF pressure drop in individual receiver HX",                                                                                             "%",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "is_rec_recirc_available",            "1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON",                                             "",             "",                                  "Tower and Receiver",                       "?=0",                                                              "",              ""},
 
     
     // TES parameters - general
@@ -943,6 +944,7 @@ public:
         tower.downcomer_diam = as_double("piping_downcomer_diam");  //[m]
         tower.dP_recHX_perc = as_double("dP_recHX_perc"); //[%]
         tower.pipe_loss_per_m = as_double("piping_loss");                //[Wt/m]
+        tower.m_is_rec_recirc_available = as_boolean("is_rec_recirc_available");        //[-]
 
         // *******************************************************
         // *******************************************************

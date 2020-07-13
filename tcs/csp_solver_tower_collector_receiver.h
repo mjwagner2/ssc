@@ -144,6 +144,12 @@ public:
     double dP_recHX_perc;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
     double pipe_loss_per_m;     // [Wt/m] Thermal losses per meter of riser/downcomer piping
 
+    //[-] True: receiver has *option* to use recirculator rather than cycle to move CO2
+        //          to apply to receiver solution, controller/solver must also set mc_cr_out_solver.m_is_rec_recirc_in = true
+        //[-] False: receiver does NOT have recirculator
+        //             and receiver cannot produce heat unless PC is ON
+    bool m_is_rec_recirc_available;
+
 	C_csp_reported_outputs mc_reported_outputs;
 	
 	C_csp_tower_collector_receiver(std::vector<C_csp_mspt_collector_receiver> & collector_receivers);

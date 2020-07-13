@@ -78,6 +78,7 @@ class Settings:
         self.cycle_efficiency_nominal = 0.43  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
         self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
+        self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
 
 class Gen3opt:
     def __init__(self, **kwargs):
@@ -853,6 +854,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'dP_LTHX_perc', dhx['dp_cold_disch']*100 );
         ssc.data_set_number( data, b'dP_HTHX_perc', dhx['dp_hot_disch']*100 );
         ssc.data_set_number( data, b'dP_recHX_perc', dhx['dp_charge']*100 );
+        ssc.data_set_number( data, b'is_rec_recirc_available', self.settings.is_rec_recirc_available );
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
         ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );

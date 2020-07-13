@@ -795,6 +795,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     cr_out_solver.m_W_dot_htf_pump = 0.;
     cr_out_solver.m_dP_sf = 0.;
     cr_out_solver.m_q_rec_heattrace = 0.;
+    cr_out_solver.m_W_dot_co2_recirc = 0.;
 
     double q_dot_field_inc = 0.;
     double eta_weighted_sum = 0.;

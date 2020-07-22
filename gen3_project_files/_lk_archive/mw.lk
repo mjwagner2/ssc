@@ -176,7 +176,8 @@ var( 'piping_length_mult', 1.5 );
 var( 'piping_length_const', 50 );
 var( 'piping_riser_diam', 0.504 );
 var( 'piping_downcomer_diam', 0.458 );
-var( 'dP_recHX_perc', 0.14 );
+var( 'L_recHX', 1.650 );
+var( 'n_cells_recHX', 51400 );
 var( 'eta_pump', 0.87 );
 
 
@@ -199,8 +200,10 @@ var( 'cold_tank_Thtr', 280 );
 var( 'h_tank_min', 1 );
 var( 'hot_tank_Thtr', 500 );
 var( 'hot_tank_max_heat', 0 );
-var( 'dP_LTHX_perc', 0.09 );				// was 0.5
-var( 'dP_HTHX_perc', 0.14 );
+var( 'L_LTHX', 0.440 );
+var( 'L_HTHX', 1.650 );
+var( 'n_cells_LTHX', 40100 );
+var( 'n_cells_HTHX', 40100 );
 
 
 

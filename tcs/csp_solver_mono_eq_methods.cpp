@@ -677,7 +677,7 @@ int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/
 
     // Estimate available discharge in order to updated m_m_dot_tes_dc_max
     double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
-    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1.e3, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
     m_dot_field_est *= 3600.;   //[kg/hr]
 
@@ -687,6 +687,7 @@ int C_csp_solver::C_mono_eq_pc_su_cont_tes_dc::operator()(double T_htf_hot /*C*/
                                             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15, 
                                             m_dot_pc,
                                             T_htf_cold + 273.15,
+                                            mpc_csp_solver->mc_pc_out_solver.m_P_phx_in * 1.e3,
                                             T_htf_hot_calc,
                                             mpc_csp_solver->mc_tes_outputs);
 
@@ -728,6 +729,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_dc__m_dot::operator()(double m_dot_htf
                                                 mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
                                                 m_dot_htf / 3600.0,
                                                 m_T_htf_cold + 273.15,
+                                                P_pc_out,
                                                 T_htf_hot,
                                                 mpc_csp_solver->mc_tes_outputs);
 
@@ -791,6 +793,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_dc__T_cold::operator()(double T_htf_co
     q_dot_tes_dc_max = m_dot_tes_dc_max = T_htf_hot_dc_max = std::numeric_limits<double>::quiet_NaN();
 
     mpc_csp_solver->mc_tes.discharge_avail_est_both(T_htf_cold + 273.15,
+        mpc_csp_solver->m_cycle_P_cold_des,
         mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_tes_dc_max,
         m_dot_tes_dc_max,
@@ -932,6 +935,7 @@ int C_csp_solver::C_mono_eq_pc_match_tes_empty::operator()(double T_htf_cold /*C
     mpc_csp_solver->mc_tes.discharge_full_both(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
                             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
                             T_htf_cold + 273.15,
+                            P_pc_out,
                             T_htf_tes_hot, 
                             m_dot_tes_dc, 
                             mpc_csp_solver->mc_tes_outputs);
@@ -1429,7 +1433,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes_ch__T_cold::operator()(double T_
     // Knowing the receiver outlet temperature, can calculate the maximum mass flow rate available for charging
     double q_dot_tes_ch_max, m_dot_tes_ch_max, T_tes_cold_ch_max, m_dot_store_ch_max;
     q_dot_tes_ch_max = m_dot_tes_ch_max = T_tes_cold_ch_max = std::numeric_limits<double>::quiet_NaN();
-    mpc_csp_solver->mc_tes.charge_avail_est(mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15, 
+    mpc_csp_solver->mc_tes.charge_avail_est(mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot + 273.15,
                                         mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step, 
                                         q_dot_tes_ch_max, 
                                         m_dot_tes_ch_max, 
@@ -1610,17 +1614,19 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
         T_htf_hx_in = T_htf_rec_out;      //[K]
     }
     double m_dot_hx_in = m_dot_rec_in;      //[kg/hr]  don't let receiver create mass
+    double P_hx_in = P_rec_out;
 
 
     // Solve the HT HX using a full storage media discharge
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
     double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
-    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_hx_in, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_hx_in, P_hx_in, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
     double T_htf_hx_out, m_dot_hx_out;
     mpc_csp_solver->mc_tes.discharge_full(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_hx_in,
+        P_hx_in,
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);
@@ -1685,6 +1691,7 @@ int C_csp_solver::C_mono_eq_cr_on_pc_match_tes_empty::operator()(double T_htf_co
     mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_pc_out,
+        P_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);
@@ -1746,6 +1753,7 @@ int C_csp_solver::C_mono_eq_pc_target__m_dot_fixed_plus_tes_dc::operator()(doubl
                                 mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
                                 m_dot_tes_dc / 3600.0,
                                 m_T_htf_cold + 273.15,
+                                P_kPa_default,
                                 T_htf_tes_hot,
                                 mpc_csp_solver->mc_tes_outputs);
 
@@ -1801,6 +1809,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_empty__x_step::operator()(double step 
     mpc_csp_solver->mc_tes.discharge_full_both(step,
                         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
                         m_T_htf_cold + 273.15,
+                        P_pc_out,
                         T_htf_tes_hot,
                         m_dot_tes_dc,
                         mpc_csp_solver->mc_tes_outputs);
@@ -1841,6 +1850,7 @@ int C_csp_solver::C_mono_eq_pc_target_tes_empty__T_cold::operator()(double T_htf
     mpc_csp_solver->mc_tes.discharge_full_both(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
                             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
                             T_htf_cold + 273.15,
+                            P_kPa_default,
                             T_htf_tes_hot,
                             m_dot_htf_full_ts,
                             mpc_csp_solver->mc_tes_outputs);
@@ -2034,7 +2044,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_target_tes__defocus::operator()(double defo
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
-    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+    double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 10.;
+    double T_cold_max = mpc_csp_solver->m_T_htf_cold_des - 273.15 + 40.;
+    c_solver.settings(1.E-3, 50, T_cold_min, T_cold_max, false);
 
     // Solve for cold temperature
     double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;        //[C], convert from [K]
@@ -2092,7 +2104,9 @@ int C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus::operator()(double defocu
     C_monotonic_eq_solver c_solver(c_eq);
 
     // Set up solver
-    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+    double T_cold_min = mpc_csp_solver->m_cycle_T_htf_cold_des - 273.15 - 10.;
+    double T_cold_max = mpc_csp_solver->m_T_htf_cold_des - 273.15 + 40.;
+    c_solver.settings(1.E-3, 50, T_cold_min, T_cold_max, false);
 
     // Solve for cold temperature
     double T_cold_guess_low = mpc_csp_solver->m_T_htf_cold_des - 273.15;        //[C], convert from [K]
@@ -2532,6 +2546,7 @@ int C_csp_solver::C_mono_eq_cr_on__pc_match__tes_full::operator()(double T_htf_c
     // Get receiver HTF outputs
     double m_dot_receiver = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;  //[kg/hr]
     double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;       //[C]
+    double P_rec_out = mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot;            //[kPa]
 
     // Solve TES for *full* charge
     double T_htf_tes_cold, m_dot_tes;
@@ -2623,6 +2638,7 @@ int C_csp_solver::C_mono_eq_cr_on__pc_max_m_dot__tes_full::operator()(double T_h
     // Get receiver HTF outputs
     double m_dot_receiver = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;  //[kg/hr]
     double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;       //[C]
+    double P_rec_out = mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot;            //[kPa]
 
     // First, call power cycle, because if it's in startup mode, we need the new timestep
     // Solve the PC performance at MAX PC HTF FLOW RATE
@@ -2788,6 +2804,7 @@ int C_csp_solver::C_mono_eq_cr_on__pc_match_m_dot_ceil__tes_full::operator()(dou
     // Get receiver HTF outputs
     double m_dot_receiver = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;  //[kg/hr]
     double T_htf_rec_hot = mpc_csp_solver->mc_cr_out_solver.m_T_salt_hot;       //[C]
+    double P_rec_out = mpc_csp_solver->mc_cr_out_solver.m_P_htf_hot;            //[kPa]
 
     // Solve TES for *full* charge
     double T_htf_tes_cold, m_dot_tes;
@@ -3257,7 +3274,7 @@ int C_csp_solver::solve__cr_recirc__tes_ch(double defocus_in,
     // Set Solved Controller Variables Here (that won't be reset in this operating mode)
     m_defocus = defocus_in;
 
-    double P_comp_in_guess = m_P_rec_out_des;          //[kPa]
+    double P_comp_in_guess = m_P_cr_out_des;          //[kPa]
 
     C_MEQ__cr_recirc__P_comp_in c_P_comp_in_eq(this, m_defocus);
     C_monotonic_eq_solver c_P_comp_in_solver(c_P_comp_in_eq);
@@ -3278,7 +3295,7 @@ int C_csp_solver::solve__cr_recirc__tes_ch(double defocus_in,
 
         double P_comp_in_guess = mc_cr_out_solver.m_P_htf_hot;  //[kPa]
 
-        c_P_comp_in_solver.settings(1.E-3, 50, 0.1, m_P_rec_in_des, false);
+        c_P_comp_in_solver.settings(1.E-3, 50, 0.1, m_P_cr_in_des, false);
 
         double P_comp_in_solved, tol_solved;
         P_comp_in_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
@@ -3554,6 +3571,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     mpc_csp_solver->mc_tes.discharge_full(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_cold + 273.15,
+        P_rec_out,
         T_htf_tes_hot,
         m_dot_htf_full_ts,
         mpc_csp_solver->mc_tes_outputs);
@@ -3619,6 +3637,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_pc_out,
+        P_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);
@@ -3733,6 +3752,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold::operator()(doub
     mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_pc_out,
+        P_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);
@@ -3812,6 +3832,7 @@ int C_csp_solver::C_MEQ_cr_on__pc_target__tes_empty__step::operator()(double ste
     mpc_csp_solver->mc_tes.discharge_full(step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         m_T_htf_cold + 273.15,
+        P_rec_out,
         T_htf_tes_hot,
         m_dot_tes_dc,
         mpc_csp_solver->mc_tes_outputs);
@@ -3921,7 +3942,7 @@ int C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank::operator()(double T_htf_cold /*
     // T_htf_cold is the guessed temperature into the high-temp (HT) HX
     
     double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
-    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_cold + 273.15, P_kPa_default, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     double T_htf_hot;  //[K] HTF temp out of the HX on the field side
@@ -3929,6 +3950,7 @@ int C_csp_solver::C_MEQ_cr_on_tes_dc_m_dot_tank::operator()(double T_htf_cold /*
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         m_m_dot_store / 3600.,
         T_htf_cold + 273.15,
+        P_kPa_default,
         T_htf_hot,
         m_m_dot_htf_out,
         mpc_csp_solver->mc_tes_outputs);
@@ -4063,7 +4085,8 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             break;
         case hot_tank_discharging::per_matched_rec_htf:
             double T_hot_htf, T_cold_store_est;
-            mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
+            mpc_csp_solver->mc_tes.discharge_est(T_htf_rec_out, m_dot_rec_out / 3600., P_rec_out,
+                T_hot_htf, T_cold_store_est, m_dot_hot_tank_out);  // m_dot_hot_tank_out is an estimate, actual value calculated later
             m_dot_hot_tank_out *= 3600.;            //[kg/hr]
             break;
         case hot_tank_discharging::excess_overfilled:
@@ -4091,7 +4114,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
 
     // First estimate available discharge in order to updated m_m_dot_tes_dc_max
     double q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est;
-    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
+    mpc_csp_solver->mc_tes.discharge_avail_est(T_htf_rec_out, P_rec_out, mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 
     // Solve the HT HX
@@ -4106,6 +4129,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hx_in / 3600.,
             T_htf_hx_in,
+            P_rec_out,
             T_htf_hx_out,
             tes_outputs_temp);
 
@@ -4149,6 +4173,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hx_in / 3600.,
             T_htf_hx_in,
+            P_rec_out,
             T_htf_hx_out,
             tes_outputs_temp);
 
@@ -4175,6 +4200,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hot_tank_out / 3600.,
             T_htf_rec_out,
+            P_rec_out,
             T_htf_hx_out,
             m_dot_hx_out,
             tes_outputs_temp);
@@ -4263,6 +4289,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
             mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
             m_dot_hot_tank_out / 3600.,
             T_htf_hx_in,
+            P_rec_out,
             T_htf_hot,
             m_dot_hx_out,
             tes_outputs_temp);
@@ -4326,6 +4353,7 @@ int C_csp_solver::C_MEQ_cr_on__pc__tes::operator()(double T_htf_cold /*C*/, doub
     mpc_csp_solver->mc_tes.discharge_full_lt(mpc_csp_solver->mc_kernel.mc_sim_info.ms_ts.m_step,
         mpc_csp_solver->mc_weather.ms_outputs.m_tdry + 273.15,
         T_htf_pc_out,
+        P_pc_out,
         T_htf_hx_out,
         m_dot_hx_out,
         tes_outputs_temp);

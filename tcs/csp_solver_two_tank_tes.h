@@ -33,6 +33,7 @@ const int N_tes_pipe_sections = 11;
 class C_heat_exchanger
 {
 private:
+
 	sco2Properties mc_field_htfProps;
     HTFProperties mc_field_htfProps_old;
 	HTFProperties mc_store_htfProps;
@@ -57,10 +58,64 @@ private:
     double m_T_cold_tes_calc;       //[K] Colder temperature on TES side (tank side)
     double m_m_dot_tes_calc;        //[kg/s] Mass flow rate on TES side (tank side)
 
-	void hx_performance(bool is_hot_side_mdot, bool is_storage_side, double T_hot_in, double m_dot_known, double T_cold_in,
+    // from HX_pressure_drop.xlsx, 'melted' into a three column format
+    // first column = x = Temp [C]
+    // second column = y = cell mass flow rate [kg/s]
+    // third column (dependent var) = z = pressure drop [-/m]
+    // 208 rows
+    std::vector<double> pressure_drop_vs_T_m_dot_input_{
+        500, 0.005, 0.000034, 520, 0.005, 0.000036, 540, 0.005, 0.000037, 560, 0.005, 0.000039, 580, 0.005, 0.00004,
+        600, 0.005, 0.000042, 620, 0.005, 0.000044, 640, 0.005, 0.000045, 660, 0.005, 0.000047, 680, 0.005, 0.000049,
+        700, 0.005, 0.00005, 720, 0.005, 0.000052, 740, 0.005, 0.000054, 760, 0.005, 0.000055, 780, 0.005, 0.000057,
+        800, 0.005, 0.000059, 500, 0.01, 0.000068, 520, 0.01, 0.000071, 540, 0.01, 0.000074, 560, 0.01, 0.000077,
+        580, 0.01, 0.000081, 600, 0.01, 0.000084, 620, 0.01, 0.000087, 640, 0.01, 0.00009, 660, 0.01, 0.000094,
+        680, 0.01, 0.000097, 700, 0.01, 0.0001, 720, 0.01, 0.000104, 740, 0.01, 0.000107, 760, 0.01, 0.000111,
+        780, 0.01, 0.000115, 800, 0.01, 0.000118, 500, 0.015, 0.000102, 520, 0.015, 0.000107, 540, 0.015, 0.000111,
+        560, 0.015, 0.000116, 580, 0.015, 0.000121, 600, 0.015, 0.000126, 620, 0.015, 0.000131, 640, 0.015, 0.000136,
+        660, 0.015, 0.000141, 680, 0.015, 0.000146, 700, 0.015, 0.000151, 720, 0.015, 0.000156, 740, 0.015, 0.000161,
+        760, 0.015, 0.000166, 780, 0.015, 0.000172, 800, 0.015, 0.000177, 500, 0.02, 0.000136, 520, 0.02, 0.000142,
+        540, 0.02, 0.000149, 560, 0.02, 0.000155, 580, 0.02, 0.000161, 600, 0.02, 0.000168, 620, 0.02, 0.000174,
+        640, 0.02, 0.000181, 660, 0.02, 0.000187, 680, 0.02, 0.000194, 700, 0.02, 0.000201, 720, 0.02, 0.000208,
+        740, 0.02, 0.000215, 760, 0.02, 0.000222, 780, 0.02, 0.000229, 800, 0.02, 0.000236, 500, 0.025, 0.00017,
+        520, 0.025, 0.000178, 540, 0.025, 0.000186, 560, 0.025, 0.000194, 580, 0.025, 0.000202, 600, 0.025, 0.00021,
+        620, 0.025, 0.000218, 640, 0.025, 0.000226, 660, 0.025, 0.000234, 680, 0.025, 0.000243, 700, 0.025, 0.000251,
+        720, 0.025, 0.00026, 740, 0.025, 0.000269, 760, 0.025, 0.000277, 780, 0.025, 0.000286, 800, 0.025, 0.000295,
+        500, 0.03, 0.000276, 520, 0.03, 0.000214, 540, 0.03, 0.000223, 560, 0.03, 0.000232, 580, 0.03, 0.000242,
+        600, 0.03, 0.000251, 620, 0.03, 0.000261, 640, 0.03, 0.000271, 660, 0.03, 0.000281, 680, 0.03, 0.000291,
+        700, 0.03, 0.000301, 720, 0.03, 0.000312, 740, 0.03, 0.000322, 760, 0.03, 0.000333, 780, 0.03, 0.000344,
+        800, 0.03, 0.000354, 500, 0.035, 0.000353, 520, 0.035, 0.000366, 540, 0.035, 0.000378, 560, 0.035, 0.00039,
+        580, 0.035, 0.000403, 600, 0.035, 0.000415, 620, 0.035, 0.000428, 640, 0.035, 0.00044, 660, 0.035, 0.000453,
+        680, 0.035, 0.000465, 700, 0.035, 0.000478, 720, 0.035, 0.000491, 740, 0.035, 0.000376, 760, 0.035, 0.000388,
+        780, 0.035, 0.000401, 800, 0.035, 0.000413, 500, 0.04, 0.00044, 520, 0.04, 0.000455, 540, 0.04, 0.00047,
+        560, 0.04, 0.000485, 580, 0.04, 0.0005, 600, 0.04, 0.000516, 620, 0.04, 0.000531, 640, 0.04, 0.000546,
+        660, 0.04, 0.000562, 680, 0.04, 0.000577, 700, 0.04, 0.000592, 720, 0.04, 0.000608, 740, 0.04, 0.000624,
+        760, 0.04, 0.000639, 780, 0.04, 0.000655, 800, 0.04, 0.000671, 500, 0.045, 0.000536, 520, 0.045, 0.000554,
+        540, 0.045, 0.000573, 560, 0.045, 0.000591, 580, 0.045, 0.000609, 600, 0.045, 0.000627, 620, 0.045, 0.000645,
+        640, 0.045, 0.000664, 660, 0.045, 0.000682, 680, 0.045, 0.0007, 700, 0.045, 0.000719, 720, 0.045, 0.000737,
+        740, 0.045, 0.000756, 760, 0.045, 0.000775, 780, 0.045, 0.000793, 800, 0.045, 0.000812, 500, 0.05, 0.001158,
+        520, 0.05, 0.001196, 540, 0.05, 0.001233, 560, 0.05, 0.001271, 580, 0.05, 0.001308, 600, 0.05, 0.001345,
+        620, 0.05, 0.001382, 640, 0.05, 0.00142, 660, 0.05, 0.001457, 680, 0.05, 0.001495, 700, 0.05, 0.001532,
+        720, 0.05, 0.001569, 740, 0.05, 0.001607, 760, 0.05, 0.001645, 780, 0.05, 0.001682, 800, 0.05, 0.00172,
+        500, 0.055, 0.002208, 520, 0.055, 0.002277, 540, 0.055, 0.002347, 560, 0.055, 0.002416, 580, 0.055, 0.002486,
+        600, 0.055, 0.002555, 620, 0.055, 0.002624, 640, 0.055, 0.002693, 660, 0.055, 0.002762, 680, 0.055, 0.002831,
+        700, 0.055, 0.0029, 720, 0.055, 0.002963, 740, 0.055, 0.003037, 760, 0.055, 0.003106, 780, 0.055, 0.003175,
+        800, 0.055, 0.003244, 500, 0.06, 0.003575, 520, 0.06, 0.003688, 540, 0.06, 0.003799, 560, 0.06, 0.00391,
+        580, 0.06, 0.004021, 600, 0.06, 0.004132, 620, 0.06, 0.004243, 640, 0.06, 0.004353, 660, 0.06, 0.004463,
+        680, 0.06, 0.004573, 700, 0.06, 0.004683, 720, 0.06, 0.004792, 740, 0.06, 0.004902, 760, 0.06, 0.005012,
+        780, 0.06, 0.005121, 800, 0.06, 0.00523, 500, 0.065, 0.004658, 520, 0.065, 0.004803, 540, 0.065, 0.004948,
+        560, 0.065, 0.005093, 580, 0.065, 0.005237, 600, 0.065, 0.005381, 620, 0.065, 0.005524, 640, 0.065, 0.005667,
+        660, 0.065, 0.00581, 680, 0.065, 0.005953, 700, 0.065, 0.006095, 720, 0.065, 0.006237, 740, 0.065, 0.006379,
+        760, 0.065, 0.006521, 780, 0.065, 0.006663, 800, 0.065, 0.006805
+    };
+    Bilinear_Interp pressure_drop_vs_T_m_dot_;
+
+	void hx_performance(bool is_hot_side_mdot, bool is_storage_side, double T_hot_in, double m_dot_known, double T_cold_in, double P_field,
 		double &eff, double &T_hot_out, double &T_cold_out, double &q_trans, double &m_dot_solved);
 
 public:
+
+    double length_;                  //[m]
+    double n_cells_;                 //[-]
 
 	C_heat_exchanger();
 
@@ -68,19 +123,21 @@ public:
 		double dt_des, double T_h_in_des, double T_h_out_des);
 
     void init(const sco2Properties &fluid_field, const HTFProperties &fluid_store, double q_transfer_des,
-        double dt_des, double T_h_in_des, double T_h_out_des);
+        double dt_des, double T_h_in_des, double T_h_out_des, double P_in /*kPa*/, double L /*m*/, double n_cells /*-*/);
 
-	void hx_charge_mdot_tes(double T_cold_tes, double m_dot_tes, double T_hot_field, 
+	void hx_charge_mdot_tes(double T_cold_tes, double m_dot_tes, double T_hot_field, double P_hot_field,
 		double &eff, double &T_hot_tes, double &T_cold_field, double &q_trans, double &m_dot_field);
 
-	void hx_discharge_mdot_tes(double T_hot_tes, double m_dot_tes, double T_cold_field,
+	void hx_discharge_mdot_tes(double T_hot_tes, double m_dot_tes, double T_cold_field, double P_cold_field,
 		double &eff, double &T_cold_tes, double &T_hot_field, double &q_trans, double &m_dot_field);
 
-	void hx_charge_mdot_field(double T_hot_field, double m_dot_field, double T_cold_tes,
+	void hx_charge_mdot_field(double T_hot_field, double m_dot_field, double T_cold_tes, double P_hot_field,
 		double &eff, double &T_cold_field, double &T_hot_tes, double &q_trans, double &m_dot_tes);
 
-	void hx_discharge_mdot_field(double T_cold_field, double m_dot_field, double T_hot_tes,
+	void hx_discharge_mdot_field(double T_cold_field, double m_dot_field, double T_hot_tes, double P_cold_field,
 		double &eff, double &T_hot_field, double &T_cold_tes, double &q_trans, double &m_dot_tes);
+
+    double PressureDropFrac(double T_avg /*C*/, double m_dot /*kg/s*/);      /*-*/
 
     void converged();
 };
@@ -352,26 +409,26 @@ public:
 
     virtual double get_hot_m_dot_available(double f_unavail, double timestep);  //[kg/s]
 
-	virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+	virtual void discharge_avail_est(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+    virtual void discharge_avail_est_both(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
+    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
 
 	// Calculate pumping power...???
-	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
 	virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
@@ -519,26 +576,26 @@ public:
 
     virtual double get_hot_m_dot_available(double f_unavail, double timestep);  //[kg/s]
 
-	virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+	virtual void discharge_avail_est(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+    virtual void discharge_avail_est_both(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
+    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
 
 	// Calculate pumping power...???
-	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
 	virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 	
@@ -683,8 +740,10 @@ public:
         double m_tes_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through tes loop
         double eta_pump;            //[-] Pump efficiency, for newer pumping calculations
         double P_avg;               //[kPa] Assumed pressure of the sco2 fluid
-        double dP_LTHX_perc;        //[%] HTF pressure drop in low-temp TES HX as percent of inlet pressure
-        double dP_HTHX_perc;        //[%] HTF pressure drop in high-temp TES HX as percent of inlet pressure
+        double L_LTHX;              //[m] length, low-temp discharge HX
+        double L_HTHX;              //[m] length, high-temp discharge HX
+        double n_cells_LTHX;        //[-] Number of cells in low-temp discharge HX
+        double n_cells_HTHX;        //[-] Number of cells in high-temp discharge HX
         bool tanks_in_parallel;     //[-] Whether the tanks are in series or parallel with the solar field. Series means field htf must go through storage tanks.
         bool has_hot_tank_bypass;   //[-] True if the bypass valve causes the field htf to bypass just the hot tank and enter the cold tank before flowing back to the field.
         double T_tank_hot_inlet_min; //[C] Minimum field htf temperature that may enter the hot tank
@@ -769,25 +828,25 @@ public:
 
     virtual double get_hot_m_dot_available(double f_unavail, double timestep);  //[kg/s]
 
-    virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+    virtual void discharge_avail_est(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
+    virtual void discharge_avail_est_both(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est);
 
-    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
+    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
 
     virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
 
-    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
     
-    virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
     
-    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
+    virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
     virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
@@ -796,6 +855,10 @@ public:
     virtual void idle(double timestep, double T_amb, C_csp_tes::S_csp_tes_outputs &outputs);
 
     virtual void converged();
+
+    double PressureDropLowTemp(double T_avg /*C*/, double P_in /*kPa*/, double m_dot /*kg/s*/);         /*kPa*/
+
+    double PressureDropHighTemp(double T_avg /*C*/, double P_in /*kPa*/, double m_dot /*kg/s*/);         /*kPa*/
 
     virtual int pressure_drops(double m_dot_sf, double m_dot_pb,
         double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating,

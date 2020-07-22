@@ -493,7 +493,7 @@ double C_csp_stratified_tes::get_hot_m_dot_available(double f_unavail, double ti
     return 0.0;
 }
 
-void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
+void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est)
 {
 	double f_storage = 0.0;		// for now, hardcode such that storage always completely discharges
 
@@ -505,7 +505,7 @@ void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, d
 	{
 		double eff, T_cold_tes;
 		eff = T_cold_tes = std::numeric_limits<double>::quiet_NaN();
-		mc_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, eff, T_cold_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+		mc_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, 101., eff, T_cold_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
 
 		// If above method fails, it will throw an exception, so if we don't want to break here, need to catch and handle it
 	}
@@ -524,18 +524,19 @@ void C_csp_stratified_tes::discharge_avail_est(double T_cold_K, double step_s, d
 	m_m_dot_tes_dc_max = m_dot_tank_disch_avail * step_s;		//[kg/s]
 }
 
-void C_csp_stratified_tes::discharge_avail_est_both(double T_cold_K, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est, double &m_dot_store_est)
+void C_csp_stratified_tes::discharge_avail_est_both(double T_cold_K, double P_cold_kPa, double step_s, double & q_dot_dc_est, double & m_dot_field_est, double & T_hot_field_est, double &m_dot_store_est)
 {
-    discharge_avail_est(T_cold_K, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
+    discharge_avail_est(T_cold_K, P_cold_kPa, step_s, q_dot_dc_est, m_dot_field_est, T_hot_field_est, m_dot_store_est);
 }
 
-void C_csp_stratified_tes::discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/)
+void C_csp_stratified_tes::discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/)
 {
     double T_hot_tank = mc_node_three.get_m_T_prev();	//[K]
 
     double eff, T_warm_tes, q_dot_dc_est;
     eff = T_hot_htf = std::numeric_limits<double>::quiet_NaN();
-    mc_hx.hx_discharge_mdot_field(T_cold_htf, m_dot_htf_in, T_hot_tank, eff, T_hot_htf, T_cold_store_est, q_dot_dc_est, m_dot_store_est);
+    mc_hx.hx_discharge_mdot_field(T_cold_htf, m_dot_htf_in, T_hot_tank, P_cold_htf,
+        eff, T_hot_htf, T_cold_store_est, q_dot_dc_est, m_dot_store_est);
 }
 
 void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est)
@@ -550,7 +551,8 @@ void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, doubl
 	{
 		double eff, T_hot_tes;
 		eff = T_hot_tes = std::numeric_limits<double>::quiet_NaN();
-		mc_hx.hx_charge_mdot_tes(T_cold_ini, m_dot_tank_charge_avail, T_hot_K, eff, T_hot_tes, T_cold_field_est, q_dot_ch_est, m_dot_field_est);
+		mc_hx.hx_charge_mdot_tes(T_cold_ini, m_dot_tank_charge_avail, T_hot_K, 101.,
+            eff, T_hot_tes, T_cold_field_est, q_dot_ch_est, m_dot_field_est);
 
 		// If above method fails, it will throw an exception, so if we don't want to break here, need to catch and handle it
 	}
@@ -569,7 +571,7 @@ void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, doubl
 	m_m_dot_tes_ch_max = m_dot_tank_charge_avail * step_s;		//[kg/s]
 }
 
-void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
+void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the hot discharge temperature on the HX side (if applicable) during FULL DISCHARGE. If no heat exchanger (direct storage),
 	//    the discharge temperature is equal to the average (timestep) hot tank outlet temperature
@@ -616,12 +618,13 @@ void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*
 
 }
 
-void C_csp_stratified_tes::discharge_full_both(double timestep, double T_amb, double T_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
+void C_csp_stratified_tes::discharge_full_both(double timestep, double T_amb, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
-    discharge_full(timestep, T_amb, T_htf_cold_in, T_htf_hot_out, m_dot_htf_out, outputs);
+    discharge_full(timestep, T_amb, T_htf_cold_in, P_htf_cold_in, T_htf_hot_out, m_dot_htf_out, outputs);
 }
 
-bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in /*K*/, double P_htf_cold_in /*kPa*/,
+    double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the hot discharge temperature on the HX side (if applicable). If no heat exchanger (direct storage),
 	// the discharge temperature is equal to the average (timestep) hot tank outlet temperature.
@@ -685,19 +688,21 @@ bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, 
 	return true;
 }
 
-bool C_csp_stratified_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
+bool C_csp_stratified_tes::discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tank /*kg/s*/, double T_htf_cold_in /*K*/, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
     return false;
 }
 
-void C_csp_stratified_tes::discharge_full_lt(double timestep, double T_amb, double T_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
+void C_csp_stratified_tes::discharge_full_lt(double timestep, double T_amb, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out, double & m_dot_htf_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
     return;
 }
 
-bool C_csp_stratified_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
+bool C_csp_stratified_tes::discharge_both(double timestep, double T_amb, double m_dot_htf_in, double T_htf_cold_in, double P_htf_cold_in /*kPa*/,
+    double & T_htf_hot_out, C_csp_tes::S_csp_tes_outputs & outputs)
 {
-    return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, T_htf_hot_out, outputs);
+    return discharge(timestep, T_amb, m_dot_htf_in, T_htf_cold_in, P_htf_cold_in,
+        T_htf_hot_out, outputs);
 }
 
 bool C_csp_stratified_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)

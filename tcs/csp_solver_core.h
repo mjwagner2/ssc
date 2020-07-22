@@ -428,10 +428,11 @@ public:
         double m_tz;            //[hr]
 		double m_shift;			//[deg]
         double m_elev;          //[m]
+        double m_P_in;          //[kPa]
 
 		S_csp_cr_init_inputs()
 		{
-			m_latitude = m_longitude = m_shift = m_tz = m_elev = std::numeric_limits<double>::quiet_NaN();
+			m_latitude = m_longitude = m_shift = m_tz = m_elev = m_P_in = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 	
@@ -444,14 +445,14 @@ public:
 		double m_q_dot_rec_des;			//[MW]
 		double m_A_aper_total;			//[m^2] Total solar field aperture area
         double m_dP_sf;                 //[kPa] Total field pressure drop
-        double m_P_rec_in_des;          //[kPa] Receiver inlet pressure after riser
-        double m_P_rec_out_des;         //[kPa] Receiver outlet pressure before downcomer
+        double m_P_cr_in_des;           //[kPa] Inlet pressure
+        double m_P_cr_out_des;          //[kPa] Outlet pressure
 
 		S_csp_cr_solved_params()
 		{
 			m_T_htf_cold_des = m_P_cold_des = m_x_cold_des = m_T_htf_cold_des =
 				m_q_dot_rec_des = m_A_aper_total = m_dP_sf =
-                m_P_rec_in_des = m_P_rec_out_des = std::numeric_limits<double>::quiet_NaN();
+                m_P_cr_in_des = m_P_cr_out_des = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 
@@ -489,6 +490,7 @@ public:
         bool m_is_recirculating;        //[-] Is field/receiver recirculating?
         double m_m_dot_store_tot;       //[kg/hr] Storage media mass flow rate
         double m_T_store_hot;           //[C] Hot storage media, weighted average
+		double m_P_htf_hot;			    //[kPa]
 			
 		// These are used for the parasitic class call(), so could be zero...
 		double m_E_fp_total;			//[MW] Solar field freeze protection power
@@ -508,7 +510,6 @@ public:
 		double m_dP_sf_sh;			//[bar] Pressure drop across the solar field superheater
 		double m_h_htf_hot;			//[kJ/kg]
 		double m_xb_htf_hot;		//[-]
-		double m_P_htf_hot;			//[kPa]
 			
 		S_csp_cr_out_solver()
 		{
@@ -562,12 +563,13 @@ public:
 		double m_q_dot_avail;		//[MWt] Estimated output if cr is ON and producing useful thermal power
 		double m_m_dot_avail;		//[kg/hr] Estimated output mass flow rate if cr is ON and producing useful thermal power
 		double m_T_htf_hot;			//[C] Estimated timestep-average outlet temperature
+        double m_P_htf_hot;			//[kPa] Estimated timestep-average outlet pressure
         double m_m_dot_store_avail; //[kg/hr] Estimated output mass flow of hot particles if cr is ON and producing useful thermal power
         double m_T_store_hot;       //[C] Estimated timestep-average outlet hot particle temperature
 
 		S_csp_cr_est_out()
 		{
-			m_q_startup_avail = m_q_dot_avail =	m_m_dot_avail = m_T_htf_hot = 
+			m_q_startup_avail = m_q_dot_avail =	m_m_dot_avail = m_T_htf_hot = m_P_htf_hot =
                 m_m_dot_store_avail = m_T_store_hot = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
@@ -731,10 +733,11 @@ public:
         double T_to_cr_at_des;		    //[K]
         double T_from_cr_at_des;		//[K]
         double P_lthx_in_at_des;        //[kPa]
+        double P_hthx_in_at_des;        //[kPa]
 
         S_csp_tes_init_inputs()
         {
-            T_to_cr_at_des = T_from_cr_at_des = P_lthx_in_at_des = std::numeric_limits<double>::quiet_NaN();
+            T_to_cr_at_des = T_from_cr_at_des = P_lthx_in_at_des = P_hthx_in_at_des = std::numeric_limits<double>::quiet_NaN();
         }
     };
 
@@ -786,25 +789,25 @@ public:
 
     virtual double get_hot_m_dot_available(double f_unavail, double timestep) = 0;   //kg/s
 
-    virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est) = 0;
+    virtual void discharge_avail_est(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est) = 0;
 	
-    virtual void discharge_avail_est_both(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est) = 0;
+    virtual void discharge_avail_est_both(double T_cold_K, double P_cold_kPa, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est, double &m_dot_store_est) = 0;
 
-    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/) = 0;
+    virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/) = 0;
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est) = 0;
 
-    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+    virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
-	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
-    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+    virtual bool discharge_tes_side(double timestep /*s*/, double T_amb /*K*/, double m_dot_tes_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
-    virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+    virtual bool discharge_both(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 	
-	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
-    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
+    virtual void discharge_full_both(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
 	virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
@@ -1064,8 +1067,8 @@ private:
     double m_rec_T_htf_hot_des;         //[K]
 	double m_q_dot_rec_des;				//[MW]
 	double m_A_aperture;				//[m2]
-    double m_P_rec_in_des;              //[kPa] after riser
-    double m_P_rec_out_des;             //[kPa] before downcomer
+    double m_P_cr_in_des;              //[kPa] after riser
+    double m_P_cr_out_des;             //[kPa] before downcomer
 
 		// Power cycle design parameters
 	double m_cycle_W_dot_des;			//[MW]

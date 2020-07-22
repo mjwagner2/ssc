@@ -63,10 +63,12 @@ C_csp_mspt_collector_receiver::C_csp_mspt_collector_receiver(C_pt_sf_perf_interp
 C_csp_mspt_collector_receiver::~C_csp_mspt_collector_receiver()
 {}
 
-void C_csp_mspt_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
+void C_csp_mspt_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 				C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
 {
 	mc_pt_heliostatfield.init();
+
+    mc_pt_receiver.m_P_cold_des = init_inputs.m_P_in;
 	mc_pt_receiver.init();
 
 	solved_params.m_T_htf_cold_des = mc_pt_receiver.m_T_htf_cold_des;       //[K]
@@ -117,7 +119,7 @@ double C_csp_mspt_collector_receiver::get_col_startup_power()
 
 double C_csp_mspt_collector_receiver::get_design_thermal_power()
 {
-    return mc_pt_receiver.m_q_rec_des * 1e-6;  //MWt, originally MW but converted to W in init() so converting back
+    return mc_pt_receiver.m_q_rec_des;  //MWt
 }
 
 C_pt_sf_perf_interp::S_outputs C_csp_mspt_collector_receiver::get_field_outputs()

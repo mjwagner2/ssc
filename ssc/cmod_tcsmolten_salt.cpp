@@ -139,9 +139,10 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "piping_loss_coeff",                  "Wetted loss coefficient for riser or downcomer",                                                                                          "W/m2/K",       "",                                  "Tower and Receiver",                       "?=5.0",                                                            "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "piping_riser_diam",                  "Piping riser inner diameter",                                                                                                             "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "piping_downcomer_diam",              "Piping downcomer inner diameter",                                                                                                         "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
-    { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "dP_recHX_perc",                      "HTF pressure drop in individual receiver HX",                                                                                             "%",            "",                                  "Tower and Receiver",                       "",                                                                 "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "T_rec_cold_des",                     "Individual receiver design cold temperature",                                                                                             "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "L_recHX",                            "Length of charge HX",                                                                                                                     "m",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "n_cells_recHX",                      "Number of cells in charge HX",                                                                                                            "-",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
 
     
     // TES parameters - general
@@ -164,8 +165,10 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "h_tank_min",                         "Minimum allowable HTF height in storage tank",                                                                                            "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "hot_tank_Thtr",                      "Minimum allowable hot tank HTF temperature",                                                                                              "C",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "hot_tank_max_heat",                  "Rated heater capacity for hot tank heating",                                                                                              "MW",           "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "dP_LTHX_perc",                       "HTF pressure drop in low-temp TES HX as percent of inlet pressure",                                                                       "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "dP_HTHX_perc",                       "HTF pressure drop in high-temp TES HX as percent of inlet pressure",                                                                      "%",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "L_LTHX",                             "Length of low-temp HX",                                                                                                                   "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "L_HTHX",                             "Length of high-temp HX",                                                                                                                  "m",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "n_cells_LTHX",                       "Number of cells in low-temp HX",                                                                                                          "-",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
+    { SSC_INPUT,     SSC_NUMBER, "n_cells_HTHX",                       "Number of cells in high-temp HX",                                                                                                         "-",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
 
     // Power Cycle Inputs
     { SSC_INPUT,     SSC_NUMBER, "T_pc_cold_des",                      "Power cycle design cold temperature",                                                                                                     "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
@@ -348,14 +351,14 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "rh",                                 "Resource relative humidity",                                                                                                              "%",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "wspd",                               "Resource wind velocity",                                                                                                                  "m/s",          "",                                  "",                                         "*",                                                                "",              ""},
 
-    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf1",                              "Solar field area assigned receiver 1",                                                                                              "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf2",                              "Solar field area assigned receiver 2",                                                                                              "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf3",                              "Solar field area assigned receiver 3",                                                                                              "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf1",                              "Solar field area assigned receiver 1",                                                                                                    "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf2",                              "Solar field area assigned receiver 2",                                                                                                    "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "A_sf3",                              "Solar field area assigned receiver 3",                                                                                                    "m^2",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "q_sf_inc",                           "Field incident thermal power",                                                                                                            "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
-    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field_tot",                      "Field optical efficiency total",                                                                                                                "",             "",                                  "",                                         "*",                                                                "",              ""},
-    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field1",                         "Field optical efficiency 1",                                                                                                                "",             "",                                  "",                                         "*",                                                                "",              ""},
-    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field2",                         "Field optical efficiency 2",                                                                                                                "",             "",                                  "",                                         "*",                                                                "",              ""},
-    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field3",                         "Field optical efficiency 3",                                                                                                                "",             "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field_tot",                      "Field optical efficiency total",                                                                                                          "",             "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field1",                         "Field optical efficiency 1",                                                                                                              "",             "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field2",                         "Field optical efficiency 2",                                                                                                              "",             "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_ARRAY,  "eta_field3",                         "Field optical efficiency 3",                                                                                                              "",             "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "defocus",                            "Field optical focus fraction",                                                                                                            "",             "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "sf_adjust_out",                      "Field availability adjustment factor",                                                                                                    "",             "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_rec_inc",                      "Tower incident thermal power",                                                                                                            "MWt",          "",                                  "",                                         "*",                                                                "",              ""},
@@ -907,7 +910,6 @@ public:
         
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = std::numeric_limits<double>::quiet_NaN(); // as_double("epsilon");
-        receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") * (1. - as_double("dP_LTHX_perc")/100.);       //[kPa]
         receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
         receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
@@ -917,6 +919,7 @@ public:
         receiver->m_m_dot_htf_max_frac = receiver2->m_m_dot_htf_max_frac = receiver3->m_m_dot_htf_max_frac = as_double("csp.pt.rec.max_oper_frac");
         receiver->m_eta_pump = receiver2->m_eta_pump = receiver3->m_eta_pump = as_double("eta_pump");
         receiver->m_night_recirc = receiver2->m_night_recirc = receiver3->m_night_recirc = 0;
+        //receiver->m_P_cold_des = receiver2->m_P_cold_des = receiver3->m_P_cold_des = as_double("P_phx_in_co2_des") - P_drop_low_temp_tes;       // [kPa]
 
         // Now try to instantiate mspt_collector_receiver
         C_csp_mspt_collector_receiver collector_receiver(heliostatfield, *receiver);
@@ -933,13 +936,34 @@ public:
         tower.hx_duty = as_double("P_ref") / as_double("design_eff") * 1.E6;  //[Wt], indiv. HX duty = q_pb_design
         tower.m_dt_hot = as_double("dt_charging");               //[C]
         tower.T_rec_hot_des = as_double("T_rec_hot_des");        //[C]
+        tower.T_rec_cold_des = as_double("T_rec_cold_des");      //[C]
         tower.T_hx_cold_des = as_double("T_tes_cold_des");       //[C]
-        tower.h_lift = as_double("h_tower") * 1.1;      //[m] Lift height is 10% taller than receiver optical midline
+        tower.h_lift = as_double("h_tower") * 1.1;               //[m] Lift height is 10% taller than receiver optical midline
         tower.riser_length = as_double("h_tower") * as_double("piping_length_mult") + as_double("piping_length_const");  //[m]
-        tower.riser_diam = as_double("piping_riser_diam");  //[m]
+        tower.riser_diam = as_double("piping_riser_diam");       //[m]
         tower.downcomer_diam = as_double("piping_downcomer_diam");  //[m]
-        tower.dP_recHX_perc = as_double("dP_recHX_perc"); //[%]
-        tower.pipe_loss_per_m = as_double("piping_loss");                //[Wt/m]
+        tower.L_recHX = as_double("L_recHX");                    //[m]
+        tower.n_cells_recHX = as_double("n_cells_recHX");        //[-]
+        tower.pipe_loss_per_m = as_double("piping_loss");        //[Wt/m]
+
+        // Calculate tower inlet pressure using power block outlet pressure and a temporary HX representing the tes low-temp HX
+        double T_in_pb = as_double("T_pc_hot_des");                // [C]
+        double T_out_pb = as_double("T_pc_cold_des");              // [C]
+        double T_avg_pb = 0.5 * (T_in_pb + T_out_pb);              // [C]
+        double P_avg_pb = 0.5 * (as_double("P_phx_in_co2_des") + as_double("P_turb_in_co2_des")); // [kPa]
+        double Q_pb = as_double("P_ref") / as_double("design_eff") * 1.e3;                      // [kWt]
+        sco2Properties sco2_properties;
+        double cp_pb = sco2_properties.Cp(T_avg_pb + 273.15, P_avg_pb);                         // [kJ/kg-K]
+        double m_dot_pb = Q_pb / (cp_pb * (T_in_pb - T_out_pb));                                // [kg/s]
+        double m_dot_hx = m_dot_pb;
+        double T_avg_hx = 0.5 * (as_double("T_pc_cold_des") + as_double("T_rec_cold_des"));     // [C]
+        double P_in_hx = as_double("P_phx_in_co2_des");                                         // [kPa]
+        C_heat_exchanger* tes_lowtemp_hx_for_calcs = new C_heat_exchanger;
+        tes_lowtemp_hx_for_calcs->length_ = as_double("L_LTHX");
+        tes_lowtemp_hx_for_calcs->n_cells_ = as_double("n_cells_LTHX");
+        double P_drop_low_temp_tes = tes_lowtemp_hx_for_calcs->PressureDropFrac(T_avg_hx, m_dot_hx) * P_in_hx; // [kPa]
+        tower.P_cold_des = as_double("P_phx_in_co2_des") - P_drop_low_temp_tes;                 // [kPa]
+        delete tes_lowtemp_hx_for_calcs;
 
         // *******************************************************
         // *******************************************************
@@ -1047,10 +1071,15 @@ public:
         tes->m_htf_pump_coef = as_double("pb_pump_coef");
         tes->m_tes_pump_coef = as_double("tes_pump_coef");             //[kWe/kg/s]
         tes->eta_pump = as_double("eta_pump");                  //[-]
-        tes->P_avg = (as_double("P_phx_in_co2_des") + as_double("P_turb_in_co2_des")) / 2 * 1.e3;  //[kPa]
-        tes->dP_LTHX_perc = as_double("dP_LTHX_perc");          //[%]
-        tes->dP_HTHX_perc = as_double("dP_HTHX_perc");          //[%]
-
+        tes->P_avg = 0.5 * (as_double("P_phx_in_co2_des") + as_double("P_turb_in_co2_des"));  //[kPa]
+        tes->L_LTHX = as_double("L_LTHX");                 //[m]
+        tes->L_HTHX = as_double("L_HTHX");                 //[m]
+        tes->n_cells_LTHX = as_double("n_cells_LTHX");     //[-]
+        tes->n_cells_HTHX = as_double("n_cells_HTHX");     //[-]
+        //storage.L_LTHX = as_double("L_LTHX");                 //[m]
+        //storage.L_HTHX = as_double("L_HTHX");                 //[m]
+        //storage.n_cells_LTHX = as_double("n_cells_LTHX");     //[-]
+        //storage.n_cells_HTHX = as_double("n_cells_HTHX");     //[-]
 
         // TOU parameters
         C_csp_tou_block_schedules tou;

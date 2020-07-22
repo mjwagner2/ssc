@@ -5,12 +5,12 @@ Pressure Range: 1.0 kPa to 60.0 MPa
 FIT Version: 4cd1a62f8548
 
 ----------------------------------------------------------------------------------------------------
-ó
+‚Äî
 Copyright (c) 2016, Northland Numerics LLC
 All rights reserved.
 
 Use of this software in source and binary forms, with or without modification, is permitted for
-Alliance for Sustainable Energy, LLC (the ìLicenseeî) and for third parties that receive this
+Alliance for Sustainable Energy, LLC (the ‚ÄúLicensee‚Äù) and for third parties that receive this
 software, with or without modification, directly from Licensee.  Licensee is permitted to
 redistribute this software in source and binary forms, with or without modification, provided
 that redistributions of source code must retain the above copyright notice and reservation of
@@ -31,7 +31,7 @@ OR LOSS OF USE, DATA, OR PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE), ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ó
+‚Äî
 
 ----------------------------------------------------------------------------------------------------
 
@@ -85,6 +85,8 @@ For more information, contact Northland Numerics at: support@nnumerics.com
 
 #include "htf_props.h"
 
+const double P_kPa_default = 22.e3;
+
 typedef struct CO2_info
     {
     double molar_mass;        // molar mass of fluid (kg/kmol)
@@ -125,11 +127,11 @@ public:
     CO2_info co2_info;
     CO2_state co2_state;
 
-    double P_kPa_default = 22.e3;
-
     virtual double Cp(double T_K);    //[kJ/kg-K]
+	virtual double Cp(double T_K, double P_kPa);
     virtual double dens(double T_K, double P);
     virtual double visc(double T_K);
+    virtual double visc(double T_K, double P_kPa);
     virtual double cond(double T_K);
     virtual double Cv(double T_K);
     virtual double kin_visc(double T_K, double P);

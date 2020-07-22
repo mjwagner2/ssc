@@ -48,8 +48,9 @@ private:
 
     std::string error_msg;                  // member string for exception messages
 
-    double m_P_rec_in_des;          // [kPa] Receiver (after riser) inlet pressure at design
-    double m_q_dot_piping_one_way;  // [kWt] Thermal loss of tower piping in one direction, e.g. riser heat losses
+    double m_P_cr_in_des;            // [kPa] Receiver (after riser) inlet pressure at design
+    double m_P_riser_out_des;        // [kPa] Riser outlet pressure at design
+    double m_q_dot_piping_one_way;   // [kWt] Thermal loss of tower piping in one direction, e.g. riser heat losses
 
 public:
 	
@@ -131,14 +132,17 @@ public:
     util::matrix_t<double> m_tes_fl_props;
     double hx_duty;
     double m_dt_hot;
-    double T_rec_hot_des;
+    double T_rec_hot_des;       // [C]
+    double T_rec_cold_des;      // [C]
     double T_hx_cold_des;       // design cold inlet temperature on storage side
     double h_lift;              // [m] Effective lift height
     double riser_diam;          // [m] Riser inner diameter
-    double downcomer_diam;          // [m] Downcomer inner diameter
+    double downcomer_diam;      // [m] Downcomer inner diameter
     double riser_length;        // [m] Total riser length for pressure drop calc
-    double dP_recHX_perc;       // [%] HTF pressure drop in individual receiver HX as percent of inlet pressure
+    double L_recHX;             // [m] length of a charge HX
+    double n_cells_recHX;       // [-] Number of cells in a charge HX
     double pipe_loss_per_m;     // [Wt/m] Thermal losses per meter of riser/downcomer piping
+    double P_cold_des;          // [kPa] Pressure into tower/riser at design
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

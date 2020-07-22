@@ -105,9 +105,9 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
 	mc_reported_outputs.construct(S_output_info);
     hxs.assign(collector_receivers.size(), C_heat_exchanger());
 
-    m_P_rec_in_des = std::numeric_limits<double>::quiet_NaN();      //[kPa]
-    pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();     //[Wt/m]
+    m_P_riser_out_des = std::numeric_limits<double>::quiet_NaN();       //[kPa]
     m_q_dot_piping_one_way = std::numeric_limits<double>::quiet_NaN();  //[kWt]
+    pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();         //[Wt/m]
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -132,7 +132,7 @@ static double f_dP_riser(double m_dot, double T_avg_C, double P_in, double D_inn
 
     //calculate fluid propertise
     double rho = fluid.dens(T_avg_C + 273.15, P_in * 1.e3);
-    double mu = fluid.visc(T_avg_C + 273.15);
+    double mu = fluid.visc(T_avg_C + 273.15, P_in);
 
     //fluid velocity
     double V = m_dot / (rho * PI / 4 * D_inner*D_inner);
@@ -147,7 +147,7 @@ static double f_dP_riser(double m_dot, double T_avg_C, double P_in, double D_inn
     return dp/1000.;        //kPa
 }
 
-void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
+void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs, 
 				C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
 {
     // Declare instance of fluid class for FIELD fluid
@@ -215,77 +215,68 @@ void C_csp_tower_collector_receiver::init(const C_csp_collector_receiver::S_csp_
     }
 
     T_rec_hot_des += 273.15;    //[K] convert from C
+    T_rec_cold_des += 273.15;   //[K] convert from C
     T_hx_cold_des += 273.15;    //[K] convert from C
 
     C_csp_collector_receiver::S_csp_cr_solved_params _solved_params;
     double A_aper_total = 0.;
     double dP_sf = 0.;              //[kPa]
-    double dP_sf_no_piping = 0.0;   //[kPa]
-    double P_prev = std::numeric_limits<double>::quiet_NaN();   //[kPa]
-
+    double P_prev = P_cold_des;     //[kPa]  pressure into the next component, initially the riser
     double m_dot_co2_des = std::numeric_limits<double>::quiet_NaN();    //[kg/s]
-    double q_dot_rec_des_single = std::numeric_limits<double>::quiet_NaN();    //[MWt]
     double q_dot_rec_des_total = 0.;
 
+    // Riser pressure loss, via an estimated first receiver mass flow
+    double T_avg_rec_des = 0.5 * (T_rec_hot_des + T_rec_cold_des);                              // [K]
+    double cp_avg = mc_field_htfProps.Cp(T_avg_rec_des, P_prev);
+    double q_dot_des_first_rec = collector_receivers.at(0).get_design_thermal_power();          // [MWt]
+    m_dot_co2_des = q_dot_des_first_rec*1000. / (cp_avg * (T_rec_hot_des - T_rec_cold_des));    // [kg/s]
+    double T_riser_in = T_rec_cold_des;        // [K] assuming equal to first receiver cold design temperature
+    double P_drop_riser = f_dP_riser(m_dot_co2_des, T_riser_in - 273.15, P_prev, riser_diam, riser_length, mc_field_htfProps); // [kPa]
+    dP_sf += P_drop_riser;
+    P_prev -= P_drop_riser;     // [kPa] pressure after riser before first receiver
+    m_P_riser_out_des = P_prev;
+
+    // Receivers (with subfields) and charging HXs
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
+        // Receiver
+        init_inputs.m_P_in = P_prev;
         collector_receivers.at(i).init(init_inputs, _solved_params);
-
         q_dot_rec_des_total += _solved_params.m_q_dot_rec_des;      //[MWt]
-
-        if (i == 0) {
-
-            q_dot_rec_des_single = _solved_params.m_q_dot_rec_des;     //[MWt]
-
-            solved_params.m_T_htf_cold_des = _solved_params.m_T_htf_cold_des;
-            solved_params.m_x_cold_des = _solved_params.m_x_cold_des;
-            
-            //calculate mass flow based on the power from the first receiver
-            double cp_avg = mc_field_htfProps.Cp(solved_params.m_T_htf_cold_des);
-            m_dot_co2_des = q_dot_rec_des_single*1000. / (cp_avg * (T_rec_hot_des - solved_params.m_T_htf_cold_des));     //kg/s
-            
-            //riser pressure loss
-            double dpr = f_dP_riser(m_dot_co2_des, solved_params.m_T_htf_cold_des - 273.15, _solved_params.m_P_cold_des, riser_diam, riser_length, mc_field_htfProps); //[kPa]
-            dP_sf += dpr;
-            P_prev = _solved_params.m_P_cold_des - dpr;    //[kPa]      // pressure after riser before first receiver
-            m_P_rec_in_des = P_prev;      //[kPa]
-        }
-
         A_aper_total += _solved_params.m_A_aper_total;
         double dP_rec = _solved_params.m_dP_sf;
         dP_sf += dP_rec;
-        P_prev -= dP_rec;
-        dP_sf_no_piping += dP_rec;
-        
-        hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot);
-        //comment lines below when HX has a calculated pressure drop
-        double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
+        P_prev -= dP_rec;                 //[kPa]
+
+        // HX
+        hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot, P_prev, L_recHX, n_cells_recHX);
+        double T_avg_hx = 0.5 * (T_rec_hot_des + (T_hx_cold_des + m_dt_hot));
+        double dP_hx = std::abs(hxs.at(i).PressureDropFrac(T_avg_hx - 273.15, m_dot_co2_des) * P_prev);
         dP_sf += dP_hx;
         P_prev -= dP_hx;
-        dP_sf_no_piping += dP_hx;
-
-        if (i == collector_receivers.size()-1) {
-
-            solved_params.m_P_rec_out_des = P_prev; //[kPa]
-
-            //downcomer pressure loss
-            double dpr = f_dP_riser(m_dot_co2_des, solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
-            dP_sf += dpr;
-        }
     }
+
+    //Downcomer pressure loss
+    double P_drop_downcomer = f_dP_riser(m_dot_co2_des, _solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+    dP_sf += P_drop_downcomer;
+    P_prev -= P_drop_downcomer;
+
 
     if (std::isfinite(riser_length) && riser_length > 0.0) {
         m_q_dot_piping_one_way = pipe_loss_per_m * 1.E-3 * riser_length;    //[kWt]
     }
-    else
-    {
+    else {
         m_q_dot_piping_one_way = 0.0;   
     }
 
-    solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // of last receiver
-    solved_params.m_q_dot_rec_des = q_dot_rec_des_total;        //[MWt] Total (sum of all three receivers) thermal power
+    solved_params.m_T_htf_cold_des = T_riser_in;   // [K]
+    solved_params.m_P_cold_des = P_cold_des;       // [kPa]
+    solved_params.m_x_cold_des = std::numeric_limits<double>::quiet_NaN();
+    solved_params.m_T_htf_hot_des = _solved_params.m_T_htf_hot_des;     // downcomer outlet, assumed equal to outlet of last receiver
+    solved_params.m_q_dot_rec_des = q_dot_rec_des_total;                // [MWt] Total (sum of all three receivers) thermal power
     solved_params.m_A_aper_total = A_aper_total;
     solved_params.m_dP_sf = dP_sf;
-    solved_params.m_P_rec_in_des = m_P_rec_in_des;      //[kPa]
+    solved_params.m_P_cr_in_des = P_cold_des;      // [kPa]
+    solved_params.m_P_cr_out_des = P_prev;         // [kPa]
 
 	return;
 }
@@ -478,7 +469,6 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
 
     if (!is_rec_recirc) {
-        // Assume no riser if receivers are recirculating
         /*
         We first need to calculate riser pressure drop, because it affects downstream performance.
         This is an implicit calculation, so we will estimate using only the first receiver.
@@ -529,14 +519,14 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     }
     else {
 
-        dP_riser = 0.0;         //[kPa]
+        dP_riser = 0.0;         //[kPa] assume no riser if receivers are recirculating
         double eta_comp = 0.7;  //[-] compressor isentropic efficiency placeholder - pass as input parameter from cmod
 
         int comp_code = 0;
         double h_comp_in, s_comp_in, rho_comp_in, T_comp_out, h_comp_out, s_comp_out, rho_comp_out;
         h_comp_in = s_comp_in = rho_comp_in = T_comp_out = h_comp_out = s_comp_out = rho_comp_out = comp_spec_work = std::numeric_limits<double>::quiet_NaN();
 
-        calculate_turbomachinery_outlet_1(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, m_P_rec_in_des,
+        calculate_turbomachinery_outlet_1(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, m_P_riser_out_des,
             eta_comp, true, comp_code,
             h_comp_in, s_comp_in, rho_comp_in,
             T_comp_out, h_comp_out, s_comp_out, rho_comp_out, comp_spec_work);
@@ -548,7 +538,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             throw(C_csp_exception("CO2 rec recirculator compression calcs failed", "CO2 tower receiver"));
         }
 
-        htf_state_in_next.m_pres = m_P_rec_in_des;  //[kPa]
+        htf_state_in_next.m_pres = m_P_riser_out_des;   //[kPa]
         htf_state_in_next.m_temp = T_comp_out - 273.15; //[C]
     }
     cr_out_solver.m_dP_sf += dP_riser;
@@ -579,8 +569,10 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
-        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., T_tes_cold,
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., T_tes_cold, P_prev,
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+        double T_avg_recHX = 0.5 * (cr_out_solver_prev.m_T_salt_hot + 273.15 + T_cold_rec_K);
+        double dP_recHX_perc = hxs.at(i).PressureDropFrac(T_avg_recHX - 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600.) * 100.;
         double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         cr_out_solver.m_dP_sf += dP_hx;
         P_prev -= dP_hx;
@@ -828,8 +820,10 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
-        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(),
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(), P_prev,
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
+        double T_avg_recHX = 0.5 * (cr_out_solver_prev.m_T_salt_hot + 273.15 + T_cold_rec_K);
+        double dP_recHX_perc = hxs.at(i).PressureDropFrac(T_avg_recHX - 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600.) * 100.;
         double dP_hx = std::abs(P_prev * dP_recHX_perc / 100.);
         cr_out_solver.m_dP_sf += dP_hx;
         P_prev -= dP_hx;
@@ -1020,6 +1014,7 @@ void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outp
 		est_out.m_T_htf_hot = cr_out_solver.m_T_salt_hot;		    	//[C], last receiver
         est_out.m_m_dot_store_avail = cr_out_solver.m_m_dot_store_tot;  //[kg/hr]
         est_out.m_T_store_hot = cr_out_solver.m_T_store_hot;            //[C]
+        est_out.m_P_htf_hot = cr_out_solver.m_P_htf_hot;                //[kPa]
 	}
 	else {
 		est_out.m_q_startup_avail = cr_out_solver.m_q_thermal;  		//[MWt]
@@ -1028,6 +1023,7 @@ void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outp
 		est_out.m_T_htf_hot = std::numeric_limits<double>::quiet_NaN();
         est_out.m_m_dot_store_avail = 0.;
         est_out.m_T_store_hot = std::numeric_limits<double>::quiet_NaN();
+        est_out.m_P_htf_hot = cr_out_solver.m_P_htf_hot;                //[kPa]
 	}
 }
 

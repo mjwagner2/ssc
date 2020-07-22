@@ -91,6 +91,7 @@ public:
 	virtual double Cp( double T_K );    //[kJ/kg-K]
 	virtual double dens( double T_K, double P );
 	virtual double visc( double T_K );
+    virtual double visc(double T_K, double kPa);
 	virtual double cond( double T_K );
 	virtual double Cv( double T_K );
 	virtual double kin_visc( double T_K, double P );

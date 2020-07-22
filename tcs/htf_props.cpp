@@ -474,6 +474,11 @@ double HTFProperties::visc(double T_K)
 	}
 }
 
+double HTFProperties::visc(double T_K, double kPa)
+{
+	return 0.0;
+}
+
 double HTFProperties::cond(double T_K)
 {
 	/* Input: temperature [K]

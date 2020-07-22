@@ -82,12 +82,23 @@ void C_mspt_receiver::init()
 	m_T_htf_cold_des += 273.15;	//[K] Convert from input in [C]
 	m_q_rec_des *= 1.E6;		//[W] Convert from input in [MW]
 
-	m_mode = C_csp_collector_receiver::OFF;					//[-] 0 = requires startup, 1 = starting up, 2 = running
-	m_itermode = 1;			//[-] 1: Solve for design temp, 2: solve to match mass flow restriction
+	m_mode = C_csp_collector_receiver::OFF;     //[-] 0 = requires startup, 1 = starting up, 2 = running
+	m_itermode = 1;			    //[-] 1: Solve for design temp, 2: solve to match mass flow restriction
 	m_od_control = 1.0;			//[-] Additional defocusing for over-design conditions
-	m_tol_od = 0.001;		//[-] Tolerance for over-design iteration
+	m_tol_od = 0.001;		    //[-] Tolerance for over-design iteration
 
-	double c_htf_des = field_htfProps.Cp((m_T_htf_hot_des + m_T_htf_cold_des) / 2.0)*1000.0;		//[J/kg-K] Specific heat at design conditions
+    //set up the lookup tables
+    m_efficiency_lookup.Set_2D_Lookup_Table(m_efficiency_lookup_input);     // receiver efficiency [-]          vs. mass flow fraction [-] and inlet temperature [C]
+    m_pressure_lookup.Set_2D_Lookup_Table(m_pressure_lookup_input);         // receiver pressure drop [kPa]     vs. mass flow fraction [-] and inlet pressure [kPa]
+
+    //receiver design efficiency and pressure drop
+    m_eta_rec_des = m_efficiency_lookup.bilinear_2D_interp(1., m_T_htf_cold_des - 273.15);
+    m_dp_rec_des = m_pressure_lookup.bilinear_2D_interp(1., m_P_cold_des);	//kPa
+
+
+    double T_design_avg = (m_T_htf_hot_des + m_T_htf_cold_des) / 2.;   // [C]
+    double P_design_avg = m_P_cold_des - m_dp_rec_des / 2.;            // [kPa]
+	double c_htf_des = field_htfProps.Cp(T_design_avg, P_design_avg)*1000.0;		//[J/kg-K] Specific heat at design conditions
 	m_m_dot_htf_des = m_q_rec_des / (c_htf_des*(m_T_htf_hot_des - m_T_htf_cold_des));					//[kg/s]
 	double eta_therm_des = 0.9;
 	m_q_dot_inc_min = m_q_rec_des * m_f_rec_min / eta_therm_des;	//[W] Minimum receiver thermal power
@@ -111,16 +122,6 @@ void C_mspt_receiver::init()
 	m_T_salt_hot_target += 273.15;			//[K] convert from C
 	
 
-    //set up the lookup tables
-    m_efficiency_lookup.Set_2D_Lookup_Table(m_efficiency_lookup_input);
-    m_pressure_lookup.Set_2D_Lookup_Table(m_pressure_lookup_input);
-
-    //calculate reference receiver efficiency
-    m_eta_rec_des = m_efficiency_lookup.bilinear_2D_interp(1., m_T_htf_cold_des - 273.15); 
-
-	//calculate receiver nominal pressure drop - informational
-	m_dp_rec_des = m_pressure_lookup.bilinear_2D_interp(1., m_P_cold_des/1000.);	//kPa
-
 	param_inputs.T_amb = std::numeric_limits<double>::quiet_NaN();
     param_inputs.T_sky = std::numeric_limits<double>::quiet_NaN();
     param_inputs.c_htf = std::numeric_limits<double>::quiet_NaN();
@@ -129,7 +130,6 @@ void C_mspt_receiver::init()
     param_inputs.k_htf = std::numeric_limits<double>::quiet_NaN();
     param_inputs.Pr_htf = std::numeric_limits<double>::quiet_NaN();
 	
-    //force paramters
     m_night_recirc = 0;
 
 	return;
@@ -158,10 +158,10 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 
 	// Get sim info 
 	double step = sim_info.ms_ts.m_step;			//[s]
-	double time = sim_info.ms_ts.m_time;	//[s]
+	double time = sim_info.ms_ts.m_time;	        //[s]
 
 	// Get applicable htf state info
-	double T_salt_cold_in = htf_state_in.m_temp;		//[C]
+	double T_salt_cold_in = htf_state_in.m_temp;	//[C]
     double P_in = htf_state_in.m_pres;				//[kPa]
 
 	// Complete necessary conversions/calculations of input variables
@@ -215,7 +215,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	}
 
 	double T_coolant_prop = (m_T_salt_hot_target + T_salt_cold_in) / 2.0;		//[K] The temperature at which the coolant properties are evaluated. Validated as constant (mjw)
-	double c_p_coolant = field_htfProps.Cp(T_coolant_prop)*1000.0;						//[J/kg-K] Specific heat of the coolant
+	double c_p_coolant = field_htfProps.Cp(T_coolant_prop, P_in)*1000.0;		//[J/kg-K] Specific heat of the coolant
 
 	double m_dot_htf_max = m_m_dot_htf_max;
     
@@ -253,7 +253,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
         m_q_dot_loss = (1. - eta_therm) * m_q_dot_inc; 		//[W] Total reciever losses
 		m_q_dot_abs = m_q_dot_inc - m_q_dot_loss;	//[W] Absorbed flux at each node
 				
-		rho_coolant = field_htfProps.dens(T_coolant_prop, 1.0);			//[kg/m^3] Density of the coolant
+		rho_coolant = field_htfProps.dens(T_coolant_prop, P_in * 1.e3 /*Pa*/);			//[kg/m^3] Density of the coolant
 
         m_dot_salt = m_q_dot_abs / (c_p_coolant*(m_T_salt_hot_target - T_salt_cold_in));			//[kg/s]
 

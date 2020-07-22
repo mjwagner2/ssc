@@ -240,7 +240,7 @@ C_csp_lf_dsg_collector_receiver::C_csp_lf_dsg_collector_receiver()
 
 }
 
-void C_csp_lf_dsg_collector_receiver::init(const C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs,
+void C_csp_lf_dsg_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_init_inputs init_inputs,
 	C_csp_collector_receiver::S_csp_cr_solved_params & solved_params)
 {
 	// Save init_inputs to member data

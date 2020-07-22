@@ -545,7 +545,9 @@ void C_pc_Rankine_indirect_224::init(C_csp_power_cycle::S_solved_params &solved_
 	}
 
 	// Calculate design point HTF mass flow rate
-	m_cp_htf_design = mc_pc_htfProps.Cp(physics::CelciusToKelvin((ms_params.m_T_htf_hot_ref + ms_params.m_T_htf_cold_ref) / 2.0));		//[kJ/kg-K]
+    double T_avg_htf_des = physics::CelciusToKelvin((ms_params.m_T_htf_hot_ref + ms_params.m_T_htf_cold_ref) / 2.0);    // [K]
+    double P_avg_htf_des = 0.5 * (ms_params.m_P_phx_in_co2_des + ms_params.m_P_turb_in_co2_des) * 1.e3;                 // [kPa]
+	m_cp_htf_design = mc_pc_htfProps.Cp(T_avg_htf_des, P_avg_htf_des);		//[kJ/kg-K]
 
 	ms_params.m_P_ref *= 1000.0;		//[kW] convert from MW
 	m_q_dot_design = ms_params.m_P_ref / 1000.0 / ms_params.m_eta_ref;	//[MWt]
@@ -916,7 +918,9 @@ double C_pc_Rankine_indirect_224::get_efficiency_at_load(double load_frac, doubl
 
 	if( !ms_params.m_is_user_defined_pc )
 	{
-		double cp = mc_pc_htfProps.Cp( (ms_params.m_T_htf_cold_ref + ms_params.m_T_htf_hot_ref)/2. +273.15);  //kJ/kg-K
+        double T_avg_pc = physics::CelciusToKelvin((ms_params.m_T_htf_cold_ref + ms_params.m_T_htf_hot_ref)/2.);        // [K]
+        double P_avg_pc = 0.5 * (ms_params.m_P_turb_in_co2_des + ms_params.m_P_phx_in_co2_des) * 1.e3;                  // [kPa]
+		double cp = mc_pc_htfProps.Cp( T_avg_pc, P_avg_pc);  // kJ/kg-K
 
 		//calculate mass flow    [kg/hr]
 		double mdot = ms_params.m_P_ref /* kW */ / ( /*ms_params.m_eta_ref*/m_eta_adj * cp * (ms_params.m_T_htf_hot_ref - ms_params.m_T_htf_cold_ref) ) *3600.;
@@ -1078,7 +1082,9 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 	{
 	case STARTUP:
 		{
-			double c_htf = mc_pc_htfProps.Cp(physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0));		//[kJ/kg-K]
+            double T_avg_pc = physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0);     // [K]
+            double P_avg_pc = 0.5 * (htf_state_in.m_pres + ms_params.m_P_phx_in_co2_des * 1.e3);            // [kPa]
+            double c_htf = mc_pc_htfProps.Cp(T_avg_pc, P_avg_pc);		                                    // [kJ/kg-K]
 
 			double time_required_su_energy = m_startup_energy_remain_prev / (m_dot_htf*c_htf*(T_htf_hot - ms_params.m_T_htf_cold_ref)/3600);	//[hr]
 			double time_required_su_ramping = m_startup_time_remain_prev;	//[hr]
@@ -1209,7 +1215,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
 							//mc_cold_storage.idle(step_sec, T_db, mc_cold_storage_outputs);				//Idle tank if not enough mass during day (should not happen if tank sized well)
 
-							mc_two_tank_ctes.discharge(step_sec, T_db, m_dot_radfield, T_rad_out, T_rad_in, mc_two_tank_ctes_outputs);
+							mc_two_tank_ctes.discharge(step_sec, T_db, m_dot_radfield, T_rad_out, 101., T_rad_in, mc_two_tank_ctes_outputs);
 							radcool_cntrl = 998;
 							//throw error? not cooling power cycle!
 						}
@@ -1490,7 +1496,9 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 
 	case STANDBY:
 		{
-			double c_htf = mc_pc_htfProps.Cp(physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0));	//[kJ/kg-K]
+            double T_avg_pc = physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0);     // [K]
+            double P_avg_pc = 0.5 * (htf_state_in.m_pres + ms_params.m_P_phx_in_co2_des * 1.e3);            // [kPa]
+			double c_htf = mc_pc_htfProps.Cp(T_avg_pc, P_avg_pc);	                                        // [kJ/kg-K]
 			// double c_htf = specheat(m_pbp.HTF, physics::CelciusToKelvin((m_pbi.T_htf_hot + m_pbp.T_htf_cold_ref)/2.0), 1.0);
 			double q_tot = ms_params.m_P_ref / ms_params.m_eta_ref;
 
@@ -1580,7 +1588,7 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 					else														//If dark & warm not empty, discharge (cooling)
 					{
 						mc_radiator.night_cool(T_db, T_warm_prev_K, u, T_s_K, mc_radiator.ms_params.m_dot_panel, mc_radiator.ms_params.Np, m_dot_radfield, T_rad_out,W_radpump);
-						mc_two_tank_ctes.discharge(step_sec, T_db, m_dot_radfield, T_rad_out, T_rad_in, mc_two_tank_ctes_outputs);
+						mc_two_tank_ctes.discharge(step_sec, T_db, m_dot_radfield, T_rad_out, 101., T_rad_in, mc_two_tank_ctes_outputs);
 						radcool_cntrl = 41;
 					}
 				}
@@ -1638,7 +1646,9 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 		//     simultaneously with the required startup time. If the timestep is less than the required startup time
 		//     scale the mass flow rate appropriately
 
-		double c_htf = mc_pc_htfProps.Cp(physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0));		//[kJ/kg-K]
+        double T_avg_pc = physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0);     // [K]
+        double P_avg_pc = 0.5 * (htf_state_in.m_pres + ms_params.m_P_phx_in_co2_des * 1.e3);            // [kPa]
+		double c_htf = mc_pc_htfProps.Cp(T_avg_pc, P_avg_pc);		                                    // [kJ/kg-K]
 		
 			// Maximum thermal power to power cycle based on heat input constraint parameters:
 		double q_dot_to_pc_max_q_constraint = ms_params.m_cycle_max_frac * ms_params.m_P_ref / ms_params.m_eta_ref;	//[kWt]
@@ -1794,7 +1804,9 @@ void C_pc_Rankine_indirect_224::call(const C_csp_weatherreader::S_outputs &weath
 			m_startup_time_remain_calc = fmax(m_startup_time_remain_prev - step_hrs, 0.0);
 			m_startup_energy_remain_calc = fmax(m_startup_energy_remain_prev - startup_e_used, 0.0);
 
-			double c_htf = mc_pc_htfProps.Cp(physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0));		//[kJ/kg-K]
+            double T_avg_htf = physics::CelciusToKelvin((T_htf_hot + ms_params.m_T_htf_cold_ref) / 2.0);    // [K]
+            double P_avg_htf = 0.5 * (P_phx_out_co2 + P_phx_in_co2) * 1.e3;    // [kPa]
+			double c_htf = mc_pc_htfProps.Cp(T_avg_htf, P_avg_htf);		//[kJ/kg-K]
 			// If still starting up, then all of energy input going to startup
 			if(m_startup_time_remain_calc + m_startup_energy_remain_calc > 0.0)
 			{

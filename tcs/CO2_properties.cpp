@@ -1,10 +1,10 @@
 /*********************************** FIT Carbon Dioxide (NREL v1) **********************************
-ó
+‚Äî
 Copyright (c) 2016, Northland Numerics LLC
 All rights reserved.
 
 Use of this software in source and binary forms, with or without modification, is permitted for
-Alliance for Sustainable Energy, LLC (the ìLicenseeî) and for third parties that receive this
+Alliance for Sustainable Energy, LLC (the ‚ÄúLicensee‚Äù) and for third parties that receive this
 software, with or without modification, directly from Licensee.  Licensee is permitted to
 redistribute this software in source and binary forms, with or without modification, provided
 that redistributions of source code must retain the above copyright notice and reservation of
@@ -25,7 +25,7 @@ OR LOSS OF USE, DATA, OR PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE), ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ó
+‚Äî
 
 ***************************************************************************************************/
 
@@ -39,6 +39,12 @@ double sco2Properties::Cp(double T_K) {
     int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
 
     return co2_state.cp;    //[kJ/kg-K]
+}
+
+double sco2Properties::Cp(double T_K, double P_kPa) {
+    int prop_error_code = CO2_TP(T_K, P_kPa, &co2_state);
+    double cp = co2_state.cp;    //[kJ/kg-K]
+    return cp;
 }
 
 double sco2Properties::dens(double T_K, double P_Pa) {
@@ -57,6 +63,14 @@ double sco2Properties::dens(double T_K, double P_Pa) {
 
 double sco2Properties::visc(double T_K) {
     int prop_error_code = CO2_TP(T_K, P_kPa_default, &co2_state);
+    double dens = co2_state.dens;
+    double mu = CO2_visc(dens, T_K) * 1.e-6;  //[Pa-s]
+
+    return mu;
+}
+
+double sco2Properties::visc(double T_K, double P_kPa) {
+    int prop_error_code = CO2_TP(T_K, P_kPa, &co2_state);
     double dens = co2_state.dens;
     double mu = CO2_visc(dens, T_K) * 1.e-6;  //[Pa-s]
 
@@ -89,10 +103,10 @@ double sco2Properties::Pr(double T_K, double P_Pa) {
     throw(C_csp_exception("sCO2 Prandtl number not supported", ""));
 }
 
-double sco2Properties::Re(double T_K, double P, double vel, double d) {
+double sco2Properties::Re(double T_K, double P_Pa, double vel, double d) {
     // Inputs: temperature [K], pressure [Pa], velocity [m/s], characteristic length [m]
     // Outputs: Reynolds number [-]
-    double Re_num = dens(T_K, P) * vel * d / visc(T_K);
+    double Re_num = dens(T_K, P_Pa) * vel * d / visc(T_K, P_Pa * 1.e-3);
     return Re_num;
 }
 

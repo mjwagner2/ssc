@@ -95,6 +95,8 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_CO2_HX_1, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_DP_CO2_HX_2, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_DP_CO2_HX_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_Q_DOT_RISER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -108,6 +110,7 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
     m_P_riser_out_des = std::numeric_limits<double>::quiet_NaN();       //[kPa]
     m_q_dot_piping_one_way = std::numeric_limits<double>::quiet_NaN();  //[kWt]
     pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();         //[Wt/m]
+    m_m_dot_co2_des = std::numeric_limits<double>::quiet_NaN();         //[kg/s]
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -222,16 +225,17 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
     double A_aper_total = 0.;
     double dP_sf = 0.;              //[kPa]
     double P_prev = P_cold_des;     //[kPa]  pressure into the next component, initially the riser
-    double m_dot_co2_des = std::numeric_limits<double>::quiet_NaN();    //[kg/s]
+    double dP_sf_no_piping = 0.0;   //[kPa]
+    double q_dot_rec_des_single = std::numeric_limits<double>::quiet_NaN();     //[MWt]
     double q_dot_rec_des_total = 0.;
 
     // Riser pressure loss, via an estimated first receiver mass flow
     double T_avg_rec_des = 0.5 * (T_rec_hot_des + T_rec_cold_des);                              // [K]
     double cp_avg = mc_field_htfProps.Cp(T_avg_rec_des, P_prev);
     double q_dot_des_first_rec = collector_receivers.at(0).get_design_thermal_power();          // [MWt]
-    m_dot_co2_des = q_dot_des_first_rec*1000. / (cp_avg * (T_rec_hot_des - T_rec_cold_des));    // [kg/s]
+    m_m_dot_co2_des = q_dot_des_first_rec*1000. / (cp_avg * (T_rec_hot_des - T_rec_cold_des));    // [kg/s]
     double T_riser_in = T_rec_cold_des;        // [K] assuming equal to first receiver cold design temperature
-    double P_drop_riser = f_dP_riser(m_dot_co2_des, T_riser_in - 273.15, P_prev, riser_diam, riser_length, mc_field_htfProps); // [kPa]
+    double P_drop_riser = f_dP_riser(m_m_dot_co2_des, T_riser_in - 273.15, P_prev, riser_diam, riser_length, mc_field_htfProps); // [kPa]
     dP_sf += P_drop_riser;
     P_prev -= P_drop_riser;     // [kPa] pressure after riser before first receiver
     m_P_riser_out_des = P_prev;
@@ -250,13 +254,13 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
         // HX
         hxs.at(i).init(mc_field_htfProps, mc_store_htfProps, hx_duty, m_dt_hot, T_rec_hot_des, T_hx_cold_des + m_dt_hot, P_prev, L_recHX, n_cells_recHX);
         double T_avg_hx = 0.5 * (T_rec_hot_des + (T_hx_cold_des + m_dt_hot));
-        double dP_hx = std::abs(hxs.at(i).PressureDropFrac(T_avg_hx - 273.15, m_dot_co2_des) * P_prev);
+        double dP_hx = std::abs(hxs.at(i).PressureDropFrac(T_avg_hx - 273.15, m_m_dot_co2_des) * P_prev);
         dP_sf += dP_hx;
         P_prev -= dP_hx;
     }
 
     //Downcomer pressure loss
-    double P_drop_downcomer = f_dP_riser(m_dot_co2_des, _solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+    double P_drop_downcomer = f_dP_riser(m_m_dot_co2_des, _solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
     dP_sf += P_drop_downcomer;
     P_prev -= P_drop_downcomer;
 
@@ -277,6 +281,9 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
     solved_params.m_dP_sf = dP_sf;
     solved_params.m_P_cr_in_des = P_cold_des;      // [kPa]
     solved_params.m_P_cr_out_des = P_prev;         // [kPa]
+
+    // Pass through to solved_params so solver core can access
+    solved_params.m_is_rec_recirc_available = m_is_rec_recirc_available;    //[-]
 
 	return;
 }
@@ -468,6 +475,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
 
+    double q_dot_riser_losses = 0.0;        //[MWt]
     if (!is_rec_recirc) {
         /*
         We first need to calculate riser pressure drop, because it affects downstream performance.
@@ -493,7 +501,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         }
         
         
-        if ( (std::isfinite(dP_riser) && dP_riser > 0.0) ) { // || (m_q_dot_piping_one_way > 0.0 && m_dot_salt_temp > 0.0)) {
+        if ( (std::isfinite(dP_riser) && dP_riser > 0.0) || (m_q_dot_piping_one_way > 0.0 && m_dot_salt_temp > 0.0)) {
 
             CO2_state co2_state;
             int co2_prop_code = CO2_TP(htf_state_in.m_temp + 273.15, htf_state_in.m_pres, &co2_state);
@@ -504,12 +512,13 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
             double h_riser_in = co2_state.enth;     //[kJ/kg]
             double h_riser_out = h_riser_in;       //[kJ/kg]
 
-            if(false) { // (m_dot_salt_temp > 0.0 && false) {
-                h_riser_out = h_riser_in - m_q_dot_piping_one_way;      // / m_dot_salt_temp;
+            if(m_dot_salt_temp > 0.0) {
+                h_riser_out = h_riser_in - m_q_dot_piping_one_way / std::max(0.2*m_m_dot_co2_des, m_dot_salt_temp);        //[kJ/kg]
             }
+            q_dot_riser_losses = m_dot_salt_temp * (h_riser_in - h_riser_out) * 1.E-3;  //[MWt]
 
             htf_state_in_next.m_pres = htf_state_in.m_pres - dP_riser;      //adjust 1st receiver inlet pressure for riser loss
-            co2_prop_code = CO2_PH(htf_state_in_next.m_pres, co2_state.enth, &co2_state);
+            co2_prop_code = CO2_PH(htf_state_in_next.m_pres, h_riser_out, &co2_state);
             if (co2_prop_code != 0) {
                 throw(C_csp_exception("CO2 riser outlet calcs failed", "CO2 tower receiver"));
             }
@@ -686,15 +695,26 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
 
-    if (dP_downcomer > 0.0) {
+    double q_dot_downcomer_losses = 0.0;    //[MWt]
+    if ( (std::isfinite(dP_downcomer) && dP_downcomer > 0.0) || (m_q_dot_piping_one_way > 0.0 && cr_out_solver.m_m_dot_salt_tot > 0.0)) {
+
         double P_downcomer_in = cr_out_solver.m_P_htf_hot + dP_downcomer;   //[kPa]
+
         CO2_state co2_state;
         int co2_prop_code = CO2_TP(cr_out_solver.m_T_salt_hot + 273.15, P_downcomer_in, &co2_state);
         if (co2_prop_code != 0) {
             throw(C_csp_exception("CO2 calcs at downcomer inlet failed", "CO2 tower receiver"));
         }
 
-        co2_prop_code = CO2_PH(cr_out_solver.m_P_htf_hot, co2_state.enth, &co2_state);
+        double h_downcomer_in = co2_state.enth;     //[kJ/kg]
+        double h_downcomer_out = h_downcomer_in;    //[kJ/kg]
+
+        if (cr_out_solver.m_m_dot_salt_tot > 0.0) {
+            h_downcomer_out = h_downcomer_in - m_q_dot_piping_one_way / std::max(0.2 * m_m_dot_co2_des, cr_out_solver.m_m_dot_salt_tot / 3600.0);   //[kJ/kg]
+        }
+        q_dot_downcomer_losses = cr_out_solver.m_m_dot_salt_tot / 3600.0 * (h_downcomer_in - h_downcomer_out) * 1.E-3;
+
+        co2_prop_code = CO2_PH(cr_out_solver.m_P_htf_hot, h_downcomer_out, &co2_state);
         if (co2_prop_code != 0) {
             throw(C_csp_exception("CO2 calcs at downcomer outlet failed", "CO2 tower receiver"));
         }
@@ -743,6 +763,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, cr_out_solver.m_W_dot_co2_recirc);        //[MWe]
     mc_reported_outputs.value(E_Q_DOT_PARTICLES, cr_out_solver.m_q_dot_to_particles);       //[MWt]
 
+    mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, q_dot_downcomer_losses);       //[MWt]
+    mc_reported_outputs.value(E_Q_DOT_RISER, q_dot_riser_losses);               //[MWt]
+
     return;
 }
 
@@ -765,6 +788,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     cr_out_solver.m_W_dot_htf_pump = 0.;
     cr_out_solver.m_dP_sf = 0.;
     cr_out_solver.m_q_rec_heattrace = 0.;
+    cr_out_solver.m_W_dot_co2_recirc = 0.;
 
     double q_dot_field_inc = 0.;
     double eta_weighted_sum = 0.;
@@ -963,6 +987,9 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
     mc_reported_outputs.value(E_W_DOT_CO2_RECIRC, 0.0);        //[MWe]
     mc_reported_outputs.value(E_Q_DOT_PARTICLES, 0.0);          //[MWt]
+
+    mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, 0.0);       //[MWt]
+    mc_reported_outputs.value(E_Q_DOT_RISER, 0.0);               //[MWt]
 
     return;
 }

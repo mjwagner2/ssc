@@ -51,6 +51,7 @@ private:
     double m_P_cr_in_des;            // [kPa] Receiver (after riser) inlet pressure at design
     double m_P_riser_out_des;        // [kPa] Riser outlet pressure at design
     double m_q_dot_piping_one_way;   // [kWt] Thermal loss of tower piping in one direction, e.g. riser heat losses
+    double m_m_dot_co2_des;         // [kg/s] Design point CO2 mass flow rate
 
 public:
 	
@@ -124,6 +125,9 @@ public:
         E_DP_CO2_HX_1,              //[kPa] HX 1 CO2 pressure drop
         E_DP_CO2_HX_2,              //[kPa] HX 2 CO2 pressure drop
         E_DP_CO2_HX_3,              //[kPa] HX 3 CO2 pressure drop
+
+        E_Q_DOT_DOWNCOMER,          //[MWt] Downcomer thermal losses
+        E_Q_DOT_RISER               //[MWt] Riser thermal losses
     };
 	
     int m_field_fl;
@@ -143,6 +147,12 @@ public:
     double n_cells_recHX;       // [-] Number of cells in a charge HX
     double pipe_loss_per_m;     // [Wt/m] Thermal losses per meter of riser/downcomer piping
     double P_cold_des;          // [kPa] Pressure into tower/riser at design
+
+    //[-] True: receiver has *option* to use recirculator rather than cycle to move CO2
+        //          to apply to receiver solution, controller/solver must also set mc_cr_out_solver.m_is_rec_recirc_in = true
+        //[-] False: receiver does NOT have recirculator
+        //             and receiver cannot produce heat unless PC is ON
+    bool m_is_rec_recirc_available;
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

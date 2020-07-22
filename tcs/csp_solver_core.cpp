@@ -299,6 +299,8 @@ C_csp_solver::C_csp_solver(C_csp_weatherreader &weather,
 		m_cycle_P_hot_des = m_cycle_x_hot_des = 
 		m_m_dot_pc_des = m_m_dot_pc_min = m_m_dot_pc_max = m_T_htf_pc_cold_est = std::numeric_limits<double>::quiet_NaN();
 
+    m_is_rec_recirc_available = false;
+
 	// Reporting and Output Tracking
 	mc_reported_outputs.construct(S_solver_output_info);
 
@@ -477,8 +479,10 @@ void C_csp_solver::init()
     m_rec_T_htf_hot_des = cr_solved_params.m_T_htf_hot_des;     //[K]
 	m_q_dot_rec_des = cr_solved_params.m_q_dot_rec_des;			//[MW]
 	m_A_aperture = cr_solved_params.m_A_aper_total;				//[m2]
-    m_P_cr_in_des = cr_solved_params.m_P_cr_in_des;           //[kPa]
-    m_P_cr_out_des = cr_solved_params.m_P_cr_out_des;         //[kPa]
+    m_P_cr_in_des = cr_solved_params.m_P_cr_in_des;             //[kPa]
+    m_P_cr_out_des = cr_solved_params.m_P_cr_out_des;           //[kPa]
+    m_is_rec_recirc_available = cr_solved_params.m_is_rec_recirc_available; //[-]
+
 		// Power cycle
 	C_csp_power_cycle::S_solved_params pc_solved_params;
 	mc_power_cycle.init(pc_solved_params);
@@ -794,7 +798,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         //[-] If True, use blower/compressor to circulate fluid through receiver and CHXs, allowing receiver to operate and charge TES
         // Assume if PC is 'ON', then it will move CO2 through receiver, CHXs
-        bool is_rec_recirc_allowed = false;
+        bool is_rec_recirc_allowed = m_is_rec_recirc_available;     // false;
 
 		// Get standby fraction and min operating fraction
 			// Could eventually be a method in PC class...
@@ -4870,26 +4874,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			(ms_system_params.m_bop_par_0 + ms_system_params.m_bop_par_1*W_dot_ratio + ms_system_params.m_bop_par_2*pow(W_dot_ratio,2));
 			// [MWe]
 
-        double W_dot_tes_pump;
-        if (m_is_tes) {
-            W_dot_tes_pump = mc_tes.pumping_power(mc_cr_out_solver.m_m_dot_salt_tot / 3600., mc_pc_out_solver.m_m_dot_htf / 3600., mc_tes_outputs.m_m_dot,
-                mc_cr_htf_state_in.m_temp + 273.15, mc_cr_out_solver.m_T_salt_hot + 273.15,
-                mc_pc_htf_state_in.m_temp + 273.15, mc_pc_out_solver.m_T_htf_cold + 273.15,
-                mc_cr_out_solver.m_is_recirculating);
-        }
-        else {
-            W_dot_tes_pump = 0.;
-        }
-        if (W_dot_tes_pump < 0 || W_dot_tes_pump != W_dot_tes_pump){
-            error_msg = "TES pumping power failed";
-            throw(C_csp_exception(error_msg, "System-level parasitics"));
-        }
-
 		double W_dot_net = mc_pc_out_solver.m_P_cycle - 
 			mc_cr_out_solver.m_W_dot_col_tracking -
 			mc_cr_out_solver.m_W_dot_htf_pump -
             mc_cr_out_solver.m_W_dot_co2_recirc -
-			(mc_pc_out_solver.m_W_dot_htf_pump + W_dot_tes_pump) -
+			mc_pc_out_solver.m_W_dot_htf_pump -
 			mc_cr_out_solver.m_q_rec_heattrace -
 			mc_pc_out_solver.m_W_cool_par -
 			mc_tes_outputs.m_q_heater - 
@@ -5005,7 +4994,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			// Parasitics outputs
 		mc_reported_outputs.value(C_solver_outputs::COL_W_DOT_TRACK, mc_cr_out_solver.m_W_dot_col_tracking);    //[MWe] Collector tracking, startup, stow power consumption 
 		mc_reported_outputs.value(C_solver_outputs::CR_W_DOT_PUMP, mc_cr_out_solver.m_W_dot_htf_pump);          //[MWe] Receiver/tower HTF pumping power   
-		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_PUMP, (mc_pc_out_solver.m_W_dot_htf_pump + W_dot_tes_pump ));    //[MWe] TES & PC HTF pumping power (Receiver - PC side HTF)  
+		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_PUMP, mc_pc_out_solver.m_W_dot_htf_pump);    //[MWe] TES & PC HTF pumping power (Receiver - PC side HTF)  
 		mc_reported_outputs.value(C_solver_outputs::PC_W_DOT_COOLING, mc_pc_out_solver.m_W_cool_par);           //[MWe] Power cycle cooling power consumption (fan, pumps, etc.)
 		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_FIXED, W_dot_fixed);								//[MWe] Fixed electric parasitic power load 
 		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_BOP, W_dot_bop);									//[MWe] Balance-of-plant electric parasitic power load   

@@ -143,12 +143,12 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "T_rec_hot_des",                      "Individual receiver design hot temperature",                                                                                              "C",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "L_recHX",                            "Length of charge HX",                                                                                                                     "m",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "n_cells_recHX",                      "Number of cells in charge HX",                                                                                                            "-",            "",                                  "Tower and Receiver",                       "",                                                                 "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "is_rec_recirc_available",            "1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON",                                             "",             "",                                  "Tower and Receiver",                       "?=0",                                                              "",              ""},
 
     
     // TES parameters - general
     { SSC_INPUT,     SSC_NUMBER, "store_htf",                          "Storage HTF, 17=Salt (60% NaNO3, 40% KNO3) 10=Salt (46.5% LiF 11.5% NaF 42% KF) 50=Lookup tables",                                        "",             "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_MATRIX, "store_fl_props",                     "User defined storage fluid property data",                                                                                                "-",            "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
-    { SSC_INPUT,     SSC_NUMBER, "tes_pump_coef",                      "Pumping power to move 1kg of HTF through tes loop",                                                                                       "kW/(kg/s)",    "",                                  "Thermal Storage",                          "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_tes_hot_des",                      "TES tank design hot temperature",                                                                                                         "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_tes_warm_des",                     "TES (virtual) tank design warm temperature, between the high-temp and low-temp HXs",                                                      "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "T_tes_cold_des",                     "TES tank design cold temperature",                                                                                                        "C",            "",                                  "Thermal Storage",                          "",                                                                 "",              ""},
@@ -175,7 +175,6 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "T_pc_hot_des",                       "Power cycle design hot temperature",                                                                                                      "C",            "",                                  "Power Cycle",                              "",                                                                 "",              ""},
     //{ SSC_INPUT,     SSC_NUMBER, "pc_config",                          "PC configuration 0=Steam Rankine (224), 1=user defined, 2=sCO2 Recompression (424)",                                                      "",             "",                                  "Power Cycle",                              "?=0",                                                              "INTEGER",       ""},
     { SSC_INPUT,     SSC_NUMBER, "is_udpc_co2",                        "Is the user-defined power cycle an integrated sco2 cycle, where the HTF is also the cycle working fluid",                                 "",             "",                                  "Power Cycle",                              "?=0",                                                              "INTEGER",       ""},
-    { SSC_INPUT,     SSC_NUMBER, "pb_pump_coef",                       "Pumping power to move 1kg of HTF through PB loop",                                                                                        "kW/kg",        "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "startup_time",                       "Time needed for power block startup",                                                                                                     "hr",           "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "startup_frac",                       "Fraction of design thermal power needed for startup",                                                                                     "none",         "",                                  "Power Cycle",                              "*",                                                                "",              ""},
     { SSC_INPUT,     SSC_NUMBER, "cycle_max_frac",                     "Maximum turbine over design operation fraction",                                                                                          "",             "",                                  "Power Cycle",                              "*",                                                                "",              ""},
@@ -418,6 +417,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_1",                        "HX 1 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_2",                        "HX 2 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_3",                        "HX 3 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_downcomer",                    "Downcomer thermal losses",                                                                                                                "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_riser",                        "Riser thermal losses",                                                                                                                    "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
 
 
         // Power cycle outputs
@@ -634,8 +635,9 @@ public:
 
  //       fclose(fp);
 
-
-
+        //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
+        
+        //write_cmod_to_lk_script(fp, m_vartab);
 
 
 
@@ -740,7 +742,7 @@ public:
         pc->m_q_sby_frac = as_double("q_sby_frac");
         pc->m_startup_time = as_double("startup_time");
         pc->m_startup_frac = as_double("startup_frac");
-        pc->m_htf_pump_coef = as_double("pb_pump_coef");
+        pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
         pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
         pc->m_pc_fl_props = as_matrix("field_fl_props");
 
@@ -945,6 +947,7 @@ public:
         tower.L_recHX = as_double("L_recHX");                    //[m]
         tower.n_cells_recHX = as_double("n_cells_recHX");        //[-]
         tower.pipe_loss_per_m = as_double("piping_loss");        //[Wt/m]
+        tower.m_is_rec_recirc_available = as_boolean("is_rec_recirc_available");        //[-]
 
         // Calculate tower inlet pressure using power block outlet pressure and a temporary HX representing the tes low-temp HX
         double T_in_pb = as_double("T_pc_hot_des");                // [C]
@@ -1036,6 +1039,8 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_1, allocate("dp_CO2_HX_1", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_2, allocate("dp_CO2_HX_2", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_3, allocate("dp_CO2_HX_3", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, allocate("q_dot_downcomer", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_RISER, allocate("q_dot_riser", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;
@@ -1068,8 +1073,8 @@ public:
         tes->m_T_tank_cold_ini = as_double("T_tes_cold_des");
         tes->m_h_tank_min = as_double("h_tank_min");
         tes->m_f_V_hot_ini = as_double("csp.pt.tes.init_hot_htf_percent");
-        tes->m_htf_pump_coef = as_double("pb_pump_coef");
-        tes->m_tes_pump_coef = as_double("tes_pump_coef");             //[kWe/kg/s]
+        tes->m_htf_pump_coef = 0.0;     // as_double("pb_pump_coef");
+        tes->m_tes_pump_coef = 0.0;     // as_double("tes_pump_coef");             //[kWe/kg/s]
         tes->eta_pump = as_double("eta_pump");                  //[-]
         tes->P_avg = 0.5 * (as_double("P_phx_in_co2_des") + as_double("P_turb_in_co2_des"));  //[kPa]
         tes->L_LTHX = as_double("L_LTHX");                 //[m]

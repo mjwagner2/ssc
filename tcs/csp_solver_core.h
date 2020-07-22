@@ -448,11 +448,19 @@ public:
         double m_P_cr_in_des;           //[kPa] Inlet pressure
         double m_P_cr_out_des;          //[kPa] Outlet pressure
 
+        //[-] True: receiver has *option* to use recirculator rather than cycle to move CO2
+        //          to apply to receiver solution, controller/solver must also set mc_cr_out_solver.m_is_rec_recirc_in = true
+        //[-] False: receiver does NOT have recirculator
+        //             and receiver cannot produce heat unless PC is ON
+        bool m_is_rec_recirc_available; 
+
 		S_csp_cr_solved_params()
 		{
 			m_T_htf_cold_des = m_P_cold_des = m_x_cold_des = m_T_htf_cold_des =
-				m_q_dot_rec_des = m_A_aper_total = m_dP_sf =
-                m_P_cr_in_des = m_P_cr_out_des = std::numeric_limits<double>::quiet_NaN();
+			m_q_dot_rec_des = m_A_aper_total = m_dP_sf =
+            m_P_cr_in_des = m_P_cr_out_des = std::numeric_limits<double>::quiet_NaN();
+
+            m_is_rec_recirc_available = false;
 		}
 	};
 
@@ -1067,8 +1075,12 @@ private:
     double m_rec_T_htf_hot_des;         //[K]
 	double m_q_dot_rec_des;				//[MW]
 	double m_A_aperture;				//[m2]
-    double m_P_cr_in_des;              //[kPa] after riser
-    double m_P_cr_out_des;             //[kPa] before downcomer
+    double m_P_cr_in_des;               //[kPa] after riser
+    double m_P_cr_out_des;              //[kPa] before downcomer
+    bool m_is_rec_recirc_available;     // True: receiver has *option* to use recirculator rather than cycle to move CO2
+                                        //       to apply to receiver solution, controller/solver must also set mc_cr_out_solver.m_is_rec_recirc_in = true
+                                        // False: receiver does NOT have recirculator
+                                        //       and receiver cannot produce heat unless PC is ON
 
 		// Power cycle design parameters
 	double m_cycle_W_dot_des;			//[MW]

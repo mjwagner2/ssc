@@ -20,7 +20,6 @@ C_mspt_receiver::C_mspt_receiver()
 
 	m_field_fl = -1;
 
-	m_Q_dot_piping_loss = std::numeric_limits<double>::quiet_NaN();
 	m_m_dot_htf_max = std::numeric_limits<double>::quiet_NaN();
 
 	m_itermode = -1;
@@ -463,11 +462,9 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	//outputs.m_q_dot_ss = q_thermal_ss / 1.E6;				//[MW] convert from W
 	outputs.m_f_timestep = f_rec_timestep;					//[-]
 	outputs.m_time_required_su = time_required_su*3600.0;	//[s], convert from hr in code
-	if(q_thermal > 0.0)
-		outputs.m_q_dot_piping_loss = m_Q_dot_piping_loss/1.E6;	//[MWt]
-	else
-		outputs.m_q_dot_piping_loss = 0.0;		//[MWt]
 
+    // Because there are multiple instances of receiver class in series, calculate piping losses upstream/downstream
+    outputs.m_q_dot_piping_loss = 0.0;		//[MWt]
 
 	outputs.m_inst_T_salt_hot = 
 	    outputs.m_max_T_salt_hot = 

@@ -666,7 +666,7 @@ class Gen3opt:
         T_rec_cold_des = T_rec_hot_des - self.settings.cycle_temperature_drop
         T_tes_hot_des = T_rec_hot_des - self.variables.dT_approach_charge_hx
         T_tes_cold_des = T_tes_hot_des - self.settings.cycle_temperature_drop 
-        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_disch_hx
+        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_disch_hx + self.variables.dT_approach_charge_hx
         T_pc_cold_des = T_pc_hot_des - self.settings.cycle_temperature_drop
 
         #cycle efficiency

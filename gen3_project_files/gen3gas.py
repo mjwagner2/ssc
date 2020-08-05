@@ -1157,15 +1157,15 @@ def run_single_case(casevars):
     for key,v in g.summary_results:
         sum_results.append([key, v])
     
-    g.write_hourly_results_to_file()
+    #g.write_hourly_results_to_file()
 
     return sum_results
 
 if __name__ == "__main__":
-
+    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_disch_hx
     cases = [
         # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'surround', 'skip', 96.094, 2.666, 180.070, 853.323, 4.703, 0.504, 0.458, 14.850, 27.950, 17.905],
+        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 0.569, 0.597, 15.844, 33.027, 25.012],
         # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
         # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303],
         # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],

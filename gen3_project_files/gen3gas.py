@@ -237,6 +237,10 @@ class Gen3opt:
         ssc.data_set_number( data, b'h_tank_min', 1 );
         ssc.data_set_number( data, b'hot_tank_Thtr', 500 );
         ssc.data_set_number( data, b'hot_tank_max_heat', 0 );
+        ssc.data_set_number( data, b'L_LTHX', 0.440 );
+        ssc.data_set_number( data, b'L_HTHX', 1.650 );
+        ssc.data_set_number( data, b'n_cells_LTHX', 40100 );
+        ssc.data_set_number( data, b'n_cells_HTHX', 40100 );
 
         ssc.data_set_number( data, b'T_pc_hot_des', NaN );
         ssc.data_set_number( data, b'T_pc_cold_des', NaN );
@@ -838,6 +842,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'piping_length_const', piping_length_const );
         ssc.data_set_number( data, b'piping_riser_diam', self.variables.riser_inner_diam );
         ssc.data_set_number( data, b'piping_downcomer_diam', self.variables.downcomer_inner_diam );
+        ssc.data_set_number( data, b'L_recHX', 1.650 );
+        ssc.data_set_number( data, b'n_cells_recHX', 51400 );
         ssc.data_set_number( data, b'eta_pump', lift_eff );
 
 
@@ -1127,7 +1133,7 @@ def run_single_case(casevars):
 
     g.settings.print_summary_output = True
     g.settings.save_hourly_results = True
-    # g.settings.print_ssc_messages = True
+    g.settings.print_ssc_messages = True
 
     # g.settings.scale_hx_cost = 0.5
     

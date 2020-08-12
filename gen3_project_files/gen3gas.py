@@ -9,6 +9,7 @@ import multiprocessing
 #modules with cost/performance functions
 import piping
 import receiver
+import field
 import tes
 import cycle
 
@@ -700,11 +701,11 @@ class Gen3opt:
 
         #check whether a heliostat field interpolation provider has been initialized. If not, create one now
         if not hasattr(self, "sf_interp_provider"):
-            interp_provider = receiver.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
+            interp_provider = field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
         else:
             interp_provider = self.sf_interp_provider
 
-        eta_map = receiver.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
+        eta_map = field.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
         with open('resource/eta_map_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(eta_map)
@@ -768,10 +769,10 @@ class Gen3opt:
         tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
 
         #availability
-        base_avail = 0.98
-        lift_avail = tes.calculate_lift_availability(self.variables.cycle_design_power * 1e3, self.settings.lift_technology)
-        total_avail = base_avail * lift_avail
-        # total_avail = 0.96
+        lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
+        #base_avail = 0.98
+        #total_avail = base_avail * lift_avail
+        total_avail = lift_avail
 
         """
         ####################################################

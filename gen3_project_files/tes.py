@@ -1,4 +1,4 @@
-from math import exp, log
+from math import exp, log, isfinite
 from numpy import array
 from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
@@ -357,61 +357,78 @@ def calculate_lift_cost(q_solarfield_out_kw, lift_type):
 
 #----------------------------------------------------------------------
 
-def calculate_lift_availability(q_cycle_in_kw, lift_type):
+def LiftAvailability(q_cycle, lift_type):
     """
     Inputs
-        q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
-        lift_type - one of 'bucket' or 'skip'
+        q_cycle:        [kWt] cycle design thermal rating, or TES discharge rating at design
+        lift_type:      [-] 'bucket' or 'skip'
 
     Returns
-        Availability (-) of the lift system
+        availability of the lift system [-]
     """
 
-    # Assumed value when these relations were made:
-    kCycleEfficiency = 0.43
+    kLiftBaseDerate = 0.92
+    kCycleEfficiency = 0.43                     # [-] Assumed cycle efficiency when these relations were made
 
-    x = q_cycle_in_kw /1000. * kCycleEfficiency      # [MWe] Convert to nominal cycle power
+    if q_cycle < 0 or not isfinite(q_cycle):
+        raise Exception("q_cycle is either less than 0 or not finite")
 
-    # These relations return a fraction, the Brayton PDF incorrectly lists it as a percent
-    # The original 0.92 factor has since been dropped
+    x = q_cycle / 1000. * kCycleEfficiency      # [MWe] Convert to nominal cycle power
     if lift_type == 'bucket':
-        if x < 100:
-            return 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01    # [-]
+        if x <= 100:
+            lift_avail_derate = 2.21083E-10 * x**5 - 5.90973E-08 * x**4 + 5.33490E-06 * x**3 - 1.79084E-04 * x**2 + 3.24384E-04 * x + 9.79899E-01    # [-]
         else:
-            return 0.85749 - (x-100)*0.00187514
+            lift_avail_derate = 0.85749 - (x-100)*0.00187514
     elif lift_type == 'skip':
-        return -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01     # [-]
+        lift_avail_derate = -3.18735E-10 * x**4 + 2.88137E-08 * x**3 - 7.44566E-07 * x**2 + 5.07427E-06 * x + 9.79998E-01     # [-]
     else:
-        raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
+        raise Exception("Invalid lift_type. Must be either 'bucket' or 'skip'")
+
+    return kLiftBaseDerate * lift_avail_derate
 
 
 #----------------------------------------------------------------------
 if __name__ == "__main__":
 
-    qc=100000/.43
-    
+    #qc=100000/.43
     # print(calculate_hx_cost(qc*3, qc, 15))
-
     # print(calculate_silo_cost(qc, 13, 715-560))
-
-    # print( calculate_hx_cost(qc*3, 20, 15, 730, 592) )
-
-    
-    # print( calculate_hx_base_dp(0.13, 660, 1.5) )
+    # print( calculate_hx_cost(qc*3, 20, 15, 730, 592))   
+    # print( calculate_hx_base_dp(0.13, 660, 1.5))
 
     import numpy
+    import matplotlib.pyplot as plt
 
-    Q = numpy.arange(50, 350, 5)
-    Y1 = [calculate_lift_availability(q*1000, 'bucket') for q in Q]
-    Y2 = [calculate_lift_availability(q*1000, 'skip') for q in Q]
-    import matplotlib.pyplot as plt 
-
+    Q = numpy.arange(0, 470, 5)
+    Y1 = [LiftAvailability(q*1000, 'bucket') for q in Q]
+    Y2 = [LiftAvailability(q*1000, 'skip') for q in Q]
     plt.plot(Q,Y1, label='bucket')
     plt.plot(Q,Y2, label='skip')
     plt.legend()
-    plt.xlabel("Cycle power (MW)")
-    plt.ylabel("lift availability")
+    plt.xlabel("Power Block Thermal Input (MWt)")
+    plt.ylabel("Availability")
+    plt.xlim(0, 465)
+    #plt.ylim(0.84, 1.)
+    plt.grid(True)
     plt.show()
-    plt.savefig("lift-avail-fix.png", dpi=200)
+    #plt.savefig("lift-avail-fix.png", dpi=200)
 
-    
+
+    # def epc_cost_over_100(direct_costs):
+    #     return 17.6/100 * direct_costs
+
+    # def epc_cost_under_100(direct_costs):
+    #     return 5 + 16.6/100 * direct_costs
+
+    # Q = numpy.arange(400, 710, 10)
+    # Y1 = [epc_cost_over_100(q) for q in Q]
+    # Y2 = [epc_cost_under_100(q) for q in Q]
+    # plt.plot(Q,Y1, label='over 100 MWe')
+    # plt.plot(Q,Y2, label='under 100 MWe')
+    # plt.legend()
+    # plt.xlabel("Direct Costs ($M)")
+    # plt.ylabel("EPC Cost ($M)")
+    # # plt.xlim(0, 250)
+    # # plt.ylim(0.84, 1.)
+    # plt.grid(True)
+    # plt.show()

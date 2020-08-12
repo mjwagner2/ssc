@@ -4,7 +4,6 @@ from ctypes import *
 c_number = c_double # must be c_double or c_float depending on how defined in sscapi.h
 class PySSC:
 	def __init__(self):
-		
 		if sys.platform == 'win32' or sys.platform == 'cygwin':
 			#self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/sscd.dll")
 			self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/ssc.dll")

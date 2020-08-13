@@ -194,9 +194,11 @@ class Gen3opt:
         ssc.data_set_number( data, b'cost_sf_fixed', 0 );
         ssc.data_set_number( data, b'fossil_spec_cost', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.per_acre', 0 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', NaN );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', NaN );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', NaN );
         ssc.data_set_number( data, b'csp.pt.cost.epc.per_watt', 0 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', NaN );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', NaN );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', NaN );
         ssc.data_set_number( data, b'csp.pt.cost.plm.percent', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.plm.per_watt', 0 );
         ssc.data_set_number( data, b'csp.pt.cost.plm.fixed', 0 );
@@ -852,8 +854,10 @@ class Gen3opt:
 
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 16.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', permitting_costs + 5e6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 + permitting_costs );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. + permitting_costs );
 
         #O&M cost
         om_fixed = [ c_om_fixed ]

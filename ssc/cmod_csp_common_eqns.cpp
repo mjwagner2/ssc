@@ -346,9 +346,11 @@ void Tower_SolarPilot_Capital_Costs_Equations(ssc_data_t data)
     vt_get_number(vt, "csp_pt_sf_total_land_area", &sys_costs.ms_par.total_land_area);
     vt_get_number(vt, "nameplate", &sys_costs.ms_par.plant_net_capacity);
     vt_get_number(vt, "csp_pt_cost_epc_per_acre", &sys_costs.ms_par.EPC_land_spec_cost);
-    vt_get_number(vt, "csp_pt_cost_epc_percent", &sys_costs.ms_par.EPC_land_perc_direct_cost);
+    vt_get_number(vt, "csp_pt_cost_epc_percent_smaller", &sys_costs.ms_par.EPC_land_perc_direct_cost_smaller);
+    vt_get_number(vt, "csp_pt_cost_epc_percent_larger", &sys_costs.ms_par.EPC_land_perc_direct_cost_larger);
     vt_get_number(vt, "csp_pt_cost_epc_per_watt", &sys_costs.ms_par.EPC_land_per_power_cost);
-    vt_get_number(vt, "csp_pt_cost_epc_fixed", &sys_costs.ms_par.EPC_land_fixed_cost);
+    vt_get_number(vt, "csp_pt_cost_epc_fixed_smaller", &sys_costs.ms_par.EPC_land_fixed_cost_smaller);
+    vt_get_number(vt, "csp_pt_cost_epc_fixed_larger", &sys_costs.ms_par.EPC_land_fixed_cost_larger);
     vt_get_number(vt, "land_spec_cost", &sys_costs.ms_par.total_land_spec_cost);
     vt_get_number(vt, "csp_pt_cost_plm_percent", &sys_costs.ms_par.total_land_perc_direct_cost);
     vt_get_number(vt, "csp_pt_cost_plm_per_watt", &sys_costs.ms_par.total_land_per_power_cost);

@@ -24,57 +24,60 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_util.h"
 
 #include <math.h>
+#include <algorithm>
 
 void C_mspt_system_costs::check_parameters_are_set()
 {
-	if (ms_par.A_sf_refl != ms_par.A_sf_refl ||
-		ms_par.site_improv_spec_cost != ms_par.site_improv_spec_cost ||
-		ms_par.heliostat_spec_cost != ms_par.heliostat_spec_cost ||
-		ms_par.heliostat_fixed_cost != ms_par.heliostat_fixed_cost ||
+    if (ms_par.A_sf_refl != ms_par.A_sf_refl ||
+        ms_par.site_improv_spec_cost != ms_par.site_improv_spec_cost ||
+        ms_par.heliostat_spec_cost != ms_par.heliostat_spec_cost ||
+        ms_par.heliostat_fixed_cost != ms_par.heliostat_fixed_cost ||
 
-		ms_par.h_tower != ms_par.h_tower ||
-		ms_par.h_rec != ms_par.h_rec ||
-		ms_par.h_helio != ms_par.h_helio ||
-		ms_par.tower_fixed_cost != ms_par.tower_fixed_cost ||
-		ms_par.tower_cost_scaling_exp != ms_par.tower_cost_scaling_exp ||
+        ms_par.h_tower != ms_par.h_tower ||
+        ms_par.h_rec != ms_par.h_rec ||
+        ms_par.h_helio != ms_par.h_helio ||
+        ms_par.tower_fixed_cost != ms_par.tower_fixed_cost ||
+        ms_par.tower_cost_scaling_exp != ms_par.tower_cost_scaling_exp ||
         ms_par.foundation_fixed_cost != ms_par.foundation_fixed_cost ||
         ms_par.foundation_cost_scaling_quadratic != ms_par.foundation_cost_scaling_quadratic ||
         ms_par.foundation_cost_scaling_linear != ms_par.foundation_cost_scaling_linear ||
         ms_par.particle_lift_cost != ms_par.particle_lift_cost ||
         ms_par.riser_and_downcomer_cost != ms_par.riser_and_downcomer_cost ||
 
-		ms_par.A_rec != ms_par.A_rec ||
-		ms_par.rec_ref_cost != ms_par.rec_ref_cost ||
-		ms_par.A_rec_ref != ms_par.A_rec_ref ||
-		ms_par.rec_cost_scaling_exp != ms_par.rec_cost_scaling_exp ||
+        ms_par.A_rec != ms_par.A_rec ||
+        ms_par.rec_ref_cost != ms_par.rec_ref_cost ||
+        ms_par.A_rec_ref != ms_par.A_rec_ref ||
+        ms_par.rec_cost_scaling_exp != ms_par.rec_cost_scaling_exp ||
 
-		ms_par.Q_storage != ms_par.Q_storage ||
-		ms_par.tes_spec_cost != ms_par.tes_spec_cost ||
+        ms_par.Q_storage != ms_par.Q_storage ||
+        ms_par.tes_spec_cost != ms_par.tes_spec_cost ||
 
-		ms_par.W_dot_design != ms_par.W_dot_design ||
-		ms_par.power_cycle_spec_cost != ms_par.power_cycle_spec_cost ||
+        ms_par.W_dot_design != ms_par.W_dot_design ||
+        ms_par.power_cycle_spec_cost != ms_par.power_cycle_spec_cost ||
 
-		ms_par.radfield_area != ms_par.radfield_area ||
-		ms_par.coldstorage_vol != ms_par.coldstorage_vol ||
-		ms_par.radfield_vol != ms_par.radfield_vol ||
-		ms_par.rad_unitcost != ms_par.rad_unitcost ||
-		ms_par.rad_installcost != ms_par.rad_installcost ||
-		ms_par.rad_fluidcost != ms_par.rad_fluidcost ||
-		ms_par.rad_volmulti != ms_par.rad_volmulti ||
-		ms_par.coldstorage_unitcost != ms_par.coldstorage_unitcost ||
+        ms_par.radfield_area != ms_par.radfield_area ||
+        ms_par.coldstorage_vol != ms_par.coldstorage_vol ||
+        ms_par.radfield_vol != ms_par.radfield_vol ||
+        ms_par.rad_unitcost != ms_par.rad_unitcost ||
+        ms_par.rad_installcost != ms_par.rad_installcost ||
+        ms_par.rad_fluidcost != ms_par.rad_fluidcost ||
+        ms_par.rad_volmulti != ms_par.rad_volmulti ||
+        ms_par.coldstorage_unitcost != ms_par.coldstorage_unitcost ||
 
-		ms_par.bop_spec_cost != ms_par.bop_spec_cost ||
-		
-		ms_par.fossil_backup_spec_cost != ms_par.fossil_backup_spec_cost ||
-		
-		ms_par.contingency_rate != ms_par.contingency_rate ||
-		
-		ms_par.total_land_area != ms_par.total_land_area ||
-		ms_par.plant_net_capacity != ms_par.plant_net_capacity ||
-		ms_par.EPC_land_spec_cost != ms_par.EPC_land_spec_cost ||
-		ms_par.EPC_land_perc_direct_cost != ms_par.EPC_land_perc_direct_cost ||
+        ms_par.bop_spec_cost != ms_par.bop_spec_cost ||
+
+        ms_par.fossil_backup_spec_cost != ms_par.fossil_backup_spec_cost ||
+
+        ms_par.contingency_rate != ms_par.contingency_rate ||
+
+        ms_par.total_land_area != ms_par.total_land_area ||
+        ms_par.plant_net_capacity != ms_par.plant_net_capacity ||
+        ms_par.EPC_land_spec_cost != ms_par.EPC_land_spec_cost ||
+        ms_par.EPC_land_perc_direct_cost_smaller != ms_par.EPC_land_perc_direct_cost_smaller ||
+        ms_par.EPC_land_perc_direct_cost_larger != ms_par.EPC_land_perc_direct_cost_larger ||
 		ms_par.EPC_land_per_power_cost != ms_par.EPC_land_per_power_cost ||
-		ms_par.EPC_land_fixed_cost != ms_par.EPC_land_fixed_cost ||
+		ms_par.EPC_land_fixed_cost_smaller != ms_par.EPC_land_fixed_cost_smaller ||
+        ms_par.EPC_land_fixed_cost_larger != ms_par.EPC_land_fixed_cost_larger ||
 		ms_par.total_land_spec_cost != ms_par.total_land_spec_cost ||
 		ms_par.total_land_perc_direct_cost != ms_par.total_land_perc_direct_cost ||
 		ms_par.total_land_per_power_cost != ms_par.total_land_per_power_cost ||
@@ -155,7 +158,8 @@ void C_mspt_system_costs::calculate_costs()
 
 	ms_out.epc_and_owner_cost = 
 		N_mspt::epc_and_owner_cost(ms_par.total_land_area, ms_out.total_direct_cost, ms_par.plant_net_capacity,
-			ms_par.EPC_land_spec_cost, ms_par.EPC_land_perc_direct_cost, ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost);
+			ms_par.EPC_land_spec_cost, ms_par.EPC_land_perc_direct_cost_smaller, ms_par.EPC_land_perc_direct_cost_larger,
+            ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost_smaller, ms_par.EPC_land_fixed_cost_larger);
 
 	ms_out.sales_tax_cost = 
 		N_mspt::sales_tax_cost(ms_out.total_direct_cost, ms_par.sales_tax_basis, ms_par.sales_tax_rate);
@@ -276,12 +280,13 @@ double N_mspt::total_land_cost(double total_land_area /*acres*/, double total_di
 }
 
 double N_mspt::epc_and_owner_cost(double total_land_area /*acres*/, double total_direct_cost /*$*/, double plant_net_capacity /*MWe*/,
-	double land_spec_cost /*$/acre*/, double land_perc_direct_cost /*%*/, double land_spec_per_power_cost /*$/We*/, double land_fixed_cost /*$*/)
+	double land_spec_cost /*$/acre*/, double land_perc_direct_cost_smaller /*%*/, double land_perc_direct_cost_larger /*%*/,
+    double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/)
 {
-	return total_land_area*land_spec_cost +
-		total_direct_cost*land_perc_direct_cost / 100.0 +
-		plant_net_capacity*1.E6*land_spec_per_power_cost +
-		land_fixed_cost;	//[$]
+    return total_land_area * land_spec_cost +
+        plant_net_capacity * 1.E6 * land_spec_per_power_cost +
+        std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
+            total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger);         //[$]
 }
 
 double N_mspt::sales_tax_cost(double total_direct_cost /*$*/, double sales_tax_basis /*% of tot. direct cost*/, double sales_tax_rate /*%*/)

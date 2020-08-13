@@ -137,9 +137,11 @@ public:
 		sys_costs.ms_par.total_land_area = as_double("csp.pt.cost.total_land_area");
 		sys_costs.ms_par.plant_net_capacity = as_double("system_capacity");
 		sys_costs.ms_par.EPC_land_spec_cost = as_double("csp.pt.cost.epc.per_acre");
-		sys_costs.ms_par.EPC_land_perc_direct_cost = as_double("csp.pt.cost.epc.percent");
+		sys_costs.ms_par.EPC_land_perc_direct_cost_smaller = as_double("csp.pt.cost.epc.percent.smaller");
+        sys_costs.ms_par.EPC_land_perc_direct_cost_larger = as_double("csp.pt.cost.epc.percent.larger");
 		sys_costs.ms_par.EPC_land_per_power_cost = as_double("csp.pt.cost.epc.per_watt");
-		sys_costs.ms_par.EPC_land_fixed_cost = as_double("csp.pt.cost.epc.fixed");
+		sys_costs.ms_par.EPC_land_fixed_cost_smaller = as_double("csp.pt.cost.epc.fixed.smaller");
+        sys_costs.ms_par.EPC_land_fixed_cost_larger = as_double("csp.pt.cost.epc.fixed.larger");
 		sys_costs.ms_par.total_land_spec_cost = as_double("csp.pt.cost.plm.per_acre");
 		sys_costs.ms_par.total_land_perc_direct_cost = as_double("csp.pt.cost.plm.percent");
 		sys_costs.ms_par.total_land_per_power_cost = as_double("csp.pt.cost.plm.per_watt");

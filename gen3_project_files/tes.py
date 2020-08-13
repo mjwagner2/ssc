@@ -370,7 +370,7 @@ def LiftAvailability(q_cycle, lift_type):
     kLiftBaseDerate = 0.92
     kCycleEfficiency = 0.43                     # [-] Assumed cycle efficiency when these relations were made
 
-    if q_cycle < 0 or not isfinite(q_cycle):
+    if not isfinite(q_cycle) or q_cycle < 0:
         raise Exception("q_cycle is either less than 0 or not finite")
 
     x = q_cycle / 1000. * kCycleEfficiency      # [MWe] Convert to nominal cycle power

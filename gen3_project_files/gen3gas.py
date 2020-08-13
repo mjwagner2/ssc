@@ -1,6 +1,7 @@
 from PySSC import PySSC
 import numpy as np
 import os
+from math import nan, isfinite
 import csv
 import pandas as pd
 import multiprocessing
@@ -641,6 +642,45 @@ class Gen3opt:
         return f_turb_tou_periods, f_dispatch_tou, weekday_schedule, weekend_schedule
 
     #----------------------------------------------------------------
+    def PermittingCosts(self, location, H_tower, W_design_cycle, lifetime=nan):
+        """
+        location =          'California', 'Colorado' or 'Arizona'
+        H_tower =           [m] height of tower
+        W_design_cycle =    [kWe] cycle design power
+        lifetime =          [year] operating lifetime of plant
+
+        returns the total permitting cost [$]
+        """
+
+        if not isfinite(H_tower) or H_tower < 0: raise Exception("Tower height not valid")
+        if not isfinite(W_design_cycle) or W_design_cycle < 0: raise Exception("Cycle design power not valid")
+
+        # Tower
+        if H_tower < 70.:
+            tower_permitting_cost = 0.
+        elif H_tower < 150.:
+            tower_permitting_cost = 30.e3
+        else:
+            tower_permitting_cost = 82.5e3
+
+        # Power block
+        W_design_cycle_MW = W_design_cycle * 1.e-3
+        if location == 'California':
+            if W_design_cycle_MW > 50:
+                if not isfinite(lifetime) or lifetime < 0: raise Exception("Lifetime not valid or not set")
+                cycle_permitting_cost = 3.e5 + 601. * W_design_cycle_MW + 3.e4 * lifetime
+            else:
+                cycle_permitting_cost = 0.
+        elif location == 'Colorado':
+            cycle_permitting_cost = 6.5e3 * W_design_cycle_MW
+        elif location == 'Arizona':
+            cycle_permitting_cost = 5.e3 * W_design_cycle_MW
+        else:
+            raise Exception("Invalid location")
+
+        return tower_permitting_cost + cycle_permitting_cost
+
+    #----------------------------------------------------------------
     def exec(self):
 
         ssc = PySSC()
@@ -711,16 +751,9 @@ class Gen3opt:
             wr.writerows(eta_map)
         ssc.data_set_matrix( data, b'eta_map', eta_map);
 
-        #Permitting cost for the tower
-        if self.variables.h_tower < 70.:
-            c_tower_permit = 0.
-        elif self.variables.h_tower < 150.:
-            c_tower_permit = 30e3
-        else:
-            c_tower_permit = 82.5e3
-
-        #permitting cost for the power block
-        c_cycle_permit = 5e3 * self.variables.cycle_design_power
+        # Permitting
+        analysis_period = ssc.data_get_number( data, b'analysis_period' )
+        permitting_costs = self.PermittingCosts('California', self.variables.h_tower, self.variables.cycle_design_power * 1.e3, analysis_period)
 
         #O&M cost 
         c_om_fixed = -3.85366E+01*self.variables.cycle_design_power**2 - 1.51756E+04*self.variables.cycle_design_power + 1.01400E+07
@@ -820,7 +853,7 @@ class Gen3opt:
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent', 16.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', c_tower_permit + c_cycle_permit + 5e6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed', permitting_costs + 5e6 );
 
         #O&M cost
         om_fixed = [ c_om_fixed ]
@@ -1106,7 +1139,7 @@ class Gen3opt:
             if row[0] == name:
                 return row[1]
         print("Variable not found: " + name)
-    
+
     #----------------------------------------------------------------
     def write_hourly_results_to_file(self, file_path="output_dview.csv"):
 

@@ -239,22 +239,35 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 
         //calculate fractional load
         m_q_dot_inc = q_dot_inc_sum;
-        double load = m_q_dot_inc / m_q_rec_des;
 
-        //look up receiver efficiency
-        eta_therm = m_efficiency_lookup.bilinear_2D_interp(load, T_salt_cold_in - 273.15); 
+        // converge on receiver efficiency and mass flow
+        double p, eta0 = 0.8, eps = 0.001;
+        int i = 1, N = 1000;
+        while (i <= N){
+
+            m_q_dot_loss = (1. - eta0) * m_q_dot_inc;   		//[W] Total reciever losses
+            m_q_dot_abs = m_q_dot_inc - m_q_dot_loss;	        //[W] Absorbed flux at each node
+
+            rho_coolant = field_htfProps.dens(T_coolant_prop, P_in * 1.e3 /*Pa*/);			//[kg/m^3] Density of the coolant
+
+            m_dot_salt = m_q_dot_abs / (c_p_coolant * (m_T_salt_hot_target - T_salt_cold_in));			//[kg/s]
+            eta_therm = m_efficiency_lookup.bilinear_2D_interp(m_dot_salt/m_m_dot_htf_des, T_salt_cold_in - 273.15);
+
+            if (fabs(eta0 - eta_therm) < eps) { break; }
+
+            i++;
+            eta0 = eta_therm;
+
+            if (i >= N) {
+                throw(C_csp_exception("Receiver mass flow not converged", "Receiver"));
+            }
+        };
+
         if (eta_therm < 0. || eta_therm != eta_therm)
         {
             rec_is_off = true;
             break;
         }
-
-        m_q_dot_loss = (1. - eta_therm) * m_q_dot_inc; 		//[W] Total reciever losses
-		m_q_dot_abs = m_q_dot_inc - m_q_dot_loss;	//[W] Absorbed flux at each node
-				
-		rho_coolant = field_htfProps.dens(T_coolant_prop, P_in * 1.e3 /*Pa*/);			//[kg/m^3] Density of the coolant
-
-        m_dot_salt = m_q_dot_abs / (c_p_coolant*(m_T_salt_hot_target - T_salt_cold_in));			//[kg/s]
 
         T_salt_hot_rec = m_T_salt_hot_target;   // T_salt_cold_in + m_q_dot_abs / (m_dot_salt*c_p_coolant);	//[K] Energy balance for each node																																																
 

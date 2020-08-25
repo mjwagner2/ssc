@@ -5,10 +5,10 @@ c_number = c_double # must be c_double or c_float depending on how defined in ss
 class PySSC:
 	def __init__(self):
 		if sys.platform == 'win32' or sys.platform == 'cygwin':
-			#self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/sscd.dll")
+			# self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/sscd.dll")
 			self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/ssc.dll")
 			# self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Debug/sscd.dll") 
-			#self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Release/ssc.dll") 
+			# self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Release/ssc.dll") 
 			
 		# elif sys.platform == 'darwin':
 		# 	self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.dylib") 

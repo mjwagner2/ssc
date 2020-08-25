@@ -127,3 +127,10 @@ def create_heliostat_field_lookup(field_interp_provider, q_solarfield_in_kw, h_t
         interp_data.append( [ f(q_solarfield_in, h_tower)[0][0]/scale for f in field_interp_provider[col] ] )
         
     return array(interp_data).T.tolist()
+
+#----------------------------------------------------------------------------
+if __name__ == "__main__":
+    intp = load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
+
+    create_heliostat_field_lookup(intp, 660000, 215, 88)
+    x=None

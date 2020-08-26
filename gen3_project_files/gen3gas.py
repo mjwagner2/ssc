@@ -844,11 +844,11 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 1871733); # 2.3602 * 0.78232e6 );
-        ssc.data_set_number( data, b'tower_exp', 0.0113 );
-        ssc.data_set_number( data, b'foundation_fixed_cost', 6684590 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 154.343 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_linear', 115727. );
+        ssc.data_set_number( data, b'tower_fixed_cost', 0);     # the tower and foundation costs are now...
+        ssc.data_set_number( data, b'tower_exp', 0 );           # ...combined into just the foundation equation
+        ssc.data_set_number( data, b'foundation_fixed_cost', 20116200 );
+        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69 );
+        ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661 );
         ssc.data_set_number( data, b'particle_lift_cost', lift_cost )  #  60e6 );
         ssc.data_set_number( data, b'riser_and_downcomer_cost',  riser_cost + downcomer_cost );
 

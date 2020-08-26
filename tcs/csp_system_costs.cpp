@@ -190,8 +190,9 @@ double N_mspt::tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_hel
     double foundation_fixed_cost /*$*/, double foundation_cost_scaling_quadratic, /*$/m^2*/ double foundation_cost_scaling_linear /*$/m*/)
 {
     double tower_height = h_tower - h_rec / 2. + h_helio / 2.;
-    double cost_tower = tower_fixed_cost * exp(tower_cost_scaling_exp * tower_height);	//[$]
-    double cost_foundation = foundation_cost_scaling_quadratic * pow(tower_height, 2.) + foundation_cost_scaling_linear * tower_height; //[$]
+    //double cost_tower = tower_fixed_cost * exp(tower_cost_scaling_exp * tower_height);	//[$]
+    double cost_tower = 0.;         // this is now wrapped up into the cost_foundation equation
+    double cost_foundation = foundation_cost_scaling_quadratic * pow(tower_height, 2.) + foundation_cost_scaling_linear * tower_height + foundation_fixed_cost; //[$]
     return cost_tower + cost_foundation;
 }
 

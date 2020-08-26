@@ -795,7 +795,7 @@ class Gen3opt:
         downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
 
         #receiver cost
-        recd = receiver.calculate_cost(self.variables.receiver_height, N_tubes)
+        recd = receiver.calculate_cost(D_tube, self.variables.receiver_height, N_tubes)
         rec_total_cost = recd['total_cost'] 
         rec_area = recd['A_rec']
         D_rec = recd['W_rec']

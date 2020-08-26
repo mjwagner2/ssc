@@ -83,12 +83,25 @@ def ReceiverTubeDesignMassFlow(D_tube, L_tube):
 
     return f_m_dot_tube(D_tube)[()]
 
+def ReceiverTubeThickness(D_tube):
+    """
+    D_tube        [in] Tube diameter
+
+    Returns the tube wall thickness in [in]
+    """
+
+    kTubeOuterDiameters = [1/4, 5/16, 3/8]
+    kTubeWallThicknesses = [0.055, 0.063, 0.070]
+    f_wall_thickness = interp1d(kTubeOuterDiameters, kTubeWallThicknesses, kind='quadratic', fill_value='extrapolate')
+    return f_wall_thickness(D_tube)
+
 #----------------------------------------------------------------------------
-def calculate_cost(L, N_tubes):
+def calculate_cost(D, L, N_tubes):
     """
     Calculate the receiver cost 
     
     Inputs
+        D - tube outer (nominal) diameter (in)
         L - Receiver tube length / aka, receiver height (m)
         N_tubes - Number of parallel tubes in the receiver (-)
 
@@ -98,17 +111,19 @@ def calculate_cost(L, N_tubes):
         'W_rec' - Receiver width (m)
 
     The defaults are:
+    D = 0.375 [in]
     L = 5.3 [m]
     N_tubes = 14124 
     This model provided by Brayton
     """
+    th_in = ReceiverTubeThickness(D)
     
     rho = 0.291 * 27679.905 #  [lbm/in3] * convert(lbm/in3,kg/m3)
-    D_out = 0.375 * 0.0254 #  [in] * convert(in,m)
-    th = 0.07 * 0.0254 #  [in] * convert(in,m)
+    D_out = D * 0.0254 #  [in] * convert(in,m)
+    th = th_in * 0.0254 #  [in] * convert(in,m)
     D_in = D_out - 2 *th
     
-    L_extra = 1.3 #  [m]	"extra to account for expansion loop"
+    L_extra = 31.44 * D_out + 0.7312 #  [m]	"extra to account for expansion loop"
     
     a_cs = pi/4*(D_out**2-D_in**2)
     V_tube = a_cs * (L + L_extra) * N_tubes 
@@ -116,8 +131,7 @@ def calculate_cost(L, N_tubes):
     
     #"header"
     f_extra = 1.25
-    L_header = N_tubes * D_out * f_extra
-    
+    L_header = N_tubes * D_out * f_extra   
     
     D_out_h = 2.875 * 0.0254 #  [in] * convert(in,m)
     th_h_in = 0.343 * 0.0254 #  [in]* convert(in,m)
@@ -618,7 +632,7 @@ def PlotReceiverTables(receiver_file_path, tube_config):
 #----------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    # print(calculate_cost(5.3, 14124))
+    # print(calculate_cost(0.375, 5.3, 14124))
     
     # X = [3, 12, 33]
     # Y = [15, 5, 40]    
@@ -649,27 +663,44 @@ if __name__ == "__main__":
     # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-6.3m')
 
     #---------------------------------------------------------------------------------------------------------------------
+    #---Testing tube wall thickness function------------------------------------------------------------------------------
+    kTubeOuterDiameters = [1/4, 5/16, 3/8]
+    tube_wall_thicknesses = [ReceiverTubeThickness(D_tube) for D_tube in kTubeOuterDiameters]
+
+    tube_diameters = np.arange(3/16, 7/16, 1/64)                     # [in] outer diameter
+    tube_wall_thicknesses_mod = [ReceiverTubeThickness(D_tube) for D_tube in tube_diameters]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot(kTubeOuterDiameters, tube_wall_thicknesses, 'o')
+    ax.plot(tube_diameters, tube_wall_thicknesses_mod, '-')
+    ax.set_xlabel('D_tube [in]')
+    ax.set_ylabel('Thickness_tube [in]')
+    ax.set_title('Tube Wall Thickness [in]')
+    plt.show()
+
+    #---------------------------------------------------------------------------------------------------------------------
     #---Testing receiver table generation for different diameters and lengths---------------------------------------------
-    receiver_file_path = 'resource/rec_lookup_all.csv'
-    df = pandas.read_csv(receiver_file_path)
+    # receiver_file_path = 'resource/rec_lookup_all.csv'
+    # df = pandas.read_csv(receiver_file_path)
 
-    m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
-    m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
-    T_in_max = df['T_in_C'].max()
-    T_in_min = df['T_in_C'].min()
-    m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
-    m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
-    P_in_max = df['P_in_kPa'].max()
-    P_in_min = df['P_in_kPa'].min()
+    # m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
+    # m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
+    # T_in_max = df['T_in_C'].max()
+    # T_in_min = df['T_in_C'].min()
+    # m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
+    # m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
+    # P_in_max = df['P_in_kPa'].max()
+    # P_in_min = df['P_in_kPa'].min()
 
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing StandardReceiverTubeMassFlow()----------------------------------------------------------------------------

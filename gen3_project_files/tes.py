@@ -176,7 +176,7 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
         kLowCostMaterialTempLimit = 600         # [C]
         kLowerTempMaterialCostReduction = 0.75  # [-]
 
-        total_hx_cost = CostPerCell(L_cell) * N_cells * kFutureCostReduction
+        total_hx_cost = CostPerCell(L_cell) * N_cells * (1 - kFutureCostReduction)
         if max(inlet_and_outlet_temps) < kLowCostMaterialTempLimit:
             x_material = FracTotalCosts(L_cell)
             total_hx_cost *= (1 - kLowerTempMaterialCostReduction * x_material)

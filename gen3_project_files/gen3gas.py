@@ -857,7 +857,7 @@ class Gen3opt:
 
         #field costs
         ssc.data_set_number( data, b'site_spec_cost', 10. );
-        ssc.data_set_number( data, b'heliostat_spec_cost', 75. );  #Using $100/m2 per Shaun's email 5/12/2020
+        ssc.data_set_number( data, b'heliostat_spec_cost', 125 );
 
         #Plant and BOP
         ssc.data_set_number( data, b'plant_spec_cost', 600 );

@@ -135,7 +135,7 @@ var( 'rec_cost_exp', 0.7 );
 
 //field costs
 var( 'site_spec_cost', 10. );
-var( 'heliostat_spec_cost', 75. );
+var( 'heliostat_spec_cost', 125 );
 
 //Plant and BOP
 var( 'plant_spec_cost', 600 );

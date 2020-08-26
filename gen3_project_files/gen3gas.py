@@ -806,15 +806,11 @@ class Gen3opt:
         lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, receiver_design_power*1000, m_dot_p, self.settings.lift_technology)
 
         #TES costs
-        e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh
-        dtes = tes.calculate_silo_cost( q_pb_des*1000, self.variables.hours_tes, self.settings.cycle_temperature_drop)
-        
+        tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
         dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
-
-        tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
-
-        tes_spec_cost = (hx_cost + dtes['media_cost'])/e_tes + tes_spec_bos_cost
+        e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh       
+        tes_spec_cost = tes_spec_bos_cost + hx_cost/e_tes
 
         #availability
         lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)

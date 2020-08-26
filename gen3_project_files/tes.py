@@ -2,6 +2,8 @@ from math import exp, log, isfinite
 from numpy import array
 from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
+import numpy as np
+import matplotlib.pyplot as plt
 
 __particle_specheat = 1.3 #[kJ/kg-K]
 __particle_density = 1600 #[kg/m3]
@@ -260,9 +262,9 @@ def calculate_balance_tes_cost(q_cycle_in_kw):
     #the correlation 
     cycle_power_mw = 0.001 * q_cycle_in_kw * 0.43       #convert to equivalent cycle power using original assumed efficiency
 
-    # return -2.27525e-5 * cycle_power_mw**3 + 6.42615e-3 * cycle_power_mw**2 - 6.76546e-1 * cycle_power_mw + 4.61456e1
+    #return 1.47271E-03 * cycle_power_mw**2 - 2.48109E-01 * cycle_power_mw + 2.25838E01
     # the below relation is better than the above original, which is an over-fit polynomial
-    return 3.91973E-06 * cycle_power_mw**3 + 7.25084E-05 *cycle_power_mw**2 - 1.51770E-01 *cycle_power_mw + 2.07886E+01
+    return -3.368 * np.log(cycle_power_mw) + 27.931
 
 
 #----------------------------------------------------------------------
@@ -396,22 +398,19 @@ if __name__ == "__main__":
     # print( calculate_hx_cost(qc*3, 20, 15, 730, 592))   
     # print( calculate_hx_base_dp(0.13, 660, 1.5))
 
-    import numpy
-    import matplotlib.pyplot as plt
-
-    Q = numpy.arange(0, 470, 5)
-    Y1 = [LiftAvailability(q*1000, 'bucket') for q in Q]
-    Y2 = [LiftAvailability(q*1000, 'skip') for q in Q]
-    plt.plot(Q,Y1, label='bucket')
-    plt.plot(Q,Y2, label='skip')
-    plt.legend()
-    plt.xlabel("Power Block Thermal Input (MWt)")
-    plt.ylabel("Availability")
-    plt.xlim(0, 465)
-    #plt.ylim(0.84, 1.)
-    plt.grid(True)
-    plt.show()
-    #plt.savefig("lift-avail-fix.png", dpi=200)
+    # Q = numpy.arange(0, 470, 5)
+    # Y1 = [LiftAvailability(q*1000, 'bucket') for q in Q]
+    # Y2 = [LiftAvailability(q*1000, 'skip') for q in Q]
+    # plt.plot(Q,Y1, label='bucket')
+    # plt.plot(Q,Y2, label='skip')
+    # plt.legend()
+    # plt.xlabel("Power Block Thermal Input (MWt)")
+    # plt.ylabel("Availability")
+    # plt.xlim(0, 465)
+    # #plt.ylim(0.84, 1.)
+    # plt.grid(True)
+    # plt.show()
+    # #plt.savefig("lift-avail-fix.png", dpi=200)
 
 
     # def epc_cost_over_100(direct_costs):
@@ -432,3 +431,19 @@ if __name__ == "__main__":
     # # plt.ylim(0.84, 1.)
     # plt.grid(True)
     # plt.show()
+
+    #---------------------------------------------------------------------------------------------------------------------
+    #---Testing calculate_balance_tes_cost()------------------------------------------------------------------------------
+    W_pb_MWs = np.arange(4, 130, 2)                     # [in] outer diameter
+    Q_pb_kWs = [W_pb_MW * 1e3 / 0.43 for W_pb_MW in W_pb_MWs]
+    BOS_TES_cost = [calculate_balance_tes_cost(Q_pb_kW) for Q_pb_kW in Q_pb_kWs]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot([10, 33, 100], [20.25, 16, 12.5], 'o')
+    ax.plot(W_pb_MWs, BOS_TES_cost, '-')
+    ax.set_xlim(0, 130)
+    ax.set_ylim(0, 30)
+    ax.set_xlabel('Power Block Scale [MWe]')
+    ax.set_ylabel('Balance of TES System Costs [$/kWht]')
+    plt.show()

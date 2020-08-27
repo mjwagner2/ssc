@@ -5,6 +5,7 @@ import scipy.optimize
 import multiprocessing
 import random
 import time
+import os
 
 
 #-------------------------------
@@ -24,6 +25,7 @@ def f_eval(x, data):
         data.variables.h_tower,\
         data.variables.dni_design_point,\
         data.variables.receiver_height,\
+        data.variables.receiver_tube_diam,\
         data.variables.riser_inner_diam, \
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
@@ -91,6 +93,7 @@ def optimize(thread_id, sf_interp_provider):
         [   50  ,  250  ],   # h_tower
         [   650 ,  1200 ],   # dni_design_point
         [   3   ,  8    ],   # receiver_height
+        [   .25 ,  .375 ],   # receiver tube outside diameter
         [   .25 ,  .75  ],   # riser_inner_diam
         [   .25 ,  .75  ],   # downcomer_inner_diam
         [   4   ,  20   ],   # hours_tes
@@ -127,6 +130,8 @@ def optimize(thread_id, sf_interp_provider):
     g.optimization_log += "\n\n" + logline
 
     #write a summary log
+    if not os.path.exists('runs'):
+        os.makedirs('runs')
     fout = open('runs/optimization-log-'+case+'.txt', 'w')
     fout.write(g.optimization_log)
     fout.close()

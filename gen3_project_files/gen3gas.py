@@ -33,6 +33,7 @@ class Variables:
         self.h_tower = 200                    # m
         self.dni_design_point = 976.          # W/m2
         self.receiver_height = 5.3            # m
+        self.receiver_tube_diam = 3/8         # in outside diameter
         self.riser_inner_diam = 0.490         # m
         self.downcomer_inner_diam = 0.490     # m
         self.hours_tes = 13                   # hr        
@@ -774,11 +775,10 @@ class Gen3opt:
             wr.writerows(ud_ind_od_off_sun)
 
         #receiver
-        D_tube = 3/8
         receiver_design_power = q_pb_des * self.variables.solar_multiple
         m_dot_rec_des = receiver_design_power*1000 / \
             (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
-        m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(D_tube, self.variables.receiver_height)
+        m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
         N_tubes_frac = m_dot_rec_des / m_dot_tube_des
         N_tubes = ceil(N_tubes_frac)
         mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
@@ -787,14 +787,14 @@ class Gen3opt:
             'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
-            rec_eta_lookup, D_tube=D_tube, L_tube=self.variables.receiver_height)
+            rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
         ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
         with open('resource/rec_efficiency_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(rec_efficiency_lookup)
 
         rec_pressure_lookup = receiver.create_receiver_dP_lookup(\
-            rec_dP_lookup, D_tube=D_tube, L_tube=self.variables.receiver_height)
+            rec_dP_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
         ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
         with open('resource/rec_pressure_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
@@ -833,7 +833,7 @@ class Gen3opt:
         downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
 
         #receiver cost
-        recd = receiver.calculate_cost(D_tube, self.variables.receiver_height, N_tubes)
+        recd = receiver.calculate_cost(self.variables.receiver_tube_diam, self.variables.receiver_height, N_tubes)
         rec_total_cost = recd['total_cost'] 
         rec_area = recd['A_rec']
         D_rec = recd['W_rec']
@@ -1238,6 +1238,7 @@ def run_single_case(casevars):
     g.variables.h_tower, \
     g.variables.dni_design_point, \
     g.variables.receiver_height, \
+    g.variables.receiver_tube_diam, \
     g.variables.riser_inner_diam, \
     g.variables.downcomer_inner_diam, \
     g.variables.hours_tes, \
@@ -1262,16 +1263,16 @@ def run_single_case(casevars):
     return sum_results
 
 if __name__ == "__main__":
-    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
+    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
-        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],
-        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303, 23.303],
-        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651, 12.651],
-        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725, 20.725],
+        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
+        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 3/8, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],
+        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 3/8, 0.436, 0.502, 14.618, 40.602, 23.303, 23.303],
+        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 3/8, 0.559, 0.497, 14.357, 40.265, 12.651, 12.651],
+        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 3/8, 0.397, 0.491, 15.659, 33.246, 20.725, 20.725],
     ]
 
 

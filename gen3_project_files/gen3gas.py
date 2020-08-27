@@ -852,14 +852,14 @@ class Gen3opt:
         tes_spec_cost = tes_spec_bos_cost + hx_cost/e_tes
 
         #O&M cost
-        # df_eta_map = pd.DataFrame(eta_map, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'nhel1', 'nhel2', 'nhel3'])
-        # df_eta_map['nhel_total'] = df_eta_map['nhel1'] + df_eta_map['nhel2'] + df_eta_map['nhel3']
-        # N_hel = df_eta_map['nhel_total'].max()
-        # duty_HXs = {'charge': dhx['duty_charge'],
-        #             'discharge_high_temp': dhx['duty_discharge_hot'],
-        #             'discharge_low_temp': dhx['duty_discharge_cold']}
-        # c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
-        c_om_fixed = self.AnnualOAndMCostsSimplified(self.variables.cycle_design_power * 1.e3)
+        df_eta_map = pd.DataFrame(eta_map, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'nhel1', 'nhel2', 'nhel3'])
+        df_eta_map['nhel_total'] = df_eta_map['nhel1'] + df_eta_map['nhel2'] + df_eta_map['nhel3']
+        N_hel = df_eta_map['nhel_total'].max()
+        duty_HXs = {'charge': dhx['duty_charge'],
+                    'discharge_high_temp': dhx['duty_discharge_hot'],
+                    'discharge_low_temp': dhx['duty_discharge_cold']}
+        c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
+        # c_om_fixed = self.AnnualOAndMCostsSimplified(self.variables.cycle_design_power * 1.e3)
 
         #availability
         lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)

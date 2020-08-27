@@ -4,6 +4,7 @@ import os
 from math import nan, isfinite, ceil
 import csv
 import pandas as pd
+import matplotlib.pyplot as plt
 import multiprocessing
 from globalspline import GlobalSpline2D
 
@@ -683,6 +684,45 @@ class Gen3opt:
         return tower_permitting_cost + cycle_permitting_cost
 
     #----------------------------------------------------------------
+    @staticmethod
+    def AnnualOAndMCosts(W_pb, area_heliostats, cost_receivers, duty_HXs):
+        """
+        W_pb                [kWe] Rated power block electrical output
+        area_heliostats     [m2] Total reflective area of heliostats
+        cost_receivers      [$] Cost of receivers
+        duty_HXs            [kWt] Duty of HXs, dictionary with keys: 'charge'
+        """
+
+        W_pb_MW = W_pb * 1e-3
+        duty_HXs_MW = {name_HX:duty_HX * 1e-3 for (name_HX, duty_HX) in duty_HXs.items()}
+
+        labor_costs = -7.4996e01 * W_pb_MW**2 - 9.9414e02 * W_pb_MW + 4.0028e06 + 0.3508 * area_heliostats
+
+        # Non-Labor Costs
+        F1 = 2.54259e-5 * W_pb_MW**2 - 4.08598e-3 * W_pb_MW + 1.45561e0
+        A = 0.6468 * area_heliostats
+        B = 0.02 * F1 * cost_receivers
+        C = 2572.5 * F1 * (3 * duty_HXs_MW["charge"])
+        D = F1 * (2436.0 * duty_HXs_MW["discharge_high_temp"] + 2058.0 * duty_HXs_MW["discharge_low_temp"])
+        E = F1 * (17.3359 * W_pb_MW**2 + 4110.53 * W_pb_MW + 5103.22)
+        F = F1 * (-2.2753e-7 * W_pb_MW**3 + 6.4262e-5 * W_pb_MW**2 - 6.7655e-3 * W_pb_MW + 0.46146)
+        G = 6000 * W_pb_MW
+        H = 4.48509e1 * W_pb_MW**2 - 9.42961e3 * W_pb_MW + 1.48637e6
+
+        non_labor_costs = A + B + C + D + E + F + G + H
+
+        return labor_costs + non_labor_costs
+
+    #----------------------------------------------------------------
+    @staticmethod
+    def AnnualOAndMCostsSimplified(W_pb):
+        """
+        W_pb                [kWe] Rated power block electrical output
+        """
+        W_pb_MW = W_pb * 1e-3
+        return 3.95225e1 * W_pb_MW**2 - 1.97421e4 * W_pb_MW + 1.04092e7
+
+    #----------------------------------------------------------------
     def exec(self):
 
         ssc = PySSC()
@@ -783,9 +823,6 @@ class Gen3opt:
         # Permitting
         analysis_period = ssc.data_get_number( data, b'analysis_period' )
         permitting_costs = self.PermittingCosts('California', self.variables.h_tower, self.variables.cycle_design_power * 1.e3, analysis_period)
-
-        #O&M cost 
-        c_om_fixed = -3.85366E+01*self.variables.cycle_design_power**2 - 1.51756E+04*self.variables.cycle_design_power + 1.01400E+07
         
         #riser cost
         piping_length_mult = 1.5
@@ -811,6 +848,16 @@ class Gen3opt:
         hx_cost = dhx['total_cost']
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh       
         tes_spec_cost = tes_spec_bos_cost + hx_cost/e_tes
+
+        #O&M cost
+        # df_eta_map = pd.DataFrame(eta_map, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'nhel1', 'nhel2', 'nhel3'])
+        # df_eta_map['nhel_total'] = df_eta_map['nhel1'] + df_eta_map['nhel2'] + df_eta_map['nhel3']
+        # N_hel = df_eta_map['nhel_total'].max()
+        # duty_HXs = {'charge': dhx['duty_charge'],
+        #             'discharge_high_temp': dhx['duty_discharge_hot'],
+        #             'discharge_low_temp': dhx['duty_discharge_cold']}
+        # c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
+        c_om_fixed = self.AnnualOAndMCostsSimplified(self.variables.cycle_design_power * 1.e3)
 
         #availability
         lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
@@ -1228,6 +1275,37 @@ if __name__ == "__main__":
     run_single_case(cases[0])
 
 
+    #---------------------------------------------------------------------------------------------------------------------
+    #---Testing O&M costs()-----------------------------------------------------------------------------------------------
+    # helio_area_total = 72.75 * 7537
+    # rec_total_cost = 77740724
+    # duty_HXs = {'charge': 279717, 'discharge_high_temp': 157858, 'discharge_low_temp': 112405}
+    # cycle_design_powers = np.arange(4, 130, 2)
+    # o_and_m_detailed = [Gen3opt.AnnualOAndMCosts(cycle_design_power * 1.e3, helio_area_total, rec_total_cost, duty_HXs) for \
+    #     cycle_design_power in cycle_design_powers]
+    # o_and_m_simplified = [Gen3opt.AnnualOAndMCostsSimplified(cycle_design_power * 1.e3) for \
+    #     cycle_design_power in cycle_design_powers]
+    
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1)
+    # ax.plot(cycle_design_powers, o_and_m_detailed, label='Detailed')
+    # ax.plot(cycle_design_powers, o_and_m_simplified, label='Simplified')
+    # ax.set_xlim(0, 130)
+    # ax.set_ylim(0, 15e6)
+    # ax.set_xlabel('Power Block Scale [MWe]')
+    # ax.set_ylabel('O&M Costs [$/kWht]')
+    # ax.set_title('O&M Costs\n\
+    #     Total Heliostat Area = {helio_area:.0f} [m2], Receiver Cost = {rec_total_cost:.0f} [$],\n\
+    #         Charge HX Duty = {charge:.0f} [MWt], High-Temp Discharge HX Duty = {discharge_high_temp:.0f} [MWt],\n\
+    #             Low-Temp Discharge HX Duty = {discharge_low_temp:.0f} [MWt]'\
+    #             .format(helio_area=helio_area_total, rec_total_cost=rec_total_cost,\
+    #                 charge=duty_HXs['charge'] * 1e-3, discharge_high_temp=duty_HXs['discharge_high_temp'] * 1e-3,\
+    #                     discharge_low_temp=duty_HXs['discharge_low_temp'] * 1e-3))
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
+    #---------------------------------------------------------------------------------------------------------------------
+
     # import pandas as pd
     # df = pd.read_csv('cycle-power-pareto-points.csv')
 
@@ -1272,7 +1350,6 @@ if __name__ == "__main__":
 
     #     # g.write_hourly_results_to_file( casename + '.csv')
 
-        
 
     # fsum = open('cycle-pareto-results.csv', 'w')
     # fsum.write("," + ",".join(casenames) + '\n')

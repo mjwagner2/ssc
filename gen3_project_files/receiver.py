@@ -106,7 +106,7 @@ def calculate_cost(D, L, N_tubes):
         N_tubes - Number of parallel tubes in the receiver (-)
 
     Returns
-        'total_cost' - Total receiver cost ($)
+        'total_cost' - Total cost for all receivers ($)
         'A_rec' - Receiver aperture area (m2)
         'W_rec' - Receiver width (m)
 

@@ -42,12 +42,13 @@ def cp_particle():
     return __particle_specheat
 
 #----------------------------------------------------------------------
-def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out_C, T_rec_in_C, scale_cost=1.):
+def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_approach_lt_dis, T_rec_out_C, T_rec_in_C, scale_cost=1.):
     """
     Inputs: 
     q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
     dT_approach_chg - nominal charge heat exchanger approach !! Either 20C or 15C
-    dt_approach_dis - nominal discharge heat exchangers approach (C)
+    dt_approach_ht_dis - nominal high-temp discharge heat exchanger approach temperature (C)
+    dt_approach_lt_dis - nominal low-temp discharge heat exchanger approach temperature (C)
     T_rec_out_C - nominal receiver hot outlet temperature (C)
     T_rec_in_C - nominal receiver cold inlet temperature (C)
 
@@ -69,14 +70,14 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_dis, T_rec_out
     T_charge_particle_out = T_rec_out_C - dT_approach_chg       #hot particles to storage
     T_charge_particle_in = T_charge_particle_out - dT_cycle     #cold particles to the receiver charge HX. assume CR=1
     T_hot_disch_co2_in = T_rec_in_C
-    T_hot_disch_co2_out = T_cycle_in = T_rec_out_C - dT_approach_chg - dT_approach_dis
+    T_hot_disch_co2_out = T_cycle_in = T_rec_out_C - dT_approach_chg - dT_approach_ht_dis   # hot sco2 leaving high-temp HX
     T_cycle_out = T_cycle_in - dT_cycle
     T_cold_disch_co2_in = T_cycle_out
     T_cold_disch_co2_out = T_rec_in_C
     T_hot_disch_particle_in = T_charge_particle_out
-    T_hot_disch_particle_out = T_hot_disch_co2_in + dT_approach_dis
+    T_hot_disch_particle_out = T_hot_disch_co2_in + dT_approach_ht_dis      # warm particles leaving high-temp HX
     T_cold_disch_particle_in = T_hot_disch_particle_out
-    T_cold_disch_particle_out = T_cold_disch_co2_in + dT_approach_dis
+    T_cold_disch_particle_out = T_cold_disch_co2_in + dT_approach_lt_dis    # cold particles leaving low-temp HX
     
     #heat exchanger mass flows
     cp_co2_cycle = specheat_co2(T_cycle_in + dT_cycle/2)    #kJ/kg-K

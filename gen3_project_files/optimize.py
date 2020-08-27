@@ -1,5 +1,6 @@
 import gen3gas as G3
 import receiver as G3rec
+import field as G3field
 import scipy.optimize 
 import multiprocessing
 import random
@@ -27,7 +28,8 @@ def f_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
-        data.variables.dT_approach_disch_hx = x_unscaled
+        data.variables.dT_approach_ht_disch_hx,\
+        data.variables.dT_approach_lt_disch_hx = x_unscaled
     
     try:
         simok = data.exec()
@@ -93,7 +95,8 @@ def optimize(thread_id, sf_interp_provider):
         [   .25 ,  .75  ],   # downcomer_inner_diam
         [   4   ,  20   ],   # hours_tes
         [   10  ,  40   ],   # dT_approach_charge_hx
-        [   10  ,  40   ],   # dT_approach_disch_hx
+        [   10  ,  40   ],   # dT_approach_ht_disch_hx
+        [   10  ,  40   ],   # dT_approach_lt_disch_hx
     ]
     
     #initial guess variable values
@@ -132,8 +135,8 @@ def optimize(thread_id, sf_interp_provider):
 if __name__ == "__main__":
 
 
-    north_interp_provider = G3rec.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north')
-    surr_interp_provider = G3rec.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
+    north_interp_provider = G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north')
+    surr_interp_provider = G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
     
     # nthreads = 4
     # nreplicates = 1

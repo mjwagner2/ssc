@@ -37,7 +37,8 @@ class Variables:
         self.downcomer_inner_diam = 0.490     # m
         self.hours_tes = 13                   # hr        
         self.dT_approach_charge_hx = 15       # C  charge hx approach temp
-        self.dT_approach_disch_hx = 15        # C  discharge hx total approach temp
+        self.dT_approach_ht_disch_hx = 15     # C  high-temp discharge hx approach temp
+        self.dT_approach_lt_disch_hx = 15     # C  low-temp discharge hx approach temp
 
     def guess_h_tower(self, **kwargs):
         """
@@ -749,11 +750,11 @@ class Gen3opt:
         
         #calculate system temperatures
         T_rec_hot_des = 730  #C this is fixed
-        T_pc_hot_des = T_rec_hot_des - (self.variables.dT_approach_charge_hx + self.variables.dT_approach_disch_hx)
+        T_pc_hot_des = T_rec_hot_des - (self.variables.dT_approach_charge_hx + self.variables.dT_approach_ht_disch_hx)
         T_rec_cold_des = T_rec_hot_des - self.settings.cycle_temperature_drop
         T_tes_hot_des = T_rec_hot_des - self.variables.dT_approach_charge_hx
         T_tes_cold_des = T_tes_hot_des - self.settings.cycle_temperature_drop 
-        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_disch_hx + self.variables.dT_approach_charge_hx
+        T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_charge_hx + self.variables.dT_approach_ht_disch_hx  # cold media entering rec3, then sco2 entering hthx
         T_pc_cold_des = T_pc_hot_des - self.settings.cycle_temperature_drop
 
         #cycle efficiency
@@ -844,7 +845,8 @@ class Gen3opt:
 
         #TES costs
         tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
-        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_disch_hx, T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
+        dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_ht_disch_hx, self.variables.dT_approach_lt_disch_hx, \
+            T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh       
         tes_spec_cost = tes_spec_bos_cost + hx_cost/e_tes
@@ -947,8 +949,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_tes_warm_des', T_tes_warm_des );
         ssc.data_set_number( data, b'T_tes_cold_des', T_tes_cold_des );
         ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
-        ssc.data_set_number( data, b'dt_ht_discharging', self.variables.dT_approach_disch_hx );
-        ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_disch_hx );
+        ssc.data_set_number( data, b'dt_ht_discharging', self.variables.dT_approach_ht_disch_hx );
+        ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_lt_disch_hx );
         ssc.data_set_number( data, b'is_rec_recirc_available', self.settings.is_rec_recirc_available );
 
         ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
@@ -1240,7 +1242,8 @@ def run_single_case(casevars):
     g.variables.downcomer_inner_diam, \
     g.variables.hours_tes, \
     g.variables.dT_approach_charge_hx, \
-    g.variables.dT_approach_disch_hx = casevars
+    g.variables.dT_approach_ht_disch_hx, \
+    g.variables.dT_approach_lt_disch_hx = casevars
 
     g.settings.is_north = 'north' in northstr
 
@@ -1259,16 +1262,16 @@ def run_single_case(casevars):
     return sum_results
 
 if __name__ == "__main__":
-    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_disch_hx
+    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 0.569, 0.597, 15.844, 33.027, 25.012],
-        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303],
-        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651],
-        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 0.45, 0.45, 13.3, 15, 15],
-        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725],
+        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
+        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],
+        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 0.436, 0.502, 14.618, 40.602, 23.303, 23.303],
+        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 0.559, 0.497, 14.357, 40.265, 12.651, 12.651],
+        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 0.45, 0.45, 13.3, 15, 15, 15],
+        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 0.397, 0.491, 15.659, 33.246, 20.725, 20.725],
     ]
 
 

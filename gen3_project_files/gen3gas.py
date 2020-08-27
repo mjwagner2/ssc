@@ -1278,6 +1278,21 @@ if __name__ == "__main__":
 
     run_single_case(cases[0])
 
+    #---------------------------------------------------------------------------------------------------------------------
+    #---Testing number of heliostats--------------------------------------------------------------------------------------
+    # def number_heliostats(q_sf_des):
+    #     helio_area = 72.75
+    #     h_tower = receiver.calculate_tower_height(q_solarfield_in_kw = q_sf_des * 1e3, is_north = False, wp_data = False)
+
+    #     interp_provider = field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
+    #     eta_map = field.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, h_tower, helio_area)
+    #     df_eta_map = pd.DataFrame(eta_map, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'nhel1', 'nhel2', 'nhel3'])
+    #     df_eta_map['nhel_total'] = df_eta_map['nhel1'] + df_eta_map['nhel2'] + df_eta_map['nhel3']
+    #     return df_eta_map['nhel_total'].max()
+
+    # q_sf_dess = [66.8, 334, 850]        # 66.8 MWt -> 1465; 334 MWt -> 7537; 850 MWt -> 20801
+    # N_heliostats = [number_heliostats(q_sf_des) for q_sf_des in q_sf_dess]
+    # x=None
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing O&M costs()-----------------------------------------------------------------------------------------------

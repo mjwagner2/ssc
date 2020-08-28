@@ -321,7 +321,7 @@ def calculate_lift_efficiency(q_solarfield_in_kw, q_solarfield_out_kw, m_dot_p, 
     if lift_type == 'bucket':
         lift_power = 1.487E-02*x**2 + 1.025E+01*x - 2.901E+02
     elif lift_type == 'skip':
-        lift_power = 6.931E-03*x**2 + 1.373E+01*x - 6.519E+02
+        lift_power = 1.02E-02*x**2 + 8.884*x - 1.5713E+02
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
     

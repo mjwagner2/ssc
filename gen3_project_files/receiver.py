@@ -552,8 +552,10 @@ def PlotReceiverTables(receiver_file_path, tube_config):
     rec_eta_table_modld = create_receiver_eta_lookup(rec_eta_lookup, D_tube[kTubeConfig], L_tube[kTubeConfig])
     rec_dP_table_modld = create_receiver_dP_lookup(rec_dP_lookup, D_tube[kTubeConfig], L_tube[kTubeConfig])
     df_eta_modld = pandas.DataFrame(rec_eta_table_modld, columns=['m_dot_frac_eta', 'T_in_C', 'eta'])
+    df_meas_f.sort_values(by=['T_in_C', 'm_dot_frac_eta'], inplace=True)
     df_eta_modld['eta_diff'] = df_eta_modld['eta'].values - df_meas_f['eta'].values       # add modeled minus measured
     df_dP_modld = pandas.DataFrame(rec_dP_table_modld, columns=['m_dot_frac_dP', 'P_in_kPa', 'dP_kPa'])
+    df_meas_f.sort_values(by=['P_in_kPa', 'm_dot_frac_dP'], inplace=True)
     df_dP_modld['dP_diff'] = df_dP_modld['dP_kPa'].values - df_meas_f['dP_kPa'].values    # add modeled minus measured
     df_modld = pandas.concat([df_eta_modld, df_dP_modld], axis=1)
 
@@ -664,43 +666,43 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing tube wall thickness function------------------------------------------------------------------------------
-    kTubeOuterDiameters = [1/4, 5/16, 3/8]
-    tube_wall_thicknesses = [ReceiverTubeThickness(D_tube) for D_tube in kTubeOuterDiameters]
+    # kTubeOuterDiameters = [1/4, 5/16, 3/8]
+    # tube_wall_thicknesses = [ReceiverTubeThickness(D_tube) for D_tube in kTubeOuterDiameters]
 
-    tube_diameters = np.arange(3/16, 7/16, 1/64)                     # [in] outer diameter
-    tube_wall_thicknesses_mod = [ReceiverTubeThickness(D_tube) for D_tube in tube_diameters]
+    # tube_diameters = np.arange(3/16, 7/16, 1/64)                     # [in] outer diameter
+    # tube_wall_thicknesses_mod = [ReceiverTubeThickness(D_tube) for D_tube in tube_diameters]
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(kTubeOuterDiameters, tube_wall_thicknesses, 'o')
-    ax.plot(tube_diameters, tube_wall_thicknesses_mod, '-')
-    ax.set_xlabel('D_tube [in]')
-    ax.set_ylabel('Thickness_tube [in]')
-    ax.set_title('Tube Wall Thickness [in]')
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1)
+    # ax.plot(kTubeOuterDiameters, tube_wall_thicknesses, 'o')
+    # ax.plot(tube_diameters, tube_wall_thicknesses_mod, '-')
+    # ax.set_xlabel('D_tube [in]')
+    # ax.set_ylabel('Thickness_tube [in]')
+    # ax.set_title('Tube Wall Thickness [in]')
+    # plt.show()
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing receiver table generation for different diameters and lengths---------------------------------------------
-    # receiver_file_path = 'resource/rec_lookup_all.csv'
-    # df = pandas.read_csv(receiver_file_path)
+    receiver_file_path = 'resource/rec_lookup_all.csv'
+    df = pandas.read_csv(receiver_file_path)
 
-    # m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
-    # m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
-    # T_in_max = df['T_in_C'].max()
-    # T_in_min = df['T_in_C'].min()
-    # m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
-    # m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
-    # P_in_max = df['P_in_kPa'].max()
-    # P_in_min = df['P_in_kPa'].min()
+    m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
+    m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
+    T_in_max = df['T_in_C'].max()
+    T_in_min = df['T_in_C'].min()
+    m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
+    m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
+    P_in_max = df['P_in_kPa'].max()
+    P_in_min = df['P_in_kPa'].min()
 
-    # PlotReceiverVariousTubes(receiver_file_path,
-    #     m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
-    # PlotReceiverVariousTubes(receiver_file_path,
-    #     m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
-    # PlotReceiverVariousTubes(receiver_file_path,
-    #     m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
-    # PlotReceiverVariousTubes(receiver_file_path,
-    #     m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
+    PlotReceiverVariousTubes(receiver_file_path,
+        m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
+    PlotReceiverVariousTubes(receiver_file_path,
+        m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
+    PlotReceiverVariousTubes(receiver_file_path,
+        m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
+    PlotReceiverVariousTubes(receiver_file_path,
+        m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing StandardReceiverTubeMassFlow()----------------------------------------------------------------------------

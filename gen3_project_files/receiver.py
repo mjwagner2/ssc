@@ -683,54 +683,70 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing receiver table generation for different diameters and lengths---------------------------------------------
-    receiver_file_path = 'resource/rec_lookup_all.csv'
-    df = pandas.read_csv(receiver_file_path)
+    # receiver_file_path = 'resource/rec_lookup_all.csv'
+    # df = pandas.read_csv(receiver_file_path)
 
-    m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
-    m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
-    T_in_max = df['T_in_C'].max()
-    T_in_min = df['T_in_C'].min()
-    m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
-    m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
-    P_in_max = df['P_in_kPa'].max()
-    P_in_min = df['P_in_kPa'].min()
+    # m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
+    # m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
+    # T_in_max = df['T_in_C'].max()
+    # T_in_min = df['T_in_C'].min()
+    # m_dot_frac_dP_max = df['m_dot_frac_dP'].max()
+    # m_dot_frac_dP_min = df['m_dot_frac_dP'].min()
+    # P_in_max = df['P_in_kPa'].max()
+    # P_in_min = df['P_in_kPa'].min()
 
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
-    PlotReceiverVariousTubes(receiver_file_path,
-        m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_max, T_in_min, m_dot_frac_dP_max, P_in_max)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_max, T_in_max, m_dot_frac_dP_max, P_in_min)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_min, T_in_min, m_dot_frac_dP_min, P_in_max)
+    # PlotReceiverVariousTubes(receiver_file_path,
+    #     m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
 
     #---------------------------------------------------------------------------------------------------------------------
-    #---Testing StandardReceiverTubeMassFlow()----------------------------------------------------------------------------
-    # # 1/4 - 0.055
-    # L1 = [1.731, 1.962, 2.192, 2.423, 2.654, 2.885, 3.115, 3.346, 3.577, 3.808]
-    # M1 = [0.03077, 0.0382, 0.04594, 0.05389, 0.06195, 0.07007, 0.07814, 0.08608, 0.0936, 0.1003]
-    # # 5/16 - 0.063
-    # L2 = [3.038, 3.308, 3.577, 3.846, 4.115, 4.385, 4.654, 4.923, 5.192, 5.462, 5.731, 6]
-    # M2 = [0.05191, 0.05918, 0.06674, 0.07448, 0.08248, 0.09056, 0.0988, 0.107, 0.1152, 0.1234, 0.1314, 0.1393]
-    # # 3/8 - 0.070
-    # L3 = [3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8]
-    # M3 = [0.05, 0.06298, 0.06511, 0.07245, 0.07658, 0.09064, 0.09264, 0.1049, 0.1184, 0.1193, 0.1337, 0.148, 0.1623]
+    #---Testing ReceiverTubeDesignMassFlow()-__---------------------------------------------------------------------------
+    # 1/4 - 0.055
+    L1 = [1.731, 1.962, 2.192, 2.423, 2.654, 2.885, 3.115, 3.346, 3.577, 3.808]
+    M1 = [0.03077, 0.0382, 0.04594, 0.05389, 0.06195, 0.07007, 0.07814, 0.08608, 0.0936, 0.1003]
+    # 5/16 - 0.063
+    L2 = [3.038, 3.308, 3.577, 3.846, 4.115, 4.385, 4.654, 4.923, 5.192, 5.462, 5.731, 6]
+    M2 = [0.05191, 0.05918, 0.06674, 0.07448, 0.08248, 0.09056, 0.0988, 0.107, 0.1152, 0.1234, 0.1314, 0.1393]
+    # 3/8 - 0.070
+    L3 = [3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8]
+    M3 = [0.05, 0.06298, 0.06511, 0.07245, 0.07658, 0.09064, 0.09264, 0.1049, 0.1184, 0.1193, 0.1337, 0.148, 0.1623]
 
-    # L_new = np.arange(1.731, 8, 0.1)
-    # M_new1 = [StandardReceiverTubeMassFlow(1/4, L) for L in L_new]
-    # M_new2 = [StandardReceiverTubeMassFlow(5/16, L) for L in L_new]
-    # M_new3 = [StandardReceiverTubeMassFlow(3/8, L) for L in L_new]
-    # M_new4 = [StandardReceiverTubeMassFlow(7/32, L) for L in L_new]
-    # M_new5 = [StandardReceiverTubeMassFlow(9/32, L) for L in L_new]
-    # M_new6 = [StandardReceiverTubeMassFlow(11/32, L) for L in L_new]
-    # M_new7 = [StandardReceiverTubeMassFlow(13/32, L) for L in L_new]
+    L_new = np.arange(1.731, 8, 0.1)
+    M_new1 = [ReceiverTubeDesignMassFlow(1/4, L) for L in L_new]
+    M_new2 = [ReceiverTubeDesignMassFlow(5/16, L) for L in L_new]
+    M_new3 = [ReceiverTubeDesignMassFlow(3/8, L) for L in L_new]
+    M_new4 = [ReceiverTubeDesignMassFlow(7/32, L) for L in L_new]
+    M_new5 = [ReceiverTubeDesignMassFlow(9/32, L) for L in L_new]
+    M_new6 = [ReceiverTubeDesignMassFlow(11/32, L) for L in L_new]
+    M_new7 = [ReceiverTubeDesignMassFlow(13/32, L) for L in L_new]
 
-    # plt.plot(L1, M1, 'o', label='1/4 - 0.055')
-    # plt.plot(L2, M2, 'o', label='5/16 - 0.063')
-    # plt.plot(L3, M3, 'o', label='3/8 - 0.070')
-    # plt.plot(L_new, M_new1, '-', L_new, M_new2, '-', L_new, M_new3, '-')
-    # plt.plot(L_new, M_new4, '-', L_new, M_new5, '-', L_new, M_new6, '-', L_new, M_new7, '-')
-    # plt.legend()
-    # plt.show()
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    plt.plot(L_new, M_new4, '-', label='7/32')
+
+    plt.plot(L1, M1, 'ro', label='1/4 - 0.055')
+    plt.plot(L_new, M_new1, 'r-', label='1/4')
+
+    plt.plot(L_new, M_new5, '-', label='9/32')
+
+    plt.plot(L2, M2, 'go', label='5/16 - 0.063')
+    plt.plot(L_new, M_new2, 'g-', label='5/16')
+
+    plt.plot(L_new, M_new6, '-', label='11/32')
+
+    plt.plot(L3, M3, 'bo', label='3/8 - 0.070')
+    plt.plot(L_new, M_new3, 'b-', label='3/8')
+
+    plt.plot(L_new, M_new7, '-', label='13/32')
+    ax.set_xlabel('L_tube [m]')
+    ax.set_ylabel('m_dot_std [kg/s]')
+    ax.set_title('Standard Tube Mass Flow [kg/s]')
+    plt.legend()
+    plt.show()
     #---------------------------------------------------------------------------------------------------------------------
     x=None

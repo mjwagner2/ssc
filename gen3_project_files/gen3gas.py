@@ -725,29 +725,37 @@ class Gen3opt:
         return 3.95225e1 * W_pb_MW**2 - 1.97421e4 * W_pb_MW + 1.04092e7
 
     #----------------------------------------------------------------
-    def exec(self):
+    def exec(self, **kw):
 
-        ssc = PySSC()
-        if self.settings.print_ssc_messages:
-            print('Process ID ', os.getpid())
-            print ('Current folder = ' + os.getcwd() )
-            print ('SSC Version = ', ssc.version())
-            print ('SSC Build Information = ', ssc.build_info().decode("utf - 8"))
-            ssc.module_exec_set_print(1)
+        # --- keyword args -----
+        if "sf_des_only" in kw:
+            sf_des_only = kw["sf_des_only"]
         else:
-            ssc.module_exec_set_print(0)
+            sf_des_only = False
+        # --------------
 
-        data = ssc.data_create()
+        if not sf_des_only:
+            ssc = PySSC()
+            if self.settings.print_ssc_messages:
+                print('Process ID ', os.getpid())
+                print ('Current folder = ' + os.getcwd() )
+                print ('SSC Version = ', ssc.version())
+                print ('SSC Build Information = ', ssc.build_info().decode("utf - 8"))
+                ssc.module_exec_set_print(1)
+            else:
+                ssc.module_exec_set_print(0)
 
-        #load in the default parameters
-        self.load_ssc_constants(ssc, data)
+            data = ssc.data_create()
 
-        """
-        ####################################################
-                    files
-        ####################################################
-        """
-        ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
+            #load in the default parameters
+            self.load_ssc_constants(ssc, data)
+
+            """
+            ####################################################
+                        files
+            ####################################################
+            """
+            ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
         
         #calculate system temperatures
         T_rec_hot_des = 730  #C this is fixed
@@ -763,13 +771,15 @@ class Gen3opt:
         q_pb_des = self.variables.cycle_design_power/cycle_efficiency  #MWt
 
         ud_ind_od = cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des)
-        ssc.data_set_matrix( data, b'ud_ind_od', ud_ind_od );
+        if not sf_des_only:
+            ssc.data_set_matrix( data, b'ud_ind_od', ud_ind_od );
         with open('resource/ud_ind_od_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(ud_ind_od)
         
         ud_ind_od_off_sun = cycle.create_updc_lookup('resource/ud_ind_od_off_sun.csv', T_pc_hot_des)
-        ssc.data_set_matrix( data, b'ud_ind_od_off_sun', ud_ind_od_off_sun );
+        if not sf_des_only:
+            ssc.data_set_matrix( data, b'ud_ind_od_off_sun', ud_ind_od_off_sun );
         with open('resource/ud_ind_od_off_sun_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(ud_ind_od_off_sun)
@@ -788,14 +798,16 @@ class Gen3opt:
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
             rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
-        ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
+        if not sf_des_only:
+            ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
         with open('resource/rec_efficiency_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(rec_efficiency_lookup)
 
         rec_pressure_lookup = receiver.create_receiver_dP_lookup(\
             rec_dP_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
-        ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
+        if not sf_des_only:
+            ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
         with open('resource/rec_pressure_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)
             wr.writerows(rec_pressure_lookup)
@@ -815,6 +827,12 @@ class Gen3opt:
 
         helio_area = 8.66**2*.97
         q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point 
+
+        # if we're only using this call to calculate the solar field design power, return and terminate here
+        if sf_des_only:
+            return q_sf_des
+
+
         eta_map = field.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
         with open('resource/eta_map_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)

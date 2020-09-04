@@ -13,11 +13,46 @@ def log_entry(x, z, iternum, label):
     return "{:20s}Iter: {:04d}".format(label, iternum) + ("{:>10s}"*(len(x)+1)).format(*["{:.3f}".format(v) for v in [z]+x])
 
 #-------------------------------
+# Constraint function evaluation
+def fconst_eval(x, data):
+    #Get the unscaled variables
+    x_unscaled = [x[i]*data.x_initial[i] for i in range(len(x))]
+
+    # Assign variables before calling exec
+    data.variables.cycle_design_power,\
+        data.variables.solar_multiple,\
+        data.variables.h_tower,\
+        data.variables.dni_design_point,\
+        data.variables.receiver_height,\
+        data.variables.receiver_tube_diam,\
+        data.variables.riser_inner_diam, \
+        data.variables.downcomer_inner_diam, \
+        data.variables.hours_tes,\
+        data.variables.dT_approach_charge_hx,\
+        data.variables.dT_approach_ht_disch_hx,\
+        data.variables.dT_approach_lt_disch_hx = x_unscaled
+    
+    q_sf_des = data.exec(sf_des_only=True)
+    
+    #calculate the minimum tube length as a function of receiver thermal power using the data from Brayton
+    # q_dot_rec     L_min
+    #  MWt           m
+    # --------------------
+    # 22            1.65
+    # 90            3
+    # 220           5.8
+
+    # >>>>>> Should this be q_sf_des / 3??
+    L_min = 0.02104 * q_sf_des/3 + 1.1553
+
+    #The inequality constraints are feasible if positive
+    return data.variables.receiver_height - L_min
+
+
+#-------------------------------
+# Objective function evaluation
 def f_eval(x, data):
 
-    # z = sum([v*v for v in x])
-
-    # return z
     x_unscaled = [x[i]*data.x_initial[i] for i in range(len(x))]
 
     data.variables.cycle_design_power,\
@@ -41,6 +76,7 @@ def f_eval(x, data):
 
     if not simok:
         data.current_iteration += 1
+        print("function evaluation NAN", x_unscaled)
         return float('nan')
         
     lcoe = data.get_result_value('LCOE (real)')
@@ -63,10 +99,6 @@ def f_eval(x, data):
 
     data.current_iteration += 1
     return lcoe #+ max([ (data.variables.dT_approach_charge_hx + data.variables.dT_approach_disch_hx - 30), 0 ])*2.
-
-def f_callback(xk): #, data):
-    # print(".... Iteration complete")
-    return
 
 def optimize(thread_id, sf_interp_provider):
 
@@ -121,9 +153,11 @@ def optimize(thread_id, sf_interp_provider):
     x0 = [1. for v in x0]
 
     #call optimize
-    scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
-                            options={'maxiter':200, 'eps':0.1, 'ftol':0.001}, 
-                            bounds=xb, callback=f_callback)
+    # scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
+    #                         options={'maxiter':10, 'eps':0.1, 'ftol':0.001}, 
+    #                         bounds=xb, callback=f_callback)
+
+    scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=20, acc=0.001)
 
     #report best point
     logline = log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['iter'], "***Best point:")

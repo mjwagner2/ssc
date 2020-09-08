@@ -51,6 +51,24 @@ def calculate_tower_height(q_solarfield_in_kw, is_north = True, wp_data = False)
 
     return tht
 
+def ReceiverMinimumTubeLength(Q_rec):
+    """
+    Calculate the minimum tube length as a function of single receiver thermal power using the data from Brayton
+
+    Q_rec       [kWt] Single receiver power rating
+    """
+
+    # q_dot_rec     L_min
+    #  MWt           m
+    # --------------------
+    # 22            1.65
+    # 90            3
+    # 220           5.8
+
+    Q_rec_MWt = Q_rec * 1.e-3
+    L_min = 0.02104 * Q_rec_MWt + 1.1553
+    return L_min
+
 #----------------------------------------------------------------------------
 def ReceiverTubeDesignMassFlow(D_tube, L_tube):
     """

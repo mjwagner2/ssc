@@ -29,6 +29,7 @@ class Variables:
 
     def initialize(self):
         #initialize variable values
+        self.q_sf_des = 640.6
         self.cycle_design_power = 100.        # MWe
         self.solar_multiple = 3.
         self.h_tower = 200                    # m
@@ -827,7 +828,8 @@ class Gen3opt:
             interp_provider = self.sf_interp_provider
 
         helio_area = 8.66**2*.97
-        q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point 
+        q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point
+        self.variables.q_sf_des = q_sf_des
 
         # if we're only using this call to calculate the solar field design power, return and terminate here
         if sf_des_only:
@@ -1282,10 +1284,15 @@ def run_single_case(casevars):
     return sum_results
 
 if __name__ == "__main__":
-    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam, downcomer_inner_diam, hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
+    # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
+    # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
         # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
-        ['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 3/8, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],
+        #['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 3/8, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],   # baseline
+        #         ,           ,       , P_ref, solarm,           h_tower,           dni_des,        rec_height,                  -,  piping_riser_diam, piping_downcomer_diam,         tshours,       dt_charging,  dt_ht_discharging,  dt_lt_discharging
+        # ['optimal', 'surround', 'skip', 72.92, 2.848, 186.262, 869.881, 3.218, 0.308, 0.416, 0.494, 12.111, 35.431, 16.133, 16.133],
+        # ['optimal', 'surround', 'skip', 150.0, 3.5, 250, 650, 8, 0.25, 0.25, 0.398376, 10.7806, 40, 40, 40],
+        ['optimal', 'surround', 'skip', 131.6319891915241, 2.8379219011998718, 200.0, 786.2033080797777, 5.101032967874522, 0.2740465629638552, 0.5995057445793365, 0.5520398960462897, 6.085558760812901, 19.914669928833234, 28.106233759402585, 28.106233759402585],
         # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
         # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 3/8, 0.436, 0.502, 14.618, 40.602, 23.303, 23.303],
         # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],

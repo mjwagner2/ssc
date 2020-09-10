@@ -34,16 +34,7 @@ def fconst_eval(x, data):
     
     q_sf_des = data.exec(sf_des_only=True)
     
-    #calculate the minimum tube length as a function of receiver thermal power using the data from Brayton
-    # q_dot_rec     L_min
-    #  MWt           m
-    # --------------------
-    # 22            1.65
-    # 90            3
-    # 220           5.8
-
-    # >>>>>> Should this be q_sf_des / 3??
-    L_min = 0.02104 * q_sf_des/3 + 1.1553
+    L_min = G3rec.ReceiverMinimumTubeLength(q_sf_des * 1.e3 / 3)
 
     #The inequality constraints are feasible if positive
     return data.variables.receiver_height - L_min
@@ -95,7 +86,9 @@ def f_eval(x, data):
     time_elapsed = time.time() - data.clock_time_start
     timestamp = "{:03d}:{:02d}   ".format( int(time_elapsed/60), int(time_elapsed % 60) )
 
-    print(timestamp + logline)
+    L_min = G3rec.ReceiverMinimumTubeLength(data.variables.q_sf_des * 1.e3 / 3)
+    q_sf_des_single_and_lmin = " {q_sf_des_single:.1f} -> {L_min:.2f}   ".format(q_sf_des_single=data.variables.q_sf_des/3, L_min=L_min)
+    print(timestamp + q_sf_des_single_and_lmin + logline)
 
     data.current_iteration += 1
     return lcoe #+ max([ (data.variables.dT_approach_charge_hx + data.variables.dT_approach_disch_hx - 30), 0 ])*2.

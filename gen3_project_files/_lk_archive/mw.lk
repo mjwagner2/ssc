@@ -172,7 +172,7 @@ var( 'field_fl_props', [ [ 1, 7, 0, 0, 0, 0, 0, 0, 0 ] ] );
 var( 'f_rec_min', 0.05 );
 var( 'rec_su_delay', 0.1); //0.2 );
 var( 'rec_qf_delay', 0.1); //0.25 );
-var( 'csp.pt.rec.max_oper_frac', 2 );
+var( 'csp.pt.rec.max_oper_frac', 1.2 );
 var( 'piping_loss', 10200 );
 var( 'piping_length_mult', 1.5 );
 var( 'piping_length_const', 50 );

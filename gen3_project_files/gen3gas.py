@@ -950,7 +950,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'f_rec_min', 0.05 );
         ssc.data_set_number( data, b'rec_su_delay', 0.1); #0.2 );
         ssc.data_set_number( data, b'rec_qf_delay', 0.1); #0.25 );
-        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 2 );    # was =1, but =2 in mw.lk
+        ssc.data_set_number( data, b'csp.pt.rec.max_oper_frac', 1.2 );
         ssc.data_set_number( data, b'piping_loss', 10200 );
         ssc.data_set_number( data, b'piping_length_mult', piping_length_mult );
         ssc.data_set_number( data, b'piping_length_const', piping_length_const );

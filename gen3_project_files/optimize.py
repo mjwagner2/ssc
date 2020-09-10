@@ -15,8 +15,14 @@ def log_entry(x, z, iternum, label):
 #-------------------------------
 # Constraint function evaluation
 def fconst_eval(x, data):
-    #Get the unscaled variables
-    x_unscaled = [x[i]*data.x_initial[i] for i in range(len(x))]
+    
+    # Unscale scaled (normalized) parameters from optimizer
+    x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
+    # unscale select initially scaled values:
+    # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??
+    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
+    # data.variables.receiver_height = data.variables.receiver_height * (receiver_height_max - receiver_height_min) + receiver_height_min
+    x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
 
     # Assign variables before calling exec
     data.variables.cycle_design_power,\
@@ -29,8 +35,9 @@ def fconst_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
-        data.variables.dT_approach_ht_disch_hx,\
         data.variables.dT_approach_lt_disch_hx = x_unscaled
+
+    data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
     
     q_sf_des = data.exec(sf_des_only=True)
     
@@ -44,7 +51,13 @@ def fconst_eval(x, data):
 # Objective function evaluation
 def f_eval(x, data):
 
-    x_unscaled = [x[i]*data.x_initial[i] for i in range(len(x))]
+    # Unscale scaled (normalized) parameters from optimizer
+    x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
+    # unscale select initially scaled values:
+    # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??
+    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
+    # data.variables.receiver_height = data.variables.receiver_height * (receiver_height_max - receiver_height_min) + receiver_height_min
+    x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
 
     data.variables.cycle_design_power,\
         data.variables.solar_multiple,\
@@ -56,8 +69,9 @@ def f_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
-        data.variables.dT_approach_ht_disch_hx,\
         data.variables.dT_approach_lt_disch_hx = x_unscaled
+
+    data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
     
     try:
         simok = data.exec()
@@ -74,6 +88,7 @@ def f_eval(x, data):
     if lcoe < 0.1 or lcoe > 50:
         lcoe = float('nan')
 
+    # Track parameters of current best LCOE
     if lcoe < data.z_best['z']:
         data.z_best['z'] = lcoe
         data.z_best['xk'] = [v for v in x_unscaled]
@@ -93,70 +108,78 @@ def f_eval(x, data):
     data.current_iteration += 1
     return lcoe #+ max([ (data.variables.dT_approach_charge_hx + data.variables.dT_approach_disch_hx - 30), 0 ])*2.
 
+def f_callback(xk): #, data):
+    # print(".... Iteration complete")
+    return
+
 def optimize(thread_id, sf_interp_provider):
 
-    #choose the case based on the thread_id integer
+    # choose the case based on the thread_id integer
     casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
     case = "{:03d}_{:s}".format(thread_id, casename)
 
-    #instantiate the case
+    # instantiate the case
     g = G3.Gen3opt(sf_interp_provider = sf_interp_provider)
 
     g.settings.is_north = 'north' in case
     
-    #force attributes for optimization
+    # force attributes for optimization
     g.optimization_log = ""
     g.settings.lift_technology = 'bucket' if 'bucket' in case else 'skip'
     g.casename = case 
     g.current_iteration = 0
     g.clock_time_start = time.time()
     
-    #set variable bounds
+    # set variable bounds
     xb = [
-        [   15  ,  150  ],   # cycle_design_power
-        [   2.5 ,  3.5  ],   # solar_multiple
-        [   50  ,  250  ],   # h_tower
-        [   650 ,  1200 ],   # dni_design_point
-        [   3   ,  8    ],   # receiver_height
-        [   .25 ,  .375 ],   # receiver tube outside diameter
-        [   .25 ,  .75  ],   # riser_inner_diam
-        [   .25 ,  .75  ],   # downcomer_inner_diam
-        [   4   ,  20   ],   # hours_tes
-        [   10  ,  40   ],   # dT_approach_charge_hx
-        [   10  ,  40   ],   # dT_approach_ht_disch_hx
-        [   10  ,  40   ],   # dT_approach_lt_disch_hx
+        [   15  ,  150  ],   # [0] cycle_design_power
+        [   2.5 ,  3.5  ],   # [1] solar_multiple
+        [   50  ,  200  ],   # [2] h_tower
+        [   650 ,  1200 ],   # [3] dni_design_point
+        # [   3   ,  8    ],   # [4] receiver_height
+        [   0   ,  1    ],   # [4] receiver_height, normalized
+        [   .25 ,  .375 ],   # [5] receiver tube outside diameter
+        [   .3 ,   .75  ],   # [6] riser_inner_diam
+        [   .3 ,   .75  ],   # [7] downcomer_inner_diam
+        [   4   ,  20   ],   # [8] hours_tes
+        [   10  ,  40   ],   # [9] dT_approach_charge_hx
+        #[   10  ,  40   ],   # dT_approach_ht_disch_hx
+        [   10  ,  40   ],   # [10] dT_approach_lt_disch_hx
     ]
     
-    #initial guess variable values
+    # Randomly choose initial guess values for most variables, but correlate some
     x0 = [random.uniform(x[0], x[1]) for x in xb]
-    
-    #tie tower height guess to power
-    x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north)
+    x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north) # correlate tower height guess to power
+    x0[6] = xb[6][0] + (x0[2] - xb[2][0]) * (xb[6][1] - xb[6][0]) / (xb[2][1] - xb[2][0])    # set riser_inner_diam guess at the same fraction across its range as 
+                                                                                             #  the receiver height is across its range b/c they're positively correlated
+    x0[7] = xb[7][0] + (x0[2] - xb[2][0]) * (xb[7][1] - xb[7][0]) / (xb[2][1] - xb[2][0])    # set downcomer_inner_diam guess at the same fraction across its range as 
+                                                                                             #  the receiver height is across its range b/c they're positively correlated
 
+    # normalize bounds using respective guess values
     for i in range(len(x0)):
         for j in range(2):
             xb[i][j] /= x0[i]
 
-    #save 
-    g.x_initial = [v for v in x0]
-    #initialize best point tracker
-    g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}
+    g.x_scalers = [v for v in x0]   # used in the objective function for unscaling the normalized values sent by the optimizer
+    x0 = [1. for v in x0]           # normalized initial guesses
 
-    #variables will be normalized
-    x0 = [1. for v in x0]
+    g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}  # initialize best point tracker
 
-    #call optimize
+    # print column labels for terminal output
+    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_dchrg")
+
+    # call optimize
     # scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
     #                         options={'maxiter':10, 'eps':0.1, 'ftol':0.001}, 
     #                         bounds=xb, callback=f_callback)
 
     scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=20, acc=0.001)
 
-    #report best point
+    # report best point
     logline = log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['iter'], "***Best point:")
     g.optimization_log += "\n\n" + logline
 
-    #write a summary log
+    # write a summary log
     if not os.path.exists('runs'):
         os.makedirs('runs')
     fout = open('runs/optimization-log-'+case+'.txt', 'w')

@@ -65,11 +65,11 @@ var( 'rec_pressure_lookup', csvread('../resource/rec_pressure_python.csv'));
 
 eta_map = csvread('../resource/eta_map_python.csv');
 
-solarm_ref = 2.842;
-solarm = 2.842;
+solarm_ref = 2.576;
+solarm = 2.576;
 
-dni_des_ref = 848.3;
-dni_des = 848.3;
+dni_des_ref = 654.05;
+dni_des = 654.05;
 
 sf_area_scaling = solarm / solarm_ref * dni_des_ref / dni_des;
 
@@ -92,9 +92,9 @@ var( 'eta_map', eta_map);
 */
 //design
 var( 'gross_net_conversion_factor', 0.9 );
-var( 'P_ref', 119.559 );
+var( 'P_ref', 109.36 );
 var( 'design_eff', 0.427); 	// 0.43; 
-var( 'tshours', 15.8 ); 	// 10.3
+var( 'tshours', 11.477 ); 	// 10.3
 var( 'solarm', solarm );
 
 //heliostat field
@@ -114,10 +114,10 @@ var( 'hel_stow_deploy', 8 );
 var( 'v_wind_max', 15 );
 
 //total height and width of all recievers (cost calculation)
-var( 'rec_height', 4.939 );	 //524.67 m^2, was 22.9
+var( 'rec_height', 4.947 );	 //524.67 m^2, was 22.9
 var( 'D_rec', 73.13 );
 //var( 'D_rec', 22.9*3*solarm/solarm_ref );
-var( 'h_tower', 227.7 );
+var( 'h_tower', 173.44 );
 
 var( 'water_usage_per_wash', 0.7 );
 var( 'washing_frequency', 63 );
@@ -176,8 +176,8 @@ var( 'csp.pt.rec.max_oper_frac', 1.2 );
 var( 'piping_loss', 10200 );
 var( 'piping_length_mult', 1.5 );
 var( 'piping_length_const', 50 );
-var( 'piping_riser_diam', 0.569 );
-var( 'piping_downcomer_diam', 0.597 );
+var( 'piping_riser_diam', 0.659 );
+var( 'piping_downcomer_diam', 0.685 );
 var( 'L_recHX', 1.650 );
 var( 'n_cells_recHX', 51400 );
 var( 'eta_pump', 1.043 );
@@ -193,9 +193,9 @@ var( 'T_tes_cold_des', 558.97 );			// was 546.6
 var( 'csp.pt.tes.init_hot_htf_percent', 30 );
 var( 'h_tank', 20 );
 var( 'cold_tank_max_heat', 0 );
-var( 'dt_charging', 33 );				// was 15
-var( 'dt_ht_discharging', 25 );			// was 15
-var( 'dt_lt_discharging', 25 );			// was 15
+var( 'dt_charging', 28.73 );				// was 15
+var( 'dt_ht_discharging', 13.78 );			// was 15
+var( 'dt_lt_discharging', 13.78 );			// was 15
 var( 'u_tank', 0.4 );
 var( 'tank_pairs', 1 );
 var( 'cold_tank_Thtr', 280 );

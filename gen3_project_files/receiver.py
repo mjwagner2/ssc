@@ -51,6 +51,19 @@ def calculate_tower_height(q_solarfield_in_kw, is_north = True, wp_data = False)
 
     return tht
 
+def ReceiverHeightRange(D_receiver_tube):
+    """
+    Returns the nominal minimum and maximum receiver height as function of the receiver tube size
+
+    D_receiver_tube     [in] Receiver single tube outer (nominal) diameter, valid from 1/4 to 3/8
+    """
+
+    x = D_receiver_tube
+    H_rec_min = -118.14*x**2 + 95.992*x - 14.883
+    H_rec_max = -74.88*x**2 + 77.816*x - 12.351
+
+    return [H_rec_min, H_rec_max]
+
 def ReceiverMinimumTubeLength(Q_rec):
     """
     Calculate the minimum tube length as a function of single receiver thermal power using the data from Brayton
@@ -382,7 +395,6 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
                     GlobalSpline2D(diameters, lengths, df_group[col].values, kind='linear')
                     #Rbf(diameters, lengths, df_group[col].values, function='linear', smooth=1)
                 )
-
     rec_dP_lookup = interp_funcs
 
 

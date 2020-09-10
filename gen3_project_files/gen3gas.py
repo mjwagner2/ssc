@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import multiprocessing
 from globalspline import GlobalSpline2D
+from scipy.interpolate import SmoothBivariateSpline
 
 
 #modules with cost/performance functions
@@ -813,8 +814,8 @@ class Gen3opt:
             wr.writerows(rec_pressure_lookup)
 
         df_rec_eta = pd.DataFrame(rec_efficiency_lookup, columns=['m_dot_frac_eta', 'T_in_C', 'eta'])
-        fun1 = GlobalSpline2D(df_rec_eta['m_dot_frac_eta'], df_rec_eta['T_in_C'], df_rec_eta['eta'], kind='linear')
-        receiver_eff_des = fun1(1, T_rec_cold_des)[0]
+        fun1 = SmoothBivariateSpline(df_rec_eta['m_dot_frac_eta'], df_rec_eta['T_in_C'], df_rec_eta['eta'].values, kx=1, ky=1)
+        receiver_eff_des = fun1(1, T_rec_cold_des)[0][0]
 
         #tower height
         # self.variables.h_tower = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)

@@ -29,7 +29,7 @@ class Variables:
 
     def initialize(self):
         #initialize variable values
-        self.q_sf_des = 640.6
+        self.q_sf_des = 640.6                 # MWt receiver thermal power, combined of all three
         self.cycle_design_power = 100.        # MWe
         self.solar_multiple = 3.
         self.h_tower = 200                    # m
@@ -787,8 +787,8 @@ class Gen3opt:
             wr.writerows(ud_ind_od_off_sun)
 
         #receiver
-        receiver_design_power = q_pb_des * self.variables.solar_multiple
-        m_dot_rec_des = receiver_design_power*1000 / \
+        receiver_design_power = q_pb_des * self.variables.solar_multiple        # all three receivers
+        m_dot_rec_des = receiver_design_power / 3 * 1000 / \
             (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
         m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
         N_tubes_frac = m_dot_rec_des / m_dot_tube_des
@@ -827,15 +827,14 @@ class Gen3opt:
         else:
             interp_provider = self.sf_interp_provider
 
-        helio_area = 8.66**2*.97
         q_sf_des = receiver_design_power / receiver_eff_des * self.settings.dni_des_ref / self.variables.dni_design_point
-        self.variables.q_sf_des = q_sf_des
+        self.variables.q_sf_des = q_sf_des      # all three receivers
 
         # if we're only using this call to calculate the solar field design power, return and terminate here
         if sf_des_only:
-            return q_sf_des
+            return q_sf_des                     # all three receivers
 
-
+        helio_area = 8.66**2*.97
         eta_map = field.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, self.variables.h_tower, helio_area)
         with open('resource/eta_map_python.csv', 'w', newline='') as myfile:
             wr = csv.writer(myfile, quoting=csv.QUOTE_NONE)

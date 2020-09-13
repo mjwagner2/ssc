@@ -15,7 +15,7 @@ def log_entry(x, z, iternum, label):
 #-------------------------------
 # Constraint function evaluation
 def fconst_eval(x, data):
-    
+
     # Unscale scaled (normalized) parameters from optimizer
     x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
     # unscale select initially scaled values:
@@ -35,9 +35,10 @@ def fconst_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
+        data.variables.dT_approach_ht_disch_hx,\
         data.variables.dT_approach_lt_disch_hx = x_unscaled
 
-    data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
+    # data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
     
     q_sf_des = data.exec(sf_des_only=True)
     
@@ -69,9 +70,10 @@ def f_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
+        data.variables.dT_approach_ht_disch_hx,\
         data.variables.dT_approach_lt_disch_hx = x_unscaled
 
-    data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
+    # data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
     
     try:
         simok = data.exec()
@@ -143,8 +145,8 @@ def optimize(thread_id, sf_interp_provider):
         [   .3 ,   .75  ],   # [7] downcomer_inner_diam
         [   4   ,  20   ],   # [8] hours_tes
         [   10  ,  40   ],   # [9] dT_approach_charge_hx
-        #[   10  ,  40   ],   # dT_approach_ht_disch_hx
-        [   10  ,  40   ],   # [10] dT_approach_lt_disch_hx
+        [   10  ,  40   ],   # [10] dT_approach_ht_disch_hx
+        [   10  ,  40   ],   # [11] dT_approach_lt_disch_hx
     ]
     
     # Randomly choose initial guess values for most variables, but correlate some
@@ -166,7 +168,7 @@ def optimize(thread_id, sf_interp_provider):
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}  # initialize best point tracker
 
     # print column labels for terminal output
-    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_dchrg")
+    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_ht_dchrg   dt_lt_dchrg")
 
     # call optimize
     # scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
@@ -189,20 +191,19 @@ def optimize(thread_id, sf_interp_provider):
 
 if __name__ == "__main__":
 
-
     north_interp_provider = G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north')
     surr_interp_provider = G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
     
+    # Run different field-lift combinations on different threads
     # nthreads = 4
     # nreplicates = 1
-
+    # -------
     # all_args = []
     # for i in range(nreplicates*4):
     #     all_args.append([i, north_interp_provider if i % 2 == 0 else surr_interp_provider]) 
-
+    # -------
     # pool = multiprocessing.Pool(processes=nthreads)
     # pool.starmap(optimize, all_args)
     
-
     id=3
     optimize(id, north_interp_provider if id%2 == 0 else surr_interp_provider)

@@ -20,9 +20,8 @@ def fconst_eval(x, data):
     x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
     # unscale select initially scaled values:
     # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??
-    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
-    # data.variables.receiver_height = data.variables.receiver_height * (receiver_height_max - receiver_height_min) + receiver_height_min
-    x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
+    # [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
+    # x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
 
     # Assign variables before calling exec
     data.variables.cycle_design_power,\
@@ -55,10 +54,9 @@ def f_eval(x, data):
     # Unscale scaled (normalized) parameters from optimizer
     x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
     # unscale select initially scaled values:
-    # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??
-    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
-    # data.variables.receiver_height = data.variables.receiver_height * (receiver_height_max - receiver_height_min) + receiver_height_min
-    x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
+    # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??:
+    # [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
+    # x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
 
     data.variables.cycle_design_power,\
         data.variables.solar_multiple,\
@@ -138,8 +136,8 @@ def optimize(thread_id, sf_interp_provider):
         [   2.5 ,  3.5  ],   # [1] solar_multiple
         [   50  ,  200  ],   # [2] h_tower
         [   650 ,  1200 ],   # [3] dni_design_point
-        # [   3   ,  8    ],   # [4] receiver_height
-        [   0   ,  1    ],   # [4] receiver_height, normalized
+        [   1.7 ,  6.3  ],   # [4] receiver_height
+        # [   0   ,  1    ],   # [4] receiver_height, normalized
         [   .25 ,  .375 ],   # [5] receiver tube outside diameter
         [   .3 ,   .75  ],   # [6] riser_inner_diam
         [   .3 ,   .75  ],   # [7] downcomer_inner_diam
@@ -153,9 +151,11 @@ def optimize(thread_id, sf_interp_provider):
     x0 = [random.uniform(x[0], x[1]) for x in xb]
     x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north) # correlate tower height guess to power
     x0[6] = xb[6][0] + (x0[2] - xb[2][0]) * (xb[6][1] - xb[6][0]) / (xb[2][1] - xb[2][0])    # set riser_inner_diam guess at the same fraction across its range as 
-                                                                                             #  the receiver height is across its range b/c they're positively correlated
+                                                                                             #  the tower height is across its range b/c they're positively correlated
     x0[7] = xb[7][0] + (x0[2] - xb[2][0]) * (xb[7][1] - xb[7][0]) / (xb[2][1] - xb[2][0])    # set downcomer_inner_diam guess at the same fraction across its range as 
-                                                                                             #  the receiver height is across its range b/c they're positively correlated
+                                                                                             #  the tower height is across its range b/c they're positively correlated
+    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x0[5])            # get receiver height limits based on random receiver tube diameter
+    x0[4] = random.uniform(receiver_height_min, receiver_height_max)                         # choose receiver height guess within height limits
 
     # normalize bounds using respective guess values
     for i in range(len(x0)):
@@ -168,7 +168,7 @@ def optimize(thread_id, sf_interp_provider):
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}  # initialize best point tracker
 
     # print column labels for terminal output
-    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_ht_dchrg   dt_lt_dchrg")
+    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_htHX   dt_ltHX")
 
     # call optimize
     # scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 

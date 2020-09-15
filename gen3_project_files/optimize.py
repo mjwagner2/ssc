@@ -112,7 +112,7 @@ def f_callback(xk): #, data):
     # print(".... Iteration complete")
     return
 
-def optimize(thread_id, sf_interp_provider):
+def optimize(thread_id, sf_interp_provider, **kwargs):
 
     # choose the case based on the thread_id integer
     casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
@@ -147,15 +147,18 @@ def optimize(thread_id, sf_interp_provider):
         [   10  ,  40   ],   # [11] dT_approach_lt_disch_hx
     ]
     
-    # Randomly choose initial guess values for most variables, but correlate some
-    x0 = [random.uniform(x[0], x[1]) for x in xb]
-    x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north) # correlate tower height guess to power
-    x0[6] = xb[6][0] + (x0[2] - xb[2][0]) * (xb[6][1] - xb[6][0]) / (xb[2][1] - xb[2][0])    # set riser_inner_diam guess at the same fraction across its range as 
-                                                                                             #  the tower height is across its range b/c they're positively correlated
-    x0[7] = xb[7][0] + (x0[2] - xb[2][0]) * (xb[7][1] - xb[7][0]) / (xb[2][1] - xb[2][0])    # set downcomer_inner_diam guess at the same fraction across its range as 
-                                                                                             #  the tower height is across its range b/c they're positively correlated
-    [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x0[5])            # get receiver height limits based on random receiver tube diameter
-    x0[4] = random.uniform(receiver_height_min, receiver_height_max)                         # choose receiver height guess within height limits
+    if "x0" in kwargs:
+        x0 = kwargs["x0"]
+    else:
+        # Randomly choose initial guess values for most variables, but correlate some
+        x0 = [random.uniform(x[0], x[1]) for x in xb]
+        x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north) # correlate tower height guess to power
+        x0[6] = xb[6][0] + (x0[2] - xb[2][0]) * (xb[6][1] - xb[6][0]) / (xb[2][1] - xb[2][0])    # set riser_inner_diam guess at the same fraction across its range as 
+                                                                                                #  the tower height is across its range b/c they're positively correlated
+        x0[7] = xb[7][0] + (x0[2] - xb[2][0]) * (xb[7][1] - xb[7][0]) / (xb[2][1] - xb[2][0])    # set downcomer_inner_diam guess at the same fraction across its range as 
+                                                                                                #  the tower height is across its range b/c they're positively correlated
+        [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x0[5])            # get receiver height limits based on random receiver tube diameter
+        x0[4] = random.uniform(receiver_height_min, receiver_height_max)                         # choose receiver height guess within height limits
 
     # normalize bounds using respective guess values
     for i in range(len(x0)):
@@ -168,7 +171,7 @@ def optimize(thread_id, sf_interp_provider):
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1}  # initialize best point tracker
 
     # print column labels for terminal output
-    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dt_htHX   dt_ltHX")
+    print("time      Q_rec -> L_min  ###_field-lift      Iter: ####    LCOE     P_ref       solarm  H_tower  dni_des      H_rec     D_rec_tb  D_riser   D_dcomr  tshours   dT_chrg   dT_htHX   dT_ltHX")
 
     # call optimize
     # scipy.optimize.minimize(f_eval, x0, args = ((g,)), method='SLSQP', tol=0.001, 
@@ -206,4 +209,9 @@ if __name__ == "__main__":
     # pool.starmap(optimize, all_args)
     
     id=3
-    optimize(id, north_interp_provider if id%2 == 0 else surr_interp_provider)
+    sf_interp_provider = north_interp_provider if id%2 == 0 else surr_interp_provider
+
+    optimize(id, sf_interp_provider)
+
+    # x0 = [84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.574, 0.577, 15.499, 34.613, 37.325, 37.325]
+    # optimize(id, sf_interp_provider, x0=x0)

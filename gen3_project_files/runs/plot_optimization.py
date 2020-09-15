@@ -81,7 +81,7 @@ def PlotBubble(file_loc):
 
         # Plot only the first 50 points, excluding those with the receiver height below the minimum      
         H_rec_below_min = df['H_rec_above_min'] == 0
-        df = df.loc[df['H_rec_above_min'] == 1].head(n=50)
+        df = df.loc[df['H_rec_above_min'] == 1].head(n=200)
         df.reset_index(inplace=True)
 
 
@@ -126,5 +126,5 @@ def PlotBubble(file_loc):
 
 if __name__ == '__main__':
     terminal_output_file = 'C:/Users/mboyd/Documents/Project Docs/Gen3_Gas/Brayton Model/optimum_results_rev5_indep_dTs.xlsx'
-    PlotScatter(terminal_output_file)
-    # PlotBubble(terminal_output_file)
+    # PlotScatter(terminal_output_file)
+    PlotBubble(terminal_output_file)

@@ -16,7 +16,7 @@ def PlotScatter(file_loc):
 
     # Overall Figure
     fig = plt.figure(figsize=(17,10))
-    fig.suptitle('surround-skip\n\
+    fig.suptitle('surround-skip -- LCOE, normalized\n\
     black = within all constraints\n\
     blue = just exceeds receiver height range per diameter\n\
     red = below receiver minimum height per power rating')
@@ -30,10 +30,13 @@ def PlotScatter(file_loc):
         H_rec_above_min_OOB = (df['H_rec_above_min'] == 1) & (df['H_rec_in_bounds'] == 0)
         H_rec_above_min_in_bounds =  (df['H_rec_above_min'] == 1) & (df['H_rec_in_bounds'] == 1)
 
-        pts = ax.scatter(df.loc[H_rec_below_min, [x_col_name]], df.loc[H_rec_below_min, ['LCOE']], c='red', s=3)
-        pts = ax.scatter(df.loc[H_rec_above_min_OOB, [x_col_name]], df.loc[H_rec_above_min_OOB, ['LCOE']], c='blue', s=3)
-        pts = ax.scatter(df.loc[H_rec_above_min_in_bounds, [x_col_name]], df.loc[H_rec_above_min_in_bounds, ['LCOE']], c='black', s=3)
-        ax.set_ylim(7, 16)
+        LCOE_min = df['LCOE'].min()
+
+        pts = ax.scatter(df.loc[H_rec_below_min, [x_col_name]], df.loc[H_rec_below_min, ['LCOE']] / LCOE_min, c='red', s=3)
+        pts = ax.scatter(df.loc[H_rec_above_min_OOB, [x_col_name]], df.loc[H_rec_above_min_OOB, ['LCOE']] / LCOE_min, c='blue', s=3)
+        pts = ax.scatter(df.loc[H_rec_above_min_in_bounds, [x_col_name]], df.loc[H_rec_above_min_in_bounds, ['LCOE']] / LCOE_min, c='black', s=3)
+        # ax.set_ylim(7, 16)
+        ax.set_ylim(0.9, 2)
         ax.set_xlabel(x_axis_label)
         return
 

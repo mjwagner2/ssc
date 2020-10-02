@@ -26,11 +26,10 @@ class global_handler:
         return "{:20s}Iter: {:04d}".format(label, iternum) + ("{:>10s}"*(len(x)+3)).format(*["{:.3f}".format(v) for v in [z, q_sf, l_min]+x])
 
 #-------------------------------
-# Constraint function evaluation
-def fconst_eval(x, data):
+def update_qsf_calculation(x_scaled, data):
 
     # Unscale scaled (normalized) parameters from optimizer
-    x_unscaled = [x[i]*data.x_scalers[i] for i in range(len(x))]
+    x_unscaled = [x_scaled[i]*data.x_scalers[i] for i in range(len(x_scaled))]
     # unscale select initially scaled values:
     # OR IS THIS THE PROBLEM WITH THE GRADIENTS MOVING UNDER THE OPTIMIZER'S FEET??
     # [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x_unscaled[5])       # [5] = receiver_tube_diam
@@ -51,15 +50,19 @@ def fconst_eval(x, data):
         data.variables.dT_approach_lt_disch_hx = x_unscaled
 
     # data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
-    
     q_sf_des = data.exec(sf_des_only=True)
-    
+
+    return q_sf_des
+
+# Constraint function evaluation
+def fconst_eval(x, data):
+    q_sf_des = update_qsf_calculation(x, data)
+
     L_min = G3rec.ReceiverMinimumTubeLength(q_sf_des * 1.e3 / 3)
 
     #The inequality constraints are feasible if positive
-    print("constraint eval: {:f}\t{:f}".format(data.variables.receiver_height, L_min))
+    # print("constraint eval: {:f}\t{:f}".format(data.variables.receiver_height, L_min))
     return data.variables.receiver_height - L_min
-
 
 #-------------------------------
 # Objective function evaluation
@@ -170,6 +173,11 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     else:
         # Randomly choose initial guess values for most variables, but correlate some
         x0 = [random.uniform(x[0], x[1]) for x in xb]
+
+        # Don't allow solar thermal power to exceed ~700 MW (receiver height gets too long)
+        sm_max = min([600. / x0[0] * g.settings.cycle_efficiency_nominal, xb[1][1]] )
+        x0[1] = random.uniform(xb[1][0], sm_max)
+
         # correlate tower height guess to power
         x0[2] = g.variables.guess_h_tower(cycle_design_power = x0[0], solar_multiple = x0[1], is_north = g.settings.is_north) 
 
@@ -181,11 +189,50 @@ def optimize(thread_id, GlobalHandler, **kwargs):
         #  the tower height is across its range b/c they're positively correlated
         x0[7] = xb[7][0] + (x0[2] - xb[2][0]) * (xb[7][1] - xb[7][0]) / (xb[2][1] - xb[2][0])    
 
-        # get receiver height limits based on random receiver tube diameter
-        [receiver_height_min, receiver_height_max] = G3rec.ReceiverHeightRange(x0[5])            
-        
-        # choose receiver height guess within height limits
-        x0[4] = random.uniform(receiver_height_min, receiver_height_max)                         
+        #----------- loop to solve for acceptable guess tube diameter
+        d_tube_guess0 = x0[5]  # inch 
+        h_rec_guess0 = x0[4]   # m
+        ddtube = 99999
+        dtubetol = 0.05
+        maxiter = 20
+        it = 0
+
+        rec_height_guess_scale = random.uniform(0,1)       #random value between 0 and 1
+
+        while ddtube > dtubetol and it < maxiter:
+
+            # Set the values (unscaled, dimensional) for each variable based on the current iteration
+            g.x_scalers = [v for v in x0]
+
+            # Calculate the solar field thermal power based on the values in x_scalers
+            q_sf = update_qsf_calculation([1. for i in range(len(x0))], g)
+
+            # Get the minimum receiver height for this solar field thermal power
+            receiver_height_min = G3rec.ReceiverMinimumTubeLength(q_sf * 1.e3 / 3)
+
+            #update receiver guess
+            if receiver_height_min >= xb[4][1]:
+                x0[4] = receiver_height_min
+            else:
+                x0[4] = receiver_height_min + (xb[4][1] - receiver_height_min) * rec_height_guess_scale  #consistent relative guess for receiver height
+
+            # Calculate the min/max tube diameter for this height
+            d_tube_min = G3rec.ReceiverTubeDiameterRange(receiver_height_min)[0]
+
+            if d_tube_min != d_tube_min:
+                x0[5] = 0.375
+                break
+            else:
+                d_tube_guess = 1.2*d_tube_min 
+
+            ddtube = abs(d_tube_guess - d_tube_guess0)
+
+            d_tube_guess0 = d_tube_guess #save for next iteration
+
+            x0[5] = d_tube_guess
+
+            it += 1
+            
 
     # normalize bounds using respective guess values
     for i in range(len(x0)):
@@ -218,8 +265,8 @@ if __name__ == "__main__":
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     
     # Run different field-lift combinations on different threads
-    nthreads = 1
-    nreplicates = 1
+    nthreads = 10
+    nreplicates = 100
     # -------
     all_args = []
     for i in range(nreplicates):
@@ -229,7 +276,7 @@ if __name__ == "__main__":
     pool.starmap(optimize, all_args)
     
 
-    # optimize(id, GS)
+    # optimize(0, GS)
 
     # x0 = [84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.574, 0.577, 15.499, 34.613, 37.325, 37.325]
     # optimize(id, sf_interp_provider, x0=x0)

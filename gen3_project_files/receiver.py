@@ -64,6 +64,29 @@ def ReceiverHeightRange(D_receiver_tube):
 
     return [H_rec_min, H_rec_max]
 
+def ReceiverTubeDiameterRange(H_rec):
+    """
+    Calculate the allowable tube diameter range given a receiver height (inverse of the function ReceiverHeightRange() )
+
+    D_tube_max is undefined above ~H>4.6m,
+    D_tube_min is undefined above ~H>7.8m
+
+    Returns tube diameter [in]
+    """
+
+    if H_rec < 4.6:
+        D_tube_max = 0.4062637549 - 0.00001692906721*(1.36334599*10**8 - 2.9535000*10**7*H_rec)**0.5
+    else:
+        D_tube_max = float('inf')
+
+    if H_rec < 7.8:
+        D_tube_min = 0.5196047009 - 0.00005341880342*(3.6811849*10**7 - 4.680000*10**6*H_rec)**0.5
+    else:
+        D_tube_min = float('inf')
+
+    return [D_tube_min, D_tube_max]
+
+
 def ReceiverMinimumTubeLength(Q_rec):
     """
     Calculate the minimum tube length as a function of single receiver thermal power using the data from Brayton

@@ -56,13 +56,20 @@ def update_qsf_calculation(x_scaled, data):
 
 # Constraint function evaluation
 def fconst_eval(x, data):
+
     q_sf_des = update_qsf_calculation(x, data)
 
-    L_min = G3rec.ReceiverMinimumTubeLength(q_sf_des * 1.e3 / 3)
+    # if not q_sf_des:
+    #     return float('nan')
 
-    #The inequality constraints are feasible if positive
-    # print("constraint eval: {:f}\t{:f}".format(data.variables.receiver_height, L_min))
-    return data.variables.receiver_height - L_min
+    L_min = G3rec.ReceiverMinimumTubeLength(q_sf_des * 1.e3 / 3)
+    print("Rec min: {:f}\tRec val: {:f}".format(L_min, data.variables.receiver_height))
+
+    if L_min:
+        #The inequality constraints are feasible if positive
+        return data.variables.receiver_height - L_min
+    else:
+        return float('nan')
 
 #-------------------------------
 # Objective function evaluation
@@ -127,9 +134,6 @@ def f_eval(x, data):
     data.current_iteration += 1
     return lcoe 
 
-def f_callback(xk): #, data):
-    # print(".... Iteration complete")
-    return
 
 def optimize(thread_id, GlobalHandler, **kwargs):
 
@@ -245,10 +249,10 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1, 'q_sf_des':float('nan'), 'l_min':float('nan')}  # initialize best point tracker
 
     # Optimize
-    scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=100, acc=0.001)
+    scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=50, acc=0.001)
 
     # report best point
-    logline = GlobalHandler.log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['q_sf_des'], q.z_best['l_min'], g.z_best['iter'], "***Best point:")
+    logline = GlobalHandler.log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['q_sf_des'], g.z_best['l_min'], g.z_best['iter'], "***Best point:")
     g.optimization_log += "\n\n" + logline
 
     # write a summary log
@@ -259,24 +263,23 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     fout.close()
 
 
-
 if __name__ == "__main__":
 
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     
     # Run different field-lift combinations on different threads
-    nthreads = 10
-    nreplicates = 100
-    # -------
-    all_args = []
-    for i in range(nreplicates):
-        all_args.append([i, GS]) 
-    # -------
-    pool = multiprocessing.Pool(processes=nthreads)
-    pool.starmap(optimize, all_args)
+    # nthreads = 10
+    # nreplicates = 100
+    # # -------
+    # all_args = []
+    # for i in range(nreplicates):
+    #     all_args.append([i+100, GS]) 
+    # # -------
+    # pool = multiprocessing.Pool(processes=nthreads)
+    # pool.starmap(optimize, all_args)
     
 
-    # optimize(0, GS)
+    optimize(999, GS)
 
     # x0 = [84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.574, 0.577, 15.499, 34.613, 37.325, 37.325]
     # optimize(id, sf_interp_provider, x0=x0)

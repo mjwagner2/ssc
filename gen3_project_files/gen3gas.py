@@ -787,13 +787,18 @@ class Gen3opt:
             wr.writerows(ud_ind_od_off_sun)
 
         #receiver
-        receiver_design_power = q_pb_des * self.variables.solar_multiple        # all three receivers
-        m_dot_rec_des = receiver_design_power / 3 * 1000 / \
-            (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
-        m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
-        N_tubes_frac = m_dot_rec_des / m_dot_tube_des
-        N_tubes = ceil(N_tubes_frac)
-        mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
+        try:
+            receiver_design_power = q_pb_des * self.variables.solar_multiple        # all three receivers
+            m_dot_rec_des = receiver_design_power / 3 * 1000 / \
+                (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
+            m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
+            N_tubes_frac = m_dot_rec_des / m_dot_tube_des
+            N_tubes = ceil(N_tubes_frac)
+            mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
+        except:
+            if not sf_des_only:
+                ssc.data_free(data)
+            return False
 
         rec_eta_lookup, rec_dP_lookup = receiver.load_receiver_interpolator_provider(\
             'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)

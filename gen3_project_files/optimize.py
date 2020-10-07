@@ -6,6 +6,7 @@ import multiprocessing
 import random
 import time
 import os
+from math import erf, isnan 
 
 class global_handler:
     def __init__(self, sf_interp_provider):
@@ -100,7 +101,7 @@ def f_eval(x, data):
     try:
         simok = data.exec()
     except Exception as E:
-        print("{:s}: {0}".format(data.casename, E))
+        print("{1}: {0}".format(data.casename, E))
         simok = False
 
     if not simok:
@@ -115,9 +116,14 @@ def f_eval(x, data):
     #calculate minimum receiver length for this design
     L_min = G3rec.ReceiverMinimumTubeLength(data.variables.q_sf_des * 1.e3 / 3)
 
+    #enforce objective penalty for violating tube length min
+    C = [0, -7, 7, -0.5, 1.9]
+    pen = lambda x: 1 + (C[0]*x**2 + C[1]*x + C[2])*(1/2 + erf(C[3]*x-C[4])/2)
+    lcoe_pen = lcoe * pen(data.variables.receiver_height - L_min)
+
     # Track parameters of current best LCOE
-    if lcoe < data.z_best['z'] and data.variables.receiver_height >= L_min:
-        data.z_best['z'] = lcoe
+    if lcoe_pen < data.z_best['z'] and data.variables.receiver_height >= L_min:
+        data.z_best['z'] = lcoe_pen
         data.z_best['xk'] = [v for v in x_unscaled]
         data.z_best['iter'] = data.current_iteration
         data.z_best['q_sf_des'] = data.variables.q_sf_des/3
@@ -132,8 +138,7 @@ def f_eval(x, data):
     print(timestamp + logline)
 
     data.current_iteration += 1
-    return lcoe 
-
+    return lcoe_pen 
 
 def optimize(thread_id, GlobalHandler, **kwargs):
 
@@ -157,11 +162,11 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     
     # set variable bounds
     xb = [
-        [   15  ,  150  ],   # [0] cycle_design_power
+        [   15  ,  100  ],   # [0] cycle_design_power
         [   2.5 ,  3.5  ],   # [1] solar_multiple
         [   50  ,  200  ],   # [2] h_tower
         [   650 ,  1200 ],   # [3] dni_design_point
-        [   1.7 ,  6.3  ],   # [4] receiver_height
+        [    2 ,   7  ],   # [4] receiver_height
         # [   0   ,  1    ],   # [4] receiver_height, normalized
         [   .25 ,  .375 ],   # [5] receiver tube outside diameter
         [   .3 ,   .75  ],   # [6] riser_inner_diam
@@ -176,7 +181,10 @@ def optimize(thread_id, GlobalHandler, **kwargs):
         x0 = kwargs["x0"]
     else:
         # Randomly choose initial guess values for most variables, but correlate some
-        x0 = [random.uniform(x[0], x[1]) for x in xb]
+        x0 = []
+        for x in xb:
+            dx = (x[1]-x[0])*0.1
+            x0.append( random.uniform(x[0]+dx, x[1]-dx) )
 
         # Don't allow solar thermal power to exceed ~700 MW (receiver height gets too long)
         sm_max = min([600. / x0[0] * g.settings.cycle_efficiency_nominal, xb[1][1]] )
@@ -223,7 +231,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
             # Calculate the min/max tube diameter for this height
             d_tube_min = G3rec.ReceiverTubeDiameterRange(receiver_height_min)[0]
 
-            if d_tube_min != d_tube_min:
+            if isnan(d_tube_min):
                 x0[5] = 0.375
                 break
             else:
@@ -249,7 +257,14 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     g.z_best = {'z':float('inf'), 'xk':[v for v in x0], 'iter':-1, 'q_sf_des':float('nan'), 'l_min':float('nan')}  # initialize best point tracker
 
     # Optimize
-    scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=50, acc=0.001)
+    # scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), ieqcons=[fconst_eval], epsilon=0.1, iter=50, acc=0.001)
+    # scipy.optimize.minimize(f_eval, x0, bounds=xb, args=((g,)), options={'eps':0.1, 'maxiter':100, 'maxfun':150, 'ftol':0.001}, method='L-BFGS-B')
+    # scipy.optimize.fmin_l_bfgs_b(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, maxiter=100, maxfun=150, disp=True, approx_grad=True)
+    # scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, iter=50, acc=0.001)
+    # scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'maxiter':150, 'disp':True, 'xatol':.001, 'fatol':.01, 'adaptive':True}, method='Nelder-Mead')
+    scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
+
+
 
     # report best point
     logline = GlobalHandler.log_entry(g.z_best['xk'], g.z_best['z'], g.z_best['q_sf_des'], g.z_best['l_min'], g.z_best['iter'], "***Best point:")
@@ -268,18 +283,18 @@ if __name__ == "__main__":
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     
     # Run different field-lift combinations on different threads
-    # nthreads = 10
-    # nreplicates = 100
-    # # -------
-    # all_args = []
-    # for i in range(nreplicates):
-    #     all_args.append([i+100, GS]) 
-    # # -------
-    # pool = multiprocessing.Pool(processes=nthreads)
-    # pool.starmap(optimize, all_args)
+    nthreads = 10
+    nreplicates = 100
+    # -------
+    all_args = []
+    for i in range(nreplicates):
+        all_args.append([i+300, GS]) 
+    # -------
+    pool = multiprocessing.Pool(processes=nthreads)
+    pool.starmap(optimize, all_args)
     
 
-    optimize(999, GS)
+    # optimize(999, GS)
 
     # x0 = [84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.574, 0.577, 15.499, 34.613, 37.325, 37.325]
     # optimize(id, sf_interp_provider, x0=x0)

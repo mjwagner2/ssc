@@ -3,7 +3,7 @@
 *  Copyright 2017 Alliance for Sustainable Energy, LLC
 *
 *  NOTICE: This software was developed at least in part by Alliance for Sustainable Energy, LLC
-*  (“Alliance”) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
+*  (ï¿½Allianceï¿½) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
 *  The Government retains for itself and others acting on its behalf a nonexclusive, paid-up,
 *  irrevocable worldwide license in the software to reproduce, prepare derivative works, distribute
 *  copies to the public, perform publicly and display publicly, and to permit others to do so.
@@ -27,8 +27,8 @@
 *  4. Redistribution of this software, without modification, must refer to the software by the same
 *  designation. Redistribution of a modified version of this software (i) may not refer to the modified
 *  version by the same designation, or by any confusingly similar designation, and (ii) must refer to
-*  the underlying software originally provided by Alliance as “System Advisor Model” or “SAM”. Except
-*  to comply with the foregoing, the terms “System Advisor Model”, “SAM”, or any confusingly similar
+*  the underlying software originally provided by Alliance as ï¿½System Advisor Modelï¿½ or ï¿½SAMï¿½. Except
+*  to comply with the foregoing, the terms ï¿½System Advisor Modelï¿½, ï¿½SAMï¿½, or any confusingly similar
 *  designation may not be used to refer to any modified version of this software or any modified
 *  version of the underlying software originally provided by Alliance without the prior written consent
 *  of Alliance.
@@ -58,6 +58,9 @@
 #include <vector>
 #include <stdexcept>
 #include "lib_ondinv.h"
+#include "bsplinebuilder.h"
+#include "datatable.h"
+
 
 const int TEMP_DERATE_ARRAY_LENGTH = 6;
 // test commit
@@ -213,9 +216,11 @@ void ond_inverter::initializeManual()
 		//	}
 		//}
 		Pdc_threshold = 2;
-		std::vector<double> ondspl_X[2];
-		std::vector<double> ondspl_Y[2];
-		int splineIndex;
+		std::vector<double> ondspl_X;
+		std::vector<double> ondspl_Y;
+		DenseVector xSamples(1);
+		DataTable samples;
+//		int splineIndex;
 //		bool switchoverDone;
 
 		if (VNomEff[2] > 0) {
@@ -226,16 +231,17 @@ void ond_inverter::initializeManual()
 		}
 
 		for (int j = 0; j <= noOfEfficiencyCurves - 1; j = j + 1) {
-			splineIndex = 0;
+//			splineIndex = 0;
 //			switchoverDone = false;
-			ondspl_X[0].clear();
-			ondspl_Y[0].clear();
-			ondspl_X[1].clear();
-			ondspl_Y[1].clear();
+			ondspl_X.clear();
+			ondspl_Y.clear();
 			double atX[3];
 			double atY[3];
 			const int MAX_ELEMENTS = 100; // = effCurve_elements + 5;
-			for (int i = 0; i <= MAX_ELEMENTS - 1; i = i + 1) {
+//			x_lim[j] = effCurve_Pdc[j][0];
+			for (int i = 0; i <= MAX_ELEMENTS - 1; i++) 
+			{
+				
 				if (i <= 2) { // atan
 							  // atan
 					atX[i] = effCurve_Pdc[j][i];
@@ -262,11 +268,14 @@ void ond_inverter::initializeManual()
 						}
 					}
 				}
-				if (i >= 2 && i <= 99 && (effCurve_Pdc[j][i] > 0 && effCurve_eta[j][i] > 0)) { // spline
-					ondspl_X[splineIndex].push_back(effCurve_Pdc[j][i]);
-					ondspl_Y[splineIndex].push_back(effCurve_eta[j][i]);
+				// include overlap at i=2
+				if ((i >=2 && i < MAX_ELEMENTS) && (effCurve_Pdc[j][i] > 0))// && effCurve_eta[j][i] > 0)) 
+				{ // spline
+					ondspl_X.push_back(effCurve_Pdc[j][i]);
+					ondspl_Y.push_back(effCurve_eta[j][i]);
 				}
 			}
+			/* Spline
 			bool doCubicSpline[2];
 			doCubicSpline[0] = true;
 			doCubicSpline[1] = true;
@@ -275,6 +284,17 @@ void ond_inverter::initializeManual()
 					effSpline[i][j].set_points(ondspl_X[i], ondspl_Y[i], doCubicSpline[i]);
 				}
 			}
+			*/
+			// SPLINTER
+			samples.clear();
+			x_max[j] = ondspl_X.back();
+			for (size_t k = 0; k < ondspl_X.size() && k < ondspl_Y.size(); k++)
+			{
+				xSamples(0) = ondspl_X[k];
+				samples.addSample(xSamples, ondspl_Y[k]);
+			}
+			m_bspline3[j] = BSpline::Builder(samples).degree(3).build();
+
 		}
 		ondIsInitialized = true;
 	}
@@ -282,23 +302,33 @@ void ond_inverter::initializeManual()
 
 double ond_inverter::calcEfficiency(double Pdc, int index_eta) {
 	double eta;
-	int splineIndex;
-	if (Pdc > (Pdc_threshold * PNomDC_eff)) {
-		splineIndex = 1;
-	}
-	else {
-		splineIndex = 0;
-	}
-	if (Pdc > PMaxDC_eff) {
-		Pdc = PMaxDC_eff;
+//	int splineIndex;
+	DenseVector x(1);
+//	if (Pdc > (Pdc_threshold * PNomDC_eff)) {
+//		splineIndex = 1;
+//	}
+//	else {
+//		splineIndex = 0;
+//	}
+//	if (Pdc > PMaxDC_eff)
+//	{
+//		Pdc = PMaxDC_eff;
+//	}
+	if (Pdc > x_max[index_eta])
+	{
+		Pdc = x_max[index_eta];
 	}
 	if (Pdc <= 0) {
 		eta = 0;
 	}
-	else if (Pdc >= x_lim[index_eta]) {
-		eta = effSpline[splineIndex][index_eta](Pdc);
+	else if (Pdc >= x_lim[index_eta]) 
+	{
+//		eta = effSpline[splineIndex][index_eta](Pdc);
+		x(0) = Pdc;
+		eta = (m_bspline3[index_eta]).eval(x);
 	}
-	else {
+	else 
+	{
 		eta = a[index_eta] * atan(b[index_eta] * Pdc / PNomDC_eff);
 	}
 	return eta;

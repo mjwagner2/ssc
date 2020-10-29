@@ -5,15 +5,14 @@
 
 #include "code_generator_utilities.h"
 
-const char * SSCDIR = std::getenv("SSCDIR");
-
-char solar_resource_path[100];
-char solar_resource_path_15_min[100];
-char load_profile_path[100];
-char target_power_path[100];
-char sell_rate_path[100];
-char subarray1_shading[100];
-char subarray2_shading[100];
+char solar_resource_path[256];
+char solar_resource_path_15_min[256];
+char load_profile_path[256];
+char target_power_path[256];
+char sell_rate_path[256];
+char subarray1_shading[256];
+char subarray2_shading[256];
+char solar_resource_path_15min_fail[256];
 
 int n1 = sprintf(solar_resource_path, "%s/test/input_cases/pvsamv1_data/USA AZ Phoenix (TMY2).csv", SSCDIR);
 int n2 = sprintf(load_profile_path, "%s/test/input_cases/pvsamv1_data/pvsamv1_residential_load.csv", SSCDIR);
@@ -22,6 +21,7 @@ int n4 = sprintf(sell_rate_path, "%s/test/input_cases/pvsamv1_data/pvsamv1_ur_ts
 int n5 = sprintf(solar_resource_path_15_min, "%s/test/input_cases/pvsamv1_data/LosAngeles_WeatherFile_15min.csv", SSCDIR);
 int n6 = sprintf(subarray1_shading, "%s/test/input_cases/pvsamv1_data/subarray1_shading_timestep.csv", SSCDIR);
 int n7 = sprintf(subarray2_shading, "%s/test/input_cases/pvsamv1_data/subarray2_shading_timestep.csv", SSCDIR);
+int n8 = sprintf(solar_resource_path_15min_fail, "%s/test/input_cases/pvsamv1_data/LosAngeles_WeatherFile_15min_timestamp_fail.csv", SSCDIR);
 
 
 /**
@@ -39,7 +39,10 @@ void pvsamv_nofinancial_default(ssc_data_t &data)
 	ssc_data_set_array(data, "albedo", p_albedo, 12);
 	ssc_data_set_number(data, "irrad_mode", 0);
 	ssc_data_set_number(data, "sky_model", 2);
-	ssc_data_set_number(data, "modules_per_string", 7);
+	ssc_data_set_number(data, "subarray1_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray2_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray3_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray4_modules_per_string", 7);
 	ssc_data_set_number(data, "inverter_count", 1);
 	ssc_data_set_number(data, "enable_mismatch_vmax_calc", 0);
 	ssc_data_set_number(data, "subarray1_nstrings", 2);
@@ -282,6 +285,11 @@ void pvsamv_nofinancial_default(ssc_data_t &data)
 	ssc_data_set_number(data, "inverter_model", 0);
 	ssc_data_set_number(data, "mppt_low_inverter", 250);
 	ssc_data_set_number(data, "mppt_hi_inverter", 480);
+	ssc_data_set_number(data, "inv_num_mppt", 1);
+	ssc_data_set_number(data, "subarray1_mppt_input", 1);
+	ssc_data_set_number(data, "subarray2_mppt_input", 1);
+	ssc_data_set_number(data, "subarray3_mppt_input", 1);
+	ssc_data_set_number(data, "subarray4_mppt_input", 1);
 	ssc_data_set_number(data, "inv_snl_c0", -3.1800000215298496e-06);
 	ssc_data_set_number(data, "inv_snl_c1", -5.1200000598328188e-05);
 	ssc_data_set_number(data, "inv_snl_c2", 0.00098400004208087921);
@@ -329,14 +337,14 @@ void pvsamv_nofinancial_default(ssc_data_t &data)
 	ssc_data_set_matrix(data, "inv_tdc_ds", matrix_inv_tdc, 1, 3);
 }
 
-
 /**
 *  Default data for belpe run that can be further modified
 */
 void belpe_default(ssc_data_t &data)
 {
 	ssc_data_set_number(data, "en_belpe", 0);
-	set_array(data, "load", load_profile_path, 8760);
+    set_array(data, "load", load_profile_path, 8760);
+    set_array(data, "crit_load", load_profile_path, 8760);
 	ssc_data_set_string(data, "solar_resource_file", solar_resource_path);
 	ssc_data_set_number(data, "floor_area", 2000);
 	ssc_data_set_number(data, "Stories", 2);
@@ -387,10 +395,11 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_array(data, "albedo", p_albedo, 12);
 	ssc_data_set_number(data, "irrad_mode", 0);
 	ssc_data_set_number(data, "sky_model", 2);
-	ssc_data_set_number(data, "modules_per_string", 7);
 	ssc_data_set_number(data, "inverter_count", 1);
 	ssc_data_set_number(data, "enable_mismatch_vmax_calc", 0);
 	ssc_data_set_number(data, "subarray1_nstrings", 2);
+	ssc_data_set_number(data, "subarray1_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray1_mppt_input", 1);
 	ssc_data_set_number(data, "subarray1_tilt", 20);
 	ssc_data_set_number(data, "subarray1_tilt_eq_lat", 0);
 	ssc_data_set_number(data, "subarray1_azimuth", 180);
@@ -435,6 +444,8 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "subarray1_backtrack", 0);
 	ssc_data_set_number(data, "subarray2_enable", 0);
 	ssc_data_set_number(data, "subarray2_nstrings", 0);
+	ssc_data_set_number(data, "subarray2_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray2_mppt_input", 1);
 	ssc_data_set_number(data, "subarray2_tilt", 20);
 	ssc_data_set_number(data, "subarray2_tilt_eq_lat", 0);
 	ssc_data_set_number(data, "subarray2_azimuth", 180);
@@ -452,6 +463,8 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "subarray2_backtrack", 0);
 	ssc_data_set_number(data, "subarray3_enable", 0);
 	ssc_data_set_number(data, "subarray3_nstrings", 0);
+	ssc_data_set_number(data, "subarray3_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray3_mppt_input", 1);
 	ssc_data_set_number(data, "subarray3_tilt", 20);
 	ssc_data_set_number(data, "subarray3_tilt_eq_lat", 0);
 	ssc_data_set_number(data, "subarray3_azimuth", 180);
@@ -469,6 +482,8 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "subarray3_backtrack", 0);
 	ssc_data_set_number(data, "subarray4_enable", 0);
 	ssc_data_set_number(data, "subarray4_nstrings", 0);
+	ssc_data_set_number(data, "subarray4_modules_per_string", 7);
+	ssc_data_set_number(data, "subarray4_mppt_input", 1);
 	ssc_data_set_number(data, "subarray4_tilt", 20);
 	ssc_data_set_number(data, "subarray4_tilt_eq_lat", 0);
 	ssc_data_set_number(data, "subarray4_azimuth", 180);
@@ -630,6 +645,7 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "inverter_model", 0);
 	ssc_data_set_number(data, "mppt_low_inverter", 250);
 	ssc_data_set_number(data, "mppt_hi_inverter", 480);
+	ssc_data_set_number(data, "inv_num_mppt", 1);
 	ssc_data_set_number(data, "inv_snl_c0", -3.1800000215298496e-06);
 	ssc_data_set_number(data, "inv_snl_c1", -5.1200000598328188e-05);
 	ssc_data_set_number(data, "inv_snl_c2", 0.00098400004208087921);
@@ -680,10 +696,13 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "inv_snl_eff_cec", 96.636932373046875);
 	ssc_data_set_number(data, "inv_pd_eff", 95);
 	ssc_data_set_number(data, "inv_cec_cg_eff_cec", 96.636306762695313);
+	ssc_data_set_number(data, "batt_inverter_efficiency_cutoff", 90);
 	ssc_data_set_number(data, "batt_ac_or_dc", 1);
 	ssc_data_set_number(data, "batt_dc_dc_efficiency", 99);
 	ssc_data_set_number(data, "batt_dc_ac_efficiency", 96);
 	ssc_data_set_number(data, "batt_ac_dc_efficiency", 96);
+	ssc_data_set_number(data, "batt_inverter_efficiency_cutoff", 90);
+
 	ssc_data_set_number(data, "batt_meter_position", 0);
 	ssc_number_t p_batt_losses[1] = { 0 };
 	ssc_data_set_array(data, "batt_losses", p_batt_losses, 1);
@@ -700,8 +719,10 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_number(data, "batt_computed_bank_capacity", 9.9791994094848633);
 	ssc_data_set_number(data, "batt_current_charge_max", 99);
 	ssc_data_set_number(data, "batt_current_discharge_max", 99);
-	ssc_data_set_number(data, "batt_power_charge_max", 4.9895997047424316);
-	ssc_data_set_number(data, "batt_power_discharge_max", 4.9895997047424316);
+	ssc_data_set_number(data, "batt_power_charge_max_kwdc", 4.9895997047424316);
+	ssc_data_set_number(data, "batt_power_discharge_max_kwdc", 4.9895997047424316);
+	ssc_data_set_number(data, "batt_power_charge_max_kwac", 4.9895997047424316);
+	ssc_data_set_number(data, "batt_power_discharge_max_kwac", 4.9895997047424316);
 	ssc_data_set_number(data, "batt_voltage_choice", 0);
 	ssc_data_set_number(data, "batt_Vfull", 4.0999999046325684);
 	ssc_data_set_number(data, "batt_Vexp", 4.0500001907348633);
@@ -760,7 +781,6 @@ void pvsamv1_with_residential_default(ssc_data_t &data)
 	ssc_data_set_array(data, "batt_target_power_monthly", p_batt_target_power_monthly, 12);
 	ssc_data_set_number(data, "batt_target_choice", 0);
 	ssc_data_set_number(data, "batt_dispatch_choice", 3);
-	ssc_data_set_number(data, "batt_pv_choice", 0);
 }
 
 
@@ -944,8 +964,9 @@ void cashloan_default(ssc_data_t &data)
 	ssc_data_set_number(data, "pbi_oth_tax_fed", 1);
 	ssc_data_set_number(data, "pbi_oth_tax_sta", 1);
 	ssc_data_set_number(data, "battery_per_kWh", 500);
-	ssc_data_set_number(data, "batt_replacement_cost", 500);
-	ssc_data_set_number(data, "batt_replacement_cost_escal", 0);
+	ssc_number_t p_replacement_cost[1] = { 500 };
+	ssc_data_set_array(data, "om_replacement_cost1", p_replacement_cost, 1);
+	ssc_data_set_number(data, "om_replacement_cost_escal", 0);
 	ssc_data_set_number(data, "market", 0);
 	ssc_data_set_number(data, "mortgage", 1);
 	ssc_data_set_number(data, "total_installed_cost", 13758.3671875);

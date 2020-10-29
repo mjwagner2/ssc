@@ -48,6 +48,7 @@
 *******************************************************************************************************/
 
 #include <algorithm>
+#include <stdexcept>
 
 #include "sam_csp_util.h"
 //#include "waterprop.h"

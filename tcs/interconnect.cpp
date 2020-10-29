@@ -49,6 +49,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include "interconnect.h"
 #include "htf_props.h"
 #include "sam_csp_util.h"

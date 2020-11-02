@@ -17,34 +17,36 @@ endif()
 #
 #####################################################################################################################
 
-Project(solarpilot)
+Project(solarpilot_core)
 
-include_directories(. ../nlopt ..)
+include_directories(. ../nlopt ../lpsolve .. $ENV{CORETRACEDIR})
 
 set(SOLARPILOT_SRC
-	fluxsim.cpp
-	API_structures.cpp
 	Ambient.cpp
+	API_structures.cpp
 	AutoPilot_API.cpp
+	definitions.cpp
+	exceptions.hpp
 	Financial.cpp
 	Flux.cpp
+	fluxsim.cpp
+	heliodata.cpp
 	Heliostat.cpp
+	interop.cpp
 	IOUtil.cpp
 	Land.cpp
 	LayoutSimulateThread.cpp
-	OpticalMesh.cpp
-	Receiver.cpp
-	STObject.cpp
-	STSimulateThread.cpp
-	SolarField.cpp
-	Toolbox.cpp
-	definitions.cpp
-	heliodata.cpp
-	interop.cpp
 	mod_base.cpp
+	MultiRecOptimize.cpp
+	OpticalMesh.cpp
 	optimize.cpp
+	Receiver.cpp
+	SolarField.cpp
 	solpos.cpp
-	string_util.cpp)
+	STObject.cpp
+	string_util.cpp
+	STSimulateThread.cpp
+	Toolbox.cpp)
 
 
 
@@ -59,7 +61,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 	add_compile_options(/MP /W0)
-    add_compile_definitions( __64BIT__ __WINDOWS__ _WINDOWS _CRT_SECURE_NO_WARNINGS LPWINAPP )
+    add_compile_definitions( __64BIT__ __WINDOWS__ _WINDOWS _CRT_SECURE_NO_WARNINGS LPWINAPP SP_STANDALONE SP_USE_SOLTRACE SP_USE_THREADS )
     foreach (flag_var CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG)
 		set(${flag_var} "${${flag_var}} /D_DEBUG" CACHE STRING "compile flags" FORCE)
 	endforeach()
@@ -86,8 +88,8 @@ endif(MSVC)
 #
 #####################################################################################################################
 
-add_library(solarpilot STATIC ${SOLARPILOT_SRC})
-set_target_properties(solarpilot
+add_library(solarpilot_core STATIC ${SOLARPILOT_SRC})
+set_target_properties(solarpilot_core
     PROPERTIES
     DEBUG_POSTFIX "d"
 	PREFIX ""

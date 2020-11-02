@@ -19,10 +19,10 @@ endif()
 
 Project(nlopt)
 
-if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/config.h)
-	execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/configure)
-	execute_process(COMMAND cp config.h ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
+#if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/config.h)
+#	execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/configure)
+#	execute_process(COMMAND cp config.h ${CMAKE_CURRENT_SOURCE_DIR})
+#endif()
 
 include_directories(.)
 

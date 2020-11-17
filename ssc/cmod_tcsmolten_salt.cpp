@@ -1047,6 +1047,7 @@ public:
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;
         tower.set_tes(&storage);        // give storage reference to tower
+        tower.m_is_T_particle_cold_from_tes_ref = true;
         C_csp_two_tank_two_hx_tes::S_params *tes = &storage.ms_params;
         tes->m_field_fl = as_integer("rec_htf");
         tes->m_field_fl_props = as_matrix("field_fl_props");

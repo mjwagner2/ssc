@@ -29,6 +29,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "lib_util.h"
 
+void C_csp_solver::reset_time(double step /*s*/)
+{
+    mc_kernel.mc_sim_info.ms_ts.m_step = step;						//[s]
+    mc_kernel.mc_sim_info.ms_ts.m_time =
+        mc_kernel.mc_sim_info.ms_ts.m_time_start +
+        mc_kernel.mc_sim_info.ms_ts.m_step;		//[s]
+}
+
 int C_csp_solver::C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus::operator()(double defocus /*-*/, double *diff_q_dot_pc /*MWt*/)
 {
     // the last argument is just so it compiles -> need to change everything here

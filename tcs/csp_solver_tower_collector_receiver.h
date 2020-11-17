@@ -53,6 +53,7 @@ private:
     double m_q_dot_piping_one_way;   // [kWt] Thermal loss of tower piping in one direction, e.g. riser heat losses
     double m_m_dot_co2_des;         // [kg/s] Design point CO2 mass flow rate
 
+
 public:
 	
     enum
@@ -147,6 +148,8 @@ public:
     double n_cells_recHX;       // [-] Number of cells in a charge HX
     double pipe_loss_per_m;     // [Wt/m] Thermal losses per meter of riser/downcomer piping
     double P_cold_des;          // [kPa] Pressure into tower/riser at design
+
+    bool m_is_T_particle_cold_from_tes_ref;   //[-] True = use tes->get_cold_temp, False = use 'm_temp' from htf_state_in
 
     //[-] True: receiver has *option* to use recirculator rather than cycle to move CO2
         //          to apply to receiver solution, controller/solver must also set mc_cr_out_solver.m_is_rec_recirc_in = true

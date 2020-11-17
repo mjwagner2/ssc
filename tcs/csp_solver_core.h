@@ -667,6 +667,7 @@ public:
 	struct S_csp_pc_out_solver
 	{
 		double m_time_required_su;	//[s] Time required for receiver to startup MIN(controller timestep, calculated time to startup during call)
+		double m_time_required_max;	//[s]
 		double m_P_cycle;			//[MWe] Cycle power output
 		double m_T_htf_cold;		//[C] Heat transfer fluid outlet temperature
 		double m_q_dot_htf;			//[MWt] Thermal power from HTF (= thermal power into cycle)
@@ -683,7 +684,7 @@ public:
 
 		S_csp_pc_out_solver()
 		{
-			m_time_required_su = m_P_cycle = m_T_htf_cold = m_q_dot_htf = m_m_dot_htf =
+			m_time_required_su = m_time_required_max = m_P_cycle = m_T_htf_cold = m_q_dot_htf = m_m_dot_htf =
                 m_P_phx_in =
 				m_W_dot_htf_pump = m_W_cool_par = std::numeric_limits<double>::quiet_NaN();
 
@@ -804,6 +805,11 @@ public:
     virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/) = 0;
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est) = 0;
+
+    virtual int solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+        double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+        double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+        C_csp_tes::S_csp_tes_outputs& outputs) = 0;
 
     virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs) = 0;
 
@@ -1096,13 +1102,21 @@ private:
 	double m_cycle_x_hot_des;			//[-]
 	double m_m_dot_pc_des;				//[kg/hr]
 	double m_m_dot_pc_min;				//[kg/hr]
-	double m_m_dot_pc_max;				//[kg/hr]
+    // Max operating mass flow is dependent on ambient temperature and calculated every timestep
+    double m_m_dot_pc_max;              //[kg/hr]
+    // Max startup mass flow is always constant
+    double m_m_dot_pc_max_startup;      //[kg/hr]
 
         // TES design parameters
     double m_m_dot_tes_des;             //[kg/hr]
 
 		// Storage logic
 	bool m_is_tes;			//[-] True: plant has storage
+    bool m_is_cr_config_recirc; //[-] True: Receiver "off" and "startup" are recirculated from outlet to inlet
+
+        // Field-side HTF
+    double m_T_field_cold_limit;    //[C]
+    double m_T_field_in_hot_limit;  //[C]
 
 		// Reporting and Output Tracking
     bool m_is_first_timestep;           //[-]
@@ -1237,6 +1251,8 @@ public:
 	void Ssimulate(C_csp_solver::S_sim_setup & sim_setup);
 
 	int steps_per_hour();
+
+    void reset_time(double step /*s*/);
 
 	double get_cr_aperture_area();
 

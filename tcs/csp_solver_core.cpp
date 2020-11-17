@@ -300,6 +300,7 @@ C_csp_solver::C_csp_solver(C_csp_weatherreader &weather,
 		m_m_dot_pc_des = m_m_dot_pc_min = m_m_dot_pc_max = m_T_htf_pc_cold_est = std::numeric_limits<double>::quiet_NaN();
 
     m_is_rec_recirc_available = false;
+	m_is_cr_config_recirc = true;
 
 	// Reporting and Output Tracking
 	mc_reported_outputs.construct(S_solver_output_info);
@@ -498,7 +499,8 @@ void C_csp_solver::init()
 				
 	m_m_dot_pc_min = 0.0 * pc_solved_params.m_m_dot_min;		//[kg/hr]
 	m_m_dot_pc_max = pc_solved_params.m_m_dot_max;		//[kg/hr]				
-	
+	m_m_dot_pc_max_startup = pc_solved_params.m_m_dot_max;		//[kg/hr]		
+
 	m_cycle_P_hot_des = pc_solved_params.m_P_hot_des;					//[kPa]
 	m_cycle_P_cold_des = pc_solved_params.m_P_cold_des;					//[kPa]
 	m_cycle_x_hot_des = pc_solved_params.m_x_hot_des;					//[-]
@@ -519,6 +521,16 @@ void C_csp_solver::init()
 	mc_tou.init_parent();
 		// Thermal Storage
 	m_is_tes = mc_tes.does_tes_exist();
+
+
+
+    m_is_cr_config_recirc = true;
+
+    // Value helps solver get out of T_field_htf_cold iteration when weird conditions cause the solution to be a very cold value
+    // Should update with technology-specific htf freeze protection values
+    m_T_field_cold_limit = -100.0;      //[C]
+    m_T_field_in_hot_limit = (0.9*m_cycle_T_htf_hot_des + 0.1*m_T_htf_cold_des) - 273.15;   //[C]
+
 
 	if( mc_collector_receiver.m_is_sensible_htf != mc_power_cycle.m_is_sensible_htf )
 	{
@@ -1329,7 +1341,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 						operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
 					}
 				}
-				else if( q_dot_tes_dc && is_pc_su_allowed &&
+				else if( q_dot_tes_dc > 0.0 && is_pc_su_allowed &&
 					m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail )
 				{	// Can power cycle startup using TES?
 
@@ -1581,9 +1593,30 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 										m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail )
 								{
 									operating_mode = CR_ON__PC_MIN__TES_EMPTY__AUX_OFF;
-								}	
-								else
+								}
+								else if (q_dot_tes_ch > 0.0 && is_rec_recirc_allowed)
 								{
+									if (q_dot_cr_on * (1.0 - tol_mode_switching) < q_dot_tes_ch &&
+										m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail)
+									{	// Tolerance is applied so that if CR is *close* to being less than a full TES charge, the controller tries normal operation (no defocus)
+
+
+										operating_mode = CR_ON__PC_OFF__TES_CH__AUX_OFF;
+									}
+									else if (m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail)
+									{	// The CR output will overcharge storage, so it needs to defocus.
+										// However, because the CR output is already part-load, it may be close to shutting down before defocus...
+
+										operating_mode = CR_DF__PC_OFF__TES_FULL__AUX_OFF;
+									}
+									else
+									{
+										operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+									}
+								}
+								else
+								{	// No home for receiver output, and not enough thermal power for power cycle
+
 									operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
 								}
 							}

@@ -1046,6 +1046,14 @@ void C_csp_two_tank_tes::charge_avail_est(double T_hot_K, double step_s, double 
 	m_m_dot_tes_ch_max = m_dot_field_est;		//[kg/s]
 }
 
+int C_csp_two_tank_tes::solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+    double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+    double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+    C_csp_tes::S_csp_tes_outputs& outputs)
+{
+    return -1;
+}
+
 void C_csp_two_tank_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the timestep-average hot discharge temperature and mass flow rate of the TES system during FULL DISCHARGE.
@@ -3080,6 +3088,14 @@ void C_csp_two_tank_two_hx_tes::charge_avail_est(double T_hot_K, double step_s,
     T_cold_field_est = T_cold_ini;
     m_dot_store_est = m_dot_field_est;          //[kg/s]
     m_m_dot_tes_ch_max = m_dot_field_est;		//[kg/s]
+}
+
+int C_csp_two_tank_two_hx_tes::solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+    double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+    double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+    C_csp_tes::S_csp_tes_outputs& outputs)
+{
+    return -1;
 }
 
 void C_csp_two_tank_two_hx_tes::discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double P_htf_cold_in /*kPa*/,

@@ -417,6 +417,11 @@ public:
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
 
+    virtual int solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+        double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+        double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+        C_csp_tes::S_csp_tes_outputs& outputs);
+
 	// Calculate pumping power...???
 	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
@@ -583,6 +588,11 @@ public:
     virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
 
 	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
+
+    int solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+        double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+        double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+        C_csp_tes::S_csp_tes_outputs& outputs){return -1;}
 
 	// Calculate pumping power...???
 	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
@@ -835,6 +845,11 @@ public:
     virtual void discharge_est(double T_cold_htf /*K*/, double m_dot_htf_in /*kg/s*/, double P_cold_htf /*kPa*/, double & T_hot_htf /*K*/, double & T_cold_store_est /*K*/, double & m_dot_store_est /*kg/s*/);
 
     virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est, double &m_dot_store_est);
+
+    virtual int solve_tes_off_design(double timestep /*s*/, double  T_amb /*K*/, double m_dot_field /*kg/s*/, double m_dot_cycle /*kg/s*/,
+        double T_field_htf_out_hot /*K*/, double T_cycle_htf_out_cold /*K*/,
+        double& T_cycle_htf_in_hot /*K*/, double& T_field_htf_in_cold /*K*/,
+        C_csp_tes::S_csp_tes_outputs& outputs);
 
     virtual void discharge_full_lt(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double P_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
     

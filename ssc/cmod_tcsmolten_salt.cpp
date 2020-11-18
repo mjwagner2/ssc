@@ -40,6 +40,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_mspt_collector_receiver.h"
 #include "csp_solver_tower_collector_receiver.h"
 #include "csp_solver_pc_Rankine_indirect_224.h"
+#include "csp_solver_pc_indirect_Gen3.h"
 #include "csp_solver_pc_sco2.h"
 #include "csp_solver_two_tank_tes.h"
 #include "csp_solver_tou_block_schedules.h"
@@ -721,6 +722,11 @@ public:
         sim_setup.m_report_step = 3600.0 / (double)steps_per_hour;  //[s]
 
 
+        // *********************************************
+        //    System Configuration
+        // *********************************************
+        bool are_rec_pc_directly_coupled = true;
+
 
 
         /***********************************************
@@ -729,54 +735,99 @@ public:
 
         // Steam Rankine and User Defined power cycle classes
         C_pc_Rankine_indirect_224 rankine_pc;
-        C_pc_Rankine_indirect_224::S_params *pc = &rankine_pc.ms_params;
-        pc->m_P_ref = as_double("P_ref");
-        pc->m_eta_ref = as_double("design_eff");
-        pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
-        pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
+        C_pc_indirect_Gen3 indirect_pc;
+        C_csp_power_cycle* p_csp_power_cycle;
 
-        pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
-        pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
-        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des") / 1000.;  //convert to MPa from kPa
+        // Select cycle model based on direct or indirect configuration
+        if (are_rec_pc_directly_coupled) {
+            C_pc_Rankine_indirect_224::S_params* pc = &rankine_pc.ms_params;
+            pc->m_P_ref = as_double("P_ref");
+            pc->m_eta_ref = as_double("design_eff");
+            pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
+            pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
 
-        pc->m_cycle_max_frac = as_double("cycle_max_frac");
-        pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
-        pc->m_q_sby_frac = as_double("q_sby_frac");
-        pc->m_startup_time = as_double("startup_time");
-        pc->m_startup_frac = as_double("startup_frac");
-        pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
-        pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
-        pc->m_pc_fl_props = as_matrix("field_fl_props");
+            pc->m_P_phx_in_co2_des = as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des") / 1000.;  //convert to MPa from kPa
 
-        pc->m_is_user_defined_pc = true;
-        pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
+            pc->m_cycle_max_frac = as_double("cycle_max_frac");
+            pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
+            pc->m_q_sby_frac = as_double("q_sby_frac");
+            pc->m_startup_time = as_double("startup_time");
+            pc->m_startup_frac = as_double("startup_frac");
+            pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
+            pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
+            pc->m_pc_fl_props = as_matrix("field_fl_props");
 
-        // User-Defined Cycle Parameters
-        pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
-        pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0*as_double("P_ref");  //[MWe]
-        pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
+            pc->m_is_user_defined_pc = true;
+            pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
 
-        // Also need lower and upper levels for the 3 independent variables...
-        pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
-        pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
-        pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
-        pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
-        pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
-        pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
+            // User-Defined Cycle Parameters
+            pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
+            pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0 * as_double("P_ref");  //[MWe]
+            pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
 
-        // User-Defined Cycle Off-Design Tables 
-        pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
-        pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
-        pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
-        pc->mc_combined_ind = as_matrix("ud_ind_od");
+            // Also need lower and upper levels for the 3 independent variables...
+            pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
+            pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
+            pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
+            pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
+            pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
+            pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
 
-        if (is_assigned("ud_ind_od_off_sun"))
-        {
-            pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
-        }
+            // User-Defined Cycle Off-Design Tables 
+            pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+            pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+            pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+            pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+            if (is_assigned("ud_ind_od_off_sun"))
+            {
+                pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
+            }
 
             // Set pointer to parent class
-        C_csp_power_cycle * p_csp_power_cycle = &rankine_pc;
+            p_csp_power_cycle = &rankine_pc;
+        }
+        else {
+            C_pc_indirect_Gen3::S_params* pc = &indirect_pc.ms_params;
+            pc->m_P_ref = as_double("P_ref");
+            pc->m_eta_ref = as_double("design_eff");
+            pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
+            pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
+
+            pc->m_cycle_max_frac = as_double("cycle_max_frac");
+            pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
+            pc->m_q_sby_frac = as_double("q_sby_frac");
+            pc->m_startup_time = as_double("startup_time");
+            pc->m_startup_frac = as_double("startup_frac");
+            pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
+            pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
+            pc->m_pc_fl_props = as_matrix("field_fl_props");
+
+            pc->m_is_user_defined_pc = true;
+
+            // User-Defined Cycle Parameters
+            pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
+            pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0 * as_double("P_ref");  //[MWe]
+            pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
+
+            // Also need lower and upper levels for the 3 independent variables...
+            pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
+            pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
+            pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
+            pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
+            pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
+            pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
+
+            // User-Defined Cycle Off-Design Tables 
+            pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+            pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+            pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+            pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+            p_csp_power_cycle = &indirect_pc;
+        }
 
         // Set power cycle outputs common to all power cycle technologies
         p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_ETA_THERMAL, allocate("eta", n_steps_fixed), n_steps_fixed);

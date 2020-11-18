@@ -2806,9 +2806,6 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
         throw(C_csp_exception("Storage HTF code is not recognized", "Two Tank TES Initialization"));
     }
 
-    bool is_hx_calc = true;
-
-
     // Calculate thermal power to PC at design
     m_q_pb_design = ms_params.m_W_dot_pc_design / ms_params.m_eta_pc*1.E6;	//[Wt]
 
@@ -2840,7 +2837,7 @@ void C_csp_two_tank_two_hx_tes::init(const C_csp_tes::S_csp_tes_init_inputs init
     double T_ht_out_des = ms_params.m_T_tes_hot_des - ms_params.m_dt_hthx;
     //double T_lt_out_des = ms_params.m_T_tes_hot_des - ms_params.m_dt_hot;
 
-    if (ms_params.m_ts_hours > 0.0)
+    if (ms_params.m_ts_hours > 0.0 && ms_params.m_is_hx)
     {
         double duty_ht = m_q_pb_design;		//[W] Only discharges direct to power cycle
         double duty_lt = 0.75 * duty_ht;

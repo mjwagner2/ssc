@@ -703,7 +703,7 @@ double C_pc_indirect_Gen3::get_max_q_pc_startup()
 	}
 }
 
-void C_pc_indirect_Gen3::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max)
+void C_pc_indirect_Gen3::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	if (!ms_params.m_is_user_defined_pc)
 	{

@@ -989,11 +989,15 @@ public:
 		double m_bop_par_1;			//[-]
 		double m_bop_par_2;			//[-]
 
+        bool are_rec_pc_directly_coupled;
+
 		S_csp_system_params()
 		{
 			m_pb_fixed_par =
 
 			m_bop_par = m_bop_par_f = m_bop_par_0 = m_bop_par_1 = m_bop_par_2 = std::numeric_limits<double>::quiet_NaN();
+
+            are_rec_pc_directly_coupled = true;
 		}
 	};
 
@@ -1112,7 +1116,6 @@ private:
 
 		// Storage logic
 	bool m_is_tes;			//[-] True: plant has storage
-    bool m_is_cr_config_recirc; //[-] True: Receiver "off" and "startup" are recirculated from outlet to inlet
 
         // Field-side HTF
     double m_T_field_cold_limit;    //[C]

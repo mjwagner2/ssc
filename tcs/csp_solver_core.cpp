@@ -300,7 +300,6 @@ C_csp_solver::C_csp_solver(C_csp_weatherreader &weather,
 		m_m_dot_pc_des = m_m_dot_pc_min = m_m_dot_pc_max = m_T_htf_pc_cold_est = std::numeric_limits<double>::quiet_NaN();
 
     m_is_rec_recirc_available = false;
-	m_is_cr_config_recirc = true;
 
 	// Reporting and Output Tracking
 	mc_reported_outputs.construct(S_solver_output_info);
@@ -522,9 +521,11 @@ void C_csp_solver::init()
 		// Thermal Storage
 	m_is_tes = mc_tes.does_tes_exist();
 
-
-
-    m_is_cr_config_recirc = true;
+        // System
+    // If it's an indirect system but CR doesn't have a recirculator, then have problem
+    if (!ms_system_params.are_rec_pc_directly_coupled && !m_is_rec_recirc_available) {
+        throw(C_csp_exception("The system is indirect but the CR doesn't have a recirculator", "CSP Solver"));
+    }
 
     // Value helps solver get out of T_field_htf_cold iteration when weird conditions cause the solution to be a very cold value
     // Should update with technology-specific htf freeze protection values
@@ -847,7 +848,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_power_cycle.get_max_power_output_operation_constraints(mc_weather.ms_outputs.m_tdry, m_dot_htf_ND_max, W_dot_ND_max, is_est_rec_on);
         //HACK THESE VALUES FOR NOW:
 
-        if (is_est_rec_on)
+        if (is_est_rec_on && ms_system_params.are_rec_pc_directly_coupled)
         {
             m_dot_htf_ND_max *= 1.1;
             W_dot_ND_max *= 1.1;
@@ -905,15 +906,31 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			//predict estimated amount of charge/discharge available
 			double T_hot_field_dc_est;	//[K]
 			T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.discharge_avail_est(T_htf_hot_cr_on + 273.15, P_htf_hot_cr_on, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
-			m_dot_tes_dc_est *= 3600.0;	        //[kg/hr] convert from kg/s
+            double m_dot_tes_dc_field_est = std::numeric_limits<double>::quiet_NaN();
+			mc_tes.discharge_avail_est(T_htf_hot_cr_on + 273.15, P_htf_hot_cr_on, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_field_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
+			m_dot_tes_dc_field_est *= 3600.0;	//[kg/hr] convert from kg/s
             m_dot_tes_store_dc_est *= 3600.0;   //[kg/hr] convert from kg/s
+
+            if (ms_system_params.are_rec_pc_directly_coupled) {
+                m_dot_tes_dc_est = m_dot_tes_dc_field_est;  //[kg/hr]
+            }
+            else{
+                m_dot_tes_dc_est = m_dot_tes_store_dc_est;  //[kg/hr]
+            }
 
 			double T_cold_field_ch_est;	//[K]
 			T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
-			m_dot_tes_ch_est *= 3600.0;         //[kg/hr] convert from kg/s
-            m_dot_tes_store_ch_est *= 3600.0;   //[kg/hr] convert from kg/s
+            double m_dot_tes_ch_field_est = std::numeric_limits<double>::quiet_NaN();
+			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_field_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
+			m_dot_tes_ch_field_est *= 3600.0;       //[kg/hr] convert from kg/s
+            m_dot_tes_store_ch_est *= 3600.0;       //[kg/hr] convert from kg/s
+
+            if (ms_system_params.are_rec_pc_directly_coupled) {
+                m_dot_tes_ch_est = m_dot_tes_ch_field_est;
+            }
+            else {
+                m_dot_tes_ch_est = m_dot_tes_store_ch_est;
+            }
 
             mass_store_total = (m_dot_tes_store_dc_est + m_dot_tes_store_ch_est) * mc_kernel.mc_sim_info.ms_ts.m_step / 3600.;
 		}
@@ -1226,9 +1243,19 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				{
 					double T_hot_field_dc_est;	//[kg/s, K]
 					T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-                    mc_tes.discharge_avail_est(m_T_htf_cold_des, m_P_cr_out_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_dc_t_CR_su, T_hot_field_dc_est, m_dot_tes_store_dc_t_CR_su);
-					m_dot_tes_dc_t_CR_su *= 3600.0;		//[kg/hr] convert from kg/s
-				}
+                    double m_dot_tes_field_dc_t_CR_su = std::numeric_limits<double>::quiet_NaN();
+                    mc_tes.discharge_avail_est(m_T_htf_cold_des, m_P_cr_out_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_field_dc_t_CR_su, T_hot_field_dc_est, m_dot_tes_store_dc_t_CR_su);
+                    m_dot_tes_field_dc_t_CR_su *= 3600.0;   //[kg/hr] convert from kg/s
+                    m_dot_tes_store_dc_t_CR_su *= 3600.0;   //[kg/hr] convert from kg/s
+
+                    if (ms_system_params.are_rec_pc_directly_coupled) {
+                        m_dot_tes_dc_t_CR_su = m_dot_tes_field_dc_t_CR_su;
+                    }
+                    else {
+                        m_dot_tes_dc_t_CR_su = m_dot_tes_store_dc_t_CR_su;
+                    }
+
+                }
 				else
 				{
 					q_dot_tes_dc_t_CR_su = 0.0;

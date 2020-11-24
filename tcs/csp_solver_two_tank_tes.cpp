@@ -3013,9 +3013,11 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double P_co
 
     double T_hot_ini = mc_hot_tank.get_m_T();		//[K]
 
-    double eff, T_warm_tes;
-    eff = T_warm_tes = std::numeric_limits<double>::quiet_NaN();
-    ht_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, P_cold_kPa, eff, T_warm_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+    if (ms_params.m_is_hx) {
+        double eff, T_warm_tes;
+        eff = T_warm_tes = std::numeric_limits<double>::quiet_NaN();
+        ht_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, P_cold_kPa, eff, T_warm_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+    }
 
     m_dot_store_est = m_dot_tank_disch_avail;               //[kg/s]
     m_m_dot_tes_dc_max = m_dot_field_est;		            //[kg/s]
@@ -3045,9 +3047,11 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est_both(double T_cold_K, double
 
     double T_hot_ini = mc_hot_tank.get_m_T();		//[K]
 
-    double eff, T_cold_tes;
-    eff = T_cold_tes = std::numeric_limits<double>::quiet_NaN();
-    h_l_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, P_cold_kPa, eff, T_cold_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+    if (ms_params.m_is_hx) {
+        double eff, T_cold_tes;
+        eff = T_cold_tes = std::numeric_limits<double>::quiet_NaN();
+        h_l_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, P_cold_kPa, eff, T_cold_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
+    }
 
     m_dot_store_est = m_dot_tank_disch_avail;               //[kg/s]
     m_m_dot_tes_dc_max = m_dot_field_est;		            //[kg/s]

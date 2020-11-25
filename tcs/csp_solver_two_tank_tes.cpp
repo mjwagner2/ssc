@@ -496,8 +496,20 @@ void C_storage_tank::energy_balance(double timestep /*s*/, double m_dot_in, doub
             T_htf = T_ave = T_htf_ini;
         }
         q_dot_loss = V_htf = m_htf = q_heater = 0.;
+		return;
     }
-    else if( (m_dot_in - m_dot_out_adj) != 0.0 )
+	
+    double diff_m_dot = m_dot_in - m_dot_out_adj;   //[kg/s]
+    if (diff_m_dot >= 0.0)
+    {
+        diff_m_dot = std::max(diff_m_dot, 1.E-5);
+    }
+    else
+    {
+        diff_m_dot = std::min(diff_m_dot, -1.E-5);
+    }
+
+	if( diff_m_dot != 0.0 )
 	{
 		double a_coef = m_dot_in*T_in + m_UA / cp*T_amb;
 		double b_coef = m_dot_in + m_UA / cp;

@@ -582,12 +582,12 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 	double wf_step = 3600.0 / step_per_hour;	//[s] Weather file time step - would like to check this against weather file, some day
 	
     m_is_first_timestep = true;
-	double step_tolerance = 10.0;		//[s] For adjustable timesteps, if within 10 seconds, assume it equals baseline timestep
+	m_step_tolerance = 10.0;		//[s] For adjustable timesteps, if within 10 seconds, assume it equals baseline timestep
 	double baseline_step = wf_step;		//[s] Baseline timestep of the simulation - this should probably be technology/model specific
 	// Check the collector-receiver model for a maximum step
 	if(mc_collector_receiver.m_max_step > 0.0)
 	{
-		baseline_step = max(step_tolerance, min(baseline_step, mc_collector_receiver.m_max_step));
+		baseline_step = max(m_step_tolerance, min(baseline_step, mc_collector_receiver.m_max_step));
 	}
 	
 	mc_kernel.init(sim_setup, wf_step, baseline_step, mc_csp_messages);
@@ -821,8 +821,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 //or is this too confusing and not helpful enough?
 		double q_pc_sb = cycle_sb_frac * m_cycle_q_dot_des;		//[MW]
 		double q_pc_min = m_cycle_cutoff_frac * m_cycle_q_dot_des;	//[MW]
-		double q_pc_max = m_cycle_max_frac * m_cycle_q_dot_des;		//[MW]
-		double q_pc_target = q_pc_max;							//[MW]
+		m_q_pc_max = m_cycle_max_frac * m_cycle_q_dot_des;		//[MW]
+		double q_pc_target = m_q_pc_max;							//[MW]
 
 		q_pc_target = f_turbine_tou * m_cycle_q_dot_des;	//[MWt]
         double W_pc_target = f_turbine_tou * m_cycle_W_dot_des; //[MWe]
@@ -831,7 +831,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         if (mc_tou.mc_dispatch_params.m_is_tod_pc_target_also_pc_max)
         {
-            q_pc_max = q_pc_target;     //[MW]
+            m_q_pc_max = q_pc_target;     //[MW]
         }
 
 
@@ -1149,7 +1149,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 
 				// Calculate approximate upper limit for power cycle thermal input at current electricity generation limit
 				if (dispatch.w_lim.at(dispatch.m_current_read_step) < 1.e-6)
-					q_pc_max = 0.0;
+                    m_q_pc_max = 0.0;
 				else
 				{
 					double wcond;
@@ -1165,8 +1165,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 						eta_calc = eta_new;
 						i++;
 					}
-					q_pc_max = fmin(q_pc_max, dispatch.w_lim.at(dispatch.m_current_read_step)*1.e-3 / eta_calc); // Restrict max pc thermal input to *approximate* current allowable value (doesn't yet account for parasitics)
-					q_pc_max = fmax(q_pc_max, q_pc_target);													// calculated q_pc_target accounts for parasitics --> can be higher than approximate limit 
+					m_q_pc_max = fmin(m_q_pc_max, dispatch.w_lim.at(dispatch.m_current_read_step)*1.e-3 / eta_calc); // Restrict max pc thermal input to *approximate* current allowable value (doesn't yet account for parasitics)
+					m_q_pc_max = fmax(m_q_pc_max, q_pc_target);													// calculated q_pc_target accounts for parasitics --> can be higher than approximate limit 
 				}
 
                 //q_pc_sb = dispatch.outputs.q_pb_standby.at( dispatch.m_current_read_step ) / 1000. ;
@@ -1517,7 +1517,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 								// 2) Try operating power cycle at maximum capacity
 								// Assume we want to completely fill storage, so the power cycle operation should float to meet that condition
-								else if( (q_dot_cr_on - q_dot_tes_ch)*(1.0 - tol_mode_switching) < q_pc_max 
+								else if( (q_dot_cr_on - q_dot_tes_ch)*(1.0 - tol_mode_switching) < m_q_pc_max
 									&& (m_dot_cr_on - m_dot_tes_ch_est)*(1.0 - tol_mode_switching) < m_m_dot_pc_max &&
 									m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail )
 								{	// Storage and the power cycle operating between target and max can accept the remaining receiver output
@@ -1542,7 +1542,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 							{	// No storage available for dispatch
 
 								// 1) Try operating power cycle at maximum capacity
-								if( (q_dot_cr_on*(1.0 - tol_mode_switching) < q_pc_max && m_dot_cr_on*(1.0 - tol_mode_switching)) &&
+								if( (q_dot_cr_on*(1.0 - tol_mode_switching) < m_q_pc_max && m_dot_cr_on*(1.0 - tol_mode_switching)) &&
 									m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE )
 								{	// Tolerance is applied so that if CR + TES is *close* to reaching PC  max, the controller tries that mode
 
@@ -2264,7 +2264,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					{	// In this mode, the power cycle thermal input needs to be greater than the target cycle fraction
 						// ... and less than the maximum cycle fraction
 
-						if( mc_cr_out_solver.m_q_thermal > q_pc_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max )
+						if( mc_cr_out_solver.m_q_thermal > m_q_pc_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max )
 						{
 							m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE = false;
 							are_models_converged = false;
@@ -2281,7 +2281,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     else if (operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF)
                     {
                         // Check for new timestep
-                        if( mc_pc_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
+                        if( mc_pc_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
                         {
                             // Reset sim_info values
                             mc_kernel.mc_sim_info.ms_ts.m_step = mc_pc_out_solver.m_time_required_su;						//[s]
@@ -2392,11 +2392,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					mc_kernel.mc_sim_info);
 
 				// Check if solved thermal power is greater than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3)
+				if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
 				{
 					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
 						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
 					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
@@ -2494,7 +2494,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Check for new timestep
-				if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
+				if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
 				{
 					// Reset sim_info values
 					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
@@ -2602,7 +2602,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
 				m_defocus = 1.0;
 
-				double step_tol = step_tolerance;		//[s]
+				double step_tol = m_step_tolerance;		//[s]
 				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
 
 				int exit_mode = CSP_CONVERGED;
@@ -2621,7 +2621,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Check reported timestep against initial timestep
-				if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{
 					mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
 					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
@@ -3093,11 +3093,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_target) / q_pc_target > 1.E-3 )
 				{
-					if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3 )
+					if ( (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3 )
 					{
 						error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 							" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
@@ -3109,7 +3109,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					{
 						error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 							" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
 						
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 					}
@@ -3312,11 +3312,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Check if solved thermal power is greater than target
 				if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
 				{
-					if (mc_pc_out_solver.m_q_dot_htf > q_pc_max)
+					if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
 					{
 						error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 							" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
@@ -3405,7 +3405,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 
 					// Check for new timestep
-					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
+					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
 					{
 						// Reset sim_info values
 						mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
@@ -3479,19 +3479,19 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Check if solved thermal power is greater than target
 				if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
 				{
-					if (mc_pc_out_solver.m_q_dot_htf > q_pc_max)
+					if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
 					{
 						if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
 						{
 							error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 								" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 						}
 						else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
 						{
 							error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 								" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 						}
 
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
@@ -3506,13 +3506,13 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 						{
 							error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 								" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
+								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
 						}
 						else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
 						{
 							error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 								" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
+								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
 						}
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 					}
@@ -3580,7 +3580,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Reset timestep based on receiver startup
-				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{
 					// Reset sim_info values
 					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
@@ -3639,7 +3639,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// ******************************************************************
 				// Compare the CR and PC startup times
-				if (step_pc_empty < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if (step_pc_empty < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{	// If the time required for CR startup is longer than the time to empty the PC
 					//       then rerun CR_SU with the PC empty timestep (and CR_SU will continue in the next timestep)
 
@@ -3667,11 +3667,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Check if solved thermal power is greater than target
-				if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3 )
+				if ( (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3 )
 				{
 					error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
 					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
@@ -3817,11 +3817,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				// Check bounds on solved thermal power and mass flow rate
 				if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
 				{
-					if ((q_dot_pc_solved - q_pc_max) / q_pc_max > 1.E-3)
+					if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
 					{
 						error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
 							" greater than the maximum %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_pc_max);
+							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, m_q_pc_max);
 						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
 						turn_off_plant();
@@ -3961,7 +3961,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 					}
 
 					// Check for new timestep
-					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
+					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
 					{
 						// Reset sim_info values
 						mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
@@ -4031,7 +4031,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 {
                     pc_target = q_dot_pc_fixed;
                     pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
-                    pc_max = q_pc_max;
+                    pc_max = m_q_pc_max;
                 }
 
 				double m_dot_solved = c_eq.m_m_dot_calc;	//[kg/hr]
@@ -4249,11 +4249,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Check if solved thermal power is greater than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3)
+				if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
 				{
 					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
 						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
 					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
@@ -4687,7 +4687,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				double m_dot_bal = (m_dot_rec - (m_dot_pc + m_dot_tes)) / m_dot_rec;		//[-]
 
-				if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3)
+				if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3)
 				{
 					m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
 					are_models_converged = false;
@@ -4741,7 +4741,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				}
 
 				// Reset timestep based on receiver startup
-				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{
 					// Reset sim_info values
 					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
@@ -4750,7 +4750,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// *****************************************************************
 				// Next, calculate the required power cycle startup time
-				double step_tol = step_tolerance;		//[s]
+				double step_tol = m_step_tolerance;		//[s]
 				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
 
 				int exit_mode = CSP_CONVERGED;
@@ -4770,12 +4770,12 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// ******************************************************************
 				// Compare the CR and PC startup times
-				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{	// If the time required for CR startup is longer than the time to startup the PC
 					//       then rerun CR_SU with the PC startup timestep (and CR_SU will continue in the next timestep)
 
 					// Check if shortest timestep is close to end of initial timestep
-					if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+					if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 					{
 						// Update simulation time info
 						mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;							//[s]
@@ -4903,7 +4903,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 				// Check reported timestep against initial timesteps
 				step_pc_su = c_eq.m_step_pc_su;		//[s]
-				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
 				{
 					mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
 					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
@@ -5007,7 +5007,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_SB, q_pc_sb);          //[MW]     
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MIN, q_pc_min);        //[MW]    
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_TARGET, q_pc_target);  //[MW]
-		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MAX, q_pc_max);         //[MW]    
+		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MAX, m_q_pc_max);         //[MW]    
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_REC_SU, is_rec_su_allowed);     //[-] 
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_PC_SU, is_pc_su_allowed);       //[-] 
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_PC_SB, is_pc_sb_allowed);       //[-]  

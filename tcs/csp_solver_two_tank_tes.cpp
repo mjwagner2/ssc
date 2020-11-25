@@ -3254,6 +3254,13 @@ int C_csp_two_tank_two_hx_tes::solve_tes_off_design(double timestep /*s*/, doubl
     outputs.m_m_dot = m_dot_cold_tank_to_hot_tank;
     outputs.dP_perc = 0.0;
 
+    outputs.m_m_dot_cr_to_tes_hot = m_dot_cr_to_tes_hot;		//[kg/s]
+    outputs.m_m_dot_tes_hot_out = m_dot_tes_hot_out;			//[kg/s]
+    outputs.m_m_dot_pc_to_tes_cold = m_dot_pc_to_tes_cold;	//[kg/s]
+    outputs.m_m_dot_tes_cold_out = m_dot_tes_cold_out;		//[kg/s]
+    //outputs.m_m_dot_field_to_cycle = m_dot_field_to_cycle;	//[kg/s]
+    //outputs.m_m_dot_cycle_to_field = m_dot_cycle_to_field;	//[kg/s]
+
     return 0;
 }
 

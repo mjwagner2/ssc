@@ -475,7 +475,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     double T_tes_cold = tes->get_cold_temp();       //[K]
     if (!m_is_T_particle_cold_from_tes_ref) {
-        T_tes_cold = htf_state_in.m_temp + 273.15;  //[K] convert from C   
+        T_tes_cold = htf_state_in.m_particle_temp + 273.15;  //[K] convert from C   
     }
 
     bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
@@ -844,7 +844,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
         double T_tes_cold = tes->get_cold_temp();       //[K]
         if (!m_is_T_particle_cold_from_tes_ref) {
-            T_tes_cold = htf_state_in.m_temp + 273.15;  //[K] convert from C   
+            T_tes_cold = htf_state_in.m_particle_temp + 273.15;  //[K] convert from C   
         }
         hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., T_tes_cold, P_prev,
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);

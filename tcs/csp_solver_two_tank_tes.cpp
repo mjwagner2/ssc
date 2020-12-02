@@ -513,7 +513,7 @@ void C_storage_tank::energy_balance(double timestep /*s*/, double m_dot_in, doub
 	{
 		double a_coef = m_dot_in*T_in + m_UA / cp*T_amb;
 		double b_coef = m_dot_in + m_UA / cp;
-		double c_coef = (m_dot_in - m_dot_out_adj);
+		double c_coef = diff_m_dot;
 
 		T_htf = a_coef / b_coef + (T_htf_ini - a_coef / b_coef)*pow( max( (timestep*c_coef / m_htf_ini + 1), 0.0), -b_coef / c_coef);
 		T_ave = a_coef / b_coef + m_htf_ini*(T_htf_ini - a_coef / b_coef) / ((c_coef - b_coef)*timestep)*(pow( max( (timestep*c_coef / m_htf_ini + 1.0), 0.0), 1.0 -b_coef/c_coef) - 1.0);
@@ -3030,6 +3030,15 @@ void C_csp_two_tank_two_hx_tes::discharge_avail_est(double T_cold_K, double P_co
         eff = T_warm_tes = std::numeric_limits<double>::quiet_NaN();
         ht_hx.hx_discharge_mdot_tes(T_hot_ini, m_dot_tank_disch_avail, T_cold_K, P_cold_kPa, eff, T_warm_tes, T_hot_field_est, q_dot_dc_est, m_dot_field_est);
     }
+    else {
+        double cp_T_avg = mc_store_htfProps.Cp(0.5 * (T_cold_K + T_hot_ini));		//[kJ/kg-K] spec heat at average temperature during discharge from hot to cold
+
+        q_dot_dc_est = m_dot_tank_disch_avail * cp_T_avg * (T_hot_ini - T_cold_K) * 1.E-3;	//[MW]
+
+        m_dot_field_est = m_dot_tank_disch_avail;
+
+        T_hot_field_est = T_hot_ini;
+    }
 
     m_dot_store_est = m_dot_tank_disch_avail;               //[kg/s]
     m_m_dot_tes_dc_max = m_dot_field_est;		            //[kg/s]
@@ -3220,7 +3229,7 @@ int C_csp_two_tank_two_hx_tes::solve_tes_off_design(double timestep /*s*/, doubl
 
     // Net TES discharge
     double q_dot_tes_net_discharge = m_store_cp_ave * (m_dot_tes_hot_out * T_hot_ave + m_dot_tes_cold_out * T_cold_ave -
-        m_dot_cr_to_tes_hot * T_field_htf_out_hot - m_dot_pc_to_tes_cold * T_cycle_htf_out_cold) / 1000.0;		//[MWt]
+        m_dot_cr_to_tes_hot * T_field_htf_out_hot - m_dot_pc_to_tes_cold * T_cycle_htf_out_cold) / 1.E6;		//[MWt]
 
     if (m_dot_cycle >= m_dot_field)
     {

@@ -526,6 +526,10 @@ void C_csp_solver::init()
     if (!ms_system_params.are_rec_pc_directly_coupled && !m_is_rec_recirc_available) {
         throw(C_csp_exception("The system is indirect but the CR doesn't have a recirculator", "CSP Solver"));
     }
+    // If an indirect system, then reset m_P_cold_des to cycle cold
+    if (!ms_system_params.are_rec_pc_directly_coupled) {
+        m_P_cold_des = m_cycle_P_cold_des;  //[kPa]
+    }
 
     // Value helps solver get out of T_field_htf_cold iteration when weird conditions cause the solution to be a very cold value
     // Should update with technology-specific htf freeze protection values
@@ -878,7 +882,13 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		m_T_htf_pc_cold_est = mc_pc_out_solver.m_T_htf_cold;	//[C]
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
 		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
-		mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
+        mc_cr_htf_state_in.m_particle_temp = m_T_htf_cold_des - 273.15;  //[C] convert from K
+        if (ms_system_params.are_rec_pc_directly_coupled) {
+            mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
+        }
+        else {
+            mc_cr_htf_state_in.m_pres = m_P_cold_des;   //[kPa]
+        }
 		C_csp_collector_receiver::S_csp_cr_est_out est_out;
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,
@@ -7057,7 +7067,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 							mc_tes_ch_htf_state.m_m_dot) / m_m_dot_pc_des;		//[-]
 
 
-		double q_dot_bal = (mc_cr_out_solver.m_q_thermal +
+		double q_dot_bal = (mc_cr_out_solver.m_q_dot_to_particles +
 							mc_tes_outputs.m_q_dot_dc_to_htf -
 							mc_pc_out_solver.m_q_dot_htf -
 							mc_tes_outputs.m_q_dot_ch_from_htf) / m_cycle_q_dot_des;	//[-]

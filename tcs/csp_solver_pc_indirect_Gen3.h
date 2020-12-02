@@ -180,6 +180,8 @@ public:
 		util::matrix_t<double> m_pc_fl_props;
         double DP_SGS;              //[bar] pressure drop within the steam generator system
 
+        double m_P_phx_in_co2_des;          //[MPa] design inlet pressure to PHX
+        double m_P_turb_in_co2_des;         //[MPa] design turbine inlet pressure to turbine
 
 		// Steam Rankine or User-Defined
 		bool m_is_user_defined_pc;				//[-] True: user-defined power cycle, False: Built-in Rankine Cycle model
@@ -223,7 +225,8 @@ public:
 		{
 			m_P_ref = m_eta_ref = m_T_htf_hot_ref = m_T_htf_cold_ref = m_dT_cw_ref = m_T_amb_des =
 				m_q_sby_frac = m_P_boil = m_startup_time = m_startup_frac = m_T_approach = m_T_ITD_des =
-				m_P_cond_ratio = m_pb_bd_frac = m_P_cond_min = m_htf_pump_coef = std::numeric_limits<double>::quiet_NaN();
+				m_P_cond_ratio = m_pb_bd_frac = m_P_cond_min = m_htf_pump_coef =
+                m_P_phx_in_co2_des = m_P_turb_in_co2_des = std::numeric_limits<double>::quiet_NaN();
 
 			m_pc_fl = m_CT = m_tech_type = m_n_pl_inc = -1;
 

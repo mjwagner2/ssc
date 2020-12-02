@@ -638,9 +638,9 @@ public:
 
         //       fclose(fp);
 
-               //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
-
-               //write_cmod_to_lk_script(fp, m_vartab);
+         //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
+         //
+         //write_cmod_to_lk_script(fp, m_vartab);
 
 
 
@@ -809,6 +809,15 @@ public:
 
             // Can test with this false so pc code will use Rankine ND performance
             pc->m_is_user_defined_pc = false;
+            pc->m_tech_type = 1;
+            pc->m_CT = 2;
+            pc->m_F_wc = std::vector<double> {0, 0, 0, 0, 0, 0, 0, 0, 0};
+            pc->m_P_phx_in_co2_des = as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_cond_min = 2.0;
+            pc->m_n_pl_inc = 8.;
+            pc->m_T_ITD_des = 16.;
+            pc->m_P_cond_ratio = 1.0028;
 
             // User-Defined Cycle Parameters
             pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]

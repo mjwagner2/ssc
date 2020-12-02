@@ -4923,18 +4923,23 @@ int C_csp_solver::C_MEQ__timestep::operator()(double t_ts_guess /*s*/, double* t
     double diff_T_field_cold = std::numeric_limits<double>::quiet_NaN();
     int T_field_cold_code = -1;
 
-    try
-    {
-        T_field_cold_code = c_solver.test_member_function(T_field_cold_guess_1, &diff_T_field_cold);
-    }
-    catch (C_csp_exception)
-    {
-        return -2;
-    }
+    T_field_cold_guess_1 += 20.0;
+    while (T_field_cold_code != 0) {
 
-    if (T_field_cold_code != 0)
-    {
-        return -3;
+        T_field_cold_guess_1 -= 20.0;
+
+        try
+        {
+            T_field_cold_code = c_solver.test_member_function(T_field_cold_guess_1, &diff_T_field_cold);
+        }
+        catch (C_csp_exception)
+        {
+            return -2;
+        }
+
+        if (T_field_cold_guess_1 < mpc_csp_solver->m_T_htf_cold_des - 273.15 - 101) {    //[C], convert from [K])
+            return -3;
+        }
     }
 
     // Check if iteration is required
@@ -5015,7 +5020,7 @@ double C_csp_solver::C_MEQ__defocus::calc_meq_target()
     if (m_df_target_mode == C_MEQ__defocus::E_M_DOT_BAL)
     {
         // Calculate and report mass flow rate balance
-        double m_dot_rec = mpc_csp_solver->mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
+        double m_dot_rec = mpc_csp_solver->mc_cr_out_solver.m_m_dot_store_tot;  //[kg/hr]
         double m_dot_pc = mpc_csp_solver->mc_pc_out_solver.m_m_dot_htf;			//[kg/hr]
         double m_dot_ch = std::max(0.0, mpc_csp_solver->mc_tes_outputs.m_m_dot_cr_to_tes_hot -
             mpc_csp_solver->mc_tes_outputs.m_m_dot_tes_hot_out) * 3600.0;    // mpc_csp_solver->mc_tes_ch_htf_state.m_m_dot;          //[kg/hr]

@@ -941,7 +941,12 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
 
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
-    cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+    if (cr_out_solver.m_m_dot_store_tot > 0.0) {
+        cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+    }
+    else {
+        cr_out_solver.m_T_store_hot = T_rec_cold_des - 273.15;       //[C]
+    }
 
     double collector_areas = get_collector_area();
     double eta_field_tot = collector_areas > 0. ? eta_weighted_sum / collector_areas : 0.;

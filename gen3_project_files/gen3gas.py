@@ -822,6 +822,9 @@ class Gen3opt:
         # self.variables.h_tower = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #check whether a heliostat field interpolation provider has been initialized. If not, create one now
+        # ============
+        ## WARNING!!! Brayton's convention is to use North = 0 and Surround = 1 while this code and file is using the opposite
+        # ============
         if not hasattr(self, "sf_interp_provider"):
             interp_provider = field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
         else:

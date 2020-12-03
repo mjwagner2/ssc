@@ -909,8 +909,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 0);     # the tower and foundation costs are now...
-        ssc.data_set_number( data, b'tower_exp', 0 );           # ...combined into just the foundation equation
+        ssc.data_set_number( data, b'tower_fixed_cost', 3000000);     # this is just used for the default SAM implementation
+        ssc.data_set_number( data, b'tower_exp', 0.0113 );            # this is just used for the default SAM implementation
         ssc.data_set_number( data, b'foundation_fixed_cost', 20116200 );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69 );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661 );

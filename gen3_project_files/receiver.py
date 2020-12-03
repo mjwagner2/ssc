@@ -91,24 +91,25 @@ def ReceiverTubeDesignMassFlow(D_tube, L_tube):
     Returns the standard mass flow of a single receiver tube [kg/s]
     """
 
-    kTubeOuterDiameters = (0.25, 0.3125, 0.375);
+    kTubeOuterDiameters = (0.25, 0.375, 0.5);
 
     # These are simple linear regressions done in Excel of the 'OD Look-up Tables' worksheet
     # in 'optimization worksheetV5.xlsx'
     def ReceiverTubeDesignMassFlow_0p25_0p055(L_tube):
-        return 0.034*L_tube - 0.0283;       # [kg/s]
-
-    def ReceiverTubeDesignMassFlow_0p3125_0p063(L_tube):
-        return 0.0298*L_tube - 0.0395;      # [kg/s]
+        return 0.0338*L_tube - 0.0278;       # [kg/s]
 
     def ReceiverTubeDesignMassFlow_0p375_0p070(L_tube):
-        return 0.0254*L_tube - 0.0418;      # [kg/s]
+        return 0.0252*L_tube - 0.04;      # [kg/s]
+
+    def ReceiverTubeDesignMassFlow_0p5_0p100(L_tube):
+        return 0.0139*L_tube - 0.0219;      # [kg/s]
 
     m_dot_tube_des_0p25_0p055 = ReceiverTubeDesignMassFlow_0p25_0p055(L_tube)
-    m_dot_tube_des_0p3125_0p063 = ReceiverTubeDesignMassFlow_0p3125_0p063(L_tube)
     m_dot_tube_des_0p375_0p070 = ReceiverTubeDesignMassFlow_0p375_0p070(L_tube)
+    m_dot_tube_des_0p5_0p100 = ReceiverTubeDesignMassFlow_0p5_0p100(L_tube)
 
-    m_dot_tubes_des = (m_dot_tube_des_0p25_0p055, m_dot_tube_des_0p3125_0p063, m_dot_tube_des_0p375_0p070)
+    m_dot_tubes_des = (m_dot_tube_des_0p25_0p055, m_dot_tube_des_0p375_0p070,
+                       m_dot_tube_des_0p5_0p100)
 
     f_m_dot_tube = interp1d(kTubeOuterDiameters, m_dot_tubes_des, kind='quadratic', fill_value='extrapolate')
 
@@ -121,8 +122,8 @@ def ReceiverTubeThickness(D_tube):
     Returns the tube wall thickness in [in]
     """
 
-    kTubeOuterDiameters = [1/4, 5/16, 3/8]
-    kTubeWallThicknesses = [0.055, 0.063, 0.070]
+    kTubeOuterDiameters = [1/4, 3/8, 1/2]
+    kTubeWallThicknesses = [0.055, 0.070, 0.100]
     f_wall_thickness = interp1d(kTubeOuterDiameters, kTubeWallThicknesses, kind='quadratic', fill_value='extrapolate')
     return f_wall_thickness(D_tube)
 
@@ -336,7 +337,7 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
     >> eta_inlet_condition_120 = f_eta_inlet_condition_120( <tube diameter>, <tube length>)[0][0]
     """
 
-    df = pandas.read_csv(receiver_file_path)
+    df = ReadAndFilterCsv(receiver_file_path)
 
     # rec_eta_lookup ----------------------------------------------------------------------------
     cols_eta = ['m_dot_frac_eta','T_in_C','eta']
@@ -359,7 +360,8 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
         # there will only be one loop as there's only one dependent value column (eta)
         for col in cols_eta[2:]:
             interp_funcs[col].append( 
-                    # SmoothBivariateSpline(diameters, lengths, df_group[col].values, kx=1, ky=1)
+                    # SmoothBivariateSpline(diameters, lengths, df_group[col].values, kx=2, ky=2)     # works great when kx=ky=2 for just data, but not
+                                                                                                    #  between D's and L's. Doesn't work well when kx=ky=1
                     # interp2d(diameters, lengths, df_group[col].values, kind='linear')   # works a lot better than SmoothBivariateSpline
                     GlobalSpline2D(diameters, lengths, df_group[col].values, kind='linear')   # adds extrapolation to interp2d
                     # Rbf(diameters, lengths, df_group[col].values, function='linear', smooth=1)      # doesn't interpolate lengths well, using any 'function'
@@ -390,10 +392,10 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
         # there will only be one loop as there's only one dependent value column (dP_kPa)
         for col in cols_dP[2:]:
             interp_funcs[col].append( 
-                    # SmoothBivariateSpline(diameters, lengths, df_group[col].values, kx=1, ky=1) 
+                    # SmoothBivariateSpline(diameters, lengths, df_group[col].values, kx=2, ky=2) 
                     # interp2d(diameters, lengths, df_group[col].values, kind='linear')
                     GlobalSpline2D(diameters, lengths, df_group[col].values, kind='linear')
-                    #Rbf(diameters, lengths, df_group[col].values, function='linear', smooth=1)
+                    # Rbf(diameters, lengths, df_group[col].values, function='linear', smooth=1)
                 )
     rec_dP_lookup = interp_funcs
 
@@ -433,7 +435,14 @@ def create_receiver_eta_lookup(receiver_eta_interp_provider, D_tube, L_tube):
     # Sort list, needed for proper use by SSC
     df_interp = pandas.DataFrame(interp_data_list, columns=['m_dot_frac_eta', 'T_in_C', 'eta'])
     df_interp.sort_values(by=['T_in_C', 'm_dot_frac_eta'], inplace=True)
-    return df_interp.values.tolist()        # convert back to list of lists
+    list_interp = df_interp.values.tolist()        # convert back to list of lists
+
+    # Convert single element numpy arrays to value, if given by interpolator
+    if isinstance(list_interp[0][2], np.ndarray):
+        for i, val in enumerate(list_interp):
+            list_interp[i][2] = list_interp[i][2][0]
+
+    return list_interp
 
 #----------------------------------------------------------------------------
 def create_receiver_dP_lookup(receiver_dP_interp_provider, D_tube, L_tube):
@@ -468,7 +477,29 @@ def create_receiver_dP_lookup(receiver_dP_interp_provider, D_tube, L_tube):
     # Sort list, needed for proper use by SSC
     df_interp = pandas.DataFrame(interp_data_list, columns=['m_dot_frac_dP', 'P_in_kPa', 'eta'])
     df_interp.sort_values(by=['P_in_kPa', 'm_dot_frac_dP'], inplace=True)
-    return df_interp.values.tolist()        # convert back to list of lists
+    list_interp = df_interp.values.tolist()        # convert back to list of lists
+
+    # Convert single element numpy arrays to value, if given by interpolator
+    if isinstance(list_interp[0][2], np.ndarray):
+        for i, val in enumerate(list_interp):
+            list_interp[i][2] = list_interp[i][2][0]
+
+    return list_interp
+
+
+def ReadAndFilterCsv(receiver_file_path):
+    df = pandas.read_csv(receiver_file_path)
+
+    cond1 = np.isclose(df.D_tube_inch, 0.25) & np.isclose(df.L_tube_m, 1.6)
+    cond2 = np.isclose(df.D_tube_inch, 0.25) & np.isclose(df.L_tube_m, 2.42)
+    cond3 = np.isclose(df.D_tube_inch, 0.375) & np.isclose(df.L_tube_m, 4.11)
+    cond4 = np.isclose(df.D_tube_inch, 0.375) & np.isclose(df.L_tube_m, 6.89)
+    cond5 = np.isclose(df.D_tube_inch, 0.5) & np.isclose(df.L_tube_m, 4)
+    cond6 = np.isclose(df.D_tube_inch, 0.5) & np.isclose(df.L_tube_m, 14)
+
+    allcond = cond1 | cond2 | cond3 | cond4 | cond5 | cond6
+
+    return df[allcond].reset_index(drop=True)
 
 #----------------------------------------------------------------------------
 def PlotReceiverVariousTubes(receiver_file_path, m_dot_frac_eta, T_in, m_dot_frac_dP, P_in):
@@ -477,13 +508,19 @@ def PlotReceiverVariousTubes(receiver_file_path, m_dot_frac_eta, T_in, m_dot_fra
 
     """
 
-    #TubeDiameters = np.arange(3/16, 7/16, 1/64)    # [in] outer diameter
-    TubeDiameters = np.arange(1/4, 3/8, 1/64)      # [in] outer diameter
-    TubeLengths = np.arange(1, 7, 0.25)            # [m]
+    # Inputs
+    D_min = 1/4
+    L_maxAtDmin = 3.35
+    D_max = 1/2
+    L_maxAtDmax = 14
+    add_modeled_points_to_surface = False           # for testing surface fit of *modeled* points
+    add_data_points_to_surface = True               # for testing overall interpolation to known data points
 
     rec_eta_lookup, rec_dP_lookup = load_receiver_interpolator_provider(receiver_file_path, 1)
-    
     df_out = pandas.DataFrame(columns=['D_tube', 'L_tube', 'eta', 'dP_kPa'])
+
+    TubeDiameters = np.linspace(D_min, D_max, num=30, endpoint=True)      # [in] outer diameter
+    TubeLengths = np.linspace(1, L_maxAtDmax, num=30, endpoint=True)      # [m]
 
     for D_tube in TubeDiameters:
         for L_tube in TubeLengths:
@@ -500,12 +537,39 @@ def PlotReceiverVariousTubes(receiver_file_path, m_dot_frac_eta, T_in, m_dot_fra
             df_out = df_out.append({'D_tube': D_tube, 'L_tube': L_tube, 'eta': df_eta_modld_f['eta'].iloc[0], 'dP_kPa': df_dP_modld_f['dP_kPa'].iloc[0]},
                 ignore_index=True)
 
+    # Filter out lengths that are greater than the assumed max per the diameter
+    #  so the plot is more easily read.
+    #  I.e., filter out lengths above the line that connections the max length
+    #  at the lowest diameter and the max length at the highest diameter
+    def filter_fn(row):
+        line_slope = (L_maxAtDmax - L_maxAtDmin) / (D_max - D_min)
+        line_intercept = L_maxAtDmin - line_slope * D_min
+        D = row['D_tube']
+        L = row['L_tube']
+        L_max = line_slope * row['D_tube'] + line_intercept
+        if row['L_tube'] > L_max:
+            return False         # False means don't keep it
+        else:
+            return True
+
+    to_filter = df_out.apply(filter_fn, axis=1)
+    df_out = df_out[to_filter]
+    df_out = df_out.reset_index(drop=True)
+
     # Overall Figure
     fig = plt.figure(figsize=(12,6))    # width, height in inches
+
+    if add_data_points_to_surface:
+        df_data = ReadAndFilterCsv(receiver_file_path)
 
     # Subplot 1, Eta modeled
     ax = fig.add_subplot(1, 2, 1, projection='3d')
     surf = ax.plot_trisurf(df_out['D_tube'], df_out['L_tube'], df_out['eta'], cmap=plt.cm.viridis, linewidth=0.2)
+    if add_modeled_points_to_surface:
+        modld_pts = ax.scatter(df_out['D_tube'], df_out['L_tube'], df_out['eta'], c='black', s=15)
+    if add_data_points_to_surface:
+        df_data_eta = df_data[np.isclose(df_data.m_dot_frac_eta, m_dot_frac_eta) & np.isclose(df_data.T_in_C, T_in)].reset_index(drop=True)
+        data_pts = ax.scatter(df_data_eta['D_tube_inch'], df_data_eta['L_tube_m'], df_data_eta['eta'], c='red', s=10)
     #fig.colorbar(surf, shrink=0.5, aspect=5)
     ax.set_xlabel('D_tube [in]')
     ax.set_ylabel('L_tube [m]')
@@ -518,6 +582,11 @@ def PlotReceiverVariousTubes(receiver_file_path, m_dot_frac_eta, T_in, m_dot_fra
     # Subplot 2, dP modeled
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
     surf = ax2.plot_trisurf(df_out['D_tube'], df_out['L_tube'], df_out['dP_kPa'], cmap=plt.cm.viridis, linewidth=0.2)
+    if add_modeled_points_to_surface:
+        modld_pts = ax2.scatter(df_out['D_tube'], df_out['L_tube'], df_out['dP_kPa'], c='black', s=15)
+    if add_data_points_to_surface:
+        df_data_dP = df_data[np.isclose(df_data.m_dot_frac_dP, m_dot_frac_dP) & np.isclose(df_data.P_in_kPa, P_in)].reset_index(drop=True)
+        data_pts = ax2.scatter(df_data_dP['D_tube_inch'], df_data_dP['L_tube_m'], df_data_dP['dP_kPa'], c='red', s=10)
     #fig.colorbar(surf, shrink=0.5, aspect=5)
     ax2.set_xlabel('D_tube [in]')
     ax2.set_ylabel('L_tube [m]')
@@ -545,36 +614,45 @@ def PlotReceiverTables(receiver_file_path, tube_config):
     """
     receiver_file_path:     path to CSV file of receiver efficiency and pressure drop
     tube_config:            can be either:
-                                '1/4-0.055"-1.731m'
-                                '1/4-0.055"-2.423m'
-                                '5/16-0.063"-3.577m'
-                                '5/16-0.063"-4.654m'
-                                '3/8-0.070"-4.5m'
-                                '3/8-0.070"-6.3m'
+                                '1/4-0.055"-1.6m')  
+                                '1/4-0.055"-2.42m')
+                                '1/4-0.055"-3.35m')
+                                '3/8-0.070"-4.11m')
+                                '3/8-0.070"-5.78m')
+                                '3/8-0.070"-6.89m')
+                                '1/2-0.100"-4m')
+                                '1/2-0.100"-9.385m')
+                                '1/2-0.100"-14m')                                
     """
 
-    if tube_config == '1/4-0.055"-1.731m':
+    if tube_config == '1/4-0.055"-1.6m':
         kTubeConfig = 0
-    elif tube_config == '1/4-0.055"-2.423m':
+    elif tube_config == '1/4-0.055"-2.42m':
         kTubeConfig = 1
-    elif tube_config == '5/16-0.063"-3.577m':
+    elif tube_config == '1/4-0.055"-3.35m':
         kTubeConfig = 2
-    elif tube_config == '5/16-0.063"-4.654m':
+    elif tube_config == '3/8-0.070"-4.11m':
         kTubeConfig = 3
-    elif tube_config == '3/8-0.070"-4.5m':
+    elif tube_config == '3/8-0.070"-5.78m':
         kTubeConfig = 4
-    elif tube_config == '3/8-0.070"-6.3m':
+    elif tube_config == '3/8-0.070"-6.89m':
         kTubeConfig = 5
+    elif tube_config == '1/2-0.100"-4m':
+        kTubeConfig = 6
+    elif tube_config == '1/2-0.100"-9.385m':
+        kTubeConfig = 7
+    elif tube_config == '1/2-0.100"-14m':
+        kTubeConfig = 8
     else:
         raise Exception('Tube configuration not supported')
 
-    D_tube_frac = ['1/4', '1/4', '5/16', '5/16', '3/8', '3/8']
-    L_tube = [1.731, 2.423, 3.577, 4.654, 4.5, 6.3]
-    thick_tube = [0.055, 0.055, 0.063, 0.063, 0.070, 0.070]
+    D_tube_frac = ['1/4', '1/4', '1/4', '3/8', '3/8', '3/8', '1/2', '1/2', '1/2']
+    L_tube = [1.6, 2.42, 3.35, 4.11, 5.78, 6.89, 4, 9.385, 14]
+    thick_tube = [0.055, 0.055, 0.055, 0.070, 0.070, 0.070, 0.100, 0.100, 0.100]
 
     # Reading actual values and filtering for just single tube config
     D_tube = [eval(D) for D in D_tube_frac]
-    df_meas = pandas.read_csv(receiver_file_path)
+    df_meas = ReadAndFilterCsv(receiver_file_path)
     df_meas_f = df_meas[np.isclose(df_meas.D_tube_inch, D_tube[kTubeConfig]) & np.isclose(df_meas.L_tube_m, L_tube[kTubeConfig])]
 
     # Modeled values
@@ -686,20 +764,11 @@ if __name__ == "__main__":
 
 
     #---------------------------------------------------------------------------------------------------------------------
-    #---Testing receiver table generation---------------------------------------------------------------------------------
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/4-0.055"-1.731m')
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/4-0.055"-2.423m')
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '5/16-0.063"-3.577m')
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '5/16-0.063"-4.654m')
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-4.5m')
-    # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-6.3m')
-
-    #---------------------------------------------------------------------------------------------------------------------
     #---Testing tube wall thickness function------------------------------------------------------------------------------
-    # kTubeOuterDiameters = [1/4, 5/16, 3/8]
+    # kTubeOuterDiameters = [1/4, 3/8, 1/2]
     # tube_wall_thicknesses = [ReceiverTubeThickness(D_tube) for D_tube in kTubeOuterDiameters]
 
-    # tube_diameters = np.arange(3/16, 7/16, 1/64)                     # [in] outer diameter
+    # tube_diameters = np.arange(3/16, 9/16, 1/64)                     # [in] outer diameter, TODO: replace with linspace
     # tube_wall_thicknesses_mod = [ReceiverTubeThickness(D_tube) for D_tube in tube_diameters]
 
     # fig = plt.figure()
@@ -712,9 +781,21 @@ if __name__ == "__main__":
     # plt.show()
 
     #---------------------------------------------------------------------------------------------------------------------
+    #---Testing receiver table generation---------------------------------------------------------------------------------
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/4-0.055"-1.6m')
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/4-0.055"-2.42m') 
+    # # PlotReceiverTables('resource/rec_lookup_all.csv', '1/4-0.055"-3.35m') 
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-4.11m')
+    # # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-5.78m') 
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '3/8-0.070"-6.89m') 
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/2-0.100"-4m')
+    # # PlotReceiverTables('resource/rec_lookup_all.csv', '1/2-0.100"-9.385m')
+    # PlotReceiverTables('resource/rec_lookup_all.csv', '1/2-0.100"-14m')   
+
+    #---------------------------------------------------------------------------------------------------------------------
     #---Testing receiver table generation for different diameters and lengths---------------------------------------------
     # receiver_file_path = 'resource/rec_lookup_all.csv'
-    # df = pandas.read_csv(receiver_file_path)
+    # df = ReadAndFilterCsv(receiver_file_path)
 
     # m_dot_frac_eta_max = df['m_dot_frac_eta'].max()
     # m_dot_frac_eta_min = df['m_dot_frac_eta'].min()
@@ -735,48 +816,60 @@ if __name__ == "__main__":
     #     m_dot_frac_eta_min, T_in_max, m_dot_frac_dP_min, P_in_min)
 
     #---------------------------------------------------------------------------------------------------------------------
-    #---Testing ReceiverTubeDesignMassFlow()-__---------------------------------------------------------------------------
-    # 1/4 - 0.055
-    L1 = [1.731, 1.962, 2.192, 2.423, 2.654, 2.885, 3.115, 3.346, 3.577, 3.808]
-    M1 = [0.03077, 0.0382, 0.04594, 0.05389, 0.06195, 0.07007, 0.07814, 0.08608, 0.0936, 0.1003]
-    # 5/16 - 0.063
-    L2 = [3.038, 3.308, 3.577, 3.846, 4.115, 4.385, 4.654, 4.923, 5.192, 5.462, 5.731, 6]
-    M2 = [0.05191, 0.05918, 0.06674, 0.07448, 0.08248, 0.09056, 0.0988, 0.107, 0.1152, 0.1234, 0.1314, 0.1393]
-    # 3/8 - 0.070
-    L3 = [3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8]
-    M3 = [0.05, 0.06298, 0.06511, 0.07245, 0.07658, 0.09064, 0.09264, 0.1049, 0.1184, 0.1193, 0.1337, 0.148, 0.1623]
+    #---Testing ReceiverTubeDesignMassFlow()------------------------------------------------------------------------------
+    # # 1/4 - 0.055
+    # L1 = [1.6, 1.7, 1.962, 2.192, 2.423, 2.654, 2.885, 3.115, 3.346, 3.577, 3.808]
+    # M1 = [0.02674, 0.0298, 0.03818, 0.04592, 0.05386, 0.06192, 0.07003, 0.0781, 0.086, 0.09352, 0.1002]
+    # # 3/8 - 0.070
+    # L2 = [3, 3.556, 4.111, 4.2, 4.5, 4.667, 5.222, 5.3, 5.778, 6.3, 6.333, 6.889, 7.444, 8]
+    # M2 = [0.03779, 0.04998, 0.06295, 0.06508, 0.07242, 0.07655, 0.09056, 0.09256, 0.1049, 0.1183, 0.1192, 0.1336, 0.1479, 0.1622]
+    # # 1/2 - 0.100
+    # L3 = [4, 4.769, 5.538, 6.308, 7.077, 7.846, 8.615, 9.385, 10.15, 10.92, 11.69, 12.46, 13.23, 14]
+    # M3 = [0.035, 0.04497, 0.05523, 0.06567, 0.0762, 0.08688, 0.09752, 0.1083, 0.1191, 0.13, 0.141, 0.1519, 0.1628, 0.1738]
 
-    L_new = np.arange(1.731, 8, 0.1)
-    M_new1 = [ReceiverTubeDesignMassFlow(1/4, L) for L in L_new]
-    M_new2 = [ReceiverTubeDesignMassFlow(5/16, L) for L in L_new]
-    M_new3 = [ReceiverTubeDesignMassFlow(3/8, L) for L in L_new]
-    M_new4 = [ReceiverTubeDesignMassFlow(7/32, L) for L in L_new]
-    M_new5 = [ReceiverTubeDesignMassFlow(9/32, L) for L in L_new]
-    M_new6 = [ReceiverTubeDesignMassFlow(11/32, L) for L in L_new]
-    M_new7 = [ReceiverTubeDesignMassFlow(13/32, L) for L in L_new]
+    # L_new = np.arange(1.731, 14, 0.1), TODO: replace with linspace
+    # Ma_new = [ReceiverTubeDesignMassFlow(7/32, L) for L in L_new]
+    # M1_new = [ReceiverTubeDesignMassFlow(1/4, L) for L in L_new]        # has data
+    # Mb_new = [ReceiverTubeDesignMassFlow(9/32, L) for L in L_new]
+    # Mc_new = [ReceiverTubeDesignMassFlow(5/16, L) for L in L_new]
+    # Md_new = [ReceiverTubeDesignMassFlow(11/32, L) for L in L_new]
+    # M2_new = [ReceiverTubeDesignMassFlow(3/8, L) for L in L_new]        # has data
+    # Me_new = [ReceiverTubeDesignMassFlow(13/32, L) for L in L_new]
+    # Mf_new = [ReceiverTubeDesignMassFlow(7/16, L) for L in L_new]
+    # Mg_new = [ReceiverTubeDesignMassFlow(15/32, L) for L in L_new]
+    # M3_new = [ReceiverTubeDesignMassFlow(1/2, L) for L in L_new]        # has data
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    plt.plot(L_new, M_new4, '-', label='7/32')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1)
+    # plt.plot(L_new, Ma_new, '-', label='7/32')
 
-    plt.plot(L1, M1, 'ro', label='1/4 - 0.055')
-    plt.plot(L_new, M_new1, 'r-', label='1/4')
+    # plt.plot(L1, M1, 'ro', label='1/4 - 0.055')
+    # plt.plot(L_new, M1_new, 'r-', label='1/4')
 
-    plt.plot(L_new, M_new5, '-', label='9/32')
+    # plt.plot(L_new, Mb_new, '-', label='9/32')
 
-    plt.plot(L2, M2, 'go', label='5/16 - 0.063')
-    plt.plot(L_new, M_new2, 'g-', label='5/16')
+    # plt.plot(L_new, Mc_new, 'g-', label='5/16')
 
-    plt.plot(L_new, M_new6, '-', label='11/32')
+    # plt.plot(L_new, Md_new, '-', label='11/32')
 
-    plt.plot(L3, M3, 'bo', label='3/8 - 0.070')
-    plt.plot(L_new, M_new3, 'b-', label='3/8')
+    # plt.plot(L2, M2, 'bo', label='3/8 - 0.070')
+    # plt.plot(L_new, M2_new, 'b-', label='3/8')
 
-    plt.plot(L_new, M_new7, '-', label='13/32')
-    ax.set_xlabel('L_tube [m]')
-    ax.set_ylabel('m_dot_std [kg/s]')
-    ax.set_title('Standard Tube Mass Flow [kg/s]')
-    plt.legend()
-    plt.show()
+    # plt.plot(L_new, Me_new, '-', label='13/32')
+
+    # plt.plot(L_new, Mf_new, '-', label='7/16')
+
+    # plt.plot(L_new, Mg_new, '-', label='15/32')
+
+    # plt.plot(L3, M3, 'ko', label='1/2 - 0.100')
+    # plt.plot(L_new, M3_new, 'k-', label='1/2')
+
+    # ax.set_xlim(1.02, 14)
+    # ax.set_ylim(-0.02, .55)
+    # ax.set_xlabel('L_tube [m]')
+    # ax.set_ylabel('m_dot_std [kg/s]')
+    # ax.set_title('Standard Tube Mass Flow [kg/s]')
+    # plt.legend()
+    # plt.show()
     #---------------------------------------------------------------------------------------------------------------------
     x=None

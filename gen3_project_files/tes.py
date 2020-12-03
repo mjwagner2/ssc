@@ -121,14 +121,14 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     #Performance confidence derate (1 -> full confidence)
     x_safety = 1.0
     #max particle flow rate per cell
-    m_dot_particle_c_max = 0.056    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
+    m_dot_particle_c_max = 0.491    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
     #Max cell length
     L_cell_max = 1.65       #m
     # cell width
     W_cell = 0.2032         #m
     
     #Calculate cell surface area based on assumed conductance
-    U = 0.450               #kW/m2-K
+    U = 0.720               #kW/m2-K
     A_charge = UA_charge / U
     A_hot_disch = UA_hot_disch / U
     A_cold_disch = UA_cold_disch / U

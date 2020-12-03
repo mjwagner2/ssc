@@ -78,6 +78,7 @@ void C_mspt_system_costs::check_parameters_are_set()
 		ms_par.EPC_land_per_power_cost != ms_par.EPC_land_per_power_cost ||
 		ms_par.EPC_land_fixed_cost_smaller != ms_par.EPC_land_fixed_cost_smaller ||
         ms_par.EPC_land_fixed_cost_larger != ms_par.EPC_land_fixed_cost_larger ||
+        ms_par.EPC_land_permitting != ms_par.EPC_land_permitting ||
 		ms_par.total_land_spec_cost != ms_par.total_land_spec_cost ||
 		ms_par.total_land_perc_direct_cost != ms_par.total_land_perc_direct_cost ||
 		ms_par.total_land_per_power_cost != ms_par.total_land_per_power_cost ||
@@ -159,7 +160,8 @@ void C_mspt_system_costs::calculate_costs()
 	ms_out.epc_and_owner_cost = 
 		N_mspt::epc_and_owner_cost(ms_par.total_land_area, ms_out.total_direct_cost, ms_par.plant_net_capacity,
 			ms_par.EPC_land_spec_cost, ms_par.EPC_land_perc_direct_cost_smaller, ms_par.EPC_land_perc_direct_cost_larger,
-            ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost_smaller, ms_par.EPC_land_fixed_cost_larger);
+            ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost_smaller, ms_par.EPC_land_fixed_cost_larger,
+            ms_par.EPC_land_permitting);
 
 	ms_out.sales_tax_cost = 
 		N_mspt::sales_tax_cost(ms_out.total_direct_cost, ms_par.sales_tax_basis, ms_par.sales_tax_rate);
@@ -286,12 +288,14 @@ double N_mspt::total_land_cost(double total_land_area /*acres*/, double total_di
 
 double N_mspt::epc_and_owner_cost(double total_land_area /*acres*/, double total_direct_cost /*$*/, double plant_net_capacity /*MWe*/,
 	double land_spec_cost /*$/acre*/, double land_perc_direct_cost_smaller /*%*/, double land_perc_direct_cost_larger /*%*/,
-    double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/)
+    double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/,
+    double permitting_cost /*$*/)
 {
     return total_land_area * land_spec_cost +
         plant_net_capacity * 1.E6 * land_spec_per_power_cost +
         std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
-            total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger);         //[$]
+            total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger) +
+        permitting_cost;         //[$]
 }
 
 double N_mspt::sales_tax_cost(double total_direct_cost /*$*/, double sales_tax_basis /*% of tot. direct cost*/, double sales_tax_rate /*%*/)

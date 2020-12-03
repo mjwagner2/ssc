@@ -937,8 +937,9 @@ class Gen3opt:
         ssc.data_set_number( data, b'contingency_rate', 7 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 + permitting_costs );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. + permitting_costs );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.permitting', permitting_costs )
 
         #O&M cost
         om_fixed = [ c_om_fixed ]

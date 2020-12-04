@@ -80,10 +80,10 @@ class Settings:
         self.print_summary_output = False
         self.save_hourly_results = False
         self.dni_des_ref = 976.
-        self.cycle_temperature_drop = 700 - 562
+        self.cycle_temperature_drop = 700 - 547.2
         self.lift_technology = 'skip'    #or 'bucket'
         self.is_north = False                  # is field north or surround
-        self.cycle_efficiency_nominal = 0.43  #must correspond to the nominal efficiency used to develop the cycle lookup tables
+        self.cycle_efficiency_nominal = 0.454  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
         self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
         self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON

@@ -370,7 +370,7 @@ def LiftAvailability(q_cycle, lift_type):
         availability of the lift system [-]
     """
 
-    kLiftBaseDerate = 0.92
+    kLiftBaseDerate = 0.96
     kCycleEfficiency = 0.43                     # [-] Assumed cycle efficiency when these relations were made
 
     if not isfinite(q_cycle) or q_cycle < 0:

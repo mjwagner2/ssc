@@ -354,7 +354,7 @@ def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     if lift_type == 'bucket':
         return 8.65829e3 * x**2 + 5.41087e5 * x - 5.38257e5
     elif lift_type == 'skip':
-        return 1.84708e3 * x**2 + 3.91687e5 * x + 1.27537e6
+        return 2.37809e3 * x**2 + 4.14694e5 * x + 8.80070e5
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 

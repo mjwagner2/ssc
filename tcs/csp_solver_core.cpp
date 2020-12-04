@@ -300,7 +300,6 @@ C_csp_solver::C_csp_solver(C_csp_weatherreader &weather,
 		m_m_dot_pc_des = m_m_dot_pc_min = m_m_dot_pc_max = m_T_htf_pc_cold_est = std::numeric_limits<double>::quiet_NaN();
 
     m_is_rec_recirc_available = false;
-	m_is_cr_config_recirc = true;
 
 	// Reporting and Output Tracking
 	mc_reported_outputs.construct(S_solver_output_info);
@@ -522,9 +521,15 @@ void C_csp_solver::init()
 		// Thermal Storage
 	m_is_tes = mc_tes.does_tes_exist();
 
-
-
-    m_is_cr_config_recirc = true;
+        // System
+    // If it's an indirect system but CR doesn't have a recirculator, then have problem
+    if (!ms_system_params.are_rec_pc_directly_coupled && !m_is_rec_recirc_available) {
+        throw(C_csp_exception("The system is indirect but the CR doesn't have a recirculator", "CSP Solver"));
+    }
+    // If an indirect system, then reset m_P_cold_des to cycle cold
+    if (!ms_system_params.are_rec_pc_directly_coupled) {
+        m_P_cold_des = m_cycle_P_cold_des;  //[kPa]
+    }
 
     // Value helps solver get out of T_field_htf_cold iteration when weird conditions cause the solution to be a very cold value
     // Should update with technology-specific htf freeze protection values
@@ -581,12 +586,12 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 	double wf_step = 3600.0 / step_per_hour;	//[s] Weather file time step - would like to check this against weather file, some day
 	
     m_is_first_timestep = true;
-	double step_tolerance = 10.0;		//[s] For adjustable timesteps, if within 10 seconds, assume it equals baseline timestep
+	m_step_tolerance = 10.0;		//[s] For adjustable timesteps, if within 10 seconds, assume it equals baseline timestep
 	double baseline_step = wf_step;		//[s] Baseline timestep of the simulation - this should probably be technology/model specific
 	// Check the collector-receiver model for a maximum step
 	if(mc_collector_receiver.m_max_step > 0.0)
 	{
-		baseline_step = max(step_tolerance, min(baseline_step, mc_collector_receiver.m_max_step));
+		baseline_step = max(m_step_tolerance, min(baseline_step, mc_collector_receiver.m_max_step));
 	}
 	
 	mc_kernel.init(sim_setup, wf_step, baseline_step, mc_csp_messages);
@@ -820,8 +825,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 //or is this too confusing and not helpful enough?
 		double q_pc_sb = cycle_sb_frac * m_cycle_q_dot_des;		//[MW]
 		double q_pc_min = m_cycle_cutoff_frac * m_cycle_q_dot_des;	//[MW]
-		double q_pc_max = m_cycle_max_frac * m_cycle_q_dot_des;		//[MW]
-		double q_pc_target = q_pc_max;							//[MW]
+		m_q_pc_max = m_cycle_max_frac * m_cycle_q_dot_des;		//[MW]
+		double q_pc_target = m_q_pc_max;							//[MW]
 
 		q_pc_target = f_turbine_tou * m_cycle_q_dot_des;	//[MWt]
         double W_pc_target = f_turbine_tou * m_cycle_W_dot_des; //[MWe]
@@ -830,7 +835,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         if (mc_tou.mc_dispatch_params.m_is_tod_pc_target_also_pc_max)
         {
-            q_pc_max = q_pc_target;     //[MW]
+            m_q_pc_max = q_pc_target;     //[MW]
         }
 
 
@@ -847,7 +852,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_power_cycle.get_max_power_output_operation_constraints(mc_weather.ms_outputs.m_tdry, m_dot_htf_ND_max, W_dot_ND_max, is_est_rec_on);
         //HACK THESE VALUES FOR NOW:
 
-        if (is_est_rec_on)
+        if (is_est_rec_on && ms_system_params.are_rec_pc_directly_coupled)
         {
             m_dot_htf_ND_max *= 1.1;
             W_dot_ND_max *= 1.1;
@@ -877,7 +882,13 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		m_T_htf_pc_cold_est = mc_pc_out_solver.m_T_htf_cold;	//[C]
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
 		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
-		mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
+        mc_cr_htf_state_in.m_particle_temp = m_T_htf_cold_des - 273.15;  //[C] convert from K
+        if (ms_system_params.are_rec_pc_directly_coupled) {
+            mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
+        }
+        else {
+            mc_cr_htf_state_in.m_pres = m_P_cold_des;   //[kPa]
+        }
 		C_csp_collector_receiver::S_csp_cr_est_out est_out;
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,
@@ -905,15 +916,31 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			//predict estimated amount of charge/discharge available
 			double T_hot_field_dc_est;	//[K]
 			T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.discharge_avail_est(T_htf_hot_cr_on + 273.15, P_htf_hot_cr_on, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
-			m_dot_tes_dc_est *= 3600.0;	        //[kg/hr] convert from kg/s
+            double m_dot_tes_dc_field_est = std::numeric_limits<double>::quiet_NaN();
+			mc_tes.discharge_avail_est(T_htf_hot_cr_on + 273.15, P_htf_hot_cr_on, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_dc, m_dot_tes_dc_field_est, T_hot_field_dc_est, m_dot_tes_store_dc_est);
+			m_dot_tes_dc_field_est *= 3600.0;	//[kg/hr] convert from kg/s
             m_dot_tes_store_dc_est *= 3600.0;   //[kg/hr] convert from kg/s
+
+            if (ms_system_params.are_rec_pc_directly_coupled) {
+                m_dot_tes_dc_est = m_dot_tes_dc_field_est;  //[kg/hr]
+            }
+            else{
+                m_dot_tes_dc_est = m_dot_tes_store_dc_est;  //[kg/hr]
+            }
 
 			double T_cold_field_ch_est;	//[K]
 			T_cold_field_ch_est = std::numeric_limits<double>::quiet_NaN();
-			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
-			m_dot_tes_ch_est *= 3600.0;         //[kg/hr] convert from kg/s
-            m_dot_tes_store_ch_est *= 3600.0;   //[kg/hr] convert from kg/s
+            double m_dot_tes_ch_field_est = std::numeric_limits<double>::quiet_NaN();
+			mc_tes.charge_avail_est(T_store_hot_cr_on + 273.15, mc_kernel.mc_sim_info.ms_ts.m_step, q_dot_tes_ch, m_dot_tes_ch_field_est, T_cold_field_ch_est, m_dot_tes_store_ch_est);
+			m_dot_tes_ch_field_est *= 3600.0;       //[kg/hr] convert from kg/s
+            m_dot_tes_store_ch_est *= 3600.0;       //[kg/hr] convert from kg/s
+
+            if (ms_system_params.are_rec_pc_directly_coupled) {
+                m_dot_tes_ch_est = m_dot_tes_ch_field_est;
+            }
+            else {
+                m_dot_tes_ch_est = m_dot_tes_store_ch_est;
+            }
 
             mass_store_total = (m_dot_tes_store_dc_est + m_dot_tes_store_ch_est) * mc_kernel.mc_sim_info.ms_ts.m_step / 3600.;
 		}
@@ -1132,7 +1159,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                 
 				// Calculate approximate upper limit for power cycle thermal input at current electricity generation limit
 				if (dispatch.w_lim.at(dispatch.m_current_read_step) < 1.e-6)
-					q_pc_max = 0.0;
+                    m_q_pc_max = 0.0;
 				else
 				{
 					double wcond;
@@ -1148,8 +1175,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 						eta_calc = eta_new;
 						i++;
 					}
-					q_pc_max = fmin(q_pc_max, dispatch.w_lim.at(dispatch.m_current_read_step)*1.e-3 / eta_calc); // Restrict max pc thermal input to *approximate* current allowable value (doesn't yet account for parasitics)
-					q_pc_max = fmax(q_pc_max, q_pc_target);													// calculated q_pc_target accounts for parasitics --> can be higher than approximate limit 
+					m_q_pc_max = fmin(m_q_pc_max, dispatch.w_lim.at(dispatch.m_current_read_step)*1.e-3 / eta_calc); // Restrict max pc thermal input to *approximate* current allowable value (doesn't yet account for parasitics)
+					m_q_pc_max = fmax(m_q_pc_max, q_pc_target);													// calculated q_pc_target accounts for parasitics --> can be higher than approximate limit 
 				}
 
                 //q_pc_sb = dispatch.outputs.q_pb_standby.at( dispatch.m_current_read_step ) / 1000. ;
@@ -1226,9 +1253,19 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 				{
 					double T_hot_field_dc_est;	//[kg/s, K]
 					T_hot_field_dc_est = std::numeric_limits<double>::quiet_NaN();
-                    mc_tes.discharge_avail_est(m_T_htf_cold_des, m_P_cr_out_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_dc_t_CR_su, T_hot_field_dc_est, m_dot_tes_store_dc_t_CR_su);
-					m_dot_tes_dc_t_CR_su *= 3600.0;		//[kg/hr] convert from kg/s
-				}
+                    double m_dot_tes_field_dc_t_CR_su = std::numeric_limits<double>::quiet_NaN();
+                    mc_tes.discharge_avail_est(m_T_htf_cold_des, m_P_cr_out_des, t_CR_su, q_dot_tes_dc_t_CR_su, m_dot_tes_field_dc_t_CR_su, T_hot_field_dc_est, m_dot_tes_store_dc_t_CR_su);
+                    m_dot_tes_field_dc_t_CR_su *= 3600.0;   //[kg/hr] convert from kg/s
+                    m_dot_tes_store_dc_t_CR_su *= 3600.0;   //[kg/hr] convert from kg/s
+
+                    if (ms_system_params.are_rec_pc_directly_coupled) {
+                        m_dot_tes_dc_t_CR_su = m_dot_tes_field_dc_t_CR_su;
+                    }
+                    else {
+                        m_dot_tes_dc_t_CR_su = m_dot_tes_store_dc_t_CR_su;
+                    }
+
+                }
 				else
 				{
 					q_dot_tes_dc_t_CR_su = 0.0;
@@ -1490,7 +1527,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 								// 2) Try operating power cycle at maximum capacity
 								// Assume we want to completely fill storage, so the power cycle operation should float to meet that condition
-								else if( (q_dot_cr_on - q_dot_tes_ch)*(1.0 - tol_mode_switching) < q_pc_max 
+								else if( (q_dot_cr_on - q_dot_tes_ch)*(1.0 - tol_mode_switching) < m_q_pc_max
 									&& (m_dot_cr_on - m_dot_tes_ch_est)*(1.0 - tol_mode_switching) < m_m_dot_pc_max &&
 									m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail )
 								{	// Storage and the power cycle operating between target and max can accept the remaining receiver output
@@ -1515,7 +1552,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 							{	// No storage available for dispatch
 
 								// 1) Try operating power cycle at maximum capacity
-								if( (q_dot_cr_on*(1.0 - tol_mode_switching) < q_pc_max && m_dot_cr_on*(1.0 - tol_mode_switching)) &&
+								if( (q_dot_cr_on*(1.0 - tol_mode_switching) < m_q_pc_max && m_dot_cr_on*(1.0 - tol_mode_switching)) &&
 									m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE )
 								{	// Tolerance is applied so that if CR + TES is *close* to reaching PC  max, the controller tries that mode
 
@@ -1785,951 +1822,3615 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
             operating_mode_str = tech_operating_modes_str[operating_mode];
 
             op_mode_str = "";
-            
-            switch( operating_mode )
-			{
-			//case CR_DF__PC_SU__TES_OFF__AUX_OFF:
-			//case CR_DF__PC_MAX__TES_OFF__AUX_OFF:
-			//{
-			//	// The PC is operating at its maximum operating thermal power or HTF mass flow rate
-			//	// TES cannot be charged
-			//	// Defocus CR to hit PC constraints
 
-			//	if (!mc_collector_receiver.m_is_sensible_htf)
-			//	{
-			//		std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-			//		throw(C_csp_exception(err_msg, "CSP Solver"));
-			//	}
+            if(ms_system_params.are_rec_pc_directly_coupled){
 
-			//	//std::string op_mode_str = "";
-			//	int pc_mode = -1;
-			//	if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//	{
-			//		op_mode_str = "CR_DF__PC_SU__TES_OFF__AUX_OFF";
-			//		pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
-			//	}
-			//	else
-			//	{
-			//		op_mode_str = "CR_DF__PC_MAX__TES_OFF__AUX_OFF";
-			//		pc_mode = C_csp_power_cycle::ON;
-			//	}
+                switch( operating_mode )
+			    {
+			    //case CR_DF__PC_SU__TES_OFF__AUX_OFF:
+			    //case CR_DF__PC_MAX__TES_OFF__AUX_OFF:
+			    //{
+			    //	// The PC is operating at its maximum operating thermal power or HTF mass flow rate
+			    //	// TES cannot be charged
+			    //	// Defocus CR to hit PC constraints
 
-			//	// First, check if at defocus = 1 whether the PC mass flow rate is less than maximum
-			//	//    when storage is fully charged				
-			//	C_MEQ_cr_on__pc_m_dot_max__tes_off__defocus c_df_m_dot(this, pc_mode);
-			//	C_monotonic_eq_solver c_df_m_dot_solver(c_df_m_dot);
-			//	
-			//	double defocus_guess = 1.0;
-			//	double m_dot_bal = std::numeric_limits<double>::quiet_NaN();
-			//	int m_dot_df_code = c_df_m_dot_solver.test_member_function(defocus_guess, &m_dot_bal);
-			//	if (m_dot_df_code != 0)
-			//	{
-			//		error_msg = util::format("At time = %lg the controller chose %s operating mode, but the collector/receiver "
-			//			"and power cycle did not converge on a cold HTF temp at defocus = 1. Controller will shut-down CR and PC",
-			//			mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
-			//		mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //	if (!mc_collector_receiver.m_is_sensible_htf)
+			    //	{
+			    //		std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+			    //		throw(C_csp_exception(err_msg, "CSP Solver"));
+			    //	}
 
-			//		if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//		{
-			//			m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-			//		}
-			//		else
-			//		{
-			//			// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-			//			m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-			//		}
-			//		
-			//		are_models_converged = false;
-			//		break;
-			//	}
+			    //	//std::string op_mode_str = "";
+			    //	int pc_mode = -1;
+			    //	if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //	{
+			    //		op_mode_str = "CR_DF__PC_SU__TES_OFF__AUX_OFF";
+			    //		pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+			    //	}
+			    //	else
+			    //	{
+			    //		op_mode_str = "CR_DF__PC_MAX__TES_OFF__AUX_OFF";
+			    //		pc_mode = C_csp_power_cycle::ON;
+			    //	}
 
-			//	if (m_dot_bal > 0.0)
-			//	{	// At no defocus, PC mass flow rate is over upper limit
-			//		// So, need to find defocus that results in mass flow <= max
-			//			// Set first solution from defocus = 1.0 above
-			//		C_monotonic_eq_solver::S_xy_pair xy1;
-			//		xy1.x = 1.0;
-			//		xy1.y = m_dot_bal;
+			    //	// First, check if at defocus = 1 whether the PC mass flow rate is less than maximum
+			    //	//    when storage is fully charged				
+			    //	C_MEQ_cr_on__pc_m_dot_max__tes_off__defocus c_df_m_dot(this, pc_mode);
+			    //	C_monotonic_eq_solver c_df_m_dot_solver(c_df_m_dot);
+			    //	
+			    //	double defocus_guess = 1.0;
+			    //	double m_dot_bal = std::numeric_limits<double>::quiet_NaN();
+			    //	int m_dot_df_code = c_df_m_dot_solver.test_member_function(defocus_guess, &m_dot_bal);
+			    //	if (m_dot_df_code != 0)
+			    //	{
+			    //		error_msg = util::format("At time = %lg the controller chose %s operating mode, but the collector/receiver "
+			    //			"and power cycle did not converge on a cold HTF temp at defocus = 1. Controller will shut-down CR and PC",
+			    //			mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
+			    //		mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-			//		// Guess another guess value
-			//		C_monotonic_eq_solver::S_xy_pair xy2;
-   //                 double m_dot_bal2;
-   //                 double x1 = xy1.x;
-   //                 do {
-   //                     xy2.x = x1 * (1.0 / (1.0 + m_dot_bal));
+			    //		if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //		{
+			    //			m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+			    //		}
+			    //		else
+			    //		{
+			    //			// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+			    //			m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+			    //		}
+			    //		
+			    //		are_models_converged = false;
+			    //		break;
+			    //	}
 
-   //                     m_dot_df_code = c_df_m_dot_solver.test_member_function(xy2.x, &m_dot_bal2);
-   //                     if (m_dot_df_code != 0)
-   //                     {
-   //                         error_msg = util::format("At time = %lg the controller chose %s operating mode, but the collector/receiver "
-   //                             "and power cycle did not converge on a cold HTF temp at defocus guess = %lg. Controller will shut-down CR and PC",
-   //                             mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), xy2.x);
-   //                         mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //	if (m_dot_bal > 0.0)
+			    //	{	// At no defocus, PC mass flow rate is over upper limit
+			    //		// So, need to find defocus that results in mass flow <= max
+			    //			// Set first solution from defocus = 1.0 above
+			    //		C_monotonic_eq_solver::S_xy_pair xy1;
+			    //		xy1.x = 1.0;
+			    //		xy1.y = m_dot_bal;
 
-   //                         if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-   //                         {
-   //                             m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-   //                         }
-   //                         else
-   //                         {
-   //                             // Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-   //                             m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-   //                         }
-   //                         are_models_converged = false;
-   //                         break;
-   //                     }
-   //                     x1 = xy2.x;  // for next loop
-   //                 } while (abs(m_dot_bal2 - m_dot_bal) < 0.02);
-   //                 if (m_dot_df_code != 0) { break; }
+			    //		// Guess another guess value
+			    //		C_monotonic_eq_solver::S_xy_pair xy2;
+       //                 double m_dot_bal2;
+       //                 double x1 = xy1.x;
+       //                 do {
+       //                     xy2.x = x1 * (1.0 / (1.0 + m_dot_bal));
 
-			//		xy2.y = m_dot_bal2;
+       //                     m_dot_df_code = c_df_m_dot_solver.test_member_function(xy2.x, &m_dot_bal2);
+       //                     if (m_dot_df_code != 0)
+       //                     {
+       //                         error_msg = util::format("At time = %lg the controller chose %s operating mode, but the collector/receiver "
+       //                             "and power cycle did not converge on a cold HTF temp at defocus guess = %lg. Controller will shut-down CR and PC",
+       //                             mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), xy2.x);
+       //                         mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-			//		// Set up solver for defocus
-			//		c_df_m_dot_solver.settings(1.E-3, 50, 0.0, 1.0, false);
+       //                         if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+       //                         {
+       //                             m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+       //                         }
+       //                         else
+       //                         {
+       //                             // Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+       //                             m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+       //                         }
+       //                         are_models_converged = false;
+       //                         break;
+       //                     }
+       //                     x1 = xy2.x;  // for next loop
+       //                 } while (abs(m_dot_bal2 - m_dot_bal) < 0.02);
+       //                 if (m_dot_df_code != 0) { break; }
 
-			//		// Now solve for the required defocus
-			//		double defocus_solved, tol_solved;
-			//		defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-			//		int iter_solved = -1;
+			    //		xy2.y = m_dot_bal2;
 
-			//		int defocus_code = 0;
-			//		try
-			//		{
-			//			defocus_code = c_df_m_dot_solver.solve(xy1, xy2, -1.E-3, defocus_solved, tol_solved, iter_solved);
-			//		}
-			//		catch (C_csp_exception)
-			//		{
-			//			throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
-			//				" to achieve a PC HTF mass flow less than the maximum", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
-			//		}
-			//		
-			//		if (defocus_code != C_monotonic_eq_solver::CONVERGED)
-			//		{
-			//			if (defocus_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-			//			{
-			//				std::string msg = util::format("At time = %lg %s "
-			//					"iteration to find a defocus resulting in the maximum power cycle mass flow rate only reached a convergence "
-			//					"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-			//					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
-			//				mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-			//			}
-			//			else
-			//			{
-			//				// Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
-			//				error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code "
-			//					"failed to find a solution to achieve a PC HTF mass flow rate less than maximum. Controller will shut-down CR and PC",
-			//					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
-			//				mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //		// Set up solver for defocus
+			    //		c_df_m_dot_solver.settings(1.E-3, 50, 0.0, 1.0, false);
 
-			//				if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//				{
-			//					m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-			//				}
-			//				else
-			//				{
-			//					// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-			//					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-			//				}
+			    //		// Now solve for the required defocus
+			    //		double defocus_solved, tol_solved;
+			    //		defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+			    //		int iter_solved = -1;
 
-			//				are_models_converged = false;
+			    //		int defocus_code = 0;
+			    //		try
+			    //		{
+			    //			defocus_code = c_df_m_dot_solver.solve(xy1, xy2, -1.E-3, defocus_solved, tol_solved, iter_solved);
+			    //		}
+			    //		catch (C_csp_exception)
+			    //		{
+			    //			throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
+			    //				" to achieve a PC HTF mass flow less than the maximum", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
+			    //		}
+			    //		
+			    //		if (defocus_code != C_monotonic_eq_solver::CONVERGED)
+			    //		{
+			    //			if (defocus_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+			    //			{
+			    //				std::string msg = util::format("At time = %lg %s "
+			    //					"iteration to find a defocus resulting in the maximum power cycle mass flow rate only reached a convergence "
+			    //					"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+			    //					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
+			    //				mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+			    //			}
+			    //			else
+			    //			{
+			    //				// Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
+			    //				error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code "
+			    //					"failed to find a solution to achieve a PC HTF mass flow rate less than maximum. Controller will shut-down CR and PC",
+			    //					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
+			    //				mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-			//				break;
-			//			}
-			//		}
+			    //				if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //				{
+			    //					m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+			    //				}
+			    //				else
+			    //				{
+			    //					// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+			    //					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+			    //				}
 
-			//		defocus_guess = defocus_solved;
-			//	}
+			    //				are_models_converged = false;
 
-			//	// Now get the thermal power from the CR
-			//	// Note that power cycle solved with max mass flow rate regardless of what CR sent, so can't use that q_dot
-			//	// If it's greater, then we know upper limit on defocus and need to iterate AGAIN
-			//	double q_dot_pc_defocus = mc_cr_out_solver.m_q_thermal;		//[MWt]
+			    //				break;
+			    //			}
+			    //		}
 
-			//	if ((q_dot_pc_defocus - q_pc_max) / q_pc_max > 1.E-3)
-			//	{
-			//		C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus c_eq(this, pc_mode, q_pc_max);
-			//		C_monotonic_eq_solver c_solver(c_eq);
+			    //		defocus_guess = defocus_solved;
+			    //	}
 
-			//		// Set up solver
-			//		c_solver.settings(1.E-3, 50, 0.0, defocus_guess, false);
+			    //	// Now get the thermal power from the CR
+			    //	// Note that power cycle solved with max mass flow rate regardless of what CR sent, so can't use that q_dot
+			    //	// If it's greater, then we know upper limit on defocus and need to iterate AGAIN
+			    //	double q_dot_pc_defocus = mc_cr_out_solver.m_q_thermal;		//[MWt]
 
-			//		// Solve for defocus
-			//		double defocus_guess_high = (std::min)(0.99*defocus_guess, defocus_guess * (q_pc_max / q_dot_pc_defocus));
-			//		double defocus_guess_low = defocus_guess_high * 0.9;
+			    //	if ((q_dot_pc_defocus - q_pc_max) / q_pc_max > 1.E-3)
+			    //	{
+			    //		C_MEQ_cr_on__pc_q_dot_max__tes_off__defocus c_eq(this, pc_mode, q_pc_max);
+			    //		C_monotonic_eq_solver c_solver(c_eq);
 
-			//		double defocus_solved, tol_solved;
-			//		defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-			//		int iter_solved = -1;
+			    //		// Set up solver
+			    //		c_solver.settings(1.E-3, 50, 0.0, defocus_guess, false);
 
-			//		int solver_code = 0;
-			//		try
-			//		{
-			//			solver_code = c_solver.solve(defocus_guess_low, defocus_guess_high, 0., defocus_solved, tol_solved, iter_solved);
-			//		}
-			//		catch (C_csp_exception)
-			//		{
-			//			throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
-			//				" to achieve a PC thermal power less than the maximum", mc_kernel.mc_sim_info.ms_ts.m_time/3600.0, op_mode_str.c_str()), ""));
-			//		}
+			    //		// Solve for defocus
+			    //		double defocus_guess_high = (std::min)(0.99*defocus_guess, defocus_guess * (q_pc_max / q_dot_pc_defocus));
+			    //		double defocus_guess_low = defocus_guess_high * 0.9;
 
-			//		if (solver_code != C_monotonic_eq_solver::CONVERGED)
-			//		{
-			//			if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-			//			{
-			//				std::string msg = util::format("At time = %lg %s "
-			//					"iteration to find a defocus resulting in the maximum power cycle heat input only reached a convergence "
-			//					"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-			//					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
-			//				mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-			//			}
-			//			else
-			//			{
-			//				// Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
-			//				error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code"
-			//					" failed to achieve a PC thermal power less than the maximum. Controller will shut-down CR and PC",
-			//					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
-			//				mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //		double defocus_solved, tol_solved;
+			    //		defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+			    //		int iter_solved = -1;
 
-			//				if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//				{
-			//					m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-			//				}
-			//				else
-			//				{
-			//					// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-			//					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-			//				}
+			    //		int solver_code = 0;
+			    //		try
+			    //		{
+			    //			solver_code = c_solver.solve(defocus_guess_low, defocus_guess_high, 0., defocus_solved, tol_solved, iter_solved);
+			    //		}
+			    //		catch (C_csp_exception)
+			    //		{
+			    //			throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
+			    //				" to achieve a PC thermal power less than the maximum", mc_kernel.mc_sim_info.ms_ts.m_time/3600.0, op_mode_str.c_str()), ""));
+			    //		}
 
-			//				are_models_converged = false;
+			    //		if (solver_code != C_monotonic_eq_solver::CONVERGED)
+			    //		{
+			    //			if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+			    //			{
+			    //				std::string msg = util::format("At time = %lg %s "
+			    //					"iteration to find a defocus resulting in the maximum power cycle heat input only reached a convergence "
+			    //					"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+			    //					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
+			    //				mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+			    //			}
+			    //			else
+			    //			{
+			    //				// Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
+			    //				error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code"
+			    //					" failed to achieve a PC thermal power less than the maximum. Controller will shut-down CR and PC",
+			    //					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
+			    //				mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-			//				break;
-			//			}
-			//		}
+			    //				if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //				{
+			    //					m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+			    //				}
+			    //				else
+			    //				{
+			    //					// Next operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+			    //					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+			    //				}
 
-			//		defocus_guess = defocus_solved;
-			//	}
+			    //				are_models_converged = false;
 
-			//	if (defocus_guess == 1.0)
-			//	{
-			//		if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//		{	
-			//			// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_SU__TES_OFF
+			    //				break;
+			    //			}
+			    //		}
 
-			//			// CR: ON
-			//			mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+			    //		defocus_guess = defocus_solved;
+			    //	}
 
-			//			mc_collector_receiver.on(mc_weather.ms_outputs,
-			//				mc_cr_htf_state_in,
-			//				m_defocus,
-			//				mc_cr_out_solver,
-			//				mc_kernel.mc_sim_info);
+			    //	if (defocus_guess == 1.0)
+			    //	{
+			    //		if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //		{	
+			    //			// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_SU__TES_OFF
 
-			//			if (mc_cr_out_solver.m_q_thermal == 0.0)
-			//			{	// Collector/receiver can't produce useful energy
+			    //			// CR: ON
+			    //			mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
 
-			//				m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+			    //			mc_collector_receiver.on(mc_weather.ms_outputs,
+			    //				mc_cr_htf_state_in,
+			    //				m_defocus,
+			    //				mc_cr_out_solver,
+			    //				mc_kernel.mc_sim_info);
 
-			//				are_models_converged = false;
-			//				break;
-			//			}
+			    //			if (mc_cr_out_solver.m_q_thermal == 0.0)
+			    //			{	// Collector/receiver can't produce useful energy
 
-			//			// If receiver IS producing energy, try starting up power cycle
-			//			// Power Cycle: STARTUP
-			//			mc_pc_htf_state_in.m_temp = mc_cr_out_solver.m_T_salt_hot;		//[C]
-			//			mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;		//[kg/hr] no mass flow rate to power cycle
-			//			// Inputs
-			//			mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP;
-			//			// Performance Call
-			//			mc_power_cycle.call(mc_weather.ms_outputs,
-			//				mc_pc_htf_state_in,
-			//				mc_pc_inputs,
-			//				mc_pc_out_solver,
-			//				mc_kernel.mc_sim_info);
+			    //				m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
 
-			//		}
-			//		else
-			//		{
-			//			// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_RM_HI__TES_OFF here
+			    //				are_models_converged = false;
+			    //				break;
+			    //			}
 
-   //                     C_MEQ_cr_on__pc__tes c_eq(this, defocus_guess, pc_mode, m_P_cold_des,
-   //                         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-   //                         true, false, false, false);
-			//			C_monotonic_eq_solver c_solver(c_eq);
+			    //			// If receiver IS producing energy, try starting up power cycle
+			    //			// Power Cycle: STARTUP
+			    //			mc_pc_htf_state_in.m_temp = mc_cr_out_solver.m_T_salt_hot;		//[C]
+			    //			mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;		//[kg/hr] no mass flow rate to power cycle
+			    //			// Inputs
+			    //			mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP;
+			    //			// Performance Call
+			    //			mc_power_cycle.call(mc_weather.ms_outputs,
+			    //				mc_pc_htf_state_in,
+			    //				mc_pc_inputs,
+			    //				mc_pc_out_solver,
+			    //				mc_kernel.mc_sim_info);
 
-			//			c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+			    //		}
+			    //		else
+			    //		{
+			    //			// Still haven't converged solution for defocus = 1.0, so essentially call CR_ON__PC_RM_HI__TES_OFF here
 
-			//			double T_htf_cold_guess_colder = m_T_htf_pc_cold_est - 10.0;		//[C]]
-			//			double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
+       //                     C_MEQ_cr_on__pc__tes c_eq(this, defocus_guess, pc_mode, m_P_cold_des,
+       //                         std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
+       //                         true, false, false, false);
+			    //			C_monotonic_eq_solver c_solver(c_eq);
 
-			//			double T_htf_cold_solved, tol_solved;
-			//			T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-			//			int iter_solved = -1;
+			    //			c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-			//			int solver_code = 0;
-			//			try
-			//			{
-			//				solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
-			//			}
-			//			catch (C_csp_exception)
-			//			{
-			//				throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
-			//					" at defocus = 1", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
-			//			}
+			    //			double T_htf_cold_guess_colder = m_T_htf_pc_cold_est - 10.0;		//[C]]
+			    //			double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
 
-			//			if (solver_code != C_monotonic_eq_solver::CONVERGED)
-			//			{
-			//				if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-			//				{
-			//					std::string msg = util::format("At time = %lg %s "
-			//						"iteration to find a defocus resulting in the maximum power cycle heat input only reached a convergence "
-			//						"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-			//						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
-			//					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-			//				}
-			//				else
-			//				{
-			//					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-			//					are_models_converged = false;
-			//					break;
-			//				}
-			//			}						
-			//		}					
-			//	}
+			    //			double T_htf_cold_solved, tol_solved;
+			    //			T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+			    //			int iter_solved = -1;
 
-			//	if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-			//	{
-			//		double step_pc_su = mc_pc_out_solver.m_time_required_su;	//[s]
-			//		if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-			//		{
-			//			mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
-			//			mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
-			//		}
-			//	}
+			    //			int solver_code = 0;
+			    //			try
+			    //			{
+			    //				solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
+			    //			}
+			    //			catch (C_csp_exception)
+			    //			{
+			    //				throw(C_csp_exception(util::format("At time = %lg, %s failed to find a solution"
+			    //					" at defocus = 1", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
+			    //			}
 
-			//	// Solve for idle storage
-			//	if (m_is_tes)
-			//	{
-			//		mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+			    //			if (solver_code != C_monotonic_eq_solver::CONVERGED)
+			    //			{
+			    //				if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+			    //				{
+			    //					std::string msg = util::format("At time = %lg %s "
+			    //						"iteration to find a defocus resulting in the maximum power cycle heat input only reached a convergence "
+			    //						"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+			    //						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
+			    //					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //				}
+			    //				else
+			    //				{
+			    //					m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+			    //					are_models_converged = false;
+			    //					break;
+			    //				}
+			    //			}						
+			    //		}					
+			    //	}
 
-			//		// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
-			//		mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
-			//		mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-			//		mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+			    //	if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+			    //	{
+			    //		double step_pc_su = mc_pc_out_solver.m_time_required_su;	//[s]
+			    //		if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
+			    //		{
+			    //			mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
+			    //			mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
+			    //		}
+			    //	}
 
-			//		// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
-			//		mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
-			//		mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-			//		mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-			//	}
+			    //	// Solve for idle storage
+			    //	if (m_is_tes)
+			    //	{
+			    //		mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
 
-			//	// Set member defocus
-			//	m_defocus = defocus_guess;
+			    //		// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
+			    //		mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
+			    //		mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+			    //		mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
 
-			//	are_models_converged = true;
+			    //		// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
+			    //		mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
+			    //		mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+			    //		mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+			    //	}
 
-			//	break;
-			//}
+			    //	// Set member defocus
+			    //	m_defocus = defocus_guess;
 
-			case CR_ON__PC_RM_HI__TES_OFF__AUX_OFF:
-			case CR_ON__PC_RM_LO__TES_OFF__AUX_OFF:
-            case CR_ON__PC_SU__TES_OFF__AUX_OFF:
-			{
+			    //	are_models_converged = true;
 
-				// Collector/Receiver in ON, and only place for HTF to go is power cycle.
-				// Therefore, power cycle must operate at Resource Match and use w/e is provided
-				// (in cases with storage or field defocus, power cycle will try to hit an exact thermal input)
-				// 'Failure Modes'
-				// 1) Receiver provides too much power
-				//		* Go to defocus
-				// 2) Receiver cannot maintain minimum operation fraction
-				//		* Go to power cycle standby or shutdown
+			    //	break;
+			    //}
 
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
+			    case CR_ON__PC_RM_HI__TES_OFF__AUX_OFF:
+			    case CR_ON__PC_RM_LO__TES_OFF__AUX_OFF:
+                case CR_ON__PC_SU__TES_OFF__AUX_OFF:
+			    {
 
-				double tol_C = 2.0;
-				double tol = tol_C / m_T_htf_cold_des;
+				    // Collector/Receiver in ON, and only place for HTF to go is power cycle.
+				    // Therefore, power cycle must operate at Resource Match and use w/e is provided
+				    // (in cases with storage or field defocus, power cycle will try to hit an exact thermal input)
+				    // 'Failure Modes'
+				    // 1) Receiver provides too much power
+				    //		* Go to defocus
+				    // 2) Receiver cannot maintain minimum operation fraction
+				    //		* Go to power cycle standby or shutdown
 
-				double relaxed_tol_multiplier = 5.0;
-				double relaxed_tol = relaxed_tol_multiplier*tol;
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
 
-				// Call CR-PC_CR Solver
-				int exit_mode = -1;
-				double exit_tolerance = std::numeric_limits<double>::quiet_NaN();
-				double field_control = 1.0;
-                int pc_mode;
-                if (operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF) {
-                    pc_mode = C_csp_power_cycle::STARTUP;
-                }
-                else {
-                    pc_mode = C_csp_power_cycle::ON;
-                }
-				solver_cr_to_pc_to_cr(pc_mode, field_control, tol, exit_mode, exit_tolerance);
+				    double tol_C = 2.0;
+				    double tol = tol_C / m_T_htf_cold_des;
 
-				// If CR and PC models solved and produced power, but did not converge within tolerance,
-				// check whether achieved convergence is "good enough" to report and continue
-				if( exit_mode == POOR_CONVERGENCE )
-				{
-					if( fabs(exit_tolerance) > relaxed_tol )
-					{	// Did not converge within Relaxed Tolerance, shut off CR and PC						
+				    double relaxed_tol_multiplier = 5.0;
+				    double relaxed_tol = relaxed_tol_multiplier*tol;
 
-						// update 'exit_mode'
-						exit_mode = C_csp_solver::CSP_NO_SOLUTION;
-					}
-					else
-					{	// Convergence within Relaxed Tolerance, *Report message* but assume timestep solved in this mode
+				    // Call CR-PC_CR Solver
+				    int exit_mode = -1;
+				    double exit_tolerance = std::numeric_limits<double>::quiet_NaN();
+				    double field_control = 1.0;
+                    int pc_mode;
+                    if (operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF) {
+                        pc_mode = C_csp_power_cycle::STARTUP;
+                    }
+                    else {
+                        pc_mode = C_csp_power_cycle::ON;
+                    }
+				    solver_cr_to_pc_to_cr(pc_mode, field_control, tol, exit_mode, exit_tolerance);
 
-						error_msg = util::format("At time = %lg the collector/receiver and power cycle solution only reached a convergence"
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time/ 3600.0, exit_tolerance);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+				    // If CR and PC models solved and produced power, but did not converge within tolerance,
+				    // check whether achieved convergence is "good enough" to report and continue
+				    if( exit_mode == POOR_CONVERGENCE )
+				    {
+					    if( fabs(exit_tolerance) > relaxed_tol )
+					    {	// Did not converge within Relaxed Tolerance, shut off CR and PC						
 
-						// update 'exit_mode' for following logic branches
-						exit_mode = CSP_CONVERGED;
-					}
-				}
+						    // update 'exit_mode'
+						    exit_mode = C_csp_solver::CSP_NO_SOLUTION;
+					    }
+					    else
+					    {	// Convergence within Relaxed Tolerance, *Report message* but assume timestep solved in this mode
 
-				if( exit_mode == C_csp_solver::CSP_NO_SOLUTION )
-				{	// Either CR & PC did not solve/produce power, or did not solve within Relaxed Tolerance: shut off CR and PC
+						    error_msg = util::format("At time = %lg the collector/receiver and power cycle solution only reached a convergence"
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time/ 3600.0, exit_tolerance);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-					if( operating_mode == CR_ON__PC_RM_LO__TES_OFF__AUX_OFF )
-					{
-						m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
-						are_models_converged = false;
-					}
-					else if( operating_mode == CR_ON__PC_RM_HI__TES_OFF__AUX_OFF )
-					{
-						m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_LO_SIDE = false;
-						are_models_converged = false;
-					}
-                    else if( operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF )
-                    {
-                        m_is_CR_ON__PC_SU__TES_OFF__AUX_OFF_avail = false;
+						    // update 'exit_mode' for following logic branches
+						    exit_mode = CSP_CONVERGED;
+					    }
+				    }
+
+				    if( exit_mode == C_csp_solver::CSP_NO_SOLUTION )
+				    {	// Either CR & PC did not solve/produce power, or did not solve within Relaxed Tolerance: shut off CR and PC
+
+					    if( operating_mode == CR_ON__PC_RM_LO__TES_OFF__AUX_OFF )
+					    {
+						    m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
+						    are_models_converged = false;
+					    }
+					    else if( operating_mode == CR_ON__PC_RM_HI__TES_OFF__AUX_OFF )
+					    {
+						    m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_LO_SIDE = false;
+						    are_models_converged = false;
+					    }
+                        else if( operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF )
+                        {
+                            m_is_CR_ON__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                            are_models_converged = false;
+                        }
+					    else
+					    {
+						    throw(C_csp_exception("Operating mode not recognized", "CSP Solver"));
+					    }
+
+					    operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
+					    are_models_converged = false;
+
+					    break;		// exits switch(operating mode)
+				    }
+
+				    else if (exit_mode == CSP_CONVERGED)
+				    {
+					    // If the CR and PC models convergd, check whether the power cycle thermal input is within bounds
+
+					    if( operating_mode == CR_ON__PC_RM_LO__TES_OFF__AUX_OFF )
+					    {	// In this mode, the power cycle thermal input needs to be greater than the minimum power cycle fraction
+
+						    if( mc_cr_out_solver.m_q_thermal < q_pc_min )
+						    {
+							    m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
+							    are_models_converged = false;
+							    break;						
+						    }
+
+					    }
+					    else if( operating_mode == CR_ON__PC_RM_HI__TES_OFF__AUX_OFF )
+					    {	// In this mode, the power cycle thermal input needs to be greater than the target cycle fraction
+						    // ... and less than the maximum cycle fraction
+
+						    if( mc_cr_out_solver.m_q_thermal > m_q_pc_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max )
+						    {
+							    m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE = false;
+							    are_models_converged = false;
+							    break;
+						    }
+						    else if( mc_cr_out_solver.m_q_thermal < q_pc_target )
+						    {
+							    m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_LO_SIDE = false;
+							    are_models_converged = false;
+							    break;
+						    }
+
+					    }
+                        else if (operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF)
+                        {
+                            // Check for new timestep
+                            if( mc_pc_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
+                            {
+                                // Reset sim_info values
+                                mc_kernel.mc_sim_info.ms_ts.m_step = mc_pc_out_solver.m_time_required_su;						//[s]
+                                mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_pc_out_solver.m_time_required_su;		//[s]
+
+                                // Call collector/receiver model again with new time step
+                                mc_collector_receiver.on(mc_weather.ms_outputs,
+                        	        mc_cr_htf_state_in,
+                        	        m_defocus,
+                        	        mc_cr_out_solver,
+                        	        mc_kernel.mc_sim_info);
+                            }
+
+                            // Compare q_dot_to_pc to q_dot_pc_su_max
+                            if (mc_cr_out_solver.m_q_thermal > q_dot_pc_su_max)
+                            {
+                                error_msg = util::format("At time = %lg CR_ON__PC_SU__TES_OFF__AUX_OFF method converged to a power cycle"
+                        	        " thermal input, %lg [MWt], greater than the target %lg [MWt].",
+                        	        mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_cr_out_solver.m_q_thermal, q_dot_pc_su_max);
+
+                                mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                            }
+                        }
+					    else
+					    {
+						    throw(C_csp_exception("Operating mode not recognized", "CSP Solver"));
+					    }
+
+
+					    if(m_is_tes)
+					    {
+						    mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+					
+					
+						    // If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
+						    mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
+						    mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+						    mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+
+						    // If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
+						    mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
+						    mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+						    mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+					    }
+
+					
+					    are_models_converged = true;
+					    break;
+
+				    }
+				    else
+				    {
+					    throw(C_csp_exception("Solver tried mode 'CR_ON__PC_RM__TES_OFF__AUX_OFF' and did not receive exit instructions", "CSP Solver"));
+				    }
+
+
+			    }	// end case{} to allow compilation with local (w/r/t case) variables
+
+				    break;
+
+
+			    case CR_ON__PC_SB__TES_OFF__AUX_OFF:
+
+				    // Collector/receiver is ON
+				    // Power cycle is running in standby
+				    // During standby, assume power cycle HTF return temperature is constant and = m_T_htf_cold_des
+				    // so shouldn't need to iterate between CR and PC
+				    // Assume power cycle can remain in standby the entirety of the timestep
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    // First, solve the CR. Again, we're assuming HTF inlet temperature is always = m_T_htf_cold_des
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+				    mc_collector_receiver.on(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    m_defocus,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    if( mc_cr_out_solver.m_q_thermal < q_pc_sb )
+				    {	// Collector/receiver can't produce useful energy
+					
+					    m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // If receiver is indeed producing power, then try power cycle at standby
+					    // Power cycle: STANDBY
+				    mc_pc_htf_state_in.m_temp = mc_cr_out_solver.m_T_salt_hot;		//[C]
+				    mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr] no mass flow rate to power cycle
+					    // Inputs
+				    mc_pc_inputs.m_standby_control = C_csp_power_cycle::STANDBY;
+					    // Performance Call
+				    mc_power_cycle.call(mc_weather.ms_outputs,
+					    mc_pc_htf_state_in,
+					    mc_pc_inputs,
+					    mc_pc_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // Check if solved thermal power is greater than target
+				    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is less than target
+				    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_sb) / q_pc_sb < -1.E-3)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " less than the minimum PC thermal power %lg [MWt].",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " less than the minimum PC HTF mass flow rate %lg [kg/s].",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if( m_is_tes )
+				    {
+					    mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+
+					    // If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+					    mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+
+					    // If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+					    mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+				    }
+
+				    are_models_converged = true;
+
+				    break;
+
+			    case CR_SU__PC_OFF__TES_OFF__AUX_OFF:
+
+				    // Run the collector/receiver under startup mode
+				    // **************
+				    // This will probably result in a local timestep shorter than the baseline simulation timestep (governed by weather file)
+
+				
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+				    mc_cr_htf_state_in.m_pres = m_P_cold_des;					//[kPa]
+				    mc_cr_htf_state_in.m_qual = m_x_cold_des;					//[-]
+
+				    mc_collector_receiver.startup(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // Check that startup happened
+				    if( mc_cr_out_solver.m_q_startup == 0.0 )
+				    {	// Collector/receiver can't produce useful energy
+					
+					    m_is_CR_SU__PC_OFF__TES_OFF__AUX_OFF_avail = false;
+
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check for new timestep
+				    if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
+				    {
+					    // Reset sim_info values
+					    mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
+				    }
+
+				    // Power Cycle: OFF
+				    mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
+				    mc_pc_htf_state_in.m_pres = m_cycle_P_hot_des;		//[kPa]
+				    mc_pc_htf_state_in.m_qual = m_cycle_x_hot_des;		//[-]
+				    mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
+					    // Inputs
+				    mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
+					    // Performance Call
+				    mc_power_cycle.call(mc_weather.ms_outputs,
+					    mc_pc_htf_state_in,
+					    mc_pc_inputs,
+					    mc_pc_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    if( m_is_tes )
+				    {
+					    mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+
+
+					    // If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+					    mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+
+					    // If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+					    mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+				    }
+
+				    are_models_converged = true;
+
+				    break;
+
+			    case CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
+
+				    // Solve all models as 'off' or 'idle'
+				    // Collector/receiver
+				
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+				    mc_cr_htf_state_in.m_pres = m_P_cold_des;					//[kPa]
+				    mc_cr_htf_state_in.m_qual = m_x_cold_des;					//[-]
+
+				    mc_collector_receiver.off(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // Power Cycle: OFF
+					    // HTF State
+				    mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
+				    mc_pc_htf_state_in.m_pres = m_cycle_P_hot_des;		//[kPa]
+				    mc_pc_htf_state_in.m_qual = m_cycle_x_hot_des;		//[-]
+				    mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
+					    // Inputs
+				    mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
+					    // Performance Call
+				    mc_power_cycle.call(mc_weather.ms_outputs,
+					    mc_pc_htf_state_in,
+					    mc_pc_inputs,
+					    mc_pc_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    if( m_is_tes )
+				    {
+					    mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+
+
+					    // If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+					    mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+
+					    // If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
+					    mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
+					    mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+					    mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
+				    }
+
+				    are_models_converged = true;
+
+				    break;		// exit switch() after CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
+
+			    case CR_OFF__PC_SU__TES_DC__AUX_OFF:
+			    {
+				    // Use thermal storage to startup power cycle
+				    // This solver iterates to find the thermal storage outlet temperature to the power cycle
+				    //    and the power cycle demand mass flow rate that reach system equilibrium
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    double step_tol = m_step_tolerance;		//[s]
+				    double step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+				    int exit_mode = CSP_CONVERGED;
+				    double T_pc_in_exit_tolerance = std::numeric_limits<double>::quiet_NaN();
+
+				    solver_pc_su_controlled__tes_dc(step_tol, 
+					    step_pc_su,
+					    exit_mode, T_pc_in_exit_tolerance);
+
+				    // Check exit mode
+				    if(exit_mode != CSP_CONVERGED)
+				    {
+					    are_models_converged = false;
+					    m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail = false;
+					    break;
+				    }
+
+				    // Check reported timestep against initial timestep
+				    if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {
+					    mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
+				    }
+
+				    // Now run CR at 'OFF'
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+				
+				    mc_collector_receiver.off(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    are_models_converged = true; 
+			    }
+
+				    break;
+
+			    case CR_ON__PC_OFF__TES_CH__AUX_OFF:
+			    {
+				    // Method to solve operating mode where the CR is on (under some fixed operating conditions, i.e. defocus)
+				    // and charging TES. No PC operating or AUX, so the output of the CR connects directly to TES
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+                    cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
+                    double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
+                    int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
+
+                    if (solver_code != 0) {
+                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+
                         are_models_converged = false;
+                        break;
                     }
-					else
-					{
-						throw(C_csp_exception("Operating mode not recognized", "CSP Solver"));
-					}
 
-					operating_mode = CR_OFF__PC_OFF__TES_OFF__AUX_OFF;
-					are_models_converged = false;
+                    are_models_converged = true;
+			    }	// End brace after code for this operating mode - brace required to avoid compiler error for local variables
 
-					break;		// exits switch(operating mode)
-				}
+				    break;
 
-				else if (exit_mode == CSP_CONVERGED)
-				{
-					// If the CR and PC models convergd, check whether the power cycle thermal input is within bounds
+			    case CR_ON__PC_TARGET__TES_CH__AUX_OFF:
+			    case CR_ON__PC_SB__TES_CH__AUX_OFF:
+                {
+                    // CR is on (no defocus)
+                    // PC is on and hitting specified target
+                    // TES is charging
 
-					if( operating_mode == CR_ON__PC_RM_LO__TES_OFF__AUX_OFF )
-					{	// In this mode, the power cycle thermal input needs to be greater than the minimum power cycle fraction
-
-						if( mc_cr_out_solver.m_q_thermal < q_pc_min )
-						{
-							m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
-							are_models_converged = false;
-							break;						
-						}
-
-					}
-					else if( operating_mode == CR_ON__PC_RM_HI__TES_OFF__AUX_OFF )
-					{	// In this mode, the power cycle thermal input needs to be greater than the target cycle fraction
-						// ... and less than the maximum cycle fraction
-
-						if( mc_cr_out_solver.m_q_thermal > q_pc_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max )
-						{
-							m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE = false;
-							are_models_converged = false;
-							break;
-						}
-						else if( mc_cr_out_solver.m_q_thermal < q_pc_target )
-						{
-							m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_LO_SIDE = false;
-							are_models_converged = false;
-							break;
-						}
-
-					}
-                    else if (operating_mode == CR_ON__PC_SU__TES_OFF__AUX_OFF)
+                    if (!mc_collector_receiver.m_is_sensible_htf)
                     {
-                        // Check for new timestep
-                        if( mc_pc_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
-                        {
-                            // Reset sim_info values
-                            mc_kernel.mc_sim_info.ms_ts.m_step = mc_pc_out_solver.m_time_required_su;						//[s]
-                            mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_pc_out_solver.m_time_required_su;		//[s]
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
 
-                            // Call collector/receiver model again with new time step
-                            mc_collector_receiver.on(mc_weather.ms_outputs,
-                        	    mc_cr_htf_state_in,
-                        	    m_defocus,
-                        	    mc_cr_out_solver,
-                        	    mc_kernel.mc_sim_info);
+                    int power_cycle_mode = -1;
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+                    double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+
+                    //std::string op_mode_str = "";
+                    if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+                    {
+                        power_cycle_mode = C_csp_power_cycle::ON;
+                        q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                        W_dot_pc_fixed = W_pc_target;
+                        op_mode_str = "CR_ON__PC_TARGET__TES_CH__AUX_OFF";
+                    }
+                    else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
+                    {
+                        power_cycle_mode = C_csp_power_cycle::STANDBY;
+                        q_dot_pc_fixed = q_pc_sb;
+                        W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                        op_mode_str = "CR_ON__PC_SB__TES_CH__AUX_OFF";
+                    }
+
+                    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                    m_defocus = 1.0;
+
+                    if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF) {
+                        // Ensure default PC target power is attainable
+                        C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true /*m_allow_tes_overfill*/);
+                        C_monotonic_eq_solver c_solver(c_eq);
+
+                        double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
+                        double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
+                        int tes_max_code = c_solver.test_member_function(m_dot_tes_max, &diff_m_dot_particle);
+                        if (tes_max_code != 0 && c_eq.m_meq_error != meq_error::cr_flow_exceeds_pb && c_eq.m_meq_error != meq_error::tes_overfilled) {
+                            // Can't solve models with high tes mass flow, so get out
+                            error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
+                                "convergence could not be achieved. Controller will shut-down CR and PC",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            are_models_converged = false;
+                            m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
+
+                            break;
                         }
 
-                        // Compare q_dot_to_pc to q_dot_pc_su_max
-                        if (mc_cr_out_solver.m_q_thermal > q_dot_pc_su_max)
+                        if (diff_m_dot_particle < -1.E-3)
                         {
-                            error_msg = util::format("At time = %lg CR_ON__PC_SU__TES_OFF__AUX_OFF method converged to a power cycle"
-                        	    " thermal input, %lg [MWt], greater than the target %lg [MWt].",
-                        	    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_cr_out_solver.m_q_thermal, q_dot_pc_su_max);
+                            //Reduce target power cycle power
+                            W_dot_pc_fixed = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed) * 0.995;
+                        }
 
+                        // Ensure tower doesn't need to defocus -> run PC at tower htf mass flow, which is the minimum PC mass flow
+                        C_mono_eq_cr_on_pc_target_tes__defocus c_eq2(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
+                        C_monotonic_eq_solver c_solver2(c_eq2);
+                        double diff_pc_target = std::numeric_limits<double>::quiet_NaN();
+                        int df_code = c_solver2.test_member_function(1., &diff_pc_target);
+                        if (df_code != 0) {
+                            // Can't solve models with no defocus, so get out
+                            error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
+                                "convergence could not be achieved. Controller will shut-down CR and PC",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
                             mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            are_models_converged = false;
+                            m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_HI_SIDE = false;
+
+                            break;
+                        }
+
+                        if (diff_pc_target > 0.)
+                        {
+                            //PC is still over target power when running at minimum mass flow -> this is the minimum PC power
+                            //Need to defocus or increase allowable power cycle power  -> choosing to increase target power
+                            double pc_target_solved = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed);
+                            double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
+
+                            if ((m_dot_pc_solved - m_m_dot_pc_min) / fmax(0.01, m_m_dot_pc_min) < -1.E-3)
+                            {
+                                error_msg = util::format("At time = %lg %s solved with a PC HTF mass flow rate %lg [kg/s]"
+                                    " smaller than the minimum %lg [kg/s]. Controller shut off plant",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+                                mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                                turn_off_plant();
+                                are_models_converged = false;
+                                break;
+                            }
+                            else {
+                                are_models_converged = true;
+                                break;
+                            }
                         }
                     }
-					else
-					{
-						throw(C_csp_exception("Operating mode not recognized", "CSP Solver"));
-					}
 
+                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true);
+                    C_monotonic_eq_solver c_solver(c_eq);
 
-					if(m_is_tes)
-					{
-						mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
-					
-					
-						// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
-						mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
-						mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-						mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+                    // Get guesses for particle flow
+                    mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
+                    C_csp_collector_receiver::S_csp_cr_est_out est_out;
+                    mc_collector_receiver.estimates(mc_weather.ms_outputs,
+                        mc_cr_htf_state_in,
+                        est_out,
+                        mc_kernel.mc_sim_info);
 
-						// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
-						mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
-						mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-						mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-					}
+                    double m_dot_store_avail = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
+                    double m_dot_store_min = min(m_m_dot_tes_des * 0.5, m_dot_store_avail);
+                    double m_dot_store_max = m_m_dot_tes_des * 1.5;
 
-					
-					are_models_converged = true;
-					break;
+                    double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.92);   //[kg/hr]
+                    double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.98);   //[kg/hr]
 
-				}
-				else
-				{
-					throw(C_csp_exception("Solver tried mode 'CR_ON__PC_RM__TES_OFF__AUX_OFF' and did not receive exit instructions", "CSP Solver"));
-				}
+                    if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
+                        m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
+                    }
 
+                    c_solver.settings(1.E-3, 50, m_dot_store_min, m_dot_store_max, false);
 
-			}	// end case{} to allow compilation with local (w/r/t case) variables
+                    // Solve for m_dot_hot_tank
+                    double m_dot_hot_tank_solved, tol_solved;
+                    m_dot_hot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
 
-				break;
+				    int m_dot_hot_tank_code = 0;
+				    try
+				    {
+                        m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_hot_tank_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, %s failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
+				    }
 
+				    if (m_dot_hot_tank_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (m_dot_hot_tank_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg %s iteration "
+							    "to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+						    {
+							    m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_HI_SIDE = false;
+						    }
+						    else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
+						    {
+							    m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
+						    }
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
 
-			case CR_ON__PC_SB__TES_OFF__AUX_OFF:
+                    double pc_target, pc_target_solved;
+                    if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+                    {
+                        pc_target = W_dot_pc_fixed;
+                        pc_target_solved = mc_pc_out_solver.m_P_cycle;		//[MWt]
+                    }
+                    else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
+                    {
+                        pc_target = q_dot_pc_fixed;
+                        pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
+                    }
 
-				// Collector/receiver is ON
-				// Power cycle is running in standby
-				// During standby, assume power cycle HTF return temperature is constant and = m_T_htf_cold_des
-				// so shouldn't need to iterate between CR and PC
-				// Assume power cycle can remain in standby the entirety of the timestep
+				    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
 
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
+				    if (fabs(pc_target_solved - pc_target) / pc_target < 1.E-3)
+				    {	// If successfully solved for target thermal power, check that mass flow is above minimum
+					    if ( (m_dot_pc_solved - m_m_dot_pc_min) / fmax(0.01, m_m_dot_pc_min) < -1.E-3 )
+					    {
+						    error_msg = util::format("At time = %lg %s solved with a PC HTF mass flow rate %lg [kg/s]"
+							    " smaller than the minimum %lg [kg/s]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), m_dot_pc_solved/3600.0, m_m_dot_pc_min/3600.0);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+				    else if ( (pc_target_solved - pc_target) / pc_target < -1.E-3 )
+				    {
+					    if ( (m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3 )
+					    {	
+						    if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+						    {
+							    // Can send more mass flow to PC from TES
+							    m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
+							    are_models_converged = false;
+							    break;
+						    }
+					    }
+					    if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
+					    {
+						    // If can't hit standby power then this mode won't work regardless of mass flow constraints
+						    m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+					    //else
+					    //{	// Mass flow rate to cycle is maxed out, so end here
+					    //
+					    //}
+				    }
 
-				// First, solve the CR. Again, we're assuming HTF inlet temperature is always = m_T_htf_cold_des
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+				    are_models_converged = true;
+			    }
+				    break;
 
-				mc_collector_receiver.on(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					m_defocus,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
+			    case CR_ON__PC_TARGET__TES_DC__AUX_OFF:
+			    {
+				    // The collector receiver is on and returning hot HTF to the PC
+				    // TES is discharging hot HTF that is mixed with the CR HTF
+				    // to operating the PC at its target value
 
-				if( mc_cr_out_solver.m_q_thermal < q_pc_sb )
-				{	// Collector/receiver can't produce useful energy
-					
-					m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
 
-					are_models_converged = false;
-					break;
-				}
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
 
-				// If receiver is indeed producing power, then try power cycle at standby
-					// Power cycle: STANDBY
-				mc_pc_htf_state_in.m_temp = mc_cr_out_solver.m_T_salt_hot;		//[C]
-				mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr] no mass flow rate to power cycle
-					// Inputs
-				mc_pc_inputs.m_standby_control = C_csp_power_cycle::STANDBY;
-					// Performance Call
-				mc_power_cycle.call(mc_weather.ms_outputs,
-					mc_pc_htf_state_in,
-					mc_pc_inputs,
-					mc_pc_out_solver,
-					mc_kernel.mc_sim_info);
+				    // Define arguments to solver method
+				    double W_dot_pc_fixed = W_pc_target;		//[MWt]
+				    int power_cycle_mode = C_csp_power_cycle::ON;
+				
+				    C_mono_eq_cr_on_pc_target_tes_dc_mdot c_eq(this, power_cycle_mode, W_dot_pc_fixed, m_defocus);
+				    C_monotonic_eq_solver c_solver(c_eq);
 
-				// Check if solved thermal power is greater than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
+                    // Get guesses for particle flow
+                    mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
+                    C_csp_collector_receiver::S_csp_cr_est_out est_out;
+                    mc_collector_receiver.estimates(mc_weather.ms_outputs,
+                        mc_cr_htf_state_in,
+                        est_out,
+                        mc_kernel.mc_sim_info);
 
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                    double m_dot_store_min = 0.;
+                    double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
 
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
+                    double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.85);   //[kg/hr]
+                    double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.95);   //[kg/hr]
 
-				if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+                    if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
+                        m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
+                    }
 
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+				    // Set up solver
+                    double tol = 5.E-3;
+				    c_solver.settings(tol, 50, m_dot_store_min, m_dot_store_max, false);
 
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
+				    double m_dot_tank_solved, tol_solved;
+                    m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
 
-				// Check if solved thermal power is less than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_sb) / q_pc_sb < -1.E-3)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" less than the minimum PC thermal power %lg [MWt].",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+				    int solver_code = 0;
+				    try
+				    {
+                        solver_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_TARGET__TES_DC__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0), ""));
+				    }
 
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF iteration "
+							    "to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    std::string msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF iteration "
+							    "to find the hot tank mass flow to balance energy between the CR, TES, and PC failed",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
 
-					m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
+						    m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
 
-				if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" less than the minimum PC HTF mass flow rate %lg [kg/s].",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+				    double W_dot_pc_solved = mc_pc_out_solver.m_P_cycle;	//[MWe]
+				    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
 
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+				    // Check bounds on solved thermal power and mass flow rate
+				    if ((W_dot_pc_solved - W_dot_pc_fixed) / W_dot_pc_fixed > tol)
+				    {
+					    if ((W_dot_pc_solved - W_pc_max) / W_pc_max > tol)
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC power %lg [MWe]"
+							    " greater than the maximum %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, W_dot_pc_solved, W_pc_max);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-					m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+					    else
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC power %lg [MWe]"
+							    " greater than the target %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, W_dot_pc_solved, W_dot_pc_fixed);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+				    }
+				    if (m_dot_pc_solved < m_m_dot_pc_min)
+				    {	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
+					    error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
+						    " less than the minimum %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-				if( m_is_tes )
-				{
-					mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
 
-					// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-					mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+				    if ( (W_dot_pc_solved - W_dot_pc_fixed) / W_dot_pc_fixed < -tol
+					    && (m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3 )
+				    {
+					    m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
 
-					// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-					mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-				}
+				    if (m_dot_pc_solved > m_m_dot_pc_max)
+				    {	// Shouldn't happen but can try next operating mode
+					    m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+				
+				    are_models_converged = true;
+			    }	// end outer bracket for case CR_ON__PC_OFF__TES_CH__AUX_OFF
+				
+				    break;	// break case CR_ON__PC_OFF__TES_CH__AUX_OFF
 
-				are_models_converged = true;
+			    case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF:
+			    {
+				    // The collector receiver is on and return hot HTF to the Pc
+				    // TES is discharging hot HTF that is then mixed with the CR HTF
+				    // The power cycle operates between its minimum operation fraction and target operation
 
-				break;
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
 
-			case CR_SU__PC_OFF__TES_OFF__AUX_OFF:
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
 
-				// Run the collector/receiver under startup mode
-				// **************
-				// This will probably result in a local timestep shorter than the baseline simulation timestep (governed by weather file)
+				    C_mono_eq_cr_on_pc_match_tes_empty_mdot c_eq(this, m_defocus);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    c_solver.settings(1.E-3, 50, m_m_dot_pc_des*0.1, std::numeric_limits<double>::quiet_NaN(), false);
+
+                    double m_dot_guess_lower = m_m_dot_pc_des;            //[kg/hr]
+                    double m_dot_guess_higher = m_dot_guess_lower * 1.2;	//[kg/hr]
+
+				    double m_dot_solved, tol_solved;
+                    m_dot_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int solver_code = 0;
+				    try
+				    {
+					    solver_code = c_solver.solve(m_dot_guess_lower, m_dot_guess_higher, 0.0, m_dot_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception("CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF received exception from mono equation solver"));
+				    }
+
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+					    {
+						    error_msg = util::format("At time = %lg the iteration to find the cold HTF temperature connecting the power cycle and receiver only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+					    else
+					    {
+						    m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
 
 				
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
+				    // *********************************
+				    // Check if solved thermal power is greater than target
 
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-				mc_cr_htf_state_in.m_pres = m_P_cold_des;					//[kPa]
-				mc_cr_htf_state_in.m_qual = m_x_cold_des;					//[-]
+				    if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_target) / q_pc_target > 1.E-3 )
+				    {
+					    if ( (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3 )
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+							    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
 
-				mc_collector_receiver.startup(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
 
-				// Check that startup happened
-				if( mc_cr_out_solver.m_q_startup == 0.0 )
-				{	// Collector/receiver can't produce useful energy
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+					    else
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+							    " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+						
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+				    }
+
+				    if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_max) / m_m_dot_pc_max > 1.E-3 )
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // *********************************
+				    // Check PC q_dot is >= MIN!!!!!!!!
+
+				    if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3 )
+				    {
+					    m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+				    if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-3 )
+				    {
+					    m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+				
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+
+			    }
+				    break;	// break case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF
+			
+
+			    case CR_DF__PC_OFF__TES_FULL__AUX_OFF:
+			    {
+				    // Running the CR at full power results in too much thermal power to TES
+				    // Power cycle operation is either not allowed or not possible under the timestep conditions
+
+				    // Assuming here that partial defocus is allowed, so should always be able to reach full power to PC
+				
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+                    cr_recirc__tes_ch__modes m_dot_particle_mode = cr_recirc__tes_ch__modes::fill_tes;
+
+                    C_MEQ_cr_recirc_df__pc_off__tes_full__defocus c_df_eq(this, m_dot_particle_mode);
+                    C_monotonic_eq_solver c_df_solver(c_df_eq);
+
+                    double defocus_guess = 1.0;
+                    double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
+
+                    int df_code = c_df_solver.test_member_function(defocus_guess, &diff_m_dot_particle);
+				    if (df_code != 0)
+				    {	// Can't solve models with defocus = 1, so get out
+
+					    error_msg = util::format("At time = %lg the controller chose CR_DF__PC_OFF__TES_FULL__AUX_OFF, but the collector/receiver "
+						    "did not produce power with the design inlet temperature. Controller will shut-down CR and PC",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    are_models_converged = false;
+
+					    m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
+
+					    break;
+				    }
+
+				    if (diff_m_dot_particle > 0.0)
+				    {
+					    // At no defocus, mass flow rate to TES is greater than full charge
+					    // So need to find a defocus that results in full charge
+
+					    // Get another guess value
+					    C_monotonic_eq_solver::S_xy_pair xy2;
+					    double defocus_guess_2 = defocus_guess * (1.0 / (1.0 + diff_m_dot_particle));
+
+					    // Set up solver for defocus
+					    c_df_solver.settings(1.E-3, 50, 0.0, 1.0, false);
+
+					    // Now solve for the required defocus
+					    double defocus_solved, tol_solved;
+					    defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+					    int iter_solved = -1;
+
+					    int defocus_code = 0;
+					    try
+					    {
+						    defocus_code = c_df_solver.solve(defocus_guess, defocus_guess_2, -1.E-3, defocus_solved, tol_solved, iter_solved);
+					    }
+					    catch (C_csp_exception)
+					    {
+						    throw(C_csp_exception(util::format("At time = %lg, CR_DF__PC_OFF__TES_FULL__AUX_OFF failed to find a solution", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+					    }
+
+					    if (defocus_code != C_monotonic_eq_solver::CONVERGED)
+					    {
+						    if (defocus_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+						    {
+							    std::string msg = util::format("At time = %lg CR_DF__PC_OFF__TES_FULL__AUX_OFF "
+								    "iteration to find a defocus resulting in fully charged TES only reached a convergence "
+								    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+							    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+						    }
+						    else
+						    {
+							    // Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
+							    error_msg = util::format("At time = %lg the controller chose CR_DF__PC_OFF__TES_FULL__AUX_OFF operating mode, but the code"
+								    " failed to solve. Controller will shut-down CR and PC",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+							    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+							    m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
+
+							    are_models_converged = false;
+
+							    break;
+						    }
+					    }
+				    }
+				    else if(diff_m_dot_particle < -1.E-3)
+				    {
+                        // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                        m_defocus = 1.0;
+                        cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
+                        double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
+                        int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
+
+                        if (solver_code != 0) {
+                            m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
+
+                            are_models_converged = false;
+
+                            break;
+                        }
+				    }
+
+				    are_models_converged = true;
+			    }
+				    break;	// break case CR_DF__PC_OFF__TES_FULL__AUX_OFF
+
+			    case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF:
+			    {
+				    // The collector receiver is off
+				    // The power cycle runs at its minimum operating fraction until storage is depleted
+				    // A new, shorter timestep is calculated here
+				
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    double tol_C = 1.0;								//[C]
+				    double tol = tol_C / m_cycle_T_htf_hot_des;		//[-]
+
+				    double q_dot_pc_fixed = q_pc_min;			//[MWt]
+
+				    double time_tes_dc;
+				    time_tes_dc = std::numeric_limits<double>::quiet_NaN();
+
+				    int solution_code = solver_pc_fixed__tes_empty(q_dot_pc_fixed,
+					    tol,
+					    time_tes_dc);
+
+				    if (solution_code != 0)
+				    {
+					    m_is_CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (time_tes_dc > mc_kernel.mc_sim_info.ms_ts.m_step)
+				    {
+					    error_msg = util::format("At time = %lg CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF method calculated a timestep"
+						    "that was longer than the baseline timestep. Controller moved to the next timestep in the"
+						    "controller hierarchy",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+
+					    m_is_CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is greater than target
+				    if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
+				    {
+					    if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
+					    {
+						    error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+							    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+				    {
+					    error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Update mc_sim_info
+				    mc_kernel.mc_sim_info.ms_ts.m_step = time_tes_dc;
+				    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + time_tes_dc;
+
+				    // Now run CR at 'OFF'
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+				    mc_collector_receiver.off(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+			    }
+				    break;	// break case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF
+
+
+			    case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF:
+			    case CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF:
+			    {
+				    // The collector-receiver is off
+				    // The power cycle runs somewhere between its minimum operating fraction and target operation, with thermal input from TES, which is depleted at the end of the timestep
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    // First, solve the CR
+				    if( operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF )
+				    {
+					    // Now run CR at 'OFF'
+					    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
 					
-					m_is_CR_SU__PC_OFF__TES_OFF__AUX_OFF_avail = false;
+					    mc_collector_receiver.off(mc_weather.ms_outputs,
+						    mc_cr_htf_state_in,
+						    mc_cr_out_solver,
+						    mc_kernel.mc_sim_info);
 
-					are_models_converged = false;
-					break;
-				}
+				    }
+				    else if( operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF )
+				    {
+					    // Run CR at 'Start Up'
+					    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
 
-				// Check for new timestep
-				if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
-				{
-					// Reset sim_info values
-					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
-				}
+					    mc_collector_receiver.startup(mc_weather.ms_outputs,
+						    mc_cr_htf_state_in,
+						    mc_cr_out_solver,
+						    mc_kernel.mc_sim_info);
 
-				// Power Cycle: OFF
-				mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
-				mc_pc_htf_state_in.m_pres = m_cycle_P_hot_des;		//[kPa]
-				mc_pc_htf_state_in.m_qual = m_cycle_x_hot_des;		//[-]
-				mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
-					// Inputs
-				mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
-					// Performance Call
-				mc_power_cycle.call(mc_weather.ms_outputs,
-					mc_pc_htf_state_in,
-					mc_pc_inputs,
-					mc_pc_out_solver,
-					mc_kernel.mc_sim_info);
+					    // Check that startup happened
+					    if( mc_cr_out_solver.m_q_startup == 0.0 )
+					    {	// Collector/receiver can't produce useful energy
 
-				if( m_is_tes )
-				{
-					mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+						    m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+
+					    // Check for new timestep
+					    if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
+					    {
+						    // Reset sim_info values
+						    mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
+						    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
+					    }
+				    }
+
+				    // Set up solver to converge the cold HTF temperature between TES and PC
+				    C_mono_eq_pc_match_tes_empty c_eq(this);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+				    double T_htf_cold_guess_hotter = m_T_htf_pc_cold_est;		//[C]
+				    double T_htf_cold_guess_colder = T_htf_cold_guess_hotter - 10.0;	//[C]
+
+				    double T_htf_cold_solved, tol_solved;
+				    T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int solver_code = 0;
+				    try
+				    {
+					    solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_hotter,
+						    0.0, T_htf_cold_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+					    {
+						    //throw(C_csp_exception("CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
+					    }
+					    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+					    {
+						    //throw(C_csp_exception("CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
+					    }
+				    }
+
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+					    {
+						    error_msg = util::format("At time = %lg the iteration to find the hot HTF temperature connecting the power cycle startup and tes discharge only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+					    else
+					    {
+						    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+							    m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+							    m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    if (mc_pc_out_solver.m_q_dot_htf < q_pc_min || mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+				    {
+					    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+					    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is greater than target
+				    if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
+				    {
+					    if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
+					    {
+						    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    {
+							    error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+								    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+						    }
+						    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    {
+							    error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+								    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+						    }
+
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+					    else
+					    {
+						    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    {
+							    error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+								    " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+						    }
+						    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+						    {
+							    error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+								    " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+								    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+						    }
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+				    {
+					    if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+					    {
+						    error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+							    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf/3600.0, m_m_dot_pc_max/3600.0);
+					    }
+					    else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+					    {
+						    error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+							    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf/3600.0, m_m_dot_pc_max/3600.0);
+					    }
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+			    }
+				    break;	// break case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF
+
+			    case CR_SU__PC_MIN__TES_EMPTY__AUX_OFF:
+			    {
+				    // The collector-receiver is in startup
+				    // The power cycle runs at its minimum fraction until storage is depleted
+				    // A new, shorter timestep is calculated here
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    // First, startup the collector-receiver and get the time required
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+				    mc_collector_receiver.startup(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // Check that startup happened
+				    if( mc_cr_out_solver.m_q_startup == 0.0 )
+				    {	// Collector/receiver can't produce useful energy
+
+					    m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Reset timestep based on receiver startup
+				    if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {
+					    // Reset sim_info values
+					    mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
+				    }
 
 
-					// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-					mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
+				    // Next, calculate the required TES empty time
+				    C_mono_eq_pc_target_tes_empty__T_cold c_eq(this, q_pc_min);
+				    C_monotonic_eq_solver c_solver(c_eq);
 
-					// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-					mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-				}
+				    // Set up solver
+				    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
 
-				are_models_converged = true;
+				    // Solve for cold HTF temperature
+				    double T_cold_guess_low = m_T_htf_pc_cold_est;			//[C]
+				    double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
 
-				break;
+				    double T_cold_solved, tol_solved;
+				    T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
 
-			case CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
+				    int T_cold_code = 0;
+				    try
+				    {
+					    T_cold_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::CR_SU__PC_MIN__TES_EMPTY failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+				    }
 
-				// Solve all models as 'off' or 'idle'
-				// Collector/receiver
+				    if (T_cold_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (T_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg C_csp_solver::CR_SU__PC_MIN__TES_EMPTY iteration "
+							    "to find the cold HTF temperature to balance energy between TES and PC target only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    std::string msg = util::format("At time = %lg C_csp_solver::CR_SU__PC_MIN__TES_EMPTY iteration "
+							    "to find the cold HTF temperature to balance energy between the CR, TES, and PC failed",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+						
+						    m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    double step_pc_empty = c_eq.m_step;		//[s]
+
+				    // ******************************************************************
+				    // Compare the CR and PC startup times
+				    if (step_pc_empty < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {	// If the time required for CR startup is longer than the time to empty the PC
+					    //       then rerun CR_SU with the PC empty timestep (and CR_SU will continue in the next timestep)
+
+					    // Update simulation time info
+					    mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_empty;							//[s]
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_empty;			//[s]
+
+					    // Rerun CR_SU
+					    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+					    mc_collector_receiver.startup(mc_weather.ms_outputs,
+						    mc_cr_htf_state_in,
+						    mc_cr_out_solver,
+						    mc_kernel.mc_sim_info);
+
+					    // Check that startup happened
+					    if (mc_cr_out_solver.m_q_startup == 0.0)
+					    {	// Collector/receiver can't produce useful energy
+
+						    m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    // Check if solved thermal power is greater than target
+				    if ( (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3 )
+				    {
+					    error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+				    {
+					    error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is less than target
+				    if ( (mc_pc_out_solver.m_q_dot_htf-q_pc_min) / q_pc_min < -1.E-3 )
+				    {
+					    error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " less than the minimum PC thermal power %lg [MWt].",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+				    {
+					    error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " less than the minimum PC HTF mass flow rate %lg [kg/s].",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    are_models_converged = true;
+			    }
+				    break;
+
+
+			    case CR_ON__PC_SB__TES_DC__AUX_OFF:
+			    {
+				    std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF "
+					    "was called. This isn't a common operating mode and should be stepped through to confirm it's working.",
+					    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+				    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+
+				    // The collector receiver is on and returning hot HTF to the PC
+				    // TES is discharging hot HTF that is mixed with the CR HTF
+				    // to operate the PC at standby
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    // Define arguments to solver method
+				    double q_dot_pc_fixed = q_pc_sb;		//[MWt]
+				    int power_cycle_mode = C_csp_power_cycle::STANDBY;
+
+				    C_mono_eq_cr_on_pc_target_tes_dc_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, m_defocus);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    // Set up solver
+				    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+                    // Make guesses for hot tank mass flow
+                    double T_htf_hx_out;
+                    mc_tes.discharge(mc_kernel.mc_sim_info.ms_ts.m_step,
+                        mc_weather.ms_outputs.m_tdry + 273.15,
+                        m_m_dot_pc_min / 3600.,     //[kg/s]
+                        m_T_htf_cold_des,
+                        m_P_cr_out_des,
+                        T_htf_hx_out,
+                        mc_tes_outputs);
+                    double m_dot_tank_guess_low = mc_tes_outputs.m_m_dot * 3600.;       //[kg/hr]
+
+                    mc_tes.discharge(mc_kernel.mc_sim_info.ms_ts.m_step,
+                        mc_weather.ms_outputs.m_tdry + 273.15,
+                        m_m_dot_pc_max / 3600.,     //[kg/s]
+                        m_T_htf_cold_des,
+                        m_P_cr_out_des,
+                        T_htf_hx_out,
+                        mc_tes_outputs);
+                    double m_dot_tank_guess_high = mc_tes_outputs.m_m_dot * 3600.;       //[kg/hr]
+
+				    double m_dot_tank_solved, tol_solved;
+                    m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int solver_code = 0;
+				    try
+				    {
+                        solver_code = c_solver.solve(m_dot_tank_guess_low, m_dot_tank_guess_high, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_SB__TES_DC__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0), ""));
+				    }
+
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF iteration "
+							    "to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF iteration "
+							    "to find the hot tank mass flow to balance energy between the CR, TES, and PC failed",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+
+						    m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+				    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+				    // Check bounds on solved thermal power and mass flow rate
+				    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+				    {
+					    if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+							    " greater than the maximum %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, m_q_pc_max);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+					    else
+					    {
+						    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+							    " greater than the target %lg [MWt]",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_dot_pc_fixed);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+				    }
+				    if (m_dot_pc_solved < m_m_dot_pc_min)
+				    {	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
+					    error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
+						    " less than the minimum %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+				    {
+					    m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (m_dot_pc_solved > m_m_dot_pc_max)
+				    {	// Shouldn't happen but can try next operating mode
+					    m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+			
+			    }	// end 'CR_ON__PC_SB__TES_DC__AUX_OFF'
 				
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-				mc_cr_htf_state_in.m_pres = m_P_cold_des;					//[kPa]
-				mc_cr_htf_state_in.m_qual = m_x_cold_des;					//[-]
-
-				mc_collector_receiver.off(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
-
-				// Power Cycle: OFF
-					// HTF State
-				mc_pc_htf_state_in.m_temp = m_cycle_T_htf_hot_des - 273.15;	//[C]
-				mc_pc_htf_state_in.m_pres = m_cycle_P_hot_des;		//[kPa]
-				mc_pc_htf_state_in.m_qual = m_cycle_x_hot_des;		//[-]
-				mc_pc_inputs.m_m_dot = 0.0;		//[kg/hr] no mass flow rate to power cycle
-					// Inputs
-				mc_pc_inputs.m_standby_control = C_csp_power_cycle::OFF;
-					// Performance Call
-				mc_power_cycle.call(mc_weather.ms_outputs,
-					mc_pc_htf_state_in,
-					mc_pc_inputs,
-					mc_pc_out_solver,
-					mc_kernel.mc_sim_info);
-
-				if( m_is_tes )
-				{
-					mc_tes.idle(mc_kernel.mc_sim_info.ms_ts.m_step, mc_weather.ms_outputs.m_tdry + 273.15, mc_tes_outputs);
+				    break;
 
 
-					// If not actually charging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_ch_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_ch_htf_state.m_temp_in = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-					mc_tes_ch_htf_state.m_temp_out = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-
-					// If not actually discharging (i.e. mass flow rate = 0.0), what should the temperatures be?
-					mc_tes_dc_htf_state.m_m_dot = 0.0;										//[kg/hr]
-					mc_tes_dc_htf_state.m_temp_in = mc_tes_outputs.m_T_cold_ave - 273.15;	//[C] convert from K
-					mc_tes_dc_htf_state.m_temp_out = mc_tes_outputs.m_T_hot_ave - 273.15;	//[C] convert from K
-				}
-
-				are_models_converged = true;
-
-				break;		// exit switch() after CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
-
-			case CR_OFF__PC_SU__TES_DC__AUX_OFF:
-			{
-				// Use thermal storage to startup power cycle
-				// This solver iterates to find the thermal storage outlet temperature to the power cycle
-				//    and the power cycle demand mass flow rate that reach system equilibrium
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				double step_tol = step_tolerance;		//[s]
-				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
-
-				int exit_mode = CSP_CONVERGED;
-				double T_pc_in_exit_tolerance = std::numeric_limits<double>::quiet_NaN();
-
-				solver_pc_su_controlled__tes_dc(step_tol, 
-					step_pc_su,
-					exit_mode, T_pc_in_exit_tolerance);
-
-				// Check exit mode
-				if(exit_mode != CSP_CONVERGED)
-				{
-					are_models_converged = false;
-					m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail = false;
-					break;
-				}
-
-				// Check reported timestep against initial timestep
-				if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{
-					mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
-				}
-
-				// Now run CR at 'OFF'
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+			    case CR_OFF__PC_TARGET__TES_DC__AUX_OFF:
+			    case CR_SU__PC_TARGET__TES_DC__AUX_OFF:
+			    case CR_OFF__PC_SB__TES_DC__AUX_OFF:
+			    case CR_SU__PC_SB__TES_DC__AUX_OFF:
+			    {
+				    // The collector receiver is off
+				    // The power cycle run at the target thermal input level
+				    // The TES supplies the thermal power to the power cycle
 				
-				mc_collector_receiver.off(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
 
-				are_models_converged = true; 
-			}
+				    int power_cycle_mode = -1;
+				    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+                    double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
 
-				break;
+				    //std::string op_mode_str = "";
+				    if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
+				    {
+					    power_cycle_mode = C_csp_power_cycle::ON; 
+					    q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                        W_dot_pc_fixed = W_pc_target;
+					    op_mode_str = "CR_OFF__PC_TARGET__TES_DC__AUX_OFF";
+				    }
+				    else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+				    {
+					    power_cycle_mode = C_csp_power_cycle::ON; 
+                        q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+                        W_dot_pc_fixed = W_pc_target;
+					    op_mode_str = "CR_SU__PC_TARGET__TES_DC__AUX_OFF";
+				    }
+				    else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
+				    {
+					    power_cycle_mode = C_csp_power_cycle::STANDBY;
+					    q_dot_pc_fixed = q_pc_sb;
+                        W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+					    op_mode_str = "CR_OFF__PC_SB__TES_DC__AUX_OFF";
+				    }
+				    else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+				    {
+					    power_cycle_mode = C_csp_power_cycle::STANDBY;
+					    q_dot_pc_fixed = q_pc_sb;
+                        W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+					    op_mode_str = "CR_SU__PC_SB__TES_DC__AUX_OFF";
+				    }
+				
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
 
-			case CR_ON__PC_OFF__TES_CH__AUX_OFF:
-			{
-				// Method to solve operating mode where the CR is on (under some fixed operating conditions, i.e. defocus)
-				// and charging TES. No PC operating or AUX, so the output of the CR connects directly to TES
+				    // First, solve the CR
+				    if( operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF
+					    || operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF )
+				    {
+					    // Now run CR at 'OFF'
+					    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+					
+					    mc_collector_receiver.off(mc_weather.ms_outputs,
+						    mc_cr_htf_state_in,
+						    mc_cr_out_solver,
+						    mc_kernel.mc_sim_info);
 
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
+				    }
+				    else if( operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF
+					    || operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF )
+				    {
+					    // Run CR at 'Start Up'
+					    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
 
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-                cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
-                double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
-                int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
+					    mc_collector_receiver.startup(mc_weather.ms_outputs,
+						    mc_cr_htf_state_in,
+						    mc_cr_out_solver,
+						    mc_kernel.mc_sim_info);
 
-                if (solver_code != 0) {
-                    m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+					    // Check that startup happened
+					    if( mc_cr_out_solver.m_q_startup == 0.0 )
+					    {	// Collector/receiver can't produce useful energy
 
-                    are_models_converged = false;
+						    if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
+
+						    are_models_converged = false;
+						    break;
+					    }
+
+					    // Check for new timestep
+					    if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance )
+					    {
+						    // Reset sim_info values
+						    mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
+						    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
+					    }
+				    }
+
+				    C_mono_eq_pc_target_tes_dc__T_cold c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    // Set up solver
+				    c_solver.settings(1.E-3, 50, 0, std::numeric_limits<double>::quiet_NaN(), false);
+
+				    // Solve for cold temperature
+                    double T_cold_guess_low = m_cycle_T_htf_cold_des - 273.15;	//[C]
+				    double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
+
+				    double T_cold_solved, tol_solved;
+				    T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int T_cold_code = 0;
+				    try
+				    {
+					    T_cold_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, %s failed", mc_kernel.mc_sim_info.ms_ts.m_time, op_mode_str.c_str()), ""));
+				    }
+
+				    if (T_cold_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (T_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg %s"
+							    "iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
+							    m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
+							    m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
+
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    //double q_dot_solved = c_eq.m_q_dot_calc;	//[MWt]
+                    double pc_target, pc_target_solved, pc_max;
+                    if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+                    {
+                        pc_target = W_dot_pc_fixed;
+                        pc_target_solved = mc_pc_out_solver.m_P_cycle;		//[MWt]
+                        pc_max = W_pc_max;
+                    }
+                    else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+                    {
+                        pc_target = q_dot_pc_fixed;
+                        pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
+                        pc_max = m_q_pc_max;
+                    }
+
+				    double m_dot_solved = c_eq.m_m_dot_calc;	//[kg/hr]
+
+				
+				    // Check if solved thermal power is greater than target
+				    if ((pc_target_solved - pc_target) / pc_target > 1.E-3)
+				    {
+					    if ((pc_target_solved - pc_max) / pc_max > 1.E-3)
+					    {
+						    error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
+							    " larger than the maximum PC power %lg [MWt]. Controller shut off plant",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_max);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+						    turn_off_plant();
+						    are_models_converged = false;
+						    break;
+					    }
+					    else
+					    {
+						    error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
+							    " larger than the target PC power %lg [MWt] but less than the maximum power %lg [MWt]",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_target, pc_max);
+
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+				    }
+				    else if ((pc_target_solved - pc_target) / pc_target < -1.E-3)
+				    {
+					    if (m_dot_solved < m_m_dot_pc_max)
+					    {	// TES cannot provide enough thermal power - step down to next operating mode
+						    if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
+							    m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
+							    m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
+						    else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
+							    m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
+
+						    are_models_converged = false;
+						    break;
+					    }
+					    // Notes:
+					    //else
+					    //{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
+					    //
+					    //}
+				    }
+
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+
+			    }	// end 'CR_OFF__PC_TARGET__TES_DC__AUX_OFF'
+				    break;
+
+
+			    //case CR_ON__PC_RM_HI__TES_FULL__AUX_OFF:
+			    //{
+			    //	// The collector receiver is on and delivering hot HTF to the TES and PC
+			    //	// The PC is operating between its target and maximum thermal power
+			    //	// The TES is fully charging over the timestep
+
+			    //	if( !mc_collector_receiver.m_is_sensible_htf )
+			    //	{
+			    //		std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+			    //		throw(C_csp_exception(err_msg, "CSP Solver"));
+			    //	}
+
+			    //	// Set Solved Controller Variables Here (that won't be reset in this operating mode)
+			    //	m_defocus = 1.0;
+			    //	int power_cycle_mode = C_csp_power_cycle::ON;
+			    //	
+			    //	C_mono_eq_cr_on__pc_match_m_dot_ceil__tes_full c_eq(this, power_cycle_mode, m_defocus);
+			    //	C_monotonic_eq_solver c_solver(c_eq);
+
+			    //	// Set up solver
+			    //	c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+			    //	// Solve for cold temperature
+			    //	double T_cold_guess_low = m_T_htf_pc_cold_est;	//[C]
+			    //	double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
+
+			    //	double T_cold_solved, tol_solved;
+			    //	T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+			    //	int iter_solved = -1;
+
+			    //	int solver_code = 0;
+			    //	try
+			    //	{
+			    //		solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
+			    //	}
+			    //	catch (C_csp_exception)
+			    //	{
+			    //		throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::CR_ON__PC_RM_HI__TES_FULL failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+			    //	}
+
+			    //	if (solver_code != C_monotonic_eq_solver::CONVERGED)
+			    //	{
+			    //		if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+			    //		{
+			    //			std::string msg = util::format("At time = %lg C_csp_solver::CR_ON__PC_RM_HI__TES_FULL failed "
+			    //				"iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
+			    //				"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+			    //				mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+			    //			mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+			    //		}
+			    //		else
+			    //		{
+			    //			m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+			    //			are_models_converged = false;
+			    //			break;
+			    //		}
+			    //	}
+
+			    //	// Calculate and report mass flow rate balance
+			    //	double m_dot_rec = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
+			    //	double m_dot_pc = mc_pc_out_solver.m_m_dot_htf;			//[kg/hr]
+			    //	double m_dot_tes = mc_tes_ch_htf_state.m_m_dot;			//[kg/hr]
+
+			    //	double m_dot_bal = (m_dot_rec - (m_dot_pc + m_dot_tes)) / m_dot_rec;		//[-]
+
+			    //	if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3)
+			    //	{
+			    //		m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+			    //		are_models_converged = false;
+			    //		break;
+			    //	}
+			    //	else if( mc_pc_out_solver.m_q_dot_htf < q_pc_target )
+			    //	{
+			    //		error_msg = util::format("At time = %lg CR_ON__PC_RM_HI__TES_FULL__AUX_OFF method converged to a power cycle"
+			    //			" thermal input less than the target.",
+			    //			mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+			    //		mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+			    //	}
+
+			    //	// If convergence was successful, finalize this timestep and get out
+			    //	// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+			    //	are_models_converged = true;
+
+			    //}	// end 'CR_ON__PC_RM_HI__TES_FULL__AUX_OFF
+			    //	break;
+
+			    case CR_ON__PC_MIN__TES_EMPTY__AUX_OFF:
+			    {
+				    // The collector-receiver is on and returning hot HTF to the PC
+				    // The PC is operating at its minimum fraction
+				    // The CR + TES output over the initial controller timestep is less than the PC min fraction
+				    // so the controller calculates a new timestep such that the TES completely discharges and 
+				    //  ... the CR + TES output is = the PC min fraction
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold c_eq(this, m_defocus, q_pc_min);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+				    double T_htf_cold_guess_colder = m_T_htf_cold_des - 273.15;				//[C]
+				    double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
+
+				    double T_htf_cold_solved, tol_solved;
+				    T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int solver_code = 0;
+
+				    try
+				    {
+					    solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception("CR_ON__PC_MIN__TES_EMPTY__AUX_OFF received exception from mono equation solver"));
+				    }
+
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+					    {
+						    error_msg = util::format("At time = %lg the CR_ON__PC_MIN__TES_EMPTY__AUX_OFF iteration to find the cold HTF temperature connecting the power cycle, receiver, & TES only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+					    else
+					    {
+						    m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    double time_tes_dc = c_eq.m_step;		//[s]
+
+				    if (time_tes_dc > mc_kernel.mc_sim_info.ms_ts.m_step)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF method calculated a timestep"
+						    "that was longer than the baseline timestep. Controller moved to the next timestep in the"
+						    "controller hierarchy",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
+
+					    m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is greater than target
+				    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    turn_off_plant();
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Check if solved thermal power is less than target
+				    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3)
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+						    " less than the minimum PC thermal power %lg [MWt]. Controller moved to next operating mode.",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-4 )
+				    {
+					    error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+						    " less than the minimum PC HTF mass flow rate %lg [kg/s]. Controller moved to next operating mode.",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Update mc_sim_info
+				    mc_kernel.mc_sim_info.ms_ts.m_step = time_tes_dc;
+				    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + time_tes_dc;
+
+				    are_models_converged = true;
+				
+			    }	// end 'CR_ON__PC_MIN__TES_EMPTY__AUX_OFF
+				    break;
+
+                case CR_DF__PC_SU__TES_OFF__AUX_OFF:
+                case CR_DF__PC_MAX__TES_OFF__AUX_OFF:
+                case CR_ON__PC_RM_HI__TES_FULL__AUX_OFF:
+			    case CR_DF__PC_MAX__TES_FULL__AUX_OFF:
+			    case CR_DF__PC_SU__TES_FULL__AUX_OFF:
+			    {
+				    // The PC is operating at its maximum operating fraction
+				    // TES is fully charged at the end of the timestep
+				    // The CR is still delivering too much mass flow rate and needs to be defocused
+				
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    //std::string op_mode_str = "";
+				    int pc_mode = -1;
+                    double m_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[kg/hr]
+				    if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF || operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+				    {
+                        if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF) {
+                            op_mode_str = "CR_DF__PC_SU__TES_FULL__AUX_OFF";
+                        }
+                        else {
+                            op_mode_str = "CR_DF__PC_SU__TES_OFF__AUX_OFF";
+                        }
+					    pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+
+                        mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+                        mc_collector_receiver.on(mc_weather.ms_outputs,
+                            mc_cr_htf_state_in,
+                            1.,
+                            mc_cr_out_solver,
+                            mc_kernel.mc_sim_info);
+
+                        if (mc_cr_out_solver.m_q_thermal == 0.0)
+                        {	// Collector/receiver can't produce useful energy
+                            if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF) {
+                                m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                            }
+                            else {
+                                m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                            }
+
+                            are_models_converged = false;
+                            break;
+                        }
+
+                        // Discharge estimate
+                        double T_hot_htf, T_cold_store_est, m_dot_store_est;
+                        mc_tes.discharge_est(mc_cr_out_solver.m_T_salt_hot + 273.15, mc_cr_out_solver.m_m_dot_salt_tot / 3600., mc_cr_out_solver.m_P_htf_hot,
+                            T_hot_htf, T_cold_store_est, m_dot_store_est);
+                        m_dot_store_est *= 3600; //[kg/hr]
+
+                        // Power Cycle: STARTUP
+                        mc_pc_htf_state_in.m_temp = T_hot_htf - 273.15;		//[C]
+                        mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;		//[kg/hr] no mass flow rate to power cycle
+                        // Inputs
+                        mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;
+                        // Performance Call
+                        mc_power_cycle.call(mc_weather.ms_outputs,
+                            mc_pc_htf_state_in,
+                            mc_pc_inputs,
+                            mc_pc_out_solver,
+                            mc_kernel.mc_sim_info);
+
+                        m_dot_pc_fixed = mc_pc_out_solver.m_m_dot_htf;  //[kg/hr]
+				    }
+                    else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                    {
+                        op_mode_str = "CR_ON__PC_RM_HI__TES_FULL__AUX_OFF";
+                        pc_mode = C_csp_power_cycle::ON;
+                        m_dot_pc_fixed = m_m_dot_pc_max;
+                    }
+                    else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
+                    {
+                        op_mode_str = "CR_DF__PC_MAX__TES_OFF__AUX_OFF";
+                        pc_mode = C_csp_power_cycle::ON;
+                        m_dot_pc_fixed = m_m_dot_pc_max;
+                    }
+				    else
+				    {
+					    op_mode_str = "CR_DF__PC_MAX__TES_FULL__AUX_OFF";
+					    pc_mode = C_csp_power_cycle::ON;
+                        m_dot_pc_fixed = m_m_dot_pc_max;
+				    }
+
+				    // First, verify if defocus is needed: at defocus = 1 see if m_dot_pc > m_dot_pc_max OR charge is overfilled
+                    C_mono_eq_cr_on_pc_mdot_tes__defocus c_eq2(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
+                        hot_tank_discharging::per_matched_rec_htf, true /*allow_tes_overfill*/);
+                    C_monotonic_eq_solver c_solver2(c_eq2);
+                    double diff_m_dot_pc_target = std::numeric_limits<double>::quiet_NaN();
+                    bool is_tes_overfilled = false;
+                    int m_dot_df_code = c_solver2.test_member_function(1., &diff_m_dot_pc_target);
+                    is_tes_overfilled = c_eq2.m_is_tes_overfilled;
+				    if (m_dot_df_code != 0)
+				    {
+					    // Report message and shut down CR and PC
+					    error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code"
+						    " failed to solve at defocus = 1. Controller will shut-down CR and PC",
+						    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
+					    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+					    if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+					    {
+						    m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+					    }
+                        else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+                        {
+                            m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                        }
+                        else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                        {
+                            m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                        }
+                        else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
+                        {
+                            m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+                        }
+					    else
+					    {
+						    m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+					    }
+
+					    are_models_converged = false;
+
+					    break;
+				    }
+
+                    if (diff_m_dot_pc_target < 0. && !is_tes_overfilled) {
+                        // Defocus isn't needed as neither the HTF nor particle flows are too high
+                        if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                        {
+                            m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                        }
+                        else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+                        {
+                            m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                        }
+                        else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                        {
+                            m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                        }
+                        else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
+                        {
+                            m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+                        }
+                        else
+                        {
+                            m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                        }
+
+                        are_models_converged = false;
+
+                        break;
+                    }
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+                    if (diff_m_dot_pc_target > 0.) {
+                        // Find the defocus resulting in the maximum PC HTF flow
+                        c_solver2.settings(1.E-3, 50, 0., 1., false);
+
+                        // Solve for defocus
+                        double defocus_guess_low = 0.8;
+                        double defocus_guess_high = 1.;
+
+                        double tol_solved;
+                        defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                        int iter_solved = -1;
+
+                        // Solve for defocus
+                        int solver_code = 0;
+                        try
+                        {
+                            solver_code = c_solver2.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
+                            is_tes_overfilled = c_eq2.m_is_tes_overfilled;
+                        }
+                        catch (C_csp_exception)
+                        {
+                            throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+                        }
+
+                        if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                        {
+                            if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+                            {
+                                std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
+                                    "iteration to find the defocus only reached a convergence "
+                                    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                                mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+                            }
+                            else
+                            {
+                                if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                                {
+                                    m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+                                }
+                                else
+                                {
+                                    m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                                }
+
+                                are_models_converged = false;
+
+                                break;
+                            }
+                        }
+
+                        // At this defocus and maximum PC HTF flow, is storage not overfilled?
+                        if (!is_tes_overfilled) {
+                            // Set member defocus
+                            m_defocus = defocus_solved;
+                            are_models_converged = true;
+                            break;
+                        }
+                    }
+
+                    if (is_tes_overfilled) {
+                        // Find defocus resulting in TES not being overfilled
+                        C_mono_eq_cr_on_pc_mdotmax_tes__defocus c_eq3(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
+                            hot_tank_discharging::per_specified_pc_mdot, true /*allow_tes_overfill*/);
+                        C_monotonic_eq_solver c_solver3(c_eq3);
+                        double defocus_upper_limit;
+                        !isnan(defocus_solved) ? defocus_upper_limit = defocus_solved : defocus_upper_limit = 1.;
+
+                        c_solver3.settings(1.E-3, 50, 0., defocus_upper_limit, false);
+
+                        // Solve for defocus
+                        double defocus_guess_low = defocus_upper_limit * 0.8;
+                        double defocus_guess_high = defocus_upper_limit * 0.9;
+
+                        double tol_solved;
+                        defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                        int iter_solved = -1;
+
+                        // Solve for defocus
+                        int solver_code = 0;
+                        try
+                        {
+                            solver_code = c_solver3.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
+                        }
+                        catch (C_csp_exception)
+                        {
+                            throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+                        }
+
+                        if (solver_code != C_monotonic_eq_solver::CONVERGED)
+                        {
+                            if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+                            {
+                                std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
+                                    "iteration to find the defocus only reached a convergence "
+                                    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+                                mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+                            }
+                            else
+                            {
+                                if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
+                                {
+                                    m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                                }
+                                else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
+                                {
+                                    m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+                                }
+                                else
+                                {
+                                    m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                                }
+
+                                are_models_converged = false;
+
+                                break;
+                            }
+                        }
+
+                        // Set member defocus
+                        m_defocus = defocus_solved;
+                        are_models_converged = true;
+                        break;
+                    }
+
+			    }	// end 'CR_DF__PC_MAX__TES_FULL__AUX_OFF'
+				    break;
+
+			    case CR_ON__PC_SB__TES_FULL__AUX_OFF:
+			    {
+				    // The collector receiver is on and delivering hot HTF to the TES and PC
+				    // The PC is operating between its target and maximum thermal power
+				    // The TES is fully charging over the timestep
+
+				    // PC standby not currently allowed so this case is not used.
+	
+				    if (!mc_collector_receiver.m_is_sensible_htf)
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+				    int power_cycle_mode = C_csp_power_cycle::STANDBY;
+
+				    C_mono_eq_cr_on__pc_match_m_dot_ceil__tes_full c_eq(this, power_cycle_mode, m_defocus);
+				    C_monotonic_eq_solver c_solver(c_eq);
+
+				    // Set up solver
+				    c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
+
+				    // Solve for cold temperature
+				    double T_cold_guess_low = m_T_htf_pc_cold_est;	//[C]
+				    double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
+
+				    double T_cold_solved, tol_solved;
+				    T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+				    int iter_solved = -1;
+
+				    int solver_code = 0;
+				    try
+				    {
+					    solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_SB__TES_FULL__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+				    }
+
+				    if (solver_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+					    {
+						    std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_FULL__AUX_OFF failed "
+							    "iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
+					    }
+					    else
+					    {
+						    m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    // Calculate and report mass flow rate balance
+				    double m_dot_rec = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
+				    double m_dot_pc = mc_pc_out_solver.m_m_dot_htf;			//[kg/hr]
+				    double m_dot_tes = mc_tes_ch_htf_state.m_m_dot;			//[kg/hr]
+
+				    double m_dot_bal = (m_dot_rec - (m_dot_pc + m_dot_tes)) / m_dot_rec;		//[-]
+
+				    if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3)
+				    {
+					    m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+				    else if (mc_pc_out_solver.m_q_dot_htf < q_pc_sb)
+				    {
+					    m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // If convergence was successful, finalize this timestep and get out
+				    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+				    are_models_converged = true;
+
+			    }	// end 'CR_ON__PC_SB__TES_FULL__AUX_OFF'
+				    break;
+
+			    case CR_SU__PC_SU__TES_DC__AUX_OFF:
+			    {
+				    // Collector-receiver is starting up
+				    // Power cycle is starting up, with thermal power from TES
+				    // Code calculates the shortest timestep of: (CR SU, PC SU, initial timestep)
+				    //      and then recalculates the other component startup as necessary
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+				    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+				    m_defocus = 1.0;
+
+				    // First, startup the collector-receiver and get the time required
+				    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+				    mc_collector_receiver.startup(mc_weather.ms_outputs,
+					    mc_cr_htf_state_in,
+					    mc_cr_out_solver,
+					    mc_kernel.mc_sim_info);
+
+				    // Check that startup happened
+				    if( mc_cr_out_solver.m_q_startup == 0.0 )
+				    {	// Collector/receiver can't produce useful energy
+					    m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
+
+					    are_models_converged = false;
+					    break;
+				    }
+
+				    // Reset timestep based on receiver startup
+				    if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {
+					    // Reset sim_info values
+					    mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
+				    }
+
+				    // *****************************************************************
+				    // Next, calculate the required power cycle startup time
+				    double step_tol = m_step_tolerance;		//[s]
+				    double step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+				    int exit_mode = CSP_CONVERGED;
+				    double T_pc_in_exit_tolerance = std::numeric_limits<double>::quiet_NaN();
+
+				    solver_pc_su_controlled__tes_dc(step_tol,
+					    step_pc_su,
+					    exit_mode, T_pc_in_exit_tolerance);
+
+				    // Check exit mode
+				    if( exit_mode != CSP_CONVERGED )
+				    {
+					    are_models_converged = false;
+					    m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
+					    break;
+				    }
+
+				    // ******************************************************************
+				    // Compare the CR and PC startup times
+				    if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {	// If the time required for CR startup is longer than the time to startup the PC
+					    //       then rerun CR_SU with the PC startup timestep (and CR_SU will continue in the next timestep)
+
+					    // Check if shortest timestep is close to end of initial timestep
+					    if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+					    {
+						    // Update simulation time info
+						    mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;							//[s]
+						    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;			//[s]
+
+						    // Rerun CR_SU
+						    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
+
+						    mc_collector_receiver.startup(mc_weather.ms_outputs,
+							    mc_cr_htf_state_in,
+							    mc_cr_out_solver,
+							    mc_kernel.mc_sim_info);
+
+						    // Check that startup happened
+						    if( mc_cr_out_solver.m_q_startup == 0.0 )
+						    {	// Collector/receiver can't produce useful energy
+
+							    m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
+
+							    are_models_converged = false;
+							    break;
+						    }		
+					    }		
+				    }
+				    are_models_converged = true;			
+			    }
+				    break;
+
+
+			    case CR_ON__PC_SU__TES_CH__AUX_OFF:
+			    {
+				    // CR in on
+				    // PC is starting up with its maximum thermal power for startup
+				    //      and is returning the startup time required
+				    // Excess CR output is charging TES
+
+				    if( !mc_collector_receiver.m_is_sensible_htf )
+				    {
+					    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+					    throw(C_csp_exception(err_msg, "CSP Solver"));
+				    }
+
+                    // Get guesses for particle flow
+                    mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
+                    C_csp_collector_receiver::S_csp_cr_est_out est_out;
+                    mc_collector_receiver.estimates(mc_weather.ms_outputs,
+                        mc_cr_htf_state_in,
+                        est_out,
+                        mc_kernel.mc_sim_info);
+
+                    double T_hot_htf, T_cold_store_est, m_dot_store_est;
+                    mc_tes.discharge_est(est_out.m_T_htf_hot + 273.15, est_out.m_m_dot_avail / 3600., est_out.m_P_htf_hot,
+                        T_hot_htf, T_cold_store_est, m_dot_store_est);
+                    m_dot_store_est *= 3600.;  //[kg/hr]
+
+                    // Determine if tower htf flow is greater than PC flow
+                    mc_pc_htf_state_in.m_temp = T_hot_htf - 273.15;			//[C]
+                    mc_pc_inputs.m_m_dot = est_out.m_m_dot_avail;			//[kg/hr] no mass flow rate to power cycle
+                    mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    // Performance Call
+                    mc_power_cycle.call(mc_weather.ms_outputs,
+                        mc_pc_htf_state_in,
+                        mc_pc_inputs,
+                        mc_pc_out_solver,
+                        mc_kernel.mc_sim_info);
+
+                    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+                    int pc_mode;
+                    if (est_out.m_m_dot_avail < mc_pc_out_solver.m_m_dot_htf) {
+                        pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;    // tower htf flow is less than needed PC flow
+                    }
+                    else {
+                        pc_mode = C_csp_power_cycle::STARTUP;               // tower htf flow is more than needed PC flow, so send all flow to PC
+                    }
+                    m_defocus = 1.0;
+                    double step_pc_su = std::numeric_limits<double>::quiet_NaN();
+
+                    C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
+                    C_monotonic_eq_solver c_solver(c_eq);
+
+                    double m_dot_store_min = 0.;
+                    double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
+
+                    double m_dot_store_lower_guess = min(m_dot_store_max, m_dot_store_est * 1.03);   //[kg/hr]
+                    double m_dot_store_higher_guess = min(m_dot_store_max, m_dot_store_est * 1.08);   //[kg/hr]
+
+                    if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
+                        m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
+                    }
+
+                    // Set up solver
+                    double tol = 5.E-3;
+                    c_solver.settings(tol, 50, m_dot_store_min, m_dot_store_max, false);
+
+                    double m_dot_tank_solved, tol_solved;
+                    m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
+                    int iter_solved = -1;
+
+                    int m_dot_hot_tank_code = 0;
+				    try
+				    {
+                        m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
+				    }
+				    catch (C_csp_exception)
+				    {
+					    throw(C_csp_exception("CR_ON__PC_SU__TES_CH__AUX_OFF solver to converge the hot tank mass flow returned an unexpected exemption"));
+				    }
+
+				    if (m_dot_hot_tank_code != C_monotonic_eq_solver::CONVERGED)
+				    {
+					    if (m_dot_hot_tank_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
+					    {
+						    error_msg = util::format("At time = %lg the iteration to find the hot tank mass flow only reached a convergence "
+							    "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
+							    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
+						    mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+					    }
+					    else
+					    {
+						    m_is_CR_ON__PC_SU__TES_CH__AUX_OFF_avail = false;
+						    are_models_converged = false;
+						    break;
+					    }
+				    }
+
+				    // Check reported timestep against initial timesteps
+				    step_pc_su = c_eq.m_step_pc_su;		//[s]
+				    if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - m_step_tolerance)
+				    {
+					    mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
+					    mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
+				    }
+
+				    are_models_converged = true;
+			    }
+				    break;
+
+			    default: 
+				    throw(C_csp_exception("Operation mode not recognized",""));
+
+			    }	// End switch() on receiver operating modes
+
+            }   // End solve operating modes for 'direct' config
+            else {
+
+                switch (operating_mode)
+                {
+
+                case CR_DF__PC_MAX__TES_OFF__AUX_OFF:
+                {
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__TO_PC__PC_MAX;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = true;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_DF__PC_MAX__TES_OFF__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                    break;
+
+                case CR_DF__PC_SU__TES_OFF__AUX_OFF:
+                {
+                    // The PC is operating at its maximum operating thermal power or HTF mass flow rate
+                    // TES cannot be charged
+                    // Defocus CR to hit PC constraints
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__TO_PC__ITER_M_DOT_SU;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = true;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_DF__PC_SU__TES_OFF__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+
                     break;
                 }
 
-                are_models_converged = true;
-			}	// End brace after code for this operating mode - brace required to avoid compiler error for local variables
-
-				break;
-
-			case CR_ON__PC_TARGET__TES_CH__AUX_OFF:
-			case CR_ON__PC_SB__TES_CH__AUX_OFF:
-            {
-                // CR is on (no defocus)
-                // PC is on and hitting specified target
-                // TES is charging
-
-                if (!mc_collector_receiver.m_is_sensible_htf)
+                case CR_ON__PC_RM_LO__TES_OFF__AUX_OFF:
                 {
-                    std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-                    throw(C_csp_exception(err_msg, "CSP Solver"));
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_ON__PC_RM_LO__TES_OFF__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_cr_out_solver.m_q_thermal < q_pc_min)
+                    {
+                        m_is_CR_ON__PC_RM_LO__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_ON__PC_RM_HI__TES_OFF__AUX_OFF:
+                {
+
+                    // Collector/Receiver in ON, and only place for HTF to go is power cycle.
+                    // Therefore, power cycle must operate at Resource Match and use w/e is provided
+                    // (in cases with storage or field defocus, power cycle will try to hit an exact thermal input)
+                    // 'Failure Modes'
+                    // 1) Receiver provides too much power
+                    //		* Go to defocus
+                    // 2) Receiver cannot maintain minimum operation fraction
+                    //		* Go to power cycle standby or shutdown
+
+                    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_ON__PC_RM_HI__TES_OFF__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_cr_out_solver.m_q_thermal > m_q_pc_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max)
+                    {
+                        m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_HI_SIDE = false;
+                        are_models_converged = false;
+                        break;
+                    }
+                    else if (mc_cr_out_solver.m_q_thermal < q_pc_target)
+                    {
+                        m_is_CR_ON__PC_RM_HI__TES_OFF__AUX_OFF_avail_LO_SIDE = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }	// end case{} to allow compilation with local (w/r/t case) variables
+
+                break;
+
+
+                case CR_ON__PC_SB__TES_OFF__AUX_OFF:
+                {
+
+                    // Collector/receiver is ON
+                    // Power cycle is running in standby
+                    // During standby, assume power cycle HTF return temperature is constant and = m_T_htf_cold_des
+                    // so shouldn't need to iterate between CR and PC
+                    // Assume power cycle can remain in standby the entirety of the timestep
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
+
+                    op_mode_str = "CR_ON__PC_SB__TES_OFF__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check that cr and pc mass flow rates balance
+                    if (fabs(mc_cr_out_solver.m_m_dot_salt_tot - mc_pc_out_solver.m_m_dot_htf) / m_m_dot_pc_des > 1.E-4)
+                    {
+                        m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is less than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_sb) / q_pc_sb < -1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " less than the minimum PC thermal power %lg [MWt].",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_OFF__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " less than the minimum PC HTF mass flow rate %lg [kg/s].",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_ON__PC_SB__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+
+                case CR_ON__PC_SU__TES_OFF__AUX_OFF:
+                {
+                    // Collector/receiver is ON
+                    // Startup power cycle
+                    // Reseting timestep during iteration, so need to be careful at this level before returning to controller
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+                    double q_dot_pc_target = std::numeric_limits<double>::quiet_NaN();
+                    op_mode_str = "CR_ON__PC_SU__TES_OFF__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_target, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SU__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Compare q_dot_to_pc to q_dot_pc_su_max
+                    if (mc_cr_out_solver.m_q_thermal > q_dot_pc_su_max || mc_cr_out_solver.m_m_dot_salt_tot > m_m_dot_pc_max_startup)
+                    {
+                        if (mc_cr_out_solver.m_q_thermal > q_dot_pc_su_max)
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_SU__TES_OFF__AUX_OFF method converged to a power cycle"
+                                " thermal input, %lg [MWt], greater than the target %lg [MWt].",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_cr_out_solver.m_q_thermal, q_dot_pc_su_max);
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_SU__TES_OFF__AUX_OFF method converged to a power cycle"
+                                " mass flow rate input, %lg [kg/s], greater than the maximum allowable %lg [kg/s].",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_cr_out_solver.m_m_dot_salt_tot / 3600.0, m_m_dot_pc_max_startup / 3600.0);
+                        }
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
                 }
 
-                int power_cycle_mode = -1;
-                double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
-                double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
+                break;
 
-                //std::string op_mode_str = "";
-                if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
+                case CR_SU__PC_OFF__TES_OFF__AUX_OFF:
                 {
-                    power_cycle_mode = C_csp_power_cycle::ON;
-                    q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-                    W_dot_pc_fixed = W_pc_target;
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::OFF;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__0;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_SU__PC_OFF__TES_OFF__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_OFF__TES_OFF__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
+                {
+                    int cr_mode = C_csp_collector_receiver::E_csp_cr_modes::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::OFF;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__0;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_OFF__PC_OFF__TES_OFF__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        throw(C_csp_exception(util::format("At time = %lg, CR_OFF__PC_OFF__TES_OFF__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;		// exit switch() after CR_OFF__PC_OFF__TES_OFF__AUX_OFF:
+
+                case CR_OFF__PC_SU__TES_DC__AUX_OFF:
+                {
+                    // Use thermal storage to startup power cycle
+                    // This solver iterates to find the thermal storage outlet temperature to the power cycle
+                    //    and the power cycle demand mass flow rate that reach system equilibrium
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_M_DOT_SU_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_OFF__PC_SU__TES_DC__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_OFF__PC_SU__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_ON__PC_OFF__TES_CH__AUX_OFF:
+                {
+                    // Method to solve operating mode where the CR is on (under some fixed operating conditions, i.e. defocus)
+                    // and charging TES. No PC operating or AUX, so the output of the CR connects directly to TES
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::OFF;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__0;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_ON__PC_OFF__TES_CH__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_OFF__TES_CH__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_ON__PC_TARGET__TES_CH__AUX_OFF:
+                {
+                    // CR is on (no defocus)
+                    // PC is on and hitting specified target
+                    // TES is charging
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_CH_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    double q_dot_pc_fixed = q_pc_target;
                     op_mode_str = "CR_ON__PC_TARGET__TES_CH__AUX_OFF";
-                }
-                else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
-                {
-                    power_cycle_mode = C_csp_power_cycle::STANDBY;
-                    q_dot_pc_fixed = q_pc_sb;
-                    W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-                    op_mode_str = "CR_ON__PC_SB__TES_CH__AUX_OFF";
-                }
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
 
-                // Set Solved Controller Variables Here (that won't be reset in this operating mode)
-                m_defocus = 1.0;
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
 
-                if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF) {
-                    // Ensure default PC target power is attainable
-                    C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true /*m_allow_tes_overfill*/);
-                    C_monotonic_eq_solver c_solver(c_eq);
-
-                    double m_dot_tes_max = min(m_m_dot_tes_des * 1.2, (m_dot_tes_store_dc_est + m_dot_store_cr_on) * 0.98);   //[kg/hr]
-                    double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
-                    int tes_max_code = c_solver.test_member_function(m_dot_tes_max, &diff_m_dot_particle);
-                    if (tes_max_code != 0 && c_eq.m_meq_error != meq_error::cr_flow_exceeds_pb && c_eq.m_meq_error != meq_error::tes_overfilled) {
-                        // Can't solve models with high tes mass flow, so get out
-                        error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
-                            "convergence could not be achieved. Controller will shut-down CR and PC",
-                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-                        are_models_converged = false;
-                        m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
-
-                        break;
-                    }
-
-                    if (diff_m_dot_particle < -1.E-3)
+                    if (mode_code != 0)
                     {
-                        //Reduce target power cycle power
-                        W_dot_pc_fixed = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed) * 0.995;
-                    }
-
-                    // Ensure tower doesn't need to defocus -> run PC at tower htf mass flow, which is the minimum PC mass flow
-                    C_mono_eq_cr_on_pc_target_tes__defocus c_eq2(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
-                    C_monotonic_eq_solver c_solver2(c_eq2);
-                    double diff_pc_target = std::numeric_limits<double>::quiet_NaN();
-                    int df_code = c_solver2.test_member_function(1., &diff_pc_target);
-                    if (df_code != 0) {
-                        // Can't solve models with no defocus, so get out
-                        error_msg = util::format("At time = %lg the controller chose CR_ON__PC_TARGET__TES_CH__AUX_OFF, but "
-                            "convergence could not be achieved. Controller will shut-down CR and PC",
-                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-                        are_models_converged = false;
                         m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_HI_SIDE = false;
-
+                        are_models_converged = false;
                         break;
                     }
 
-                    if (diff_pc_target > 0.)
-                    {
-                        //PC is still over target power when running at minimum mass flow -> this is the minimum PC power
-                        //Need to defocus or increase allowable power cycle power  -> choosing to increase target power
-                        double pc_target_solved = (diff_m_dot_particle * W_dot_pc_fixed + W_dot_pc_fixed);
-                        double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
 
+                    if (fabs(q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < 1.E-3)
+                    {	// If successfully solved for target thermal power, check that mass flow is above minimum
                         if ((m_dot_pc_solved - m_m_dot_pc_min) / fmax(0.01, m_m_dot_pc_min) < -1.E-3)
                         {
                             error_msg = util::format("At time = %lg %s solved with a PC HTF mass flow rate %lg [kg/s]"
@@ -2741,2156 +5442,1527 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                             are_models_converged = false;
                             break;
                         }
-                        else {
-                            are_models_converged = true;
-                            break;
-                        }
                     }
-                }
-
-                C_mono_eq_cr_on_pc_target_tes_ch_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed, m_defocus, hot_tank_discharging::specified, true);
-                C_monotonic_eq_solver c_solver(c_eq);
-
-                // Get guesses for particle flow
-                mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
-                C_csp_collector_receiver::S_csp_cr_est_out est_out;
-                mc_collector_receiver.estimates(mc_weather.ms_outputs,
-                    mc_cr_htf_state_in,
-                    est_out,
-                    mc_kernel.mc_sim_info);
-
-                double m_dot_store_avail = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
-                double m_dot_store_min = min(m_m_dot_tes_des * 0.5, m_dot_store_avail);
-                double m_dot_store_max = m_m_dot_tes_des * 1.5;
-
-                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.92);   //[kg/hr]
-                double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.98);   //[kg/hr]
-
-                if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
-                    m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
-                }
-
-                c_solver.settings(1.E-3, 50, m_dot_store_min, m_dot_store_max, false);
-
-                // Solve for m_dot_hot_tank
-                double m_dot_hot_tank_solved, tol_solved;
-                m_dot_hot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                int iter_solved = -1;
-
-				int m_dot_hot_tank_code = 0;
-				try
-				{
-                    m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_hot_tank_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, %s failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str()), ""));
-				}
-
-				if (m_dot_hot_tank_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (m_dot_hot_tank_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg %s iteration "
-							"to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
-						{
-							m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_HI_SIDE = false;
-						}
-						else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
-						{
-							m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
-						}
-						are_models_converged = false;
-						break;
-					}
-				}
-
-                double pc_target, pc_target_solved;
-                if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
-                {
-                    pc_target = W_dot_pc_fixed;
-                    pc_target_solved = mc_pc_out_solver.m_P_cycle;		//[MWt]
-                }
-                else if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
-                {
-                    pc_target = q_dot_pc_fixed;
-                    pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
-                }
-
-				double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
-
-				if (fabs(pc_target_solved - pc_target) / pc_target < 1.E-3)
-				{	// If successfully solved for target thermal power, check that mass flow is above minimum
-					if ( (m_dot_pc_solved - m_m_dot_pc_min) / fmax(0.01, m_m_dot_pc_min) < -1.E-3 )
-					{
-						error_msg = util::format("At time = %lg %s solved with a PC HTF mass flow rate %lg [kg/s]"
-							" smaller than the minimum %lg [kg/s]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), m_dot_pc_solved/3600.0, m_m_dot_pc_min/3600.0);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-				}
-				else if ( (pc_target_solved - pc_target) / pc_target < -1.E-3 )
-				{
-					if ( (m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3 )
-					{	
-						if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
-						{
-							// Can send more mass flow to PC from TES
-							m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
-							are_models_converged = false;
-							break;
-						}
-					}
-					if (operating_mode == CR_ON__PC_SB__TES_CH__AUX_OFF)
-					{
-						// If can't hit standby power then this mode won't work regardless of mass flow constraints
-						m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-					//else
-					//{	// Mass flow rate to cycle is maxed out, so end here
-					//
-					//}
-				}
-
-				are_models_converged = true;
-			}
-				break;
-
-			case CR_ON__PC_TARGET__TES_DC__AUX_OFF:
-			{
-				// The collector receiver is on and returning hot HTF to the PC
-				// TES is discharging hot HTF that is mixed with the CR HTF
-				// to operating the PC at its target value
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// Define arguments to solver method
-				double W_dot_pc_fixed = W_pc_target;		//[MWt]
-				int power_cycle_mode = C_csp_power_cycle::ON;
-				
-				C_mono_eq_cr_on_pc_target_tes_dc_mdot c_eq(this, power_cycle_mode, W_dot_pc_fixed, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-                // Get guesses for particle flow
-                mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
-                C_csp_collector_receiver::S_csp_cr_est_out est_out;
-                mc_collector_receiver.estimates(mc_weather.ms_outputs,
-                    mc_cr_htf_state_in,
-                    est_out,
-                    mc_kernel.mc_sim_info);
-
-                double m_dot_store_min = 0.;
-                double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
-
-                double m_dot_store_lower_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.85);   //[kg/hr]
-                double m_dot_store_higher_guess = min(m_dot_store_max, m_m_dot_tes_des * 0.95);   //[kg/hr]
-
-                if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
-                    m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
-                }
-
-				// Set up solver
-                double tol = 5.E-3;
-				c_solver.settings(tol, 50, m_dot_store_min, m_dot_store_max, false);
-
-				double m_dot_tank_solved, tol_solved;
-                m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-                    solver_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_TARGET__TES_DC__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0), ""));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF iteration "
-							"to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						std::string msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF iteration "
-							"to find the hot tank mass flow to balance energy between the CR, TES, and PC failed",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-
-						m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				double W_dot_pc_solved = mc_pc_out_solver.m_P_cycle;	//[MWe]
-				double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
-
-				// Check bounds on solved thermal power and mass flow rate
-				if ((W_dot_pc_solved - W_dot_pc_fixed) / W_dot_pc_fixed > tol)
-				{
-					if ((W_dot_pc_solved - W_pc_max) / W_pc_max > tol)
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC power %lg [MWe]"
-							" greater than the maximum %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, W_dot_pc_solved, W_pc_max);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-					else
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC power %lg [MWe]"
-							" greater than the target %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, W_dot_pc_solved, W_dot_pc_fixed);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-				}
-				if (m_dot_pc_solved < m_m_dot_pc_min)
-				{	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
-					error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
-						" less than the minimum %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				if ( (W_dot_pc_solved - W_dot_pc_fixed) / W_dot_pc_fixed < -tol
-					&& (m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3 )
-				{
-					m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				if (m_dot_pc_solved > m_m_dot_pc_max)
-				{	// Shouldn't happen but can try next operating mode
-					m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-				
-				are_models_converged = true;
-			}	// end outer bracket for case CR_ON__PC_OFF__TES_CH__AUX_OFF
-				
-				break;	// break case CR_ON__PC_OFF__TES_CH__AUX_OFF
-
-			case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF:
-			{
-				// The collector receiver is on and return hot HTF to the Pc
-				// TES is discharging hot HTF that is then mixed with the CR HTF
-				// The power cycle operates between its minimum operation fraction and target operation
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				C_mono_eq_cr_on_pc_match_tes_empty_mdot c_eq(this, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				c_solver.settings(1.E-3, 50, m_m_dot_pc_des*0.1, std::numeric_limits<double>::quiet_NaN(), false);
-
-                double m_dot_guess_lower = m_m_dot_pc_des;            //[kg/hr]
-                double m_dot_guess_higher = m_dot_guess_lower * 1.2;	//[kg/hr]
-
-				double m_dot_solved, tol_solved;
-                m_dot_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-					solver_code = c_solver.solve(m_dot_guess_lower, m_dot_guess_higher, 0.0, m_dot_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception("CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF received exception from mono equation solver"));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-					{
-						error_msg = util::format("At time = %lg the iteration to find the cold HTF temperature connecting the power cycle and receiver only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-					else
-					{
-						m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				
-				// *********************************
-				// Check if solved thermal power is greater than target
-
-				if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_target) / q_pc_target > 1.E-3 )
-				{
-					if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3 )
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-							" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-					else
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-							" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
-						
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-				}
-
-				if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_max) / m_m_dot_pc_max > 1.E-3 )
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				// *********************************
-				// Check PC q_dot is >= MIN!!!!!!!!
-
-				if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3 )
-				{
-					m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-				if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-3 )
-				{
-					m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-				
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-
-			}
-				break;	// break case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF
-			
-
-			case CR_DF__PC_OFF__TES_FULL__AUX_OFF:
-			{
-				// Running the CR at full power results in too much thermal power to TES
-				// Power cycle operation is either not allowed or not possible under the timestep conditions
-
-				// Assuming here that partial defocus is allowed, so should always be able to reach full power to PC
-				
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-                cr_recirc__tes_ch__modes m_dot_particle_mode = cr_recirc__tes_ch__modes::fill_tes;
-
-                C_MEQ_cr_recirc_df__pc_off__tes_full__defocus c_df_eq(this, m_dot_particle_mode);
-                C_monotonic_eq_solver c_df_solver(c_df_eq);
-
-                double defocus_guess = 1.0;
-                double diff_m_dot_particle = std::numeric_limits<double>::quiet_NaN();
-
-                int df_code = c_df_solver.test_member_function(defocus_guess, &diff_m_dot_particle);
-				if (df_code != 0)
-				{	// Can't solve models with defocus = 1, so get out
-
-					error_msg = util::format("At time = %lg the controller chose CR_DF__PC_OFF__TES_FULL__AUX_OFF, but the collector/receiver "
-						"did not produce power with the design inlet temperature. Controller will shut-down CR and PC",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					are_models_converged = false;
-
-					m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
-
-					break;
-				}
-
-				if (diff_m_dot_particle > 0.0)
-				{
-					// At no defocus, mass flow rate to TES is greater than full charge
-					// So need to find a defocus that results in full charge
-
-					// Get another guess value
-					C_monotonic_eq_solver::S_xy_pair xy2;
-					double defocus_guess_2 = defocus_guess * (1.0 / (1.0 + diff_m_dot_particle));
-
-					// Set up solver for defocus
-					c_df_solver.settings(1.E-3, 50, 0.0, 1.0, false);
-
-					// Now solve for the required defocus
-					double defocus_solved, tol_solved;
-					defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-					int iter_solved = -1;
-
-					int defocus_code = 0;
-					try
-					{
-						defocus_code = c_df_solver.solve(defocus_guess, defocus_guess_2, -1.E-3, defocus_solved, tol_solved, iter_solved);
-					}
-					catch (C_csp_exception)
-					{
-						throw(C_csp_exception(util::format("At time = %lg, CR_DF__PC_OFF__TES_FULL__AUX_OFF failed to find a solution", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-					}
-
-					if (defocus_code != C_monotonic_eq_solver::CONVERGED)
-					{
-						if (defocus_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-						{
-							std::string msg = util::format("At time = %lg CR_DF__PC_OFF__TES_FULL__AUX_OFF "
-								"iteration to find a defocus resulting in fully charged TES only reached a convergence "
-								"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-							mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-						}
-						else
-						{
-							// Weird that controller chose Defocus operating mode, so report message and shut down CR and PC
-							error_msg = util::format("At time = %lg the controller chose CR_DF__PC_OFF__TES_FULL__AUX_OFF operating mode, but the code"
-								" failed to solve. Controller will shut-down CR and PC",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-							mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-							m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
-
-							are_models_converged = false;
-
-							break;
-						}
-					}
-				}
-				else if(diff_m_dot_particle < -1.E-3)
-				{
-                    // Set Solved Controller Variables Here (that won't be reset in this operating mode)
-                    m_defocus = 1.0;
-                    cr_recirc__tes_ch__modes m_dot_mode = cr_recirc__tes_ch__modes::coupled;
-                    double m_dot_particle_diff = std::numeric_limits<double>::quiet_NaN();
-                    int solver_code = solve__cr_recirc__tes_ch(m_defocus, m_dot_mode, m_dot_particle_diff);
-
-                    if (solver_code != 0) {
-                        m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
-
-                        are_models_converged = false;
-
-                        break;
-                    }
-				}
-
-				are_models_converged = true;
-			}
-				break;	// break case CR_DF__PC_OFF__TES_FULL__AUX_OFF
-
-			case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF:
-			{
-				// The collector receiver is off
-				// The power cycle runs at its minimum operating fraction until storage is depleted
-				// A new, shorter timestep is calculated here
-				
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				double tol_C = 1.0;								//[C]
-				double tol = tol_C / m_cycle_T_htf_hot_des;		//[-]
-
-				double q_dot_pc_fixed = q_pc_min;			//[MWt]
-
-				double time_tes_dc;
-				time_tes_dc = std::numeric_limits<double>::quiet_NaN();
-
-				int solution_code = solver_pc_fixed__tes_empty(q_dot_pc_fixed,
-					tol,
-					time_tes_dc);
-
-				if (solution_code != 0)
-				{
-					m_is_CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				if (time_tes_dc > mc_kernel.mc_sim_info.ms_ts.m_step)
-				{
-					error_msg = util::format("At time = %lg CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF method calculated a timestep"
-						"that was longer than the baseline timestep. Controller moved to the next timestep in the"
-						"controller hierarchy",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-
-					m_is_CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				// Check if solved thermal power is greater than target
-				if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
-				{
-					if (mc_pc_out_solver.m_q_dot_htf > q_pc_max)
-					{
-						error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-							" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
-				{
-					error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				// Update mc_sim_info
-				mc_kernel.mc_sim_info.ms_ts.m_step = time_tes_dc;
-				mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + time_tes_dc;
-
-				// Now run CR at 'OFF'
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-				mc_collector_receiver.off(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-			}
-				break;	// break case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF
-
-
-			case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF:
-			case CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF:
-			{
-				// The collector-receiver is off
-				// The power cycle runs somewhere between its minimum operating fraction and target operation, with thermal input from TES, which is depleted at the end of the timestep
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// First, solve the CR
-				if( operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF )
-				{
-					// Now run CR at 'OFF'
-					mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-					
-					mc_collector_receiver.off(mc_weather.ms_outputs,
-						mc_cr_htf_state_in,
-						mc_cr_out_solver,
-						mc_kernel.mc_sim_info);
-
-				}
-				else if( operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF )
-				{
-					// Run CR at 'Start Up'
-					mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-					mc_collector_receiver.startup(mc_weather.ms_outputs,
-						mc_cr_htf_state_in,
-						mc_cr_out_solver,
-						mc_kernel.mc_sim_info);
-
-					// Check that startup happened
-					if( mc_cr_out_solver.m_q_startup == 0.0 )
-					{	// Collector/receiver can't produce useful energy
-
-						m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-
-					// Check for new timestep
-					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
-					{
-						// Reset sim_info values
-						mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
-						mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
-					}
-				}
-
-				// Set up solver to converge the cold HTF temperature between TES and PC
-				C_mono_eq_pc_match_tes_empty c_eq(this);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				double T_htf_cold_guess_hotter = m_T_htf_pc_cold_est;		//[C]
-				double T_htf_cold_guess_colder = T_htf_cold_guess_hotter - 10.0;	//[C]
-
-				double T_htf_cold_solved, tol_solved;
-				T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-					solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_hotter,
-						0.0, T_htf_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-					{
-						//throw(C_csp_exception("CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
-					}
-					else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-					{
-						//throw(C_csp_exception("CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF solver to converge the HTF cold temperature returned an unexpected exemption"));
-					}
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-					{
-						error_msg = util::format("At time = %lg the iteration to find the hot HTF temperature connecting the power cycle startup and tes discharge only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-					else
-					{
-						if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-							m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-							m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				if (mc_pc_out_solver.m_q_dot_htf < q_pc_min || mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
-				{
-					if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-					else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
-
-					are_models_converged = false;
-					break;
-				}
-
-				// Check if solved thermal power is greater than target
-				if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
-				{
-					if (mc_pc_out_solver.m_q_dot_htf > q_pc_max)
-					{
-						if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						{
-							error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-								" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-						}
-						else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						{
-							error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-								" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-						}
-
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-					else
-					{
-						if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						{
-							error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-								" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
-						}
-						else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-						{
-							error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-								" larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
-								mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, q_pc_max);
-						}
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-				}
-
-				if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
-				{
-					if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
-					{
-						error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-							" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf/3600.0, m_m_dot_pc_max/3600.0);
-					}
-					else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
-					{
-						error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-							" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf/3600.0, m_m_dot_pc_max/3600.0);
-					}
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-			}
-				break;	// break case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF
-
-			case CR_SU__PC_MIN__TES_EMPTY__AUX_OFF:
-			{
-				// The collector-receiver is in startup
-				// The power cycle runs at its minimum fraction until storage is depleted
-				// A new, shorter timestep is calculated here
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// First, startup the collector-receiver and get the time required
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-				mc_collector_receiver.startup(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
-
-				// Check that startup happened
-				if( mc_cr_out_solver.m_q_startup == 0.0 )
-				{	// Collector/receiver can't produce useful energy
-
-					m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-
-					are_models_converged = false;
-					break;
-				}
-
-				// Reset timestep based on receiver startup
-				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{
-					// Reset sim_info values
-					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
-				}
-
-
-				// Next, calculate the required TES empty time
-				C_mono_eq_pc_target_tes_empty__T_cold c_eq(this, q_pc_min);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				// Set up solver
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				// Solve for cold HTF temperature
-				double T_cold_guess_low = m_T_htf_pc_cold_est;			//[C]
-				double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
-
-				double T_cold_solved, tol_solved;
-				T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int T_cold_code = 0;
-				try
-				{
-					T_cold_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::CR_SU__PC_MIN__TES_EMPTY failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-				}
-
-				if (T_cold_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (T_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg C_csp_solver::CR_SU__PC_MIN__TES_EMPTY iteration "
-							"to find the cold HTF temperature to balance energy between TES and PC target only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						std::string msg = util::format("At time = %lg C_csp_solver::CR_SU__PC_MIN__TES_EMPTY iteration "
-							"to find the cold HTF temperature to balance energy between the CR, TES, and PC failed",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-						
-						m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				double step_pc_empty = c_eq.m_step;		//[s]
-
-				// ******************************************************************
-				// Compare the CR and PC startup times
-				if (step_pc_empty < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{	// If the time required for CR startup is longer than the time to empty the PC
-					//       then rerun CR_SU with the PC empty timestep (and CR_SU will continue in the next timestep)
-
-					// Update simulation time info
-					mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_empty;							//[s]
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_empty;			//[s]
-
-					// Rerun CR_SU
-					mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-					mc_collector_receiver.startup(mc_weather.ms_outputs,
-						mc_cr_htf_state_in,
-						mc_cr_out_solver,
-						mc_kernel.mc_sim_info);
-
-					// Check that startup happened
-					if (mc_cr_out_solver.m_q_startup == 0.0)
-					{	// Collector/receiver can't produce useful energy
-
-						m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				// Check if solved thermal power is greater than target
-				if ( (mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3 )
-				{
-					error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
-				{
-					error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				// Check if solved thermal power is less than target
-				if ( (mc_pc_out_solver.m_q_dot_htf-q_pc_min) / q_pc_min < -1.E-3 )
-				{
-					error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" less than the minimum PC thermal power %lg [MWt].",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
-				{
-					error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" less than the minimum PC HTF mass flow rate %lg [kg/s].",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				are_models_converged = true;
-			}
-				break;
-
-
-			case CR_ON__PC_SB__TES_DC__AUX_OFF:
-			{
-				std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF "
-					"was called. This isn't a common operating mode and should be stepped through to confirm it's working.",
-					mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-				mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-
-				// The collector receiver is on and returning hot HTF to the PC
-				// TES is discharging hot HTF that is mixed with the CR HTF
-				// to operate the PC at standby
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// Define arguments to solver method
-				double q_dot_pc_fixed = q_pc_sb;		//[MWt]
-				int power_cycle_mode = C_csp_power_cycle::STANDBY;
-
-				C_mono_eq_cr_on_pc_target_tes_dc_mdot c_eq(this, power_cycle_mode, q_dot_pc_fixed, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				// Set up solver
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-                // Make guesses for hot tank mass flow
-                double T_htf_hx_out;
-                mc_tes.discharge(mc_kernel.mc_sim_info.ms_ts.m_step,
-                    mc_weather.ms_outputs.m_tdry + 273.15,
-                    m_m_dot_pc_min / 3600.,     //[kg/s]
-                    m_T_htf_cold_des,
-                    m_P_cr_out_des,
-                    T_htf_hx_out,
-                    mc_tes_outputs);
-                double m_dot_tank_guess_low = mc_tes_outputs.m_m_dot * 3600.;       //[kg/hr]
-
-                mc_tes.discharge(mc_kernel.mc_sim_info.ms_ts.m_step,
-                    mc_weather.ms_outputs.m_tdry + 273.15,
-                    m_m_dot_pc_max / 3600.,     //[kg/s]
-                    m_T_htf_cold_des,
-                    m_P_cr_out_des,
-                    T_htf_hx_out,
-                    mc_tes_outputs);
-                double m_dot_tank_guess_high = mc_tes_outputs.m_m_dot * 3600.;       //[kg/hr]
-
-				double m_dot_tank_solved, tol_solved;
-                m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-                    solver_code = c_solver.solve(m_dot_tank_guess_low, m_dot_tank_guess_high, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_SB__TES_DC__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0), ""));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF iteration "
-							"to find the hot tank mass flow to balance energy between the CR, TES, and PC only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF iteration "
-							"to find the hot tank mass flow to balance energy between the CR, TES, and PC failed",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-
-						m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
-				double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
-
-				// Check bounds on solved thermal power and mass flow rate
-				if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
-				{
-					if ((q_dot_pc_solved - q_pc_max) / q_pc_max > 1.E-3)
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
-							" greater than the maximum %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_pc_max);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-					else
-					{
-						error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
-							" greater than the target %lg [MWt]",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_dot_pc_fixed);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-				}
-				if (m_dot_pc_solved < m_m_dot_pc_min)
-				{	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
-					error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
-						" less than the minimum %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
-				{
-					m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				if (m_dot_pc_solved > m_m_dot_pc_max)
-				{	// Shouldn't happen but can try next operating mode
-					m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-			
-			}	// end 'CR_ON__PC_SB__TES_DC__AUX_OFF'
-				
-				break;
-
-
-			case CR_OFF__PC_TARGET__TES_DC__AUX_OFF:
-			case CR_SU__PC_TARGET__TES_DC__AUX_OFF:
-			case CR_OFF__PC_SB__TES_DC__AUX_OFF:
-			case CR_SU__PC_SB__TES_DC__AUX_OFF:
-			{
-				// The collector receiver is off
-				// The power cycle run at the target thermal input level
-				// The TES supplies the thermal power to the power cycle
-				
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				int power_cycle_mode = -1;
-				double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
-                double W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[MWt]
-
-				//std::string op_mode_str = "";
-				if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::ON; 
-					q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-                    W_dot_pc_fixed = W_pc_target;
-					op_mode_str = "CR_OFF__PC_TARGET__TES_DC__AUX_OFF";
-				}
-				else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::ON; 
-                    q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-                    W_dot_pc_fixed = W_pc_target;
-					op_mode_str = "CR_SU__PC_TARGET__TES_DC__AUX_OFF";
-				}
-				else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::STANDBY;
-					q_dot_pc_fixed = q_pc_sb;
-                    W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-					op_mode_str = "CR_OFF__PC_SB__TES_DC__AUX_OFF";
-				}
-				else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
-				{
-					power_cycle_mode = C_csp_power_cycle::STANDBY;
-					q_dot_pc_fixed = q_pc_sb;
-                    W_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();
-					op_mode_str = "CR_SU__PC_SB__TES_DC__AUX_OFF";
-				}
-				
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// First, solve the CR
-				if( operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF
-					|| operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF )
-				{
-					// Now run CR at 'OFF'
-					mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-					
-					mc_collector_receiver.off(mc_weather.ms_outputs,
-						mc_cr_htf_state_in,
-						mc_cr_out_solver,
-						mc_kernel.mc_sim_info);
-
-				}
-				else if( operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF
-					|| operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF )
-				{
-					// Run CR at 'Start Up'
-					mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-					mc_collector_receiver.startup(mc_weather.ms_outputs,
-						mc_cr_htf_state_in,
-						mc_cr_out_solver,
-						mc_kernel.mc_sim_info);
-
-					// Check that startup happened
-					if( mc_cr_out_solver.m_q_startup == 0.0 )
-					{	// Collector/receiver can't produce useful energy
-
-						if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-
-					// Check for new timestep
-					if( mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance )
-					{
-						// Reset sim_info values
-						mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
-						mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
-					}
-				}
-
-				C_mono_eq_pc_target_tes_dc__T_cold c_eq(this, power_cycle_mode, q_dot_pc_fixed, W_dot_pc_fixed);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				// Set up solver
-				c_solver.settings(1.E-3, 50, 0, std::numeric_limits<double>::quiet_NaN(), false);
-
-				// Solve for cold temperature
-                double T_cold_guess_low = m_cycle_T_htf_cold_des - 273.15;	//[C]
-				double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
-
-				double T_cold_solved, tol_solved;
-				T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int T_cold_code = 0;
-				try
-				{
-					T_cold_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, %s failed", mc_kernel.mc_sim_info.ms_ts.m_time, op_mode_str.c_str()), ""));
-				}
-
-				if (T_cold_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (T_cold_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg %s"
-							"iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
-							m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
-							m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				//double q_dot_solved = c_eq.m_q_dot_calc;	//[MWt]
-                double pc_target, pc_target_solved, pc_max;
-                if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
-                {
-                    pc_target = W_dot_pc_fixed;
-                    pc_target_solved = mc_pc_out_solver.m_P_cycle;		//[MWt]
-                    pc_max = W_pc_max;
-                }
-                else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF || operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
-                {
-                    pc_target = q_dot_pc_fixed;
-                    pc_target_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
-                    pc_max = q_pc_max;
-                }
-
-				double m_dot_solved = c_eq.m_m_dot_calc;	//[kg/hr]
-
-				
-				// Check if solved thermal power is greater than target
-				if ((pc_target_solved - pc_target) / pc_target > 1.E-3)
-				{
-					if ((pc_target_solved - pc_max) / pc_max > 1.E-3)
-					{
-						error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
-							" larger than the maximum PC power %lg [MWt]. Controller shut off plant",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_max);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-						turn_off_plant();
-						are_models_converged = false;
-						break;
-					}
-					else
-					{
-						error_msg = util::format("At time = %lg %s converged to a PC power %lg [MWt]"
-							" larger than the target PC power %lg [MWt] but less than the maximum power %lg [MWt]",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), pc_target_solved, pc_target, pc_max);
-
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-				}
-				else if ((pc_target_solved - pc_target) / pc_target < -1.E-3)
-				{
-					if (m_dot_solved < m_m_dot_pc_max)
-					{	// TES cannot provide enough thermal power - step down to next operating mode
-						if (operating_mode == CR_OFF__PC_TARGET__TES_DC__AUX_OFF)
-							m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_TARGET__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_OFF__PC_SB__TES_DC__AUX_OFF)
-							m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
-						else if (operating_mode == CR_SU__PC_SB__TES_DC__AUX_OFF)
-							m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
-
-						are_models_converged = false;
-						break;
-					}
-					// Notes:
-					//else
-					//{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
-					//
-					//}
-				}
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-
-			}	// end 'CR_OFF__PC_TARGET__TES_DC__AUX_OFF'
-				break;
-
-
-			//case CR_ON__PC_RM_HI__TES_FULL__AUX_OFF:
-			//{
-			//	// The collector receiver is on and delivering hot HTF to the TES and PC
-			//	// The PC is operating between its target and maximum thermal power
-			//	// The TES is fully charging over the timestep
-
-			//	if( !mc_collector_receiver.m_is_sensible_htf )
-			//	{
-			//		std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-			//		throw(C_csp_exception(err_msg, "CSP Solver"));
-			//	}
-
-			//	// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-			//	m_defocus = 1.0;
-			//	int power_cycle_mode = C_csp_power_cycle::ON;
-			//	
-			//	C_mono_eq_cr_on__pc_match_m_dot_ceil__tes_full c_eq(this, power_cycle_mode, m_defocus);
-			//	C_monotonic_eq_solver c_solver(c_eq);
-
-			//	// Set up solver
-			//	c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-			//	// Solve for cold temperature
-			//	double T_cold_guess_low = m_T_htf_pc_cold_est;	//[C]
-			//	double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
-
-			//	double T_cold_solved, tol_solved;
-			//	T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-			//	int iter_solved = -1;
-
-			//	int solver_code = 0;
-			//	try
-			//	{
-			//		solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
-			//	}
-			//	catch (C_csp_exception)
-			//	{
-			//		throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::CR_ON__PC_RM_HI__TES_FULL failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-			//	}
-
-			//	if (solver_code != C_monotonic_eq_solver::CONVERGED)
-			//	{
-			//		if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-			//		{
-			//			std::string msg = util::format("At time = %lg C_csp_solver::CR_ON__PC_RM_HI__TES_FULL failed "
-			//				"iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
-			//				"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-			//				mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-			//			mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-			//		}
-			//		else
-			//		{
-			//			m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-			//			are_models_converged = false;
-			//			break;
-			//		}
-			//	}
-
-			//	// Calculate and report mass flow rate balance
-			//	double m_dot_rec = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
-			//	double m_dot_pc = mc_pc_out_solver.m_m_dot_htf;			//[kg/hr]
-			//	double m_dot_tes = mc_tes_ch_htf_state.m_m_dot;			//[kg/hr]
-
-			//	double m_dot_bal = (m_dot_rec - (m_dot_pc + m_dot_tes)) / m_dot_rec;		//[-]
-
-			//	if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3)
-			//	{
-			//		m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-			//		are_models_converged = false;
-			//		break;
-			//	}
-			//	else if( mc_pc_out_solver.m_q_dot_htf < q_pc_target )
-			//	{
-			//		error_msg = util::format("At time = %lg CR_ON__PC_RM_HI__TES_FULL__AUX_OFF method converged to a power cycle"
-			//			" thermal input less than the target.",
-			//			mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-			//		mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-			//	}
-
-			//	// If convergence was successful, finalize this timestep and get out
-			//	// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-			//	are_models_converged = true;
-
-			//}	// end 'CR_ON__PC_RM_HI__TES_FULL__AUX_OFF
-			//	break;
-
-			case CR_ON__PC_MIN__TES_EMPTY__AUX_OFF:
-			{
-				// The collector-receiver is on and returning hot HTF to the PC
-				// The PC is operating at its minimum fraction
-				// The CR + TES output over the initial controller timestep is less than the PC min fraction
-				// so the controller calculates a new timestep such that the TES completely discharges and 
-				//  ... the CR + TES output is = the PC min fraction
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				C_MEQ_cr_on__pc_target__tes_empty__T_htf_cold c_eq(this, m_defocus, q_pc_min);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				double T_htf_cold_guess_colder = m_T_htf_cold_des - 273.15;				//[C]
-				double T_htf_cold_guess_warmer = T_htf_cold_guess_colder + 10.0;	//[C]
-
-				double T_htf_cold_solved, tol_solved;
-				T_htf_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-
-				try
-				{
-					solver_code = c_solver.solve(T_htf_cold_guess_colder, T_htf_cold_guess_warmer, 0.0, T_htf_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception("CR_ON__PC_MIN__TES_EMPTY__AUX_OFF received exception from mono equation solver"));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-					{
-						error_msg = util::format("At time = %lg the CR_ON__PC_MIN__TES_EMPTY__AUX_OFF iteration to find the cold HTF temperature connecting the power cycle, receiver, & TES only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-					else
-					{
-						m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				double time_tes_dc = c_eq.m_step;		//[s]
-
-				if (time_tes_dc > mc_kernel.mc_sim_info.ms_ts.m_step)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF method calculated a timestep"
-						"that was longer than the baseline timestep. Controller moved to the next timestep in the"
-						"controller hierarchy",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0);
-
-					m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				// Check if solved thermal power is greater than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_max) > 1.E-3)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_max);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					turn_off_plant();
-					are_models_converged = false;
-					break;
-				}
-
-				// Check if solved thermal power is less than target
-				if ((mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3)
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
-						" less than the minimum PC thermal power %lg [MWt]. Controller moved to next operating mode.",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				if ( (mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-4 )
-				{
-					error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
-						" less than the minimum PC HTF mass flow rate %lg [kg/s]. Controller moved to next operating mode.",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
-
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				// Update mc_sim_info
-				mc_kernel.mc_sim_info.ms_ts.m_step = time_tes_dc;
-				mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + time_tes_dc;
-
-				are_models_converged = true;
-				
-			}	// end 'CR_ON__PC_MIN__TES_EMPTY__AUX_OFF
-				break;
-
-            case CR_DF__PC_SU__TES_OFF__AUX_OFF:
-            case CR_DF__PC_MAX__TES_OFF__AUX_OFF:
-            case CR_ON__PC_RM_HI__TES_FULL__AUX_OFF:
-			case CR_DF__PC_MAX__TES_FULL__AUX_OFF:
-			case CR_DF__PC_SU__TES_FULL__AUX_OFF:
-			{
-				// The PC is operating at its maximum operating fraction
-				// TES is fully charged at the end of the timestep
-				// The CR is still delivering too much mass flow rate and needs to be defocused
-				
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				//std::string op_mode_str = "";
-				int pc_mode = -1;
-                double m_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();	//[kg/hr]
-				if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF || operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-				{
-                    if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF) {
-                        op_mode_str = "CR_DF__PC_SU__TES_FULL__AUX_OFF";
-                    }
-                    else {
-                        op_mode_str = "CR_DF__PC_SU__TES_OFF__AUX_OFF";
-                    }
-					pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
-
-                    mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-                    mc_collector_receiver.on(mc_weather.ms_outputs,
-                        mc_cr_htf_state_in,
-                        1.,
-                        mc_cr_out_solver,
-                        mc_kernel.mc_sim_info);
-
-                    if (mc_cr_out_solver.m_q_thermal == 0.0)
-                    {	// Collector/receiver can't produce useful energy
-                        if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF) {
-                            m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-                        }
-                        else {
-                            m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-                        }
-
-                        are_models_converged = false;
-                        break;
-                    }
-
-                    // Discharge estimate
-                    double T_hot_htf, T_cold_store_est, m_dot_store_est;
-                    mc_tes.discharge_est(mc_cr_out_solver.m_T_salt_hot + 273.15, mc_cr_out_solver.m_m_dot_salt_tot / 3600., mc_cr_out_solver.m_P_htf_hot,
-                        T_hot_htf, T_cold_store_est, m_dot_store_est);
-                    m_dot_store_est *= 3600; //[kg/hr]
-
-                    // Power Cycle: STARTUP
-                    mc_pc_htf_state_in.m_temp = T_hot_htf - 273.15;		//[C]
-                    mc_pc_inputs.m_m_dot = mc_cr_out_solver.m_m_dot_salt_tot;		//[kg/hr] no mass flow rate to power cycle
-                    // Inputs
-                    mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;
-                    // Performance Call
-                    mc_power_cycle.call(mc_weather.ms_outputs,
-                        mc_pc_htf_state_in,
-                        mc_pc_inputs,
-                        mc_pc_out_solver,
-                        mc_kernel.mc_sim_info);
-
-                    m_dot_pc_fixed = mc_pc_out_solver.m_m_dot_htf;  //[kg/hr]
-				}
-                else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                {
-                    op_mode_str = "CR_ON__PC_RM_HI__TES_FULL__AUX_OFF";
-                    pc_mode = C_csp_power_cycle::ON;
-                    m_dot_pc_fixed = m_m_dot_pc_max;
-                }
-                else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
-                {
-                    op_mode_str = "CR_DF__PC_MAX__TES_OFF__AUX_OFF";
-                    pc_mode = C_csp_power_cycle::ON;
-                    m_dot_pc_fixed = m_m_dot_pc_max;
-                }
-				else
-				{
-					op_mode_str = "CR_DF__PC_MAX__TES_FULL__AUX_OFF";
-					pc_mode = C_csp_power_cycle::ON;
-                    m_dot_pc_fixed = m_m_dot_pc_max;
-				}
-
-				// First, verify if defocus is needed: at defocus = 1 see if m_dot_pc > m_dot_pc_max OR charge is overfilled
-                C_mono_eq_cr_on_pc_mdot_tes__defocus c_eq2(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
-                    hot_tank_discharging::per_matched_rec_htf, true /*allow_tes_overfill*/);
-                C_monotonic_eq_solver c_solver2(c_eq2);
-                double diff_m_dot_pc_target = std::numeric_limits<double>::quiet_NaN();
-                bool is_tes_overfilled = false;
-                int m_dot_df_code = c_solver2.test_member_function(1., &diff_m_dot_pc_target);
-                is_tes_overfilled = c_eq2.m_is_tes_overfilled;
-				if (m_dot_df_code != 0)
-				{
-					// Report message and shut down CR and PC
-					error_msg = util::format("At time = %lg the controller chose %s operating mode, but the code"
-						" failed to solve at defocus = 1. Controller will shut-down CR and PC",
-						mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
-					mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-
-					if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
-					{
-						m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-					}
-                    else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
                     {
-                        m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-                    }
-                    else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                    {
-                        m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-                    }
-                    else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
-                    {
-                        m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-                    }
-					else
-					{
-						m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
-					}
-
-					are_models_converged = false;
-
-					break;
-				}
-
-                if (diff_m_dot_pc_target < 0. && !is_tes_overfilled) {
-                    // Defocus isn't needed as neither the HTF nor particle flows are too high
-                    if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
-                    {
-                        m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-                    }
-                    else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-                    {
-                        m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-                    }
-                    else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                    {
-                        m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-                    }
-                    else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
-                    {
-                        m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-                    }
-                    else
-                    {
-                        m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
-                    }
-
-                    are_models_converged = false;
-
-                    break;
-                }
-
-                double defocus_solved = std::numeric_limits<double>::quiet_NaN();
-                if (diff_m_dot_pc_target > 0.) {
-                    // Find the defocus resulting in the maximum PC HTF flow
-                    c_solver2.settings(1.E-3, 50, 0., 1., false);
-
-                    // Solve for defocus
-                    double defocus_guess_low = 0.8;
-                    double defocus_guess_high = 1.;
-
-                    double tol_solved;
-                    defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                    int iter_solved = -1;
-
-                    // Solve for defocus
-                    int solver_code = 0;
-                    try
-                    {
-                        solver_code = c_solver2.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
-                        is_tes_overfilled = c_eq2.m_is_tes_overfilled;
-                    }
-                    catch (C_csp_exception)
-                    {
-                        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-                    }
-
-                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                    {
-                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
+                        if ((m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3)
                         {
-                            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
-                                "iteration to find the defocus only reached a convergence "
-                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-                            mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-                        }
-                        else
-                        {
-                            if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
+                            if (operating_mode == CR_ON__PC_TARGET__TES_CH__AUX_OFF)
                             {
-                                m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                                // Can send more mass flow to PC from TES
+                                m_is_CR_ON__PC_TARGET__TES_CH__AUX_OFF_avail_LO_SIDE = false;
+                                are_models_converged = false;
+                                break;
                             }
-                            else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-                            {
-                                m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-                            }
-                            else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                            {
-                                m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-                            }
-                            else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
-                            {
-                                m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-                            }
-                            else
-                            {
-                                m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
-                            }
-
-                            are_models_converged = false;
-
-                            break;
-                        }
-                    }
-
-                    // At this defocus and maximum PC HTF flow, is storage not overfilled?
-                    if (!is_tes_overfilled) {
-                        // Set member defocus
-                        m_defocus = defocus_solved;
-                        are_models_converged = true;
-                        break;
-                    }
-                }
-
-                if (is_tes_overfilled) {
-                    // Find defocus resulting in TES not being overfilled
-                    C_mono_eq_cr_on_pc_mdotmax_tes__defocus c_eq3(this, pc_mode, m_dot_pc_fixed, mc_cr_htf_state_in.m_pres, std::numeric_limits<double>::quiet_NaN(),
-                        hot_tank_discharging::per_specified_pc_mdot, true /*allow_tes_overfill*/);
-                    C_monotonic_eq_solver c_solver3(c_eq3);
-                    double defocus_upper_limit;
-                    !isnan(defocus_solved) ? defocus_upper_limit = defocus_solved : defocus_upper_limit = 1.;
-
-                    c_solver3.settings(1.E-3, 50, 0., defocus_upper_limit, false);
-
-                    // Solve for defocus
-                    double defocus_guess_low = defocus_upper_limit * 0.8;
-                    double defocus_guess_high = defocus_upper_limit * 0.9;
-
-                    double tol_solved;
-                    defocus_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                    int iter_solved = -1;
-
-                    // Solve for defocus
-                    int solver_code = 0;
-                    try
-                    {
-                        solver_code = c_solver3.solve(defocus_guess_low, defocus_guess_high, 0, defocus_solved, tol_solved, iter_solved);
-                    }
-                    catch (C_csp_exception)
-                    {
-                        throw(C_csp_exception(util::format("At time = %lg, C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-                    }
-
-                    if (solver_code != C_monotonic_eq_solver::CONVERGED)
-                    {
-                        if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-                        {
-                            std::string msg = util::format("At time = %lg C_csp_solver::C_mono_eq_cr_on_pc_mdot_tes__defocus "
-                                "iteration to find the defocus only reached a convergence "
-                                "= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-                            mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-                        }
-                        else
-                        {
-                            if (operating_mode == CR_DF__PC_SU__TES_FULL__AUX_OFF)
-                            {
-                                m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
-                            }
-                            else if (operating_mode == CR_DF__PC_SU__TES_OFF__AUX_OFF)
-                            {
-                                m_is_CR_DF__PC_SU__TES_OFF__AUX_OFF_avail = false;
-                            }
-                            else if (operating_mode == CR_ON__PC_RM_HI__TES_FULL__AUX_OFF)
-                            {
-                                m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
-                            }
-                            else if (operating_mode == CR_DF__PC_MAX__TES_OFF__AUX_OFF)
-                            {
-                                m_is_CR_DF__PC_MAX__TES_OFF__AUX_OFF_avail = false;
-                            }
-                            else
-                            {
-                                m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
-                            }
-
-                            are_models_converged = false;
-
-                            break;
                         }
                     }
 
                     // Set member defocus
                     m_defocus = defocus_solved;
+
                     are_models_converged = true;
+                }
+                break;
+
+                case CR_ON__PC_SB__TES_CH__AUX_OFF:
+                {
+                    // CR is on (no defocus)
+                    // PC is on and hitting specified target
+                    // TES is charging
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_CH_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_sb;
+
+                    op_mode_str = "CR_ON__PC_SB__TES_CH__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;		//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;		//[kg/hr]
+
+                    if (fabs(q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < 1.E-3)
+                    {	// If successfully solved for target thermal power, check that mass flow is above minimum
+                        if ((m_dot_pc_solved - m_m_dot_pc_min) / fmax(0.01, m_m_dot_pc_min) < -1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg %s solved with a PC HTF mass flow rate %lg [kg/s]"
+                                " smaller than the minimum %lg [kg/s]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                    }
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        m_is_CR_ON__PC_SB__TES_CH__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+
+                }
+                break;
+
+                case CR_ON__PC_TARGET__TES_DC__AUX_OFF:
+                {
+                    // The collector receiver is on and returning hot HTF to the PC
+                    // TES is discharging hot HTF that is mixed with the CR HTF
+                    // to operating the PC at its target value
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    double q_dot_pc_fixed = q_pc_target;
+                    op_mode_str = "CR_ON__PC_TARGET__TES_DC__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check bounds on solved thermal power and mass flow rate
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+                                " greater than the maximum %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+                                " greater than the target %lg [MWt], but less than the maximum %lg [MWt].",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_dot_pc_fixed, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    if (m_dot_pc_solved < m_m_dot_pc_min)
+                    {	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
+                        error_msg = util::format("At time = %lg CR_ON__PC_TARGET__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
+                            " less than the minimum %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3
+                        && (m_dot_pc_solved - m_m_dot_pc_max) / m_m_dot_pc_max < -1.E-3)
+                    {
+                        m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (m_dot_pc_solved > m_m_dot_pc_max)
+                    {	// Shouldn't happen but can try next operating mode
+                        m_is_CR_ON__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }	// end outer bracket for case CR_ON__PC_OFF__TES_CH__AUX_OFF
+
+                break;	// break case CR_ON__PC_OFF__TES_CH__AUX_OFF
+
+                case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF:
+                {
+                    // The collector receiver is on and return hot HTF to the Pc
+                    // TES is discharging hot HTF that is then mixed with the CR HTF
+                    // The power cycle operates between its minimum operation fraction and target operation
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // *********************************
+                    // Check if solved thermal power is greater than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_target) / q_pc_target > 1.E-3)
+                    {
+                        if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+
+                    if ((mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_max) / m_m_dot_pc_max > 1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // *********************************
+                    // Check PC q_dot is >= MIN!!!!!!!!
+
+                    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3)
+                    {
+                        m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+                    if ((mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-3)
+                    {
+                        m_is_CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+
+                }
+                break;	// break case CR_ON__PC_RM_LO__TES_EMPTY__AUX_OFF
+
+
+                case CR_DF__PC_OFF__TES_FULL__AUX_OFF:
+                {
+                    // Running the CR at full power results in too much thermal power to TES
+                    // Power cycle operation is either not allowed or not possible under the timestep conditions
+
+                    // Assuming here that partial defocus is allowed, so should always be able to reach full power to PC
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::OFF;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__TES_FULL__0;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = true;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_DF__PC_OFF__TES_FULL__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_DF__PC_OFF__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;	// break case CR_DF__PC_OFF__TES_FULL__AUX_OFF
+
+                case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF:
+                {
+                    //The collector receiver is off
+                    //The power cycle runs at its minimum operating fraction until storage is depleted
+                    //A new, shorter timestep is calculated here
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_Q_DOT_PC;
+                    bool is_defocus = false;
+                    double q_dot_pc_target = q_pc_min;      //[MWt]
+                    op_mode_str = "CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_target, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
+                    {
+                        if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
+                        {
+                            error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;	// break case CR_OFF__PC_MIN__TES_EMPTY__AUX_OFF
+
+
+                case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF:
+                {
+                    // The collector-receiver is off
+                    // The power cycle runs somewhere between its minimum operating fraction and target operation, with thermal input from TES, which is depleted at the end of the timestep
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+                    op_mode_str = "CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_q_dot_htf < q_pc_min || mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+                    {
+                        m_is_CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
+                    {
+                        if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
+                        {
+                            error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF:
+                {
+                    // The collector-receiver is off
+                    // The power cycle runs somewhere between its minimum operating fraction and target operation, with thermal input from TES, which is depleted at the end of the timestep
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+                    double q_dot_pc_target = std::numeric_limits<double>::quiet_NaN();      //[MWt]
+                    op_mode_str = "CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_target, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_q_dot_htf < q_pc_min || mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+                    {
+                        m_is_CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF_avail = false;
+
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if (mc_pc_out_solver.m_q_dot_htf > q_pc_target)
+                    {
+                        if (mc_pc_out_solver.m_q_dot_htf > m_q_pc_max)
+                        {
+                            if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                            {
+                                error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+                            }
+                            else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                            {
+                                error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                    " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+                            }
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                            {
+                                error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                    " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+                            }
+                            else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                            {
+                                error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                                    " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                    mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_target, m_q_pc_max);
+                            }
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        if (operating_mode == CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                        {
+                            error_msg = util::format("At time = %lg CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                                " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+                        }
+                        else if (operating_mode == CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF)
+                        {
+                            error_msg = util::format("At time = %lg CR_SU__PC_RM_LO__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                                " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+                        }
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+                }
+                break;	// break case CR_OFF__PC_RM_LO__TES_EMPTY__AUX_OFF
+
+                case CR_SU__PC_MIN__TES_EMPTY__AUX_OFF:
+                {
+                    // The collector-receiver is in startup
+                    // The power cycle runs at its minimum fraction until storage is depleted
+                    // A new, shorter timestep is calculated here
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_Q_DOT_PC;
+                    bool is_defocus = false;
+                    double q_dot_pc_target = q_pc_min;      //[MWt]
+                    op_mode_str = "CR_SU__PC_MIN__TES_EMPTY__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_target, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is less than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " less than the minimum PC thermal power %lg [MWt].",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf < m_m_dot_pc_min)
+                    {
+                        error_msg = util::format("At time = %lg CR_SU__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " less than the minimum PC HTF mass flow rate %lg [kg/s].",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_SU__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+                        reset_time(t_ts_initial);
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+
+                case CR_ON__PC_SB__TES_DC__AUX_OFF:
+                {
+                    // The collector receiver is on and returning hot HTF to the PC
+                    // TES is discharging hot HTF that is mixed with the CR HTF
+                    // to operate the PC at standby
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_sb;        //[MWt]
+
+                    op_mode_str = "CR_ON__PC_SB__TES_DC__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check bounds on solved thermal power and mass flow rate
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+                                " greater than the maximum %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC thermal power %lg [MWt]"
+                                " greater than the target %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, q_dot_pc_solved, q_dot_pc_fixed);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    if (m_dot_pc_solved < m_m_dot_pc_min)
+                    {	// If we're already hitting the minimum mass flow rate, then trying next operating mode won't help
+                        error_msg = util::format("At time = %lg CR_ON__PC_SB__TES_DC__AUX_OFF solved with a PC HTF mass flow rate %lg [kg/s]"
+                            " less than the minimum %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, m_dot_pc_solved / 3600.0, m_m_dot_pc_min / 3600.0);
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (m_dot_pc_solved > m_m_dot_pc_max)
+                    {	// Shouldn't happen but can try next operating mode
+                        m_is_CR_ON__PC_SB__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+
+                }	// end 'CR_ON__PC_SB__TES_DC__AUX_OFF'
+
+                break;
+
+
+                case CR_OFF__PC_TARGET__TES_DC__AUX_OFF:
+                {
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_target;        //[MWt]
+                    op_mode_str = "CR_OFF__PC_TARGET__TES_DC__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check if solved thermal power is greater than target
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, q_dot_pc_fixed, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        if (m_dot_pc_solved < m_m_dot_pc_max)
+                        {	// TES cannot provide enough thermal power - step down to next operating mode
+
+                            m_is_CR_OFF__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                            are_models_converged = false;
+                            break;
+                        }
+                        // Notes:
+                        //else
+                        //{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
+                        //
+                        //}
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_SU__PC_TARGET__TES_DC__AUX_OFF:
+                {
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_target;        //[MWt]
+                    op_mode_str = "CR_SU__PC_TARGET__TES_DC__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check if solved thermal power is greater than target
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, q_dot_pc_fixed, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        if (m_dot_pc_solved < m_m_dot_pc_max)
+                        {	// TES cannot provide enough thermal power - step down to next operating mode
+                            m_is_CR_SU__PC_TARGET__TES_DC__AUX_OFF_avail = false;
+
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        // Notes:
+                        //else
+                        //{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
+                        //
+                        //}
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_OFF__PC_SB__TES_DC__AUX_OFF:
+                {
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::OFF;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_sb;        //[MWt]
+
+                    op_mode_str = "CR_OFF__PC_SB__TES_DC__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check if solved thermal power is greater than target
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, q_dot_pc_fixed, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        if (m_dot_pc_solved < m_m_dot_pc_max)
+                        {	// TES cannot provide enough thermal power - step down to next operating mode
+                            m_is_CR_OFF__PC_SB__TES_DC__AUX_OFF_avail = false;
+
+                            are_models_converged = false;
+                            break;
+                        }
+                        // Notes:
+                        //else
+                        //{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
+                        //
+                        //}
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+                }
+                break;
+
+                case CR_SU__PC_SB__TES_DC__AUX_OFF:
+                {
+                    // The collector receiver is off
+                    // The power cycle run at the target thermal input level
+                    // The TES supplies the thermal power to the power cycle
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = q_pc_sb;        //[MWt]
+
+                    op_mode_str = "CR_SU__PC_SB__TES_DC__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    double q_dot_pc_solved = mc_pc_out_solver.m_q_dot_htf;	//[MWt]
+                    double m_dot_pc_solved = mc_pc_out_solver.m_m_dot_htf;	//[kg/hr]
+
+                    // Check if solved thermal power is greater than target
+                    if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed > 1.E-3)
+                    {
+                        if ((q_dot_pc_solved - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, m_q_pc_max);
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                            turn_off_plant();
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        else
+                        {
+                            error_msg = util::format("At time = %lg %s converged to a PC thermal power %lg [MWt]"
+                                " larger than the target PC thermal power %lg [MWt] but less than the maximum thermal power %lg [MWt]",
+                                mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str(), q_dot_pc_solved, q_dot_pc_fixed, m_q_pc_max);
+
+                            mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                        }
+                    }
+                    else if ((q_dot_pc_solved - q_dot_pc_fixed) / q_dot_pc_fixed < -1.E-3)
+                    {
+                        if (m_dot_pc_solved < m_m_dot_pc_max)
+                        {	// TES cannot provide enough thermal power - step down to next operating mode
+                            m_is_CR_SU__PC_SB__TES_DC__AUX_OFF_avail = false;
+
+                            reset_time(t_ts_initial);
+                            are_models_converged = false;
+                            break;
+                        }
+                        // Notes:
+                        //else
+                        //{	// PC maximum mass flow is constraining the thermal power that TES can send the PC. Changing modes wont' help
+                        //
+                        //}
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+
+                }	// end 'CR_OFF__PC_TARGET__TES_DC__AUX_OFF'
+                break;
+
+
+                case CR_ON__PC_RM_HI__TES_FULL__AUX_OFF:
+                {
+                    // The collector receiver is on and delivering hot HTF to the TES and PC
+                    // The PC is operating between its target and maximum thermal power
+                    // The TES is fully charging over the timestep
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_LESS_TES_FULL;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_ON__PC_RM_HI__TES_FULL__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                    {
+                        m_is_CR_ON__PC_RM_HI__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+                    else if (mc_pc_out_solver.m_q_dot_htf < q_pc_target)
+                    {
+                        error_msg = util::format("At time = %lg %s method converged to a power cycle"
+                            " thermal input less than the target.",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, op_mode_str.c_str());
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+
+                }	// end 'CR_ON__PC_RM_HI__TES_FULL__AUX_OFF
+                break;
+
+                case CR_ON__PC_MIN__TES_EMPTY__AUX_OFF:
+                {
+                    // The collector-receiver is on and returning hot HTF to the PC
+                    // The PC is operating at its minimum fraction
+                    // The CR + TES output over the initial controller timestep is less than the PC min fraction
+                    // so the controller calculates a new timestep such that the TES completely discharges and 
+                    //  ... the CR + TES output is = the PC min fraction
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    // Get initial timestep
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_PLUS_TES_EMPTY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_Q_DOT_PC;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_target = q_pc_min;      //[MWt]
+
+                    op_mode_str = "CR_ON__PC_MIN__TES_EMPTY__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_target, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is greater than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) > 1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " larger than the maximum PC thermal power %lg [MWt]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, m_q_pc_max);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        reset_time(t_ts_initial);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if (mc_pc_out_solver.m_m_dot_htf > m_m_dot_pc_max)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " larger than the maximum PC mass flow rate %lg [kg/s]. Controller shut off plant",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_max / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        reset_time(t_ts_initial);
+
+                        turn_off_plant();
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Check if solved thermal power is less than target
+                    if ((mc_pc_out_solver.m_q_dot_htf - q_pc_min) / q_pc_min < -1.E-3)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a PC thermal power %lg [MWt]"
+                            " less than the minimum PC thermal power %lg [MWt]. Controller moved to next operating mode.",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_q_dot_htf, q_pc_min);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+
+                        reset_time(t_ts_initial);
+
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if ((mc_pc_out_solver.m_m_dot_htf - m_m_dot_pc_min) / m_m_dot_pc_min < -1.E-4)
+                    {
+                        error_msg = util::format("At time = %lg CR_ON__PC_MIN__TES_EMPTY__AUX_OFF converged to a HTF mass flow rate %lg [kg/s]"
+                            " less than the minimum PC HTF mass flow rate %lg [kg/s]. Controller moved to next operating mode.",
+                            mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, mc_pc_out_solver.m_m_dot_htf / 3600.0, m_m_dot_pc_min / 3600.0);
+
+                        mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
+
+                        m_is_CR_ON__PC_MIN__TES_EMPTY__AUX_OFF_avail = false;
+
+                        reset_time(t_ts_initial);
+
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+
                     break;
+
+                }	// end 'CR_ON__PC_MIN__TES_EMPTY__AUX_OFF
+                break;
+
+                case CR_DF__PC_MAX__TES_FULL__AUX_OFF:
+                {
+                    // The PC is operating at its maximum operating fraction
+                    // TES is fully charged at the end of the timestep
+                    // The CR is still delivering too much mass flow rate and needs to be defocused
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::ON;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__PC_MAX_PLUS_TES_FULL__PC_MAX;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = true;
+
+                    double q_dot_pc_fixed = q_pc_target;        //[MWt]
+                    op_mode_str = "CR_DF__PC_MAX__TES_FULL__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_DF__PC_MAX__TES_FULL__AUX_OFF_avail = false;
+                        is_rec_su_allowed = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+
+                }	// end 'CR_DF__PC_MAX__TES_FULL__AUX_OFF'
+                break;
+
+
+                case CR_DF__PC_SU__TES_FULL__AUX_OFF:
+                {
+                    // The PC is operating at its maximum operating fraction
+                    // TES is fully charged at the end of the timestep
+                    // The CR is still delivering too much mass flow rate and needs to be defocused
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__TO_PC_PLUS_TES_FULL__ITER_M_DOT_SU;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = true;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_DF__PC_SU__TES_FULL__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_DF__PC_SU__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+
+                }	// end 'CR_DF__PC_MAX__TES_FULL__AUX_OFF'
+                break;
+
+                case CR_ON__PC_SB__TES_FULL__AUX_OFF:
+                {
+                    // The collector receiver is on and delivering hot HTF to the TES and PC
+                    // The PC is operating between its target and maximum thermal power
+                    // The TES is fully charging over the timestep
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STANDBY;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__CR_OUT_LESS_TES_FULL;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FIXED;
+                    bool is_defocus = false;
+
+                    double q_dot_pc_fixed = std::numeric_limits<double>::quiet_NaN();        //[MWt]
+                    op_mode_str = "CR_ON__PC_STANDBY__TES_DC__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        q_dot_pc_fixed, is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    if ((mc_pc_out_solver.m_q_dot_htf - m_q_pc_max) / m_q_pc_max > 1.E-3)
+                    {
+                        m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+                    else if (mc_pc_out_solver.m_q_dot_htf < q_pc_sb)
+                    {
+                        m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    // If convergence was successful, finalize this timestep and get out
+                    // Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
+                    are_models_converged = true;
+
+                }	// end 'CR_ON__PC_SB__TES_FULL__AUX_OFF'
+                break;
+
+                case CR_SU__PC_SU__TES_DC__AUX_OFF:
+                {
+                    // Collector-receiver is starting up
+                    // Power cycle is starting up, with thermal power from TES
+                    // Code calculates the shortest timestep of: (CR SU, PC SU, initial timestep)
+                    //      and then recalculates the other component startup as necessary
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::STARTUP;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_M_DOT_SU_DC_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+
+                    op_mode_str = "CR_SU__PC_SU__TES_DC__AUX_OFF";
+
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+
+                case CR_ON__PC_SU__TES_CH__AUX_OFF:
+                {
+                    // CR in on
+                    // PC is starting up with its maximum thermal power for startup
+                    //      and is returning the startup time required
+                    // Excess CR output is charging TES
+
+                    if (!mc_collector_receiver.m_is_sensible_htf)
+                    {
+                        std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
+                        throw(C_csp_exception(err_msg, "CSP Solver"));
+                    }
+
+                    double t_ts_initial = mc_kernel.mc_sim_info.ms_ts.m_step;   //[s]
+
+                    int cr_mode = C_csp_collector_receiver::ON;
+                    C_csp_power_cycle::E_csp_power_cycle_modes pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;
+                    C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode = C_MEQ__m_dot_tes::E__CR_OUT__ITER_M_DOT_SU_CH_ONLY;
+                    C_MEQ__timestep::E_timestep_target_modes step_target_mode = C_MEQ__timestep::E_STEP_FROM_COMPONENT;
+                    bool is_defocus = false;
+
+                    op_mode_str = "CR_ON__PC_SU__TES_CH__AUX_OFF";
+                    double defocus_solved = std::numeric_limits<double>::quiet_NaN();
+
+                    int mode_code = solve_operating_mode(cr_mode, pc_mode, solver_mode, step_target_mode,
+                        std::numeric_limits<double>::quiet_NaN(), is_defocus, op_mode_str, defocus_solved);
+
+                    if (mode_code != 0)
+                    {
+                        m_is_CR_ON__PC_SU__TES_CH__AUX_OFF_avail = false;
+                        are_models_converged = false;
+                        break;
+                    }
+
+                    // Set member defocus
+                    m_defocus = defocus_solved;
+
+                    are_models_converged = true;
+                }
+                break;
+
+                default:
+                    throw(C_csp_exception("Operation mode not recognized", ""));
+
                 }
 
-			}	// end 'CR_DF__PC_MAX__TES_FULL__AUX_OFF'
-				break;
+            }
 
-			case CR_ON__PC_SB__TES_FULL__AUX_OFF:
-			{
-				// The collector receiver is on and delivering hot HTF to the TES and PC
-				// The PC is operating between its target and maximum thermal power
-				// The TES is fully charging over the timestep
-
-				// PC standby not currently allowed so this case is not used.
-	
-				if (!mc_collector_receiver.m_is_sensible_htf)
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-				int power_cycle_mode = C_csp_power_cycle::STANDBY;
-
-				C_mono_eq_cr_on__pc_match_m_dot_ceil__tes_full c_eq(this, power_cycle_mode, m_defocus);
-				C_monotonic_eq_solver c_solver(c_eq);
-
-				// Set up solver
-				c_solver.settings(1.E-3, 50, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), false);
-
-				// Solve for cold temperature
-				double T_cold_guess_low = m_T_htf_pc_cold_est;	//[C]
-				double T_cold_guess_high = T_cold_guess_low + 10.0;		//[C]
-
-				double T_cold_solved, tol_solved;
-				T_cold_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-				int iter_solved = -1;
-
-				int solver_code = 0;
-				try
-				{
-					solver_code = c_solver.solve(T_cold_guess_low, T_cold_guess_high, 0.0, T_cold_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception(util::format("At time = %lg, CR_ON__PC_SB__TES_FULL__AUX_OFF failed", mc_kernel.mc_sim_info.ms_ts.m_time), ""));
-				}
-
-				if (solver_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (solver_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) < 0.1)
-					{
-						std::string msg = util::format("At time = %lg CR_ON__PC_SB__TES_FULL__AUX_OFF failed "
-							"iteration to find the cold HTF temperature to balance energy between the TES and PC only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, msg);
-					}
-					else
-					{
-						m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				// Calculate and report mass flow rate balance
-				double m_dot_rec = mc_cr_out_solver.m_m_dot_salt_tot;	//[kg/hr]
-				double m_dot_pc = mc_pc_out_solver.m_m_dot_htf;			//[kg/hr]
-				double m_dot_tes = mc_tes_ch_htf_state.m_m_dot;			//[kg/hr]
-
-				double m_dot_bal = (m_dot_rec - (m_dot_pc + m_dot_tes)) / m_dot_rec;		//[-]
-
-				if (m_dot_bal > 0.0 || (mc_pc_out_solver.m_q_dot_htf - q_pc_max) / q_pc_max > 1.E-3)
-				{
-					m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-				else if (mc_pc_out_solver.m_q_dot_htf < q_pc_sb)
-				{
-					m_is_CR_ON__PC_SB__TES_FULL__AUX_OFF_avail = false;
-					are_models_converged = false;
-					break;
-				}
-
-				// If convergence was successful, finalize this timestep and get out
-				// Have solved CR, TES, and PC in this operating mode, so only need to set flag to get out of Mode Iteration
-				are_models_converged = true;
-
-			}	// end 'CR_ON__PC_SB__TES_FULL__AUX_OFF'
-				break;
-
-			case CR_SU__PC_SU__TES_DC__AUX_OFF:
-			{
-				// Collector-receiver is starting up
-				// Power cycle is starting up, with thermal power from TES
-				// Code calculates the shortest timestep of: (CR SU, PC SU, initial timestep)
-				//      and then recalculates the other component startup as necessary
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-				// Set Solved Controller Variables Here (that won't be reset in this operating mode)
-				m_defocus = 1.0;
-
-				// First, startup the collector-receiver and get the time required
-				mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-				mc_collector_receiver.startup(mc_weather.ms_outputs,
-					mc_cr_htf_state_in,
-					mc_cr_out_solver,
-					mc_kernel.mc_sim_info);
-
-				// Check that startup happened
-				if( mc_cr_out_solver.m_q_startup == 0.0 )
-				{	// Collector/receiver can't produce useful energy
-					m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
-
-					are_models_converged = false;
-					break;
-				}
-
-				// Reset timestep based on receiver startup
-				if (mc_cr_out_solver.m_time_required_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{
-					// Reset sim_info values
-					mc_kernel.mc_sim_info.ms_ts.m_step = mc_cr_out_solver.m_time_required_su;						//[s]
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + mc_cr_out_solver.m_time_required_su;		//[s]
-				}
-
-				// *****************************************************************
-				// Next, calculate the required power cycle startup time
-				double step_tol = step_tolerance;		//[s]
-				double step_pc_su = std::numeric_limits<double>::quiet_NaN();
-
-				int exit_mode = CSP_CONVERGED;
-				double T_pc_in_exit_tolerance = std::numeric_limits<double>::quiet_NaN();
-
-				solver_pc_su_controlled__tes_dc(step_tol,
-					step_pc_su,
-					exit_mode, T_pc_in_exit_tolerance);
-
-				// Check exit mode
-				if( exit_mode != CSP_CONVERGED )
-				{
-					are_models_converged = false;
-					m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
-					break;
-				}
-
-				// ******************************************************************
-				// Compare the CR and PC startup times
-				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{	// If the time required for CR startup is longer than the time to startup the PC
-					//       then rerun CR_SU with the PC startup timestep (and CR_SU will continue in the next timestep)
-
-					// Check if shortest timestep is close to end of initial timestep
-					if(step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-					{
-						// Update simulation time info
-						mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;							//[s]
-						mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;			//[s]
-
-						// Rerun CR_SU
-						mc_cr_htf_state_in.m_temp = m_T_htf_cold_des - 273.15;		//[C], convert from [K]
-
-						mc_collector_receiver.startup(mc_weather.ms_outputs,
-							mc_cr_htf_state_in,
-							mc_cr_out_solver,
-							mc_kernel.mc_sim_info);
-
-						// Check that startup happened
-						if( mc_cr_out_solver.m_q_startup == 0.0 )
-						{	// Collector/receiver can't produce useful energy
-
-							m_is_CR_SU__PC_SU__TES_DC__AUX_OFF_avail = false;
-
-							are_models_converged = false;
-							break;
-						}		
-					}		
-				}
-				are_models_converged = true;			
-			}
-				break;
-
-
-			case CR_ON__PC_SU__TES_CH__AUX_OFF:
-			{
-				// CR in on
-				// PC is starting up with its maximum thermal power for startup
-				//      and is returning the startup time required
-				// Excess CR output is charging TES
-
-				if( !mc_collector_receiver.m_is_sensible_htf )
-				{
-					std::string err_msg = util::format("Operating mode, %d, is not configured for DSG mode", operating_mode);
-					throw(C_csp_exception(err_msg, "CSP Solver"));
-				}
-
-                // Get guesses for particle flow
-                mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
-                C_csp_collector_receiver::S_csp_cr_est_out est_out;
-                mc_collector_receiver.estimates(mc_weather.ms_outputs,
-                    mc_cr_htf_state_in,
-                    est_out,
-                    mc_kernel.mc_sim_info);
-
-                double T_hot_htf, T_cold_store_est, m_dot_store_est;
-                mc_tes.discharge_est(est_out.m_T_htf_hot + 273.15, est_out.m_m_dot_avail / 3600., est_out.m_P_htf_hot,
-                    T_hot_htf, T_cold_store_est, m_dot_store_est);
-                m_dot_store_est *= 3600.;  //[kg/hr]
-
-                // Determine if tower htf flow is greater than PC flow
-                mc_pc_htf_state_in.m_temp = T_hot_htf - 273.15;			//[C]
-                mc_pc_inputs.m_m_dot = est_out.m_m_dot_avail;			//[kg/hr] no mass flow rate to power cycle
-                mc_pc_inputs.m_standby_control = C_csp_power_cycle::STARTUP_CONTROLLED;
-                // Performance Call
-                mc_power_cycle.call(mc_weather.ms_outputs,
-                    mc_pc_htf_state_in,
-                    mc_pc_inputs,
-                    mc_pc_out_solver,
-                    mc_kernel.mc_sim_info);
-
-                // Set Solved Controller Variables Here (that won't be reset in this operating mode)
-                int pc_mode;
-                if (est_out.m_m_dot_avail < mc_pc_out_solver.m_m_dot_htf) {
-                    pc_mode = C_csp_power_cycle::STARTUP_CONTROLLED;    // tower htf flow is less than needed PC flow
-                }
-                else {
-                    pc_mode = C_csp_power_cycle::STARTUP;               // tower htf flow is more than needed PC flow, so send all flow to PC
-                }
-                m_defocus = 1.0;
-                double step_pc_su = std::numeric_limits<double>::quiet_NaN();
-
-                C_mono_eq_cr_on_pc_su_tes_ch_mdot c_eq(this, pc_mode, m_defocus);
-                C_monotonic_eq_solver c_solver(c_eq);
-
-                double m_dot_store_min = 0.;
-                double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
-
-                double m_dot_store_lower_guess = min(m_dot_store_max, m_dot_store_est * 1.03);   //[kg/hr]
-                double m_dot_store_higher_guess = min(m_dot_store_max, m_dot_store_est * 1.08);   //[kg/hr]
-
-                if (m_dot_store_lower_guess == m_dot_store_higher_guess) {
-                    m_dot_store_lower_guess = m_dot_store_higher_guess * 0.7;
-                }
-
-                // Set up solver
-                double tol = 5.E-3;
-                c_solver.settings(tol, 50, m_dot_store_min, m_dot_store_max, false);
-
-                double m_dot_tank_solved, tol_solved;
-                m_dot_tank_solved = tol_solved = std::numeric_limits<double>::quiet_NaN();
-                int iter_solved = -1;
-
-                int m_dot_hot_tank_code = 0;
-				try
-				{
-                    m_dot_hot_tank_code = c_solver.solve(m_dot_store_lower_guess, m_dot_store_higher_guess, 0.0, m_dot_tank_solved, tol_solved, iter_solved);
-				}
-				catch (C_csp_exception)
-				{
-					throw(C_csp_exception("CR_ON__PC_SU__TES_CH__AUX_OFF solver to converge the hot tank mass flow returned an unexpected exemption"));
-				}
-
-				if (m_dot_hot_tank_code != C_monotonic_eq_solver::CONVERGED)
-				{
-					if (m_dot_hot_tank_code > C_monotonic_eq_solver::CONVERGED && fabs(tol_solved) <= 0.1)
-					{
-						error_msg = util::format("At time = %lg the iteration to find the hot tank mass flow only reached a convergence "
-							"= %lg. Check that results at this timestep are not unreasonably biasing total simulation results",
-							mc_kernel.mc_sim_info.ms_ts.m_time / 3600.0, tol_solved);
-						mc_csp_messages.add_message(C_csp_messages::NOTICE, error_msg);
-					}
-					else
-					{
-						m_is_CR_ON__PC_SU__TES_CH__AUX_OFF_avail = false;
-						are_models_converged = false;
-						break;
-					}
-				}
-
-				// Check reported timestep against initial timesteps
-				step_pc_su = c_eq.m_step_pc_su;		//[s]
-				if (step_pc_su < mc_kernel.mc_sim_info.ms_ts.m_step - step_tolerance)
-				{
-					mc_kernel.mc_sim_info.ms_ts.m_step = step_pc_su;
-					mc_kernel.mc_sim_info.ms_ts.m_time = mc_kernel.mc_sim_info.ms_ts.m_time_start + step_pc_su;
-				}
-
-				are_models_converged = true;
-			}
-				break;
-
-			default: 
-				throw(C_csp_exception("Operation mode not recognized",""));
-
-			}	// End switch() on receiver operating modes
-		
 		}	
         
         /* 
@@ -4980,7 +7052,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_SB, q_pc_sb);          //[MW]     
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MIN, q_pc_min);        //[MW]    
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_TARGET, q_pc_target);  //[MW]
-		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MAX, q_pc_max);         //[MW]    
+		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MAX, m_q_pc_max);         //[MW]    
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_REC_SU, is_rec_su_allowed);     //[-] 
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_PC_SU, is_pc_su_allowed);       //[-] 
 		mc_reported_outputs.value(C_solver_outputs::CTRL_IS_PC_SB, is_pc_sb_allowed);       //[-]  
@@ -4995,7 +7067,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 							mc_tes_ch_htf_state.m_m_dot) / m_m_dot_pc_des;		//[-]
 
 
-		double q_dot_bal = (mc_cr_out_solver.m_q_thermal +
+		double q_dot_bal = (mc_cr_out_solver.m_q_dot_to_particles +
 							mc_tes_outputs.m_q_dot_dc_to_htf -
 							mc_pc_out_solver.m_q_dot_htf -
 							mc_tes_outputs.m_q_dot_ch_from_htf) / m_cycle_q_dot_des;	//[-]

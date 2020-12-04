@@ -84,9 +84,11 @@ public:
 	double m_qual;	//[-]
 	double m_m_dot;	//[kg/s]
 
+    double m_particle_temp; //[C]
+
 	C_csp_solver_htf_1state()
 	{
-		m_temp = m_pres = m_qual = m_m_dot = std::numeric_limits<double>::quiet_NaN();
+		m_temp = m_pres = m_qual = m_m_dot = m_particle_temp = std::numeric_limits<double>::quiet_NaN();
 	}
 };
 
@@ -764,7 +766,12 @@ public:
 		double m_T_cold_final;	    //[K]    Cold tank temperature at end of timestep
         double dP_perc;             //[%]    HTF pressure drop as percent of inlet pressure
 		double P_lthx_out;			//[kPa]
-	
+
+        double m_m_dot_cr_to_tes_hot;
+        double m_m_dot_tes_hot_out;
+        double m_m_dot_pc_to_tes_cold;
+        double m_m_dot_tes_cold_out;
+
 		S_csp_tes_outputs()
 		{
 			m_q_heater = m_m_dot = m_W_dot_rhtf_pump = m_q_dot_loss = m_q_dot_dc_to_htf = m_q_dot_ch_from_htf = 
@@ -989,11 +996,15 @@ public:
 		double m_bop_par_1;			//[-]
 		double m_bop_par_2;			//[-]
 
+        bool are_rec_pc_directly_coupled;
+
 		S_csp_system_params()
 		{
 			m_pb_fixed_par =
 
 			m_bop_par = m_bop_par_f = m_bop_par_0 = m_bop_par_1 = m_bop_par_2 = std::numeric_limits<double>::quiet_NaN();
+
+            are_rec_pc_directly_coupled = true;
 		}
 	};
 
@@ -1112,7 +1123,6 @@ private:
 
 		// Storage logic
 	bool m_is_tes;			//[-] True: plant has storage
-    bool m_is_cr_config_recirc; //[-] True: Receiver "off" and "startup" are recirculated from outlet to inlet
 
         // Field-side HTF
     double m_T_field_cold_limit;    //[C]
@@ -1124,6 +1134,7 @@ private:
 	double m_report_time_start;			//[s]
 	double m_report_time_end;			//[s]
 	double m_report_step;				//[s]
+    double m_step_tolerance;
 
 		// Estimates to use
 	double m_T_htf_pc_cold_est;			//[C]
@@ -1157,7 +1168,9 @@ private:
 
 	// Solved Controller Variables
 	double m_defocus;		//[-] (1..0) Should only be less than 1 if receiver is on, but defocused
-	
+
+    double m_q_pc_max;  //[MWt]
+
 	std::vector<double> mv_time_local;
 
 	bool(*mpf_callback)(std::string &log_msg, std::string &progress_msg, void *data, double progress, int log_type);
@@ -2127,7 +2140,240 @@ public:
 
         virtual int operator()(double T_htf_cold /*C*/, double *diff_T_htf_cold /*-*/);
     };
+
+    int solve_recirc_cr_on__P_and_T_in(double defocus /*-*/);
+
+    // *****************************
+    // *****************************
+    // Nested MEQ Solvers
+
+    class C_MEQ__m_dot_tes : public C_monotonic_equation
+    {
+    public:
+        enum E_m_dot_solver_modes
+        {
+            // Syntax: E + __ + "m dot hot from field to TES node" + __ + 
+            //                   "m dot from TES node to pc"
+            E__PC_MAX_PLUS_TES_FULL__PC_MAX,
+            E__CR_OUT__CR_OUT_PLUS_TES_EMPTY,
+            E__TO_PC_PLUS_TES_FULL__ITER_M_DOT_SU,
+            E__CR_OUT__0,
+            E__CR_OUT__ITER_M_DOT_SU_CH_ONLY,
+            E__CR_OUT__ITER_M_DOT_SU_DC_ONLY,
+            E__CR_OUT__ITER_Q_DOT_TARGET_DC_ONLY,
+            E__CR_OUT__ITER_Q_DOT_TARGET_CH_ONLY,
+            E__CR_OUT__CR_OUT,
+            E__CR_OUT__CR_OUT_LESS_TES_FULL,
+            E__TO_PC__PC_MAX,
+            E__TO_PC__ITER_M_DOT_SU,
+            E__TES_FULL__0
+        };
+
+    private:
+        E_m_dot_solver_modes m_solver_mode;  //[-] see enum: solver_modes
+
+        C_csp_solver* mpc_csp_solver;
+
+        C_csp_power_cycle::E_csp_power_cycle_modes m_pc_mode;      //[-]
+        int m_cr_mode;      //[-]
+
+        double m_q_dot_pc_target;   //[MWt]
+
+        double m_defocus;   //[-]
+        double m_t_ts_in;      //[s]
+        double m_P_field_in;    //[kPa]
+        double m_x_field_in;    //[-]
+
+        double m_T_field_cold_guess;    //[C]
+
+    public:
+
+
+        double m_T_field_cold_calc; //[C]
+        double m_t_ts_calc;         //[s]
+        double m_m_dot_pc_in;       //[kg/hr]
+
+        C_MEQ__m_dot_tes(E_m_dot_solver_modes solver_mode, C_csp_solver* pc_csp_solver,
+            C_csp_power_cycle::E_csp_power_cycle_modes pc_mode, int cr_mode,
+            double q_dot_pc_target /*MWt*/,
+            double defocus /*-*/, double t_ts /*s*/,
+            double P_field_in /*kPa*/, double x_field_in /*-*/,
+            double T_field_cold_guess /*C*/)
+        {
+            m_solver_mode = solver_mode;    //[-]
+
+            mpc_csp_solver = pc_csp_solver;
+            m_pc_mode = pc_mode;    //[-]
+            m_cr_mode = cr_mode;    //[-]
+            m_q_dot_pc_target = q_dot_pc_target;    //[MWt]
+            m_defocus = defocus;    //[-]
+            m_t_ts_in = t_ts;          //[s]
+            m_P_field_in = P_field_in;  //[kPa]
+            m_x_field_in = x_field_in;  //[-]
+
+            m_T_field_cold_guess = T_field_cold_guess;    //[C]
+
+            init_calc_member_vars();
+        }
+
+        void init_calc_member_vars();
+
+        virtual int operator()(double f_m_dot_tes /*-*/, double* diff_target /*-*/);
+    };
+
+    class C_MEQ__T_field_cold : public C_monotonic_equation
+    {
+    private:
+        C_MEQ__m_dot_tes::E_m_dot_solver_modes m_solver_mode;
+
+        C_csp_solver* mpc_csp_solver;
+
+        double m_q_dot_pc_target;   //[MWt]
+
+        C_csp_power_cycle::E_csp_power_cycle_modes m_pc_mode;      //[-]
+        int m_cr_mode;      //[-]
+
+        double m_defocus;   //[-]
+        double m_t_ts_in;      //[s]
+
+        double m_P_field_in;	//[kPa]
+        double m_x_field_in;	//[-]
+
+    public:
+        double m_t_ts_calc; //[s]
+
+        C_MEQ__T_field_cold(C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode, C_csp_solver* pc_csp_solver,
+            double q_dot_pc_target /*MWt*/,
+            C_csp_power_cycle::E_csp_power_cycle_modes pc_mode, int cr_mode,
+            double defocus /*-*/, double t_ts /*s*/,
+            double P_field_in /*kPa*/, double x_field_in /*-*/)
+        {
+            m_solver_mode = solver_mode;
+
+            mpc_csp_solver = pc_csp_solver;
+
+            m_q_dot_pc_target = q_dot_pc_target;    //[MWt]
+
+            m_pc_mode = pc_mode;
+            m_cr_mode = cr_mode;
+            m_defocus = defocus;
+            m_t_ts_in = t_ts;  //[s]
+
+            m_P_field_in = P_field_in;  //[kPa]
+            m_x_field_in = x_field_in;  //[-]
+
+            init_calc_member_vars();
+        }
+
+        void init_calc_member_vars();
+
+        virtual int operator()(double T_field_cold /*C*/, double* diff_T_field_cold /*-*/);
+    };
+
+    class C_MEQ__timestep : public C_monotonic_equation
+    {
+    public:
+        enum E_timestep_target_modes
+        {
+            E_STEP_FROM_COMPONENT,
+            E_STEP_Q_DOT_PC,
+            E_STEP_FIXED
+        };
+
+    private:
+        C_MEQ__m_dot_tes::E_m_dot_solver_modes m_solver_mode;
+        E_timestep_target_modes m_step_target_mode;
+
+        C_csp_solver* mpc_csp_solver;
+
+        double m_q_dot_pc_target;   //[MWt]
+
+        C_csp_power_cycle::E_csp_power_cycle_modes m_pc_mode;      //[-]
+        int m_cr_mode;      //[-]
+
+        double m_defocus;   //[-]
+
+    public:
+        C_MEQ__timestep(C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode, C_MEQ__timestep::E_timestep_target_modes step_target_mode,
+            C_csp_solver* pc_csp_solver,
+            double q_dot_pc_target /*MWt*/,
+            C_csp_power_cycle::E_csp_power_cycle_modes pc_mode, int cr_mode,
+            double defocus /*-*/)
+        {
+            m_solver_mode = solver_mode;
+            m_step_target_mode = step_target_mode;
+
+            mpc_csp_solver = pc_csp_solver;
+
+            m_q_dot_pc_target = q_dot_pc_target;    //[MWt]
+
+            m_pc_mode = pc_mode;
+            m_cr_mode = cr_mode;
+            m_defocus = defocus;
+        }
+
+        virtual int operator()(double t_ts_guess /*s*/, double* diff_t_ts_guess /*s*/);
+    };
+
+    class C_MEQ__defocus : public C_monotonic_equation
+    {
+    public:
+        enum E_defocus_target_modes
+        {
+            E_M_DOT_BAL,
+            E_Q_DOT_PC
+        };
+
+    private:
+        C_MEQ__m_dot_tes::E_m_dot_solver_modes m_solver_mode;  //[-]
+        E_defocus_target_modes m_df_target_mode;   //[-]
+        C_MEQ__timestep::E_timestep_target_modes m_ts_target_mode;   //[-]
+
+        C_csp_solver* mpc_csp_solver;
+
+        double m_q_dot_pc_target;   //[MWt]
+
+        C_csp_power_cycle::E_csp_power_cycle_modes m_pc_mode;      //[-]
+        int m_cr_mode;      //[-]
+
+        double m_t_ts_initial;  //[s]
+
+    public:
+
+        C_MEQ__defocus(C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode,
+            E_defocus_target_modes df_target_mode, C_MEQ__timestep::E_timestep_target_modes ts_target_mode,
+            C_csp_solver* pc_csp_solver,
+            double q_dot_pc_target /*MWt*/,
+            C_csp_power_cycle::E_csp_power_cycle_modes pc_mode, int cr_mode,
+            double t_ts_initial /*s*/)
+        {
+            m_solver_mode = solver_mode;
+            m_df_target_mode = df_target_mode;
+            m_ts_target_mode = ts_target_mode;
+
+            mpc_csp_solver = pc_csp_solver;
+
+            m_q_dot_pc_target = q_dot_pc_target;    //[MWt]
+
+            m_pc_mode = pc_mode;
+            m_cr_mode = cr_mode;
+
+            m_t_ts_initial = t_ts_initial;  //[s]
+        }
+
+        virtual int operator()(double defocus /*-*/, double* target /*-*/);
+
+        double calc_meq_target();
+    };
+
+    int solve_operating_mode(int cr_mode, C_csp_power_cycle::E_csp_power_cycle_modes pc_mode,
+        C_MEQ__m_dot_tes::E_m_dot_solver_modes solver_mode, C_MEQ__timestep::E_timestep_target_modes step_target_mode,
+        double q_dot_pc_target /*MWt*/, bool is_defocus,
+        std::string op_mode_str, double& defocus_solved);
+
 };
+
+
 
 
 #endif //__csp_solver_core_

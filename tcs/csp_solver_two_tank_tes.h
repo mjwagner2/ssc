@@ -658,6 +658,7 @@ private:
     double m_V_tank_active;		//[m^3] available volume (considering h_min) of *one temperature*
     double m_q_pb_design;		//[Wt] thermal power to power cycle at design
     double m_V_tank_hot_ini;	//[m^3] Initial volume in hot storage tank
+    double m_store_cp_ave;      //[J/kg-K]
 
 
     // Monotonic equation solvers

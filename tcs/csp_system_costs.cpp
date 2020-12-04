@@ -291,10 +291,14 @@ double N_mspt::epc_and_owner_cost(double total_land_area /*acres*/, double total
     double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/,
     double permitting_cost /*$*/)
 {
+    const double land_perc_direct_cost_doe_assumed = 9.;        // [%]
+
     return total_land_area * land_spec_cost +
         plant_net_capacity * 1.E6 * land_spec_per_power_cost +
-        std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
-            total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger) +
+        std::min(
+            total_direct_cost * land_perc_direct_cost_doe_assumed / 100.0, 
+            std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
+                0.5 * (total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger))) +       // the 0.5 factor is from the Brayton Rev1.0 pdf, page 41
         permitting_cost;         //[$]
 }
 

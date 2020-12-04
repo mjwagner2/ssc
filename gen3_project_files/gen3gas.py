@@ -882,7 +882,6 @@ class Gen3opt:
                     'discharge_high_temp': dhx['duty_discharge_hot'],
                     'discharge_low_temp': dhx['duty_discharge_cold']}
         c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
-        # c_om_fixed = self.AnnualOAndMCostsSimplified(self.variables.cycle_design_power * 1.e3)
 
         #availability
         lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
@@ -940,14 +939,6 @@ class Gen3opt:
         ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. );
         ssc.data_set_number( data, b'csp.pt.cost.epc.permitting', permitting_costs )
-
-        #O&M cost
-        om_fixed = [ c_om_fixed ]
-        ssc.data_set_array( data, b'om_fixed', om_fixed );
-        om_production = [0]
-        ssc.data_set_array( data, b'om_production', om_production); 
-        om_capacity = [ 0 ]
-        ssc.data_set_array( data, b'om_capacity', om_capacity );    
 
         #Availability
         ssc.data_set_number( data, b'adjust:constant', (1-total_avail)*100 );
@@ -1027,6 +1018,18 @@ class Gen3opt:
 
         #------------------------------------------------------------------------------
         #------------------------------------------------------------------------------
+
+        #O&M cost
+        om_bottom_up_model = c_om_fixed
+        annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
+        W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
+        om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        ssc.data_set_array( data, b'om_fixed', [om_fixed] );
+        om_production = [0]
+        ssc.data_set_array( data, b'om_production', om_production); 
+        om_capacity = [0]
+        ssc.data_set_array( data, b'om_capacity', om_capacity );    
 
         p_ref = ssc.data_get_number( data, b'P_ref' );
         ssc.data_set_number( data, b'system_capacity', p_ref*1000. );

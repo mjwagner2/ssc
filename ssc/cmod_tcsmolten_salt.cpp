@@ -125,6 +125,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "solarm",                             "Solar multiple",                                                                                                                          "-",            "",                                  "System Design",                            "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "dni_des",                            "Design-point DNI",                                                                                                                        "W/m2",         "",                                  "System Design",                            "*",                                                                "",              ""},
 
+    { SSC_INPUT,     SSC_NUMBER, "is_direct_system",                   "1 (default) = Yes, cycle moves CO2 through receiver, 0 = No, rec has dedicated CO2 circulator",                                           "-",            "",                                  "System Design",                            "?=1",                                                              "",              "" },
+
         // Receiver (type 222) parameters
     { SSC_INPUT,     SSC_MATRIX, "rec_efficiency_lookup",              "Receiver efficiency lookup table: eta(load, Tin)",                                                                                        "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_MATRIX, "rec_pressure_lookup",                "Receiver pressure drop lookup table: dP(load, Pin)",                                                                                      "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
@@ -725,7 +727,7 @@ public:
         // *********************************************
         //    System Configuration
         // *********************************************
-        bool are_rec_pc_directly_coupled = true;
+        bool are_rec_pc_directly_coupled = as_boolean("is_direct_system");      //[-]
 
 
 

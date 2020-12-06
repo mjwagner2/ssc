@@ -78,6 +78,7 @@ void C_mspt_system_costs::check_parameters_are_set()
 		ms_par.EPC_land_per_power_cost != ms_par.EPC_land_per_power_cost ||
 		ms_par.EPC_land_fixed_cost_smaller != ms_par.EPC_land_fixed_cost_smaller ||
         ms_par.EPC_land_fixed_cost_larger != ms_par.EPC_land_fixed_cost_larger ||
+        ms_par.EPC_land_permitting != ms_par.EPC_land_permitting ||
 		ms_par.total_land_spec_cost != ms_par.total_land_spec_cost ||
 		ms_par.total_land_perc_direct_cost != ms_par.total_land_perc_direct_cost ||
 		ms_par.total_land_per_power_cost != ms_par.total_land_per_power_cost ||
@@ -159,7 +160,8 @@ void C_mspt_system_costs::calculate_costs()
 	ms_out.epc_and_owner_cost = 
 		N_mspt::epc_and_owner_cost(ms_par.total_land_area, ms_out.total_direct_cost, ms_par.plant_net_capacity,
 			ms_par.EPC_land_spec_cost, ms_par.EPC_land_perc_direct_cost_smaller, ms_par.EPC_land_perc_direct_cost_larger,
-            ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost_smaller, ms_par.EPC_land_fixed_cost_larger);
+            ms_par.EPC_land_per_power_cost, ms_par.EPC_land_fixed_cost_smaller, ms_par.EPC_land_fixed_cost_larger,
+            ms_par.EPC_land_permitting);
 
 	ms_out.sales_tax_cost = 
 		N_mspt::sales_tax_cost(ms_out.total_direct_cost, ms_par.sales_tax_basis, ms_par.sales_tax_rate);
@@ -190,10 +192,14 @@ double N_mspt::tower_cost(double h_tower /*m*/, double h_rec /*m*/, double h_hel
     double foundation_fixed_cost /*$*/, double foundation_cost_scaling_quadratic, /*$/m^2*/ double foundation_cost_scaling_linear /*$/m*/)
 {
     double tower_height = h_tower - h_rec / 2. + h_helio / 2.;
-    //double cost_tower = tower_fixed_cost * exp(tower_cost_scaling_exp * tower_height);	//[$]
-    double cost_tower = 0.;         // this is now wrapped up into the cost_foundation equation
-    double cost_foundation = foundation_cost_scaling_quadratic * pow(tower_height, 2.) + foundation_cost_scaling_linear * tower_height + foundation_fixed_cost; //[$]
-    return cost_tower + cost_foundation;
+    double cost_tower_sam_default = tower_fixed_cost * exp(tower_cost_scaling_exp * tower_height);	//[$]
+
+    // Worley relations:
+    double cost_tower_worley = 0.;         // this is now wrapped up into the cost_foundation equation
+    double cost_foundation_worley = foundation_cost_scaling_quadratic * pow(tower_height, 2.) + foundation_cost_scaling_linear * tower_height + foundation_fixed_cost; //[$]
+    double worley_total = cost_tower_worley + cost_foundation_worley;
+
+    return std::min(cost_tower_sam_default, worley_total);
 }
 
 double N_mspt::receiver_cost(double A_rec /*m^2*/, double rec_ref_cost /*$*/, double rec_ref_area /*m^2*/, double rec_cost_scaling_exp /*-*/)
@@ -282,12 +288,18 @@ double N_mspt::total_land_cost(double total_land_area /*acres*/, double total_di
 
 double N_mspt::epc_and_owner_cost(double total_land_area /*acres*/, double total_direct_cost /*$*/, double plant_net_capacity /*MWe*/,
 	double land_spec_cost /*$/acre*/, double land_perc_direct_cost_smaller /*%*/, double land_perc_direct_cost_larger /*%*/,
-    double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/)
+    double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/,
+    double permitting_cost /*$*/)
 {
+    const double land_perc_direct_cost_doe_assumed = 9.;        // [%]
+
     return total_land_area * land_spec_cost +
         plant_net_capacity * 1.E6 * land_spec_per_power_cost +
-        std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
-            total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger);         //[$]
+        std::min(
+            total_direct_cost * land_perc_direct_cost_doe_assumed / 100.0, 
+            std::max(total_direct_cost * land_perc_direct_cost_smaller / 100.0 + land_fixed_cost_smaller,
+                0.5 * (total_direct_cost * land_perc_direct_cost_larger / 100.0 + land_fixed_cost_larger))) +       // the 0.5 factor is from the Brayton Rev1.0 pdf, page 41
+        permitting_cost;         //[$]
 }
 
 double N_mspt::sales_tax_cost(double total_direct_cost /*$*/, double sales_tax_basis /*% of tot. direct cost*/, double sales_tax_rate /*%*/)

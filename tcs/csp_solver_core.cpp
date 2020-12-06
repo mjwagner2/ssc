@@ -7061,18 +7061,25 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_reported_outputs.value(C_solver_outputs::EST_Q_DOT_DC, q_dot_tes_dc);            //[MWt]    
 		mc_reported_outputs.value(C_solver_outputs::EST_Q_DOT_CH, q_dot_tes_ch);            //[MWt]    
 
-		double m_dot_bal = (mc_cr_out_solver.m_m_dot_salt_tot +
-							mc_tes_dc_htf_state.m_m_dot -
-							mc_pc_inputs.m_m_dot -
-							mc_tes_ch_htf_state.m_m_dot) / m_m_dot_pc_des;		//[-]
+        // 20.12.06 twn: mass balances should work for indirect case. direct case wasn't working anyway (mismatch in formulation between co2 and particle terms)
+        double m_dot_bal_hot = (mc_cr_out_solver.m_m_dot_store_tot + 
+            mc_tes_outputs.m_m_dot_tes_hot_out * 3600.0 -
+            mc_pc_inputs.m_m_dot -
+            mc_tes_outputs.m_m_dot_cr_to_tes_hot * 3600.0) / m_m_dot_pc_des;		//[-]
 
+        double m_dot_bal_cold = (mc_pc_inputs.m_m_dot +
+            mc_tes_outputs.m_m_dot_tes_cold_out * 3600.0 -
+            mc_cr_out_solver.m_m_dot_store_tot - 
+            mc_tes_outputs.m_m_dot_pc_to_tes_cold * 3600.0) / m_m_dot_pc_des;	//[-]
+
+        double m_dot_bal_max = max(fabs(m_dot_bal_hot), fabs(m_dot_bal_cold));
 
 		double q_dot_bal = (mc_cr_out_solver.m_q_dot_to_particles +
 							mc_tes_outputs.m_q_dot_dc_to_htf -
 							mc_pc_out_solver.m_q_dot_htf -
 							mc_tes_outputs.m_q_dot_ch_from_htf) / m_cycle_q_dot_des;	//[-]
 
-		mc_reported_outputs.value(C_solver_outputs::ERR_M_DOT, m_dot_bal);
+		mc_reported_outputs.value(C_solver_outputs::ERR_M_DOT, m_dot_bal_max);
 		mc_reported_outputs.value(C_solver_outputs::ERR_Q_DOT, q_dot_bal);
 
 		mc_reported_outputs.value(C_solver_outputs::SOLZEN, mc_weather.ms_outputs.m_solzen);	//[deg] Solar zenith

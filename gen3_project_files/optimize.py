@@ -144,7 +144,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
 
     # choose the case based on the thread_id integer
     # casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
-    casename = "surround-skip"
+    casename = "75hc-96av"
     case = "{:03d}_{:s}".format(thread_id, casename)
 
     # instantiate the case
@@ -155,7 +155,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     
     # force attributes for optimization
     g.optimization_log = ""
-    g.settings.lift_technology = 'bucket' if 'bucket' in case else 'skip'
+    g.settings.lift_technology = 'skip' #'bucket' if 'bucket' in case else 'skip'
     g.casename = case 
     g.current_iteration = 0
     g.clock_time_start = time.time()
@@ -283,12 +283,12 @@ if __name__ == "__main__":
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     
     # Run different field-lift combinations on different threads
-    nthreads = 10
+    nthreads = 12
     nreplicates = 100
     # -------
     all_args = []
     for i in range(nreplicates):
-        all_args.append([i+300, GS]) 
+        all_args.append([i, GS]) 
     # -------
     pool = multiprocessing.Pool(processes=nthreads)
     pool.starmap(optimize, all_args)

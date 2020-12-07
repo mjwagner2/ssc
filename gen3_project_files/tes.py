@@ -370,7 +370,8 @@ def LiftAvailability(q_cycle, lift_type):
         availability of the lift system [-]
     """
 
-    kLiftBaseDerate = 0.92
+    # kLiftBaseDerate = 0.92
+    kLiftBaseDerate = 0.98  #<<<< Set to 98% for Gen3 assumption to yield baseline SAM value of 96% total w/ lift availability. mjw/2020-10-9
     kCycleEfficiency = 0.43                     # [-] Assumed cycle efficiency when these relations were made
 
     if not isfinite(q_cycle) or q_cycle < 0:

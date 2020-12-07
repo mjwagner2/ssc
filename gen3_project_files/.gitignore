@@ -1,2 +1,7 @@
 output_dview.csv
 output_case?.csv
+eta_map_python.csv
+rec_efficiency_python.csv
+rec_pressure_python.csv
+ud_ind_od_off_sun_python.csv
+ud_ind_od_python.csv

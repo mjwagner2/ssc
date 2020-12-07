@@ -40,6 +40,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_mspt_collector_receiver.h"
 #include "csp_solver_tower_collector_receiver.h"
 #include "csp_solver_pc_Rankine_indirect_224.h"
+#include "csp_solver_pc_indirect_Gen3.h"
 #include "csp_solver_pc_sco2.h"
 #include "csp_solver_two_tank_tes.h"
 #include "csp_solver_tou_block_schedules.h"
@@ -109,6 +110,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.epc.per_watt",           "EPC cost per watt",                                                                                                                       "$/W",          "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.epc.fixed.smaller",      "EPC fixed, smaller plants",                                                                                                               "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.epc.fixed.larger",       "EPC fixed, larger plants",                                                                                                                "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
+    { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.epc.permitting",         "EPC permitting cost",                                                                                                                     "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.plm.percent",            "PLM cost percent of direct",                                                                                                              "%",            "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.plm.per_watt",           "PLM cost per watt",                                                                                                                       "$/W",          "",                                  "System Costs",                             "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "csp.pt.cost.plm.fixed",              "PLM fixed",                                                                                                                               "$",            "",                                  "System Costs",                             "*",                                                                "",              "" },
@@ -123,6 +125,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_INPUT,     SSC_NUMBER, "tshours",                            "Equivalent full-load thermal storage hours",                                                                                              "hr",           "",                                  "System Design",                            "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "solarm",                             "Solar multiple",                                                                                                                          "-",            "",                                  "System Design",                            "*",                                                                "",              "" },
     { SSC_INPUT,     SSC_NUMBER, "dni_des",                            "Design-point DNI",                                                                                                                        "W/m2",         "",                                  "System Design",                            "*",                                                                "",              ""},
+
+    { SSC_INPUT,     SSC_NUMBER, "is_direct_system",                   "1 (default) = Yes, cycle moves CO2 through receiver, 0 = No, rec has dedicated CO2 circulator",                                           "-",            "",                                  "System Design",                            "?=1",                                                              "",              "" },
 
         // Receiver (type 222) parameters
     { SSC_INPUT,     SSC_MATRIX, "rec_efficiency_lookup",              "Receiver efficiency lookup table: eta(load, Tin)",                                                                                        "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
@@ -421,6 +425,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_ARRAY,  "dp_CO2_HX_3",                        "HX 3 CO2 pressure drop",                                                                                                                  "kPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_downcomer",                    "Downcomer thermal losses",                                                                                                                "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_ARRAY,  "q_dot_riser",                        "Riser thermal losses",                                                                                                                    "MWt",          "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_ARRAY,  "m_dot_rec_particles_tot",            "Total particle flow rate out of receiver hx(s) to hot tank",                                                                              "kg/s",         "",                                  "",                                         "*",                                                                "",              "" },
 
 
         // Power cycle outputs
@@ -561,98 +566,98 @@ public:
         return update(msg, (float)percent);
     }
 
-	void exec() override
-	{
- //       FILE* fp = fopen("input_log.txt", "w");
+    void exec() override
+    {
+        //       FILE* fp = fopen("input_log.txt", "w");
 
- //       std::vector<var_info*> tables = { _cm_vtab_tcsmolten_salt, vtab_adjustment_factors, vtab_sf_adjustment_factors };
+        //       std::vector<var_info*> tables = { _cm_vtab_tcsmolten_salt, vtab_adjustment_factors, vtab_sf_adjustment_factors };
 
- //       for (size_t t = 0; t < 3; t++)
- //       {
- //           var_info* table = tables[t];
+        //       for (size_t t = 0; t < 3; t++)
+        //       {
+        //           var_info* table = tables[t];
 
- //           for (size_t i = 0; true; i++)
- //           {
- //               if (table[i].data_type == SSC_INVALID)
- //                   break;
+        //           for (size_t i = 0; true; i++)
+        //           {
+        //               if (table[i].data_type == SSC_INVALID)
+        //                   break;
 
- //               if (! (table[i].var_type == SSC_INPUT || table[i].var_type == SSC_INOUT))
- //                   continue;
- //               if (!is_assigned(table[i].name))
- //                   continue;
+        //               if (! (table[i].var_type == SSC_INPUT || table[i].var_type == SSC_INOUT))
+        //                   continue;
+        //               if (!is_assigned(table[i].name))
+        //                   continue;
 
- //               fprintf(fp, "var(\"%s\", ", table[i].name);
- //           
- //               switch (table[i].data_type)
- //               {
- //               case SSC_NUMBER:
- //               {
- //                   double val = as_double(table[i].name);
- //                   if(val > 9e12)
- //                       fprintf(fp, "1e38");
- //                   else
- //                       fprintf(fp, "%f", val);
- //                   break;
- //               }
- //               case SSC_STRING:
- //                   fprintf(fp, "%s", as_string(table[i].name));
- //                   break;
- //               case SSC_ARRAY:
- //               {
- //                   size_t nval;
- //                   ssc_number_t* pval = as_array(table[i].name, &nval);
- //                   fprintf(fp, "[");
- //                   for (int j = 0; j < nval; j++)
- //                   {
- //                       if (pval[j] > 9e12)
- //                           fprintf(fp, "1e38%s", j < nval - 1 ? "," : "");
- //                       else
- //                           fprintf(fp, "%f%s", pval[j], j < nval - 1 ? "," : "");
- //                   }
- //                   fprintf(fp, "]");
- //                   break;
- //               }
- //               case SSC_MATRIX:
- //               {
- //                   size_t nrow, ncol;
- //                   ssc_number_t* pval = as_matrix(table[i].name, &nrow, &ncol);
- //                   fprintf(fp, "[");
- //                   for (int j = 0; j < nrow; j++)
- //                   {
- //                       fprintf(fp, "[");
- //                       for (int k = 0; k < ncol; k++)
- //                           fprintf(fp, "%f%s", pval[j*ncol + k], k < ncol - 1 ? "," : "");
- //                       fprintf(fp, "]%s", j < nrow-1 ? "," : "");
- //                   }
- //                   fprintf(fp, "]");
- //                   break;
- //               }
- //               default:
- //                   break;
- //               }
+        //               fprintf(fp, "var(\"%s\", ", table[i].name);
+        //           
+        //               switch (table[i].data_type)
+        //               {
+        //               case SSC_NUMBER:
+        //               {
+        //                   double val = as_double(table[i].name);
+        //                   if(val > 9e12)
+        //                       fprintf(fp, "1e38");
+        //                   else
+        //                       fprintf(fp, "%f", val);
+        //                   break;
+        //               }
+        //               case SSC_STRING:
+        //                   fprintf(fp, "%s", as_string(table[i].name));
+        //                   break;
+        //               case SSC_ARRAY:
+        //               {
+        //                   size_t nval;
+        //                   ssc_number_t* pval = as_array(table[i].name, &nval);
+        //                   fprintf(fp, "[");
+        //                   for (int j = 0; j < nval; j++)
+        //                   {
+        //                       if (pval[j] > 9e12)
+        //                           fprintf(fp, "1e38%s", j < nval - 1 ? "," : "");
+        //                       else
+        //                           fprintf(fp, "%f%s", pval[j], j < nval - 1 ? "," : "");
+        //                   }
+        //                   fprintf(fp, "]");
+        //                   break;
+        //               }
+        //               case SSC_MATRIX:
+        //               {
+        //                   size_t nrow, ncol;
+        //                   ssc_number_t* pval = as_matrix(table[i].name, &nrow, &ncol);
+        //                   fprintf(fp, "[");
+        //                   for (int j = 0; j < nrow; j++)
+        //                   {
+        //                       fprintf(fp, "[");
+        //                       for (int k = 0; k < ncol; k++)
+        //                           fprintf(fp, "%f%s", pval[j*ncol + k], k < ncol - 1 ? "," : "");
+        //                       fprintf(fp, "]%s", j < nrow-1 ? "," : "");
+        //                   }
+        //                   fprintf(fp, "]");
+        //                   break;
+        //               }
+        //               default:
+        //                   break;
+        //               }
 
- //               fprintf(fp, ");\n");
- //           }
- //       }
+        //               fprintf(fp, ");\n");
+        //           }
+        //       }
 
- //       fclose(fp);
+        //       fclose(fp);
 
-        //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
-        
-        //write_cmod_to_lk_script(fp, m_vartab);
+         //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
+         //
+         //write_cmod_to_lk_script(fp, m_vartab);
 
 
 
-		// Weather reader
-		C_csp_weatherreader weather_reader;
-		if (is_assigned("solar_resource_file")){
-			weather_reader.m_weather_data_provider = make_shared<weatherfile>(as_string("solar_resource_file"));
-			if (weather_reader.m_weather_data_provider->has_message()) log(weather_reader.m_weather_data_provider->message(), SSC_WARNING);
-		}
-		if (is_assigned("solar_resource_data")){
-			weather_reader.m_weather_data_provider = make_shared<weatherdata>(lookup("solar_resource_data"));
-			if (weather_reader.m_weather_data_provider->has_message()) log(weather_reader.m_weather_data_provider->message(), SSC_WARNING);
-		}
+               // Weather reader
+        C_csp_weatherreader weather_reader;
+        if (is_assigned("solar_resource_file")) {
+            weather_reader.m_weather_data_provider = make_shared<weatherfile>(as_string("solar_resource_file"));
+            if (weather_reader.m_weather_data_provider->has_message()) log(weather_reader.m_weather_data_provider->message(), SSC_WARNING);
+        }
+        if (is_assigned("solar_resource_data")) {
+            weather_reader.m_weather_data_provider = make_shared<weatherdata>(lookup("solar_resource_data"));
+            if (weather_reader.m_weather_data_provider->has_message()) log(weather_reader.m_weather_data_provider->message(), SSC_WARNING);
+        }
 
         weather_reader.m_trackmode = 0;
         weather_reader.m_tilt = 0.0;
@@ -674,7 +679,7 @@ public:
         assign("q_design", q_design);
 
         // Calculate system capacity instead of pass in
-        double system_capacity = as_double("P_ref") * as_double("gross_net_conversion_factor") *1.E3;       //[kWe]
+        double system_capacity = as_double("P_ref") * as_double("gross_net_conversion_factor") * 1.E3;       //[kWe]
 
         //forced assignments here
 
@@ -690,36 +695,41 @@ public:
         //assignments for field_model_type == 3 / The following optional inputs must be set here:
         assign("calc_fluxmaps", 0);
 
-        if( tes_type != 1 )
+        if (tes_type != 1)
         {
             throw exec_error("MSPT CSP Solver", "Thermocline thermal energy storage is not yet supported by the new CSP Solver and Dispatch Optimization models.\n");
         }
 
-        
+
         // Set steps per hour
         C_csp_solver::S_sim_setup sim_setup;
         sim_setup.m_sim_time_start = as_double("time_start");       //[s] time at beginning of first time step
         sim_setup.m_sim_time_end = as_double("time_stop");          //[s] time at end of last time step
-        
+
         int steps_per_hour = (int)as_double("time_steps_per_hour");     //[-]
 
         //if the number of steps per hour is not provided (=-1), then assign it based on the weather file step
-        if( steps_per_hour < 0 )
+        if (steps_per_hour < 0)
         {
             double sph_d = 3600. / weather_reader.m_weather_data_provider->step_sec();
-            steps_per_hour = (int)( sph_d + 1.e-5 );
-            if( (double)steps_per_hour != sph_d )
+            steps_per_hour = (int)(sph_d + 1.e-5);
+            if ((double)steps_per_hour != sph_d)
                 throw spexception("The time step duration must be evenly divisible within an hour.");
         }
 
         size_t n_steps_fixed = (size_t)steps_per_hour * 8760;   //[-]
-        if( as_boolean("vacuum_arrays") )
+        if (as_boolean("vacuum_arrays"))
         {
-            n_steps_fixed = steps_per_hour * (size_t)( (sim_setup.m_sim_time_end - sim_setup.m_sim_time_start)/3600. );
+            n_steps_fixed = steps_per_hour * (size_t)((sim_setup.m_sim_time_end - sim_setup.m_sim_time_start) / 3600.);
         }
         //int n_steps_fixed = (int)( (sim_setup.m_sim_time_end - sim_setup.m_sim_time_start) * steps_per_hour / 3600. ) ; 
         sim_setup.m_report_step = 3600.0 / (double)steps_per_hour;  //[s]
 
+
+        // *********************************************
+        //    System Configuration
+        // *********************************************
+        bool are_rec_pc_directly_coupled = as_boolean("is_direct_system");      //[-]
 
 
 
@@ -727,56 +737,113 @@ public:
              Power cycle
          ***********************************************/
 
-        // Steam Rankine and User Defined power cycle classes
+         // Steam Rankine and User Defined power cycle classes
         C_pc_Rankine_indirect_224 rankine_pc;
-        C_pc_Rankine_indirect_224::S_params *pc = &rankine_pc.ms_params;
-        pc->m_P_ref = as_double("P_ref");
-        pc->m_eta_ref = as_double("design_eff");
-        pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
-        pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
+        C_pc_indirect_Gen3 indirect_pc;
+        C_csp_power_cycle* p_csp_power_cycle;
 
-        pc->m_P_phx_in_co2_des =  as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
-        pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
-        pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des") / 1000.;  //convert to MPa from kPa
+        // Select cycle model based on direct or indirect configuration
+        if (are_rec_pc_directly_coupled) {
+            C_pc_Rankine_indirect_224::S_params* pc = &rankine_pc.ms_params;
+            pc->m_P_ref = as_double("P_ref");
+            pc->m_eta_ref = as_double("design_eff");
+            pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
+            pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
 
-        pc->m_cycle_max_frac = as_double("cycle_max_frac");
-        pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
-        pc->m_q_sby_frac = as_double("q_sby_frac");
-        pc->m_startup_time = as_double("startup_time");
-        pc->m_startup_frac = as_double("startup_frac");
-        pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
-        pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
-        pc->m_pc_fl_props = as_matrix("field_fl_props");
+            pc->m_P_phx_in_co2_des = as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_off_sun_des = as_double("P_turb_in_co2_off_sun_des") / 1000.;  //convert to MPa from kPa
 
-        pc->m_is_user_defined_pc = true;
-        pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
+            pc->m_cycle_max_frac = as_double("cycle_max_frac");
+            pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
+            pc->m_q_sby_frac = as_double("q_sby_frac");
+            pc->m_startup_time = as_double("startup_time");
+            pc->m_startup_frac = as_double("startup_frac");
+            pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
+            pc->m_pc_fl = as_integer("rec_htf");                            // power cycle HTF is same as receiver HTF
+            pc->m_pc_fl_props = as_matrix("field_fl_props");
 
-        // User-Defined Cycle Parameters
-        pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
-        pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0*as_double("P_ref");  //[MWe]
-        pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
+            pc->m_is_user_defined_pc = true;
+            pc->m_is_udpc_co2 = as_boolean("is_udpc_co2");
 
-        // Also need lower and upper levels for the 3 independent variables...
-        pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
-        pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
-        pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
-        pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
-        pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
-        pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
+            // User-Defined Cycle Parameters
+            pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
+            pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0 * as_double("P_ref");  //[MWe]
+            pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
 
-        // User-Defined Cycle Off-Design Tables 
-        pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
-        pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
-        pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
-        pc->mc_combined_ind = as_matrix("ud_ind_od");
+            // Also need lower and upper levels for the 3 independent variables...
+            pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
+            pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
+            pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
+            pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
+            pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
+            pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
 
-        if (is_assigned("ud_ind_od_off_sun"))
-        {
-            pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
-        }
+            // User-Defined Cycle Off-Design Tables 
+            pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+            pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+            pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+            pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+            if (is_assigned("ud_ind_od_off_sun"))
+            {
+                pc->mc_combined_ind_OS = as_matrix("ud_ind_od_off_sun");
+            }
 
             // Set pointer to parent class
-        C_csp_power_cycle * p_csp_power_cycle = &rankine_pc;
+            p_csp_power_cycle = &rankine_pc;
+        }
+        else {
+            C_pc_indirect_Gen3::S_params* pc = &indirect_pc.ms_params;
+            pc->m_P_ref = as_double("P_ref");
+            pc->m_eta_ref = as_double("design_eff");
+            pc->m_T_htf_hot_ref = as_double("T_pc_hot_des");
+            pc->m_T_htf_cold_ref = as_double("T_pc_cold_des");
+
+            pc->m_cycle_max_frac = as_double("cycle_max_frac");
+            pc->m_cycle_cutoff_frac = as_double("cycle_cutoff_frac");
+            pc->m_q_sby_frac = as_double("q_sby_frac");
+            pc->m_startup_time = as_double("startup_time");
+            pc->m_startup_frac = as_double("startup_frac");
+            pc->m_htf_pump_coef = 0.0;          // no pc htf pump for co2 system as particle-to-cycle is gravity-fed    as_double("pb_pump_coef");
+
+            // For peaker, use TES htf
+            pc->m_pc_fl = as_integer("store_htf");                            // power cycle HTF is same as receiver HTF
+            pc->m_pc_fl_props = as_matrix("store_fl_props");
+
+            // Can test with this false so pc code will use Rankine ND performance
+            pc->m_is_user_defined_pc = false;
+            pc->m_tech_type = 1;
+            pc->m_CT = 2;
+            pc->m_F_wc = std::vector<double> {0, 0, 0, 0, 0, 0, 0, 0, 0};
+            pc->m_P_phx_in_co2_des = as_double("P_phx_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_turb_in_co2_des = as_double("P_turb_in_co2_des") / 1000.;  //convert to MPa from kPa
+            pc->m_P_cond_min = 2.0;
+            pc->m_n_pl_inc = 8.;
+            pc->m_T_ITD_des = 16.;
+            pc->m_P_cond_ratio = 1.0028;
+
+            // User-Defined Cycle Parameters
+            pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]
+            pc->m_W_dot_cooling_des = as_double("ud_f_W_dot_cool_des") / 100.0 * as_double("P_ref");  //[MWe]
+            pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");       //[kg/s]
+
+            // Also need lower and upper levels for the 3 independent variables...
+            pc->m_T_htf_low = as_double("ud_T_htf_low");            //[C]
+            pc->m_T_htf_high = as_double("ud_T_htf_high");          //[C]
+            pc->m_T_amb_low = as_double("ud_T_amb_low");            //[C]
+            pc->m_T_amb_high = as_double("ud_T_amb_high");          //[C]
+            pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");    //[-]
+            pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");  //[-]
+
+            // User-Defined Cycle Off-Design Tables 
+            pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+            pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+            pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+            pc->mc_combined_ind = as_matrix("ud_ind_od");
+
+            p_csp_power_cycle = &indirect_pc;
+        }
 
         // Set power cycle outputs common to all power cycle technologies
         p_csp_power_cycle->assign(C_pc_Rankine_indirect_224::E_ETA_THERMAL, allocate("eta", n_steps_fixed), n_steps_fixed);
@@ -798,7 +865,7 @@ public:
         heliostatfield.ms_params.m_p_track = as_double("p_track");      //[kWe] Heliostat tracking power
         heliostatfield.ms_params.m_hel_stow_deploy = as_double("hel_stow_deploy");  // N/A
         heliostatfield.ms_params.m_v_wind_max = as_double("v_wind_max");            // N/A
-        heliostatfield.ms_params.m_n_flux_x = 3;      
+        heliostatfield.ms_params.m_n_flux_x = 3;
         heliostatfield.ms_params.m_n_flux_y = 1;      // sp match
 
         heliostatfield.ms_params.m_eta_map_aod_format = false; // as_boolean("eta_map_aod_format");
@@ -815,8 +882,8 @@ public:
         if (!sf_haf.setup((int)n_steps_full))
             throw exec_error("tcsmolten_salt", "failed to setup sf adjustment factors: " + sf_haf.error());
         //allocate array to pass to tcs
-        heliostatfield.ms_params.m_sf_adjust.resize( sf_haf.size() );
-        for( int i=0; i<sf_haf.size(); i++)     
+        heliostatfield.ms_params.m_sf_adjust.resize(sf_haf.size());
+        for (int i = 0; i < sf_haf.size(); i++)
             heliostatfield.ms_params.m_sf_adjust.at(i) = sf_haf(i);
 
         // Set callback information
@@ -829,7 +896,7 @@ public:
         //set the performance for each heliostat field
         {
             util::matrix_t<double> all_eta = as_matrix("eta_map");
-            /* 
+            /*
             format is:
             az      zen     eta1    eta2    eta3    nh1     nh2     nh3
             */
@@ -853,7 +920,7 @@ public:
             }
 
             //calculate area of single heliostat
-            double A_helio = as_number("helio_width")*as_number("helio_height")*as_number("dens_mirror");
+            double A_helio = as_number("helio_width") * as_number("helio_height") * as_number("dens_mirror");
             //also keep track of total field area
             double A_sf = 0.;
 
@@ -862,13 +929,13 @@ public:
 
             //populate
             for (size_t i = 0; i < 3; i++)
-        {
+            {
                 for (size_t j = 0; j < all_eta.nrows(); j++)
-        {
-                    eta_sub.at(j, 2)    = all_eta.at(j, 2 + i);
+                {
+                    eta_sub.at(j, 2) = all_eta.at(j, 2 + i);
                     nhelio_sub.at(j, 2) = all_eta.at(j, 5 + i);
-                    area_sub.at(j, 2)   = all_eta.at(j, 5 + i) * A_helio;
-        }
+                    area_sub.at(j, 2) = all_eta.at(j, 5 + i) * A_helio;
+                }
 
                 //set matrices for heliostat field 'i'
                 hfs.at(i)->ms_params.m_eta_map = eta_sub;
@@ -877,7 +944,7 @@ public:
                 //dummy flux maps
                 hfs.at(i)->ms_params.m_flux_maps.resize_fill(all_eta.nrows(), 4, 0.25);
                 A_sf += area_sub.at(0, 2);
-        }
+            }
             assign("A_sf", A_sf);
         }
 
@@ -891,7 +958,7 @@ public:
 
         std::unique_ptr<C_pt_receiver> receiver, receiver2, receiver3;
 
-            std::unique_ptr<C_mspt_receiver> trans_receiver = std::unique_ptr<C_mspt_receiver>(new C_mspt_receiver());    // transient receiver
+        std::unique_ptr<C_mspt_receiver> trans_receiver = std::unique_ptr<C_mspt_receiver>(new C_mspt_receiver());    // transient receiver
 
         trans_receiver->m_w_rec = D_rec;
         trans_receiver->m_h_rec = H_rec;
@@ -911,13 +978,13 @@ public:
         receiver = std::move(trans_receiver);
         receiver2 = std::move(trans_receiver2);
         receiver3 = std::move(trans_receiver3);
-        
+
         receiver->m_h_tower = receiver2->m_h_tower = receiver3->m_h_tower = as_double("h_tower");
         receiver->m_epsilon = receiver2->m_epsilon = receiver3->m_epsilon = std::numeric_limits<double>::quiet_NaN(); // as_double("epsilon");
         receiver->m_T_htf_hot_des = receiver2->m_T_htf_hot_des = receiver3->m_T_htf_hot_des = as_double("T_rec_hot_des");          //[C]
         receiver->m_T_htf_cold_des = receiver2->m_T_htf_cold_des = receiver3->m_T_htf_cold_des = as_double("T_rec_cold_des");      //[C]
         receiver->m_f_rec_min = receiver2->m_f_rec_min = receiver3->m_f_rec_min = as_double("f_rec_min");
-        receiver->m_q_rec_des = receiver2->m_q_rec_des = receiver3->m_q_rec_des = (as_double("P_ref") / N_rec)/as_double("design_eff")*as_double("solarm");
+        receiver->m_q_rec_des = receiver2->m_q_rec_des = receiver3->m_q_rec_des = (as_double("P_ref") / N_rec) / as_double("design_eff") * as_double("solarm");
         receiver->m_rec_su_delay = receiver2->m_rec_su_delay = receiver3->m_rec_su_delay = as_double("rec_su_delay");
         receiver->m_rec_qf_delay = receiver2->m_rec_qf_delay = receiver3->m_rec_qf_delay = as_double("rec_qf_delay");
         receiver->m_m_dot_htf_max_frac = receiver2->m_m_dot_htf_max_frac = receiver3->m_m_dot_htf_max_frac = as_double("csp.pt.rec.max_oper_frac");
@@ -949,7 +1016,12 @@ public:
         tower.L_recHX = as_double("L_recHX");                    //[m]
         tower.n_cells_recHX = as_double("n_cells_recHX");        //[-]
         tower.pipe_loss_per_m = as_double("piping_loss");        //[Wt/m]
+
         tower.m_is_rec_recirc_available = as_boolean("is_rec_recirc_available");        //[-]
+        // If indirect system, then must have a recirculator
+        if (!are_rec_pc_directly_coupled) {
+            tower.m_is_rec_recirc_available = true;
+        }
 
         // Calculate tower inlet pressure using power block outlet pressure and a temporary HX representing the tes low-temp HX
         double T_in_pb = as_double("T_pc_hot_des");                // [C]
@@ -1043,16 +1115,34 @@ public:
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_DP_CO2_HX_3, allocate("dp_CO2_HX_3", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, allocate("q_dot_downcomer", n_steps_fixed), n_steps_fixed);
         tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_Q_DOT_RISER, allocate("q_dot_riser", n_steps_fixed), n_steps_fixed);
+        tower.mc_reported_outputs.assign(C_csp_tower_collector_receiver::E_M_DOT_REC_PARTICLES_TOT, allocate("m_dot_rec_particles_tot", n_steps_fixed), n_steps_fixed);
 
         // Thermal energy storage 
         C_csp_two_tank_two_hx_tes storage;
         tower.set_tes(&storage);        // give storage reference to tower
-        C_csp_two_tank_two_hx_tes::S_params *tes = &storage.ms_params;
-        tes->m_field_fl = as_integer("rec_htf");
-        tes->m_field_fl_props = as_matrix("field_fl_props");
+        C_csp_two_tank_two_hx_tes::S_params* tes = &storage.ms_params;
+
+        if (are_rec_pc_directly_coupled) {
+
+            tower.m_is_T_particle_cold_from_tes_ref = true;
+
+            tes->m_is_hx = true;                                   // hardcode = true
+
+            tes->m_field_fl = as_integer("rec_htf");
+            tes->m_field_fl_props = as_matrix("field_fl_props");
+        }
+        else
+        {
+            tower.m_is_T_particle_cold_from_tes_ref = false;
+
+            tes->m_is_hx = false;                                   // hardcode = true
+
+            tes->m_field_fl = as_integer("store_htf");
+            tes->m_field_fl_props = as_matrix("store_fl_props");
+        }
+
         tes->m_tes_fl = as_integer("store_htf");
         tes->m_tes_fl_props = as_matrix("store_fl_props");
-        tes->m_is_hx = true;                                   // hardcode = true
         tes->m_W_dot_pc_design = as_double("P_ref");        //[MWe]
         tes->m_eta_pc = as_double("design_eff");                //[-]
         tes->m_solarm = as_double("solarm");
@@ -1183,6 +1273,8 @@ public:
         system.m_bop_par_0 = as_double("bop_par_0");
         system.m_bop_par_1 = as_double("bop_par_1");
         system.m_bop_par_2 = as_double("bop_par_2");
+
+        system.are_rec_pc_directly_coupled = are_rec_pc_directly_coupled;
 
         // Instantiate Solver       
         C_csp_solver csp_solver(weather_reader, 
@@ -1392,6 +1484,7 @@ public:
         sys_costs.ms_par.EPC_land_per_power_cost = as_double("csp.pt.cost.epc.per_watt");
         sys_costs.ms_par.EPC_land_fixed_cost_smaller = as_double("csp.pt.cost.epc.fixed.smaller");
         sys_costs.ms_par.EPC_land_fixed_cost_larger = as_double("csp.pt.cost.epc.fixed.larger");
+        sys_costs.ms_par.EPC_land_permitting = as_double("csp.pt.cost.epc.permitting");
         sys_costs.ms_par.total_land_spec_cost = as_double("land_spec_cost");
         sys_costs.ms_par.total_land_perc_direct_cost = as_double("csp.pt.cost.plm.percent");
         sys_costs.ms_par.total_land_per_power_cost = as_double("csp.pt.cost.plm.per_watt");

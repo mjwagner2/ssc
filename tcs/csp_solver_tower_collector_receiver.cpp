@@ -97,6 +97,7 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_CO2_HX_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_Q_DOT_RISER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_REC_PARTICLES_TOT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -111,6 +112,8 @@ C_csp_tower_collector_receiver::C_csp_tower_collector_receiver(std::vector<C_csp
     m_q_dot_piping_one_way = std::numeric_limits<double>::quiet_NaN();  //[kWt]
     pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();         //[Wt/m]
     m_m_dot_co2_des = std::numeric_limits<double>::quiet_NaN();         //[kg/s]
+
+    m_is_T_particle_cold_from_tes_ref = true;
 }
 
 C_csp_tower_collector_receiver::~C_csp_tower_collector_receiver()
@@ -472,6 +475,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
     double T_tes_cold = tes->get_cold_temp();       //[K]
+    if (!m_is_T_particle_cold_from_tes_ref) {
+        T_tes_cold = htf_state_in.m_particle_temp + 273.15;  //[K] convert from C   
+    }
 
     bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
 
@@ -589,13 +595,6 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
         T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
 
-        //// Update tanks -> ASSUMING THE COLD TANK CAN TAKE ALL THE CHARGE 
-        //tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
-        //double T_cold_tes_K;
-        //C_csp_tes::S_csp_tes_outputs tes_outputs;
-        //tes->charge(sim_info.ms_ts.m_step, weather.m_tdry + 273.15, m_dot_tes, T_hot_tes_K, T_cold_tes_K, tes_outputs);
-        //tes->ms_params.m_is_hx = true;
-
         cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // of last receiver
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
@@ -696,7 +695,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
 
     double q_dot_downcomer_losses = 0.0;    //[MWt]
-    if ( (std::isfinite(dP_downcomer) && dP_downcomer > 0.0) || (m_q_dot_piping_one_way > 0.0 && cr_out_solver.m_m_dot_salt_tot > 0.0)) {
+    if (!is_rec_recirc && ((std::isfinite(dP_downcomer) && dP_downcomer > 0.0) || (m_q_dot_piping_one_way > 0.0 && cr_out_solver.m_m_dot_salt_tot > 0.0))) {
 
         double P_downcomer_in = cr_out_solver.m_P_htf_hot + dP_downcomer;   //[kPa]
 
@@ -765,6 +764,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, q_dot_downcomer_losses);       //[MWt]
     mc_reported_outputs.value(E_Q_DOT_RISER, q_dot_riser_losses);               //[MWt]
+
+    mc_reported_outputs.value(E_M_DOT_REC_PARTICLES_TOT, cr_out_solver.m_m_dot_store_tot / 3600.);
 
     return;
 }
@@ -844,7 +845,11 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         cr_out_solver.m_q_rec_heattrace += cr_out_solver_prev.m_q_rec_heattrace;
 
         double eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes;
-        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., tes->get_cold_temp(), P_prev,
+        double T_tes_cold = tes->get_cold_temp();       //[K]
+        if (!m_is_T_particle_cold_from_tes_ref) {
+            T_tes_cold = htf_state_in.m_particle_temp + 273.15;  //[K] convert from C   
+        }
+        hxs.at(i).hx_charge_mdot_field(cr_out_solver_prev.m_T_salt_hot + 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600., T_tes_cold, P_prev,
             eff, T_cold_rec_K, T_hot_tes_K, q_trans, m_dot_tes);
         double T_avg_recHX = 0.5 * (cr_out_solver_prev.m_T_salt_hot + 273.15 + T_cold_rec_K);
         double dP_recHX_perc = hxs.at(i).PressureDropFrac(T_avg_recHX - 273.15, cr_out_solver_prev.m_m_dot_salt_tot / 3600.) * 100.;
@@ -854,12 +859,6 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
         cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
         T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
-
-        //// Update tanks
-        //tes->ms_params.m_is_hx = false;     // charging from the receivers is direct storage
-        //C_csp_tes::S_csp_tes_outputs tes_outputs;
-        //tes->idle(sim_info.ms_ts.m_step, weather.m_tdry + 273.15, tes_outputs);
-        //tes->ms_params.m_is_hx = true;
 
         cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // from last receiver
 
@@ -945,7 +944,12 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
 
     cr_out_solver.m_W_dot_htf_pump = conveyor_power(cr_out_solver.m_m_dot_store_tot);               //[MWe]
-    cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+    if (cr_out_solver.m_m_dot_store_tot > 0.0) {
+        cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
+    }
+    else {
+        cr_out_solver.m_T_store_hot = T_rec_cold_des - 273.15;       //[C]
+    }
 
     double collector_areas = get_collector_area();
     double eta_field_tot = collector_areas > 0. ? eta_weighted_sum / collector_areas : 0.;
@@ -990,6 +994,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
     mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, 0.0);       //[MWt]
     mc_reported_outputs.value(E_Q_DOT_RISER, 0.0);               //[MWt]
+
+    mc_reported_outputs.value(E_M_DOT_REC_PARTICLES_TOT, 0.0);
 
     return;
 }

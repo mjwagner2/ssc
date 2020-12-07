@@ -121,14 +121,14 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     #Performance confidence derate (1 -> full confidence)
     x_safety = 1.0
     #max particle flow rate per cell
-    m_dot_particle_c_max = 0.056    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
+    m_dot_particle_c_max = 0.491    #kg/s       --> rho_b * sqrt(g) * (w_cell / tan(theta^prime)) * (w_outlet - 1.5 d_p)^(3/2)
     #Max cell length
     L_cell_max = 1.65       #m
     # cell width
     W_cell = 0.2032         #m
     
     #Calculate cell surface area based on assumed conductance
-    U = 0.450               #kW/m2-K
+    U = 0.720               #kW/m2-K
     A_charge = UA_charge / U
     A_hot_disch = UA_hot_disch / U
     A_cold_disch = UA_cold_disch / U
@@ -354,7 +354,7 @@ def calculate_lift_cost(q_solarfield_out_kw, lift_type):
     if lift_type == 'bucket':
         return 8.65829e3 * x**2 + 5.41087e5 * x - 5.38257e5
     elif lift_type == 'skip':
-        return 1.84708e3 * x**2 + 3.91687e5 * x + 1.27537e6
+        return 2.37809e3 * x**2 + 4.14694e5 * x + 8.80070e5
     else:
         raise Exception("Invalid lift_type. Must be one of 'bucket' or 'skip'")
 
@@ -370,8 +370,7 @@ def LiftAvailability(q_cycle, lift_type):
         availability of the lift system [-]
     """
 
-    # kLiftBaseDerate = 0.92
-    kLiftBaseDerate = 0.98  #<<<< Set to 98% for Gen3 assumption to yield baseline SAM value of 96% total w/ lift availability. mjw/2020-10-9
+    kLiftBaseDerate = 0.96
     kCycleEfficiency = 0.43                     # [-] Assumed cycle efficiency when these relations were made
 
     if not isfinite(q_cycle) or q_cycle < 0:

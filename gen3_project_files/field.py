@@ -9,6 +9,7 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
 
     Specify the data provider to generate by:
         field_type      'surround' OR 'north'
+        NOTE!  Brayton's convention is to use North = 0 and Surround = 1 while this code and file is using the opposite
 
     Produces a dictionary with keys:
         'az','zen','eta1','eta2','eta3','a1','a2','a3'
@@ -28,6 +29,9 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
     df = pandas.read_csv(efficiency_file_path)
 
     #get only the relevant field configuration rows
+    # ============
+    ## WARNING!!! Brayton's convention is to use North = 0 and Surround = 1 while this code and file is using the opposite
+    # ============
     df = df[df.type == (0 if field_type == 'surround' else 1)]
 
     cols = ['az','zen','eta1','eta2','eta3','a1','a2','a3']

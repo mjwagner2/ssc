@@ -91,6 +91,7 @@ public:
 		double EPC_land_per_power_cost;		//[$/We] Of plant net capacity
 		double EPC_land_fixed_cost_smaller;		//[$]
         double EPC_land_fixed_cost_larger;		//[$]
+        double EPC_land_permitting;             //[$]
 		double total_land_spec_cost;	//[$/acre]
 		double total_land_perc_direct_cost;	//[%] Of calculated direct cost
 		double total_land_per_power_cost;	//[$/We] Of plant net capacity
@@ -105,7 +106,7 @@ public:
 				A_rec = rec_ref_cost = A_rec_ref = rec_cost_scaling_exp = 
 				Q_storage = tes_spec_cost = W_dot_design = power_cycle_spec_cost = bop_spec_cost = fossil_backup_spec_cost = contingency_rate =
 				total_land_area = plant_net_capacity = EPC_land_spec_cost = EPC_land_perc_direct_cost_smaller = EPC_land_perc_direct_cost_larger =
-                EPC_land_per_power_cost = EPC_land_fixed_cost_smaller = EPC_land_fixed_cost_larger =
+                EPC_land_per_power_cost = EPC_land_fixed_cost_smaller = EPC_land_fixed_cost_larger = EPC_land_permitting =
 				total_land_spec_cost = total_land_perc_direct_cost = total_land_per_power_cost = total_land_fixed_cost = sales_tax_basis = sales_tax_rate =
 				std::numeric_limits<double>::quiet_NaN();
 
@@ -206,7 +207,8 @@ namespace N_mspt
 
 	double epc_and_owner_cost(double total_land_area /*acres*/, double total_direct_cost /*$*/, double plant_net_capacity /*MWe*/,
         double land_spec_cost /*$/acre*/, double land_perc_direct_cost_smaller /*%*/, double land_perc_direct_cost_larger /*%*/,
-        double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/);
+        double land_spec_per_power_cost /*$/We*/, double land_fixed_cost_smaller /*$*/, double land_fixed_cost_larger /*$*/,
+        double permitting_cost /*$*/);
 
 	double sales_tax_cost(double total_direct_cost /*$*/, double sales_tax_basis /*% of tot. direct cost*/, double sales_tax_rate /*%*/);
 

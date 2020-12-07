@@ -401,7 +401,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 					m_mode = C_csp_collector_receiver::ON;
 					q_startup = 0.0;
 
-					if (q_dot_inc_sum*1.E3 < m_q_dot_inc_min)
+					if (q_dot_inc_sum < m_q_dot_inc_min)
 					{
 						// If output here is less than specified allowed minimum, then need to shut off receiver
 						m_mode = C_csp_collector_receiver::OFF;
@@ -413,7 +413,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 				q_thermal = m_dot_salt*c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
                 Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
-			    if (q_dot_inc_sum*1.E3 < m_q_dot_inc_min)
+			    if (q_dot_inc_sum < m_q_dot_inc_min)
 				    rec_is_off = true;
 			    
                 break;
@@ -426,7 +426,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
                 q_thermal = m_dot_salt * c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
                 Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
-                if (q_dot_inc_sum*1.E3 < m_q_dot_inc_min && m_mode_prev == C_csp_collector_receiver::ON)
+                if (q_dot_inc_sum < m_q_dot_inc_min && m_mode_prev == C_csp_collector_receiver::ON)
                     rec_is_off = true;
 
                 break;
@@ -465,7 +465,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 	outputs.m_T_salt_hot = T_salt_hot_rec - 273.15;		//[C] convert from K
 	outputs.m_field_eff_adj = field_eff_adj;					//[-]
 	outputs.m_component_defocus = m_od_control;				//[-]
-	outputs.m_q_dot_rec_inc = q_dot_inc_sum / 1.E3;			//[MW] convert from kW
+	outputs.m_q_dot_rec_inc = q_dot_inc_sum / 1.E6;			//[MW] convert from kW
 	outputs.m_q_startup = q_startup/1.E6;					//[MW-hr] convert from W-hr
 	//outputs.m_dP_receiver = DELTAP*m_n_panels / m_n_lines / 1.E5;	//[bar] receiver pressure drop, convert from Pa
 	outputs.m_dP_receiver = outputs.m_dP_total = Pres_D;							//[kPa] total pressure drop

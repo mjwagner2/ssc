@@ -80,10 +80,10 @@ class Settings:
         self.print_summary_output = False
         self.save_hourly_results = False
         self.dni_des_ref = 976.
-        self.cycle_temperature_drop = 700 - 562
+        self.cycle_temperature_drop = 700 - 547.2
         self.lift_technology = 'skip'    #or 'bucket'
         self.is_north = False                  # is field north or surround
-        self.cycle_efficiency_nominal = 0.43  #must correspond to the nominal efficiency used to develop the cycle lookup tables
+        self.cycle_efficiency_nominal = 0.454  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
         self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
         self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
@@ -827,6 +827,9 @@ class Gen3opt:
         # self.variables.h_tower = receiver.calculate_tower_height(q_sf_des*1000, self.settings.is_north)
 
         #check whether a heliostat field interpolation provider has been initialized. If not, create one now
+        # ============
+        ## WARNING!!! Brayton's convention is to use North = 0 and Surround = 1 while this code and file is using the opposite
+        # ============
         if not hasattr(self, "sf_interp_provider"):
             interp_provider = field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'north' if self.settings.is_north else 'surround')
         else:
@@ -884,7 +887,6 @@ class Gen3opt:
                     'discharge_high_temp': dhx['duty_discharge_hot'],
                     'discharge_low_temp': dhx['duty_discharge_cold']}
         c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
-        # c_om_fixed = self.AnnualOAndMCostsSimplified(self.variables.cycle_design_power * 1.e3)
 
         #availability --> all availability sources are included in LiftAvailability
         total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
@@ -911,8 +913,8 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 0);     # the tower and foundation costs are now...
-        ssc.data_set_number( data, b'tower_exp', 0 );           # ...combined into just the foundation equation
+        ssc.data_set_number( data, b'tower_fixed_cost', 3000000);     # this is just used for the default SAM implementation
+        ssc.data_set_number( data, b'tower_exp', 0.0113 );            # this is just used for the default SAM implementation
         ssc.data_set_number( data, b'foundation_fixed_cost', 20116200 );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69 );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661 );
@@ -936,16 +938,9 @@ class Gen3opt:
         ssc.data_set_number( data, b'contingency_rate', 7 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6 );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 + permitting_costs );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. + permitting_costs );
-
-        #O&M cost
-        om_fixed = [ c_om_fixed ]
-        ssc.data_set_array( data, b'om_fixed', om_fixed );
-        om_production = [0]
-        ssc.data_set_array( data, b'om_production', om_production); 
-        om_capacity = [ 0 ]
-        ssc.data_set_array( data, b'om_capacity', om_capacity );    
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.permitting', permitting_costs )
 
         #Availability
         ssc.data_set_number( data, b'adjust:constant', (1-total_avail)*100 );
@@ -1025,6 +1020,18 @@ class Gen3opt:
 
         #------------------------------------------------------------------------------
         #------------------------------------------------------------------------------
+
+        #O&M cost
+        om_bottom_up_model = c_om_fixed
+        annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
+        W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
+        om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        ssc.data_set_array( data, b'om_fixed', [om_fixed] );
+        om_production = [0]
+        ssc.data_set_array( data, b'om_production', om_production); 
+        om_capacity = [0]
+        ssc.data_set_array( data, b'om_capacity', om_capacity );    
 
         p_ref = ssc.data_get_number( data, b'P_ref' );
         ssc.data_set_number( data, b'system_capacity', p_ref*1000. );

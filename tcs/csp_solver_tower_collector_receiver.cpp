@@ -97,6 +97,7 @@ static C_csp_reported_outputs::S_output_info S_output_info[] =
     { C_csp_tower_collector_receiver::E_DP_CO2_HX_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_Q_DOT_DOWNCOMER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
     { C_csp_tower_collector_receiver::E_Q_DOT_RISER, C_csp_reported_outputs::TS_WEIGHTED_AVE},
+    { C_csp_tower_collector_receiver::E_M_DOT_REC_PARTICLES_TOT, C_csp_reported_outputs::TS_WEIGHTED_AVE},
 
 	csp_info_invalid	
 };
@@ -694,7 +695,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     cr_out_solver.m_P_htf_hot = P_first_rec_in - cr_out_solver.m_dP_sf;     //[kPa]
 
     double q_dot_downcomer_losses = 0.0;    //[MWt]
-    if ( (std::isfinite(dP_downcomer) && dP_downcomer > 0.0) || (m_q_dot_piping_one_way > 0.0 && cr_out_solver.m_m_dot_salt_tot > 0.0)) {
+    if (!is_rec_recirc && ((std::isfinite(dP_downcomer) && dP_downcomer > 0.0) || (m_q_dot_piping_one_way > 0.0 && cr_out_solver.m_m_dot_salt_tot > 0.0))) {
 
         double P_downcomer_in = cr_out_solver.m_P_htf_hot + dP_downcomer;   //[kPa]
 
@@ -763,6 +764,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
     mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, q_dot_downcomer_losses);       //[MWt]
     mc_reported_outputs.value(E_Q_DOT_RISER, q_dot_riser_losses);               //[MWt]
+
+    mc_reported_outputs.value(E_M_DOT_REC_PARTICLES_TOT, cr_out_solver.m_m_dot_store_tot / 3600.);
 
     return;
 }
@@ -991,6 +994,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
 
     mc_reported_outputs.value(E_Q_DOT_DOWNCOMER, 0.0);       //[MWt]
     mc_reported_outputs.value(E_Q_DOT_RISER, 0.0);               //[MWt]
+
+    mc_reported_outputs.value(E_M_DOT_REC_PARTICLES_TOT, 0.0);
 
     return;
 }

@@ -128,7 +128,9 @@ public:
         E_DP_CO2_HX_3,              //[kPa] HX 3 CO2 pressure drop
 
         E_Q_DOT_DOWNCOMER,          //[MWt] Downcomer thermal losses
-        E_Q_DOT_RISER               //[MWt] Riser thermal losses
+        E_Q_DOT_RISER,               //[MWt] Riser thermal losses
+
+        E_M_DOT_REC_PARTICLES_TOT   //[kg/s] Total particles leaving receiver to hot tank
     };
 	
     int m_field_fl;

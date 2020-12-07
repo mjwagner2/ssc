@@ -728,7 +728,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     else {
         cr_out_solver.m_T_store_hot = T_store_hot_weighted_sum / cr_out_solver.m_m_dot_store_tot - 273.15; //[C]
     }
-    double cp_tes = mc_store_htfProps.Cp(0.5 * (cr_out_solver.m_T_salt_hot + 273.15 + T_tes_cold)); //[kJ/kg-K]
+    double cp_tes = mc_store_htfProps.Cp(0.5 * (cr_out_solver.m_T_store_hot + 273.15 + T_tes_cold)); //[kJ/kg-K]
     cr_out_solver.m_q_dot_to_particles = cr_out_solver.m_m_dot_store_tot / 3600. * cp_tes * (cr_out_solver.m_T_store_hot + 273.15 - T_tes_cold) * 1.E-3;
 
     double collector_areas = get_collector_area();

@@ -558,11 +558,38 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     }
     cr_out_solver.m_dP_sf += dP_riser;
 
+    double T_co2_first_rec_in = htf_state_in_next.m_temp;   //[C]
     double P_first_rec_in = htf_state_in_next.m_pres;   //[kPa]
 
     //now calculate performance again over all receivers
+    double T_co2_hx_out_prev = std::numeric_limits<double>::quiet_NaN();
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
+
         collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
+
+        // If next receiver mass flow is greater than previous max mass flow rate
+        // Then need to mix in CO2 from recirc/riser outlet
+        if (is_rec_recirc && i > 0 && cr_out_solver.m_m_dot_salt_tot < cr_out_solver_prev.m_m_dot_salt_tot) {
+
+            int T_rec_co2_in_iter = 0;
+            double diff_m_dot_co2 = (cr_out_solver.m_m_dot_salt_tot - cr_out_solver_prev.m_m_dot_salt_tot) / cr_out_solver_prev.m_m_dot_salt_tot;
+            double m_dot_rec_co2_prev_iter = cr_out_solver.m_m_dot_salt_tot;
+
+            while (T_rec_co2_in_iter < 3 && fabs(diff_m_dot_co2) > 0.01) {
+
+                T_rec_co2_in_iter++;
+
+                htf_state_in_next.m_temp = cr_out_solver.m_m_dot_salt_tot/cr_out_solver_prev.m_m_dot_salt_tot*T_htf_out
+                                            + (1.0 - cr_out_solver.m_m_dot_salt_tot / cr_out_solver_prev.m_m_dot_salt_tot) * T_co2_first_rec_in;
+
+                m_dot_rec_co2_prev_iter = cr_out_solver_prev.m_m_dot_salt_tot;
+
+                collector_receivers.at(i).call(weather, htf_state_in_next, inputs, cr_out_solver_prev, sim_info);
+
+                diff_m_dot_co2 = (m_dot_rec_co2_prev_iter - cr_out_solver_prev.m_m_dot_salt_tot) / cr_out_solver_prev.m_m_dot_salt_tot;
+            } 
+                        
+        }
 
         C_pt_sf_perf_interp::S_outputs field_outputs = collector_receivers.at(i).get_field_outputs();
         C_pt_receiver::S_outputs receiver_outputs = collector_receivers.at(i).get_receiver_outputs();
@@ -595,6 +622,13 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         cr_out_solver.m_m_dot_store_tot += m_dot_tes * 3600.;
         T_store_hot_weighted_sum += T_hot_tes_K * m_dot_tes * 3600.;
 
+        // If receiver outlet mass flow rate is less than previous max
+        // Then need to mix in bypass after HX
+        if (is_rec_recirc && i > 0 && cr_out_solver.m_m_dot_salt_tot > cr_out_solver_prev.m_m_dot_salt_tot) {
+            T_cold_rec_K = cr_out_solver_prev.m_m_dot_salt_tot/cr_out_solver.m_m_dot_salt_tot*T_cold_rec_K +
+                            (1.0 - cr_out_solver_prev.m_m_dot_salt_tot / cr_out_solver.m_m_dot_salt_tot) * T_co2_hx_out_prev;   //[K]
+        }
+
         cr_out_solver.m_T_salt_hot = T_cold_rec_K - 273.15;  // of last receiver
 
         htf_state_in_next.m_temp = T_cold_rec_K - 273.15;
@@ -622,6 +656,8 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
         if (i == 0) T_riser = receiver_outputs.m_Triser;                 // of first receiver
         T_downc = T_cold_rec_K - 273.15;                    // of last receiver
         eta_therm_rec_tot += receiver_outputs.m_eta_therm;
+
+        T_co2_hx_out_prev = T_cold_rec_K;       //[K]
 
         if (i == 0) {
             mc_reported_outputs.value(E_Q_DOT_INC1, receiver_outputs.m_q_dot_rec_inc);	            //[MWt]

@@ -950,6 +950,13 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			m_dot_tes_dc_est = m_dot_tes_ch_est = 0.0;
 		}
 
+        // Check that there is enough discharge energy to operate cycle for a 'reasonable' fraction of the timestep
+        double t_q_dot_min = fmax(0.05 * mc_kernel.mc_sim_info.ms_ts.m_step, m_step_tolerance);   //[s]
+        if (q_dot_tes_dc * mc_kernel.mc_sim_info.ms_ts.m_step < m_cycle_q_dot_des * t_q_dot_min)
+        {
+            q_dot_tes_dc = 0.0;     //[s
+        }
+
 		// Can add the following code to simulate with no storage charge/discharge, but IDLE calcs
 		//q_dot_tes_dc = q_dot_tes_ch = 0.0;
 

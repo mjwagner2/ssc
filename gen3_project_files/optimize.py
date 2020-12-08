@@ -144,7 +144,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
 
     # choose the case based on the thread_id integer
     # casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
-    casename = "75hc-96av"
+    casename = "2020-12-7a"
     case = "{:03d}_{:s}".format(thread_id, casename)
 
     # instantiate the case
@@ -262,7 +262,11 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     # scipy.optimize.fmin_l_bfgs_b(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, maxiter=100, maxfun=150, disp=True, approx_grad=True)
     # scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, iter=50, acc=0.001)
     # scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'maxiter':150, 'disp':True, 'xatol':.001, 'fatol':.01, 'adaptive':True}, method='Nelder-Mead')
-    scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
 
 
 
@@ -279,6 +283,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
 
 
 if __name__ == "__main__":
+
 
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     

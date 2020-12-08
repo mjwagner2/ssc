@@ -6,6 +6,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import pandas
 from globalspline import GlobalSpline2D
+import warnings
 
 #----------------------------------------------------------------------------
 def specheat_co2(T_C):
@@ -360,7 +361,7 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
     >> f_eta_inlet_condition_120 = rec_eta_lookup['eta'][120]
     >> eta_inlet_condition_120 = f_eta_inlet_condition_120( <tube diameter>, <tube length>)[0][0]
     """
-
+    
     df = ReadAndFilterCsv(receiver_file_path)
 
     # rec_eta_lookup ----------------------------------------------------------------------------
@@ -383,10 +384,13 @@ def load_receiver_interpolator_provider(receiver_file_path, mdot_adj_factor_tube
         
         # there will only be one loop as there's only one dependent value column (eta)
         for col in cols_eta[2:]:
+            # print(id, col, diameters, df_group[col].values)
             interp_funcs[col].append( 
                     # SmoothBivariateSpline(diameters, lengths, df_group[col].values, kx=2, ky=2)     # works great when kx=ky=2 for just data, but not
                                                                                                     #  between D's and L's. Doesn't work well when kx=ky=1
                     # interp2d(diameters, lengths, df_group[col].values, kind='linear')   # works a lot better than SmoothBivariateSpline
+                    # with warnings.catch_warnings() as w:
+                        # warnings.simplefilter("ignore")
                     GlobalSpline2D(diameters, lengths, df_group[col].values, kind='linear')   # adds extrapolation to interp2d
                     # Rbf(diameters, lengths, df_group[col].values, function='linear', smooth=1)      # doesn't interpolate lengths well, using any 'function'
                     # Note: griddata() returns points, not a function

@@ -61,7 +61,8 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
         for col in cols[2:]:
             interp_funcs[col].append( 
                     #works better than scipy.interpolate.interp2d in this case
-                    SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 ) 
+                    SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 )
+                    # GlobalSpline2D(power_levels, tower_heights, df_group[col].values, kind='linear')   # adds extrapolation to interp2d
                 )    
 
     return interp_funcs
@@ -133,9 +134,17 @@ def create_heliostat_field_lookup(field_interp_provider, q_solarfield_in_kw, h_t
         #convert heliostat total area to heliostat count, if applicable
         scale = heliostat_area_m2 if i > 2 else 1.
 
-        interp_data.append( [ f(q_solarfield_in, h_tower)[0][0]/scale for f in field_interp_provider[col] ] )
-        
-    return array(interp_data).T.tolist()
+        interp_data.append( [ f(q_solarfield_in, h_tower)[0]/scale for f in field_interp_provider[col] ] )
+    
+    list_interp = array(interp_data).T.tolist()
+
+    # Convert single element numpy arrays to value, if given by interpolator
+    if isinstance(list_interp[0][2], np.ndarray):
+        for i, val in enumerate(list_interp):
+            for j in range(2, len(val)):
+                list_interp[i][j] = list_interp[i][j][0]
+
+    return list_interp
 
 
 def ReadAndFilterCsv(field_file_path):
@@ -198,9 +207,9 @@ def PlotFieldTables(field_file_path, field_config):
     df_modld['eta1_diff'] = df_modld['eta1'].values - df_meas['eta1'].values
     df_modld['eta2_diff'] = df_modld['eta2'].values - df_meas['eta2'].values
     df_modld['eta3_diff'] = df_modld['eta3'].values - df_meas['eta3'].values
-    df_modld['a1_diff'] = df_modld['n_hel1'].values * helio_area - df_meas['a1'].values
-    df_modld['a2_diff'] = df_modld['n_hel2'].values * helio_area - df_meas['a2'].values
-    df_modld['a3_diff'] = df_modld['n_hel3'].values * helio_area - df_meas['a3'].values
+    df_modld['a1_diff'] = (df_modld['n_hel1'].values * helio_area - df_meas['a1'].values) / df_meas['a1'].values * 100.
+    df_modld['a2_diff'] = (df_modld['n_hel2'].values * helio_area - df_meas['a2'].values) / df_meas['a2'].values * 100.
+    df_modld['a3_diff'] = (df_modld['n_hel3'].values * helio_area - df_meas['a3'].values) / df_meas['a3'].values * 100.
 
     def plot_subfield_single_height(subfield, tht):
         # Overall Figure
@@ -250,7 +259,7 @@ def PlotFieldTables(field_file_path, field_config):
         ax4.set_xlabel('azimuth')
         ax4.set_ylabel('zenith')
         ax4.set_zlabel('area_diff')
-        ax4.set_title('Modeled - Measured [m2]\n(max={max:.3f})'.format(max=max(df_modld_f[a_diff_col], key=abs)))     # maximum absolute value
+        ax4.set_title('(Modeled - Measured)/Measured [%]\n(max={max:.1f})'.format(max=max(df_modld_f[a_diff_col], key=abs)))     # maximum absolute value of the percent
 
         # Link rotation
         def on_move(event):
@@ -284,6 +293,116 @@ def PlotFieldTables(field_file_path, field_config):
     plot_subfield_single_height(subfield=2, tht=tht)
     plot_subfield_single_height(subfield=3, tht=tht)
 
+#----------------------------------------------------------------------------
+def PlotFieldVariousPowersHeights(field_file_path, subfield, sunid):
+    """
+    field_file_path:     path to CSV file of subfield efficiencies and areas
+    """
+
+    # Inputs
+    #   P_min like D_tube
+    #   tht like L_tube
+    P_min = 66.8
+    tht_maxAtPmin = 175 # 85
+    P_max = 828
+    tht_maxAtPmax = 235
+    helio_area = 8.66**2*.97
+    add_modeled_points_to_surface = False           # for testing surface fit of *modeled* points
+    add_data_points_to_surface = True               # for testing overall interpolation to known data points
+
+    interp_provider = load_heliostat_interpolator_provider(field_file_path, 'surround')
+    df_out = pandas.DataFrame(columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'n_hel1', 'n_hel2', 'n_hel3', 'power', 'tht', 'sunid'])
+
+    powers = np.linspace(P_min, P_max, num=30, endpoint=True)         # [in] outer diameter
+    thts = np.linspace(57, tht_maxAtPmax, num=30, endpoint=True)      # [m]
+
+    for power in powers:
+        for tht in thts:
+            # Eta and area
+            field_eta_table_modld = create_heliostat_field_lookup(interp_provider, power*1000, tht, helio_area)
+            df_modld = pandas.DataFrame(field_eta_table_modld, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'n_hel1', 'n_hel2', 'n_hel3'])
+            df_modld['power'] = power
+            df_modld['tht'] = tht
+            n_rows = len(df_modld.index)
+            df_modld['sunid'] = np.linspace(0, n_rows, num=n_rows, endpoint=False, dtype=int)
+            df_modld_f = df_modld[np.isclose(df_modld.sunid, sunid)]       # keep just the sunid specified
+            df_out = df_out.append(df_modld_f, ignore_index=True)
+
+    # Filter out tower heights that are greater than the assumed max per the power
+    #  so the plot is more easily read.
+    #  I.e., filter out heights above the line that connections the max height
+    #  at the lowest power and the max height at the highest power
+    def filter_fn(row):
+        line_slope = (tht_maxAtPmax - tht_maxAtPmin) / (P_max - P_min)
+        line_intercept = tht_maxAtPmin - line_slope * P_min
+        P = row['power']
+        H = row['tht']
+        tht_max = line_slope * row['power'] + line_intercept
+        if row['tht'] > tht_max:
+            return False         # False means don't keep it
+        else:
+            return True
+
+    to_filter = df_out.apply(filter_fn, axis=1)
+    df_out = df_out[to_filter]
+    df_out = df_out.reset_index(drop=True)
+
+    # Overall Figure
+    fig = plt.figure(figsize=(12,6))    # width, height in inches
+
+    if add_data_points_to_surface:
+        df_data = ReadAndFilterCsv(field_file_path)
+
+    eta_col = 'eta' + str(subfield)
+    n_hel_col_modld = 'n_hel' + str(subfield)
+    n_hel_col_meas = 'a' + str(subfield)
+
+    # Subplot 1, Eta modeled
+    ax = fig.add_subplot(1, 2, 1, projection='3d')
+    surf = ax.plot_trisurf(df_out['power'], df_out['tht'], df_out[eta_col], cmap=plt.cm.viridis, linewidth=0.2)
+    if add_modeled_points_to_surface:
+        modld_pts = ax.scatter(df_out['power'], df_out['tht'], df_out[eta_col], c='black', s=15)
+    if add_data_points_to_surface:
+        df_data_eta = df_data[np.isclose(df_data.type, 0) & np.isclose(df_data.sunid, sunid)].reset_index(drop=True)
+        data_pts = ax.scatter(df_data_eta['power'], df_data_eta['tht'], df_data_eta[eta_col], c='red', s=10)
+    # fig.colorbar(surf, shrink=0.5, aspect=5)
+    ax.set_xlabel('power [MWt]')
+    ax.set_ylabel('tht [m]')
+    ax.set_zlabel('eta')
+    ax.set_title('Eta\n\
+        subfield = {subfield} [-]\n\
+        sunid = {sunid} [-]'\
+        .format(subfield=subfield, sunid=sunid))
+
+    # Subplot 2, area modeled
+    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    surf = ax2.plot_trisurf(df_out['power'], df_out['tht'], df_out[n_hel_col_modld] * helio_area, cmap=plt.cm.viridis, linewidth=0.2)
+    if add_modeled_points_to_surface:
+        modld_pts = ax2.scatter(df_out['power'], df_out['tht'], df_out[n_hel_col_modld] * helio_area, c='black', s=15)
+    if add_data_points_to_surface:
+        df_data_area = df_data[np.isclose(df_data.type, 0) & np.isclose(df_data.sunid, sunid)].reset_index(drop=True)
+        data_pts = ax2.scatter(df_data_area['power'], df_data_area['tht'], df_data_area[n_hel_col_meas], c='red', s=10)
+    # fig.colorbar(surf, shrink=0.5, aspect=5)
+    ax2.set_xlabel('power [MWt]')
+    ax2.set_ylabel('tht [m]')
+    ax2.set_zlabel('area [m2]')
+    ax2.set_title('area\n\
+        subfield = {subfield} [-]\n\
+        sunid = {sunid} [-]'\
+        .format(subfield=subfield, sunid=sunid))
+
+    # Link rotation
+    def on_move(event):
+        if event.inaxes == ax:
+            ax2.view_init(elev=ax.elev, azim=ax.azim)
+        elif event.inaxes == ax2:
+            ax.view_init(elev=ax2.elev, azim=ax2.azim)
+        else:
+            return
+        fig.canvas.draw_idle()
+    c1 = fig.canvas.mpl_connect('motion_notify_event', on_move)
+
+    plt.show()
 
 #----------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -292,8 +411,28 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing field table generation---------------------------------------------------------------------------------
-    PlotFieldTables('resource/eta_lookup_all.csv', '66.8_MWt')
-    PlotFieldTables('resource/eta_lookup_all.csv', '333_MWt')
-    PlotFieldTables('resource/eta_lookup_all.csv', '828_MWt')
+    # PlotFieldTables('resource/eta_lookup_all.csv', '66.8_MWt')
+    # PlotFieldTables('resource/eta_lookup_all.csv', '333_MWt')
+    # PlotFieldTables('resource/eta_lookup_all.csv', '828_MWt')
+
+    #---------------------------------------------------------------------------------------------------------------------
+    #---Testing field table generation for different diameters and lengths------------------------------------------------
+    field_file_path = 'resource/eta_lookup_all.csv'
+    sunid_1 = 0     # az =  70, zen = 77
+    sunid_2 = 3     # az = 180, zen = 11.4
+    sunid_3 = 5     # az = 275, zen = 53
+
+    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_1)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_1)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_1)
+
+    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_2)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_2)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_2)
+
+    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_3)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_3)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_3)
+
 
     x=None

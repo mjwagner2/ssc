@@ -61,8 +61,9 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
         for col in cols[2:]:
             interp_funcs[col].append( 
                     #works better than scipy.interpolate.interp2d in this case
-                    SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 )
+                    # SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2)
                     # GlobalSpline2D(power_levels, tower_heights, df_group[col].values, kind='linear')   # adds extrapolation to interp2d
+                    Rbf(power_levels, tower_heights, df_group[col].values, function='linear', smooth=0.2)
                 )    
 
     return interp_funcs
@@ -134,7 +135,10 @@ def create_heliostat_field_lookup(field_interp_provider, q_solarfield_in_kw, h_t
         #convert heliostat total area to heliostat count, if applicable
         scale = heliostat_area_m2 if i > 2 else 1.
 
-        interp_data.append( [ f(q_solarfield_in, h_tower)[0]/scale for f in field_interp_provider[col] ] )
+        if type(field_interp_provider['eta1'][0]).__module__ == 'scipy.interpolate.rbf':
+            interp_data.append( [ f(q_solarfield_in, h_tower)[()]/scale for f in field_interp_provider[col] ] )  # for rbf
+        else:
+            interp_data.append( [ f(q_solarfield_in, h_tower)[0]/scale for f in field_interp_provider[col] ] )
     
     list_interp = array(interp_data).T.tolist()
 
@@ -417,22 +421,21 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing field table generation for different diameters and lengths------------------------------------------------
-    field_file_path = 'resource/eta_lookup_all.csv'
-    sunid_1 = 0     # az =  70, zen = 77
-    sunid_2 = 3     # az = 180, zen = 11.4
-    sunid_3 = 5     # az = 275, zen = 53
+    # field_file_path = 'resource/eta_lookup_all.csv'
+    # sunid_1 = 0     # az =  70, zen = 77
+    # sunid_2 = 3     # az = 180, zen = 11.4
+    # sunid_3 = 5     # az = 275, zen = 53
 
-    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_1)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_1)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_2)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_3)
+
     # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_1)
-    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_1)
-
-    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_2)
     # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_2)
-    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_2)
-
-    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_3)
     # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_3)
-    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_3)
 
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_1)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_2)
+    # PlotFieldVariousPowersHeights(field_file_path, subfield=3, sunid=sunid_3)
 
     x=None

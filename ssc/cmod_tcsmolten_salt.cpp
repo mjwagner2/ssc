@@ -534,6 +534,19 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_NUMBER, "annual_q_rec_loss",                  "Annual receiver convective and radiative losses",                                                                                         "MWt-hr",       "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_eta_rec_th",                  "Annual receiver thermal efficiency ignoring rec reflective loss",                                                                         "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_eta_rec_th_incl_refl",        "Annual receiver thermal efficiency including reflective loss",                                                                            "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "annual_q_rec_to_particles",          "Annual receiver thermal power to particles",                                                                                              "kWt-hr",       "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
+
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_on_1_annual_frac",               "Fraction of annual hours that are in TOU 1",                                                                                              "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_1_cap_fac",                      "Capacity factor for TOU 1",                                                                                                               "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_on_2_annual_frac",               "Fraction of annual hours that are in TOU 2",                                                                                              "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_2_cap_fac",                      "Capacity factor for TOU 2",                                                                                                               "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_on_3_annual_frac",               "Fraction of annual hours that are in TOU 3",                                                                                              "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_3_cap_fac",                      "Capacity factor for TOU 3",                                                                                                               "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_on_4_annual_frac",               "Fraction of annual hours that are in TOU 4",                                                                                              "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "tou_4_cap_fac",                      "Capacity factor for TOU 4",                                                                                                               "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "cap_fac_tou_weighted",               "total plant capacity factor weighted by TOU pricing multiplier",                                                                          "-",            "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "cap_fac_tou_weighted_min0",          "total plant capacity factor weighted by price multiplier - if W_dot and mult both negative, set to 0 instead of positive",                "-",            "",                                  "",                                         "*",                                                                "",              "" },
+
 
     { SSC_OUTPUT,    SSC_NUMBER, "conversion_factor",                  "Gross to net conversion factor",                                                                                                          "%",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "capacity_factor",                    "Capacity factor",                                                                                                                         "%",            "",                                  "",                                         "*",                                                                "",              ""},
@@ -642,9 +655,9 @@ public:
 
         //       fclose(fp);
 
-         //FILE* fp = fopen("cmod_to_lk_script.lk", "w");
-         //
-         //write_cmod_to_lk_script(fp, m_vartab);
+         /*FILE* fp = fopen("cmod_to_lk_script_tou_test.lk", "w");
+         
+         write_cmod_to_lk_script(fp, m_vartab);*/
 
 
 
@@ -1275,6 +1288,7 @@ public:
         system.m_bop_par_2 = as_double("bop_par_2");
 
         system.are_rec_pc_directly_coupled = are_rec_pc_directly_coupled;
+        system.plant_design_capacity = system_capacity / 1.E3;      //[MWe]
 
         // Instantiate Solver       
         C_csp_solver csp_solver(weather_reader, 
@@ -1297,7 +1311,19 @@ public:
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::OP_MODE_3, allocate("op_mode_3", n_steps_fixed), n_steps_fixed);
 
 
-        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD, allocate("tou_value", n_steps_fixed), n_steps_fixed);            
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD, allocate("tou_value", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_1, allocate("tou_on_1", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, allocate("tou_w_dot_net_1", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_2, allocate("tou_on_2", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, allocate("tou_w_dot_net_2", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_3, allocate("tou_on_3", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, allocate("tou_w_dot_net_3", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_4, allocate("tou_on_4", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, allocate("tou_w_dot_net_4", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CAP_FAC_TOU_WEIGHTED, allocate("cap_fac_tou_weighted_hourly", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CAP_FAC_TOU_WEIGHTED_MIN0, allocate("cap_fac_tou_weighted_min0_hourly", n_steps_fixed), n_steps_fixed);
+
+
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::PRICING_MULT, allocate("pricing_mult", n_steps_fixed), n_steps_fixed);
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::PC_Q_DOT_SB, allocate("q_dot_pc_sb", n_steps_fixed), n_steps_fixed);
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::PC_Q_DOT_MIN, allocate("q_dot_pc_min", n_steps_fixed), n_steps_fixed);
@@ -1647,6 +1673,8 @@ public:
         accumulate_annual_for_year("q_dot_rec_inc", "annual_q_rec_inc", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);           //[MWt-hr]
         accumulate_annual_for_year("q_thermal_loss", "annual_q_rec_loss", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
 
+        accumulate_annual_for_year("Q_dot_to_particles", "annual_q_rec_to_particles", 1000.0 * sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);        //[kWt-hr]
+
         assign("annual_eta_rec_th", (ssc_number_t)(1.0 - as_number("annual_q_rec_loss") / as_number("annual_q_rec_inc")));
         assign("annual_eta_rec_th_incl_refl", (ssc_number_t)(as_number("rec_absorptance")*as_number("annual_eta_rec_th")));
 
@@ -1655,6 +1683,30 @@ public:
         accumulate_annual_for_year("disp_presolve_nconstr", "disp_presolve_nconstr_ann", sim_setup.m_report_step / 3600.0/ as_double("disp_frequency"), steps_per_hour, 1, n_steps_fixed/steps_per_hour);
         accumulate_annual_for_year("disp_presolve_nvar", "disp_presolve_nvar_ann", sim_setup.m_report_step / 3600.0/ as_double("disp_frequency"), steps_per_hour, 1, n_steps_fixed/steps_per_hour);
         accumulate_annual_for_year("disp_solve_time", "disp_solve_time_ann", sim_setup.m_report_step/3600. / as_double("disp_frequency"), steps_per_hour, 1, n_steps_fixed/steps_per_hour );
+
+        // TOU 1
+        accumulate_annual_for_year("tou_on_1", "sum_tou_on_1", sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        assign("tou_on_1_annual_frac", as_number("sum_tou_on_1") / 8760.0);
+        accumulate_annual_for_year("tou_w_dot_net_1", "sum_w_dot_net_1", 1000.0*sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour); //[kWe-h]
+
+        // TOU 2
+        accumulate_annual_for_year("tou_on_2", "sum_tou_on_2", sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        assign("tou_on_2_annual_frac", as_number("sum_tou_on_2") / 8760.0);
+        accumulate_annual_for_year("tou_w_dot_net_2", "sum_w_dot_net_2", 1000.0 * sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour); //[kWe-h]
+
+        // TOU 3
+        accumulate_annual_for_year("tou_on_3", "sum_tou_on_3", sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        assign("tou_on_3_annual_frac", as_number("sum_tou_on_3") / 8760.0);
+        accumulate_annual_for_year("tou_w_dot_net_3", "sum_w_dot_net_3", 1000.0 * sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour); //[kWe-h]
+
+        // TOU 4
+        accumulate_annual_for_year("tou_on_4", "sum_tou_on_4", sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        assign("tou_on_4_annual_frac", as_number("sum_tou_on_4") / 8760.0);
+        accumulate_annual_for_year("tou_w_dot_net_4", "sum_w_dot_net_4", 1000.0 * sim_setup.m_report_step / 3600., steps_per_hour, 1, n_steps_fixed / steps_per_hour); //[kWe-h]
+
+        // Weighted Cap Facs
+        accumulate_annual_for_year("cap_fac_tou_weighted_hourly", "cap_fac_tou_weighted", sim_setup.m_report_step / 3600. / 8760.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+        accumulate_annual_for_year("cap_fac_tou_weighted_min0_hourly", "cap_fac_tou_weighted_min0", sim_setup.m_report_step / 3600. / 8760.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
 
         // Calculated Outputs
             // First, sum power cycle water consumption timeseries outputs
@@ -1673,6 +1725,11 @@ public:
         double nameplate = system_capacity;     //[kWe]
         if(nameplate > 0.0)
             kWh_per_kW = ae / nameplate;
+
+        assign("tou_1_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_1") / (nameplate * as_number("tou_on_1_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
+        assign("tou_2_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_2") / (nameplate * as_number("tou_on_2_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
+        assign("tou_3_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_3") / (nameplate * as_number("tou_on_3_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
+        assign("tou_4_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_4") / (nameplate * as_number("tou_on_4_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
 
         assign("capacity_factor", (ssc_number_t)(kWh_per_kW / ((double)n_steps_fixed / (double)steps_per_hour)*100.));
         assign("kwh_per_kw", (ssc_number_t)kWh_per_kW);

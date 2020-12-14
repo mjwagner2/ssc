@@ -875,7 +875,18 @@ public:
 			//        if multiple csp-timesteps for one reporting timestep
 			// **************************************************************
 			TOU_PERIOD,                 //[-] CSP operating TOU period
-			PRICING_MULT,               //[-] PPA price multiplier
+            TOU_PERIOD_ON_1,            //[-] 1 if TOU period 1, 0 if other
+            TOU_PERIOD_W_DOT_NET_1,     //[MWe] W_dot_net if TOU period 1, 0 if other
+            TOU_PERIOD_ON_2,            //[-] 1 if TOU period 2, 0 if other
+            TOU_PERIOD_W_DOT_NET_2,     //[MWe] W_dot_net if TOU period 2, 0 if other
+            TOU_PERIOD_ON_3,            //[-] 1 if TOU period 3, 0 if other
+            TOU_PERIOD_W_DOT_NET_3,     //[MWe] W_dot_net if TOU period 3, 0 if other
+            TOU_PERIOD_ON_4,            //[-] 1 if TOU period 4, 0 if other
+            TOU_PERIOD_W_DOT_NET_4,     //[MWe] W_dot_net if TOU period 4, 0 if other
+            CAP_FAC_TOU_WEIGHTED,       //[-] total plant capacity factor weighted by price multiplier
+            CAP_FAC_TOU_WEIGHTED_MIN0,  //[-] total plant capacity factor weighted by price multiplier - if W_dot and mult both negative, set to 0 instead of positive
+
+            PRICING_MULT,               //[-] PPA price multiplier
 			PC_Q_DOT_SB,                //[MWt] PC required standby thermal power
 			PC_Q_DOT_MIN,               //[MWt] PC required min thermal power
 			PC_Q_DOT_TARGET,            //[MWt] PC target thermal power
@@ -997,12 +1008,14 @@ public:
 		double m_bop_par_2;			//[-]
 
         bool are_rec_pc_directly_coupled;
+        double plant_design_capacity;   //[MWe]
 
 		S_csp_system_params()
 		{
 			m_pb_fixed_par =
 
-			m_bop_par = m_bop_par_f = m_bop_par_0 = m_bop_par_1 = m_bop_par_2 = std::numeric_limits<double>::quiet_NaN();
+			m_bop_par = m_bop_par_f = m_bop_par_0 = m_bop_par_1 = m_bop_par_2 =
+                plant_design_capacity = std::numeric_limits<double>::quiet_NaN();
 
             are_rec_pc_directly_coupled = true;
 		}

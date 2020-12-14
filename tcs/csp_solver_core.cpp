@@ -203,7 +203,18 @@ static C_csp_reported_outputs::S_output_info S_solver_output_info[] =
 	{C_csp_solver::C_solver_outputs::OP_MODE_2, C_csp_reported_outputs::TS_1ST},		//[-] Operating mode in second subtimestep
 	{C_csp_solver::C_solver_outputs::OP_MODE_3, C_csp_reported_outputs::TS_1ST},		//[-] Operating mode in third subtimestep
 	{C_csp_solver::C_solver_outputs::TOU_PERIOD, C_csp_reported_outputs::TS_1ST},                  //[-] CSP operating TOU period
-	{C_csp_solver::C_solver_outputs::PRICING_MULT, C_csp_reported_outputs::TS_1ST},				  //[-] PPA price multiplier
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_1, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_2, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_ON_4, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::CAP_FAC_TOU_WEIGHTED, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+    {C_csp_solver::C_solver_outputs::CAP_FAC_TOU_WEIGHTED_MIN0, C_csp_reported_outputs::TS_WEIGHTED_AVE},                  //[-] CSP operating TOU period
+
+    {C_csp_solver::C_solver_outputs::PRICING_MULT, C_csp_reported_outputs::TS_1ST},				  //[-] PPA price multiplier
 	{C_csp_solver::C_solver_outputs::PC_Q_DOT_SB, C_csp_reported_outputs::TS_1ST},				  //[MWt] PC required standby thermal power
 	{C_csp_solver::C_solver_outputs::PC_Q_DOT_MIN, C_csp_reported_outputs::TS_1ST},				  //[MWt] PC required min thermal power
 	{C_csp_solver::C_solver_outputs::PC_Q_DOT_TARGET, C_csp_reported_outputs::TS_1ST},			  //[MWt] PC target thermal power
@@ -7054,7 +7065,67 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		}
 		
 
-		mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD, (double)tou_period);        //[-]       
+		mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD, (double)tou_period);        //[-]
+        if (tou_period == 1) {
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_1, 1.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, W_dot_net);        //[MWe]
+
+            // Set others to 0
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_2, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, 0.0);        //[MWe]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_3, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_4, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, 0.0);        //[-]
+        }
+        else if(tou_period == 2) {
+            // Set 2
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_2, 1.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, W_dot_net);        //[MWe]
+
+            // Set others to 0
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_1, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, 0.0);        //[MWe]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_3, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_4, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, 0.0);        //[-]            
+        }
+        else if (tou_period == 3) {
+            // Set 3
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_3, 1.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, W_dot_net);        //[MWe]
+
+            // Set others to 0
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_1, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, 0.0);        //[MWe]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_2, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_4, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, 0.0);        //[-]   
+        }
+        else if (tou_period == 4) {
+            // Set 4
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_4, 1.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_4, W_dot_net);        //[MWe]
+
+            // Set others to 0
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_1, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_1, 0.0);        //[MWe]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_2, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_2, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_ON_3, 0.0);        //[-]
+            mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD_W_DOT_NET_3, 0.0);        //[-]   
+        }
+
+        mc_reported_outputs.value(C_solver_outputs::CAP_FAC_TOU_WEIGHTED, W_dot_net * pricing_mult / ms_system_params.plant_design_capacity);
+        if (pricing_mult < 0.0 && W_dot_net < 0.0) {
+            mc_reported_outputs.value(C_solver_outputs::CAP_FAC_TOU_WEIGHTED_MIN0, 0.0);
+        }
+        else {
+            mc_reported_outputs.value(C_solver_outputs::CAP_FAC_TOU_WEIGHTED_MIN0, W_dot_net* pricing_mult / ms_system_params.plant_design_capacity);
+        }
+
 		mc_reported_outputs.value(C_solver_outputs::PRICING_MULT, pricing_mult);	//[-] 
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_SB, q_pc_sb);          //[MW]     
 		mc_reported_outputs.value(C_solver_outputs::PC_Q_DOT_MIN, q_pc_min);        //[MW]    

@@ -369,6 +369,21 @@ def PlotFieldVariousPowersHeights(field_file_path, subfield, sunid):
     if add_data_points_to_surface:
         df_data_eta = df_data[np.isclose(df_data.type, 0) & np.isclose(df_data.sunid, sunid)].reset_index(drop=True)
         data_pts = ax.scatter(df_data_eta['power'], df_data_eta['tht'], df_data_eta[eta_col], c='red', s=10)
+
+        # #2-D plot of just points, eta vs. tht for different powers
+        # fig_2D = plt.figure()
+        # ax = fig_2D.add_subplot(1, 1, 1)
+        # df_data_eta.sort_values(by=['power', 'tht'], inplace=True)
+        # powers = list(set(df_data_eta.power))
+        # for power in powers:
+        #     ax.plot(df_data_eta['tht'][np.isclose(df_data_eta.power, power)], df_data_eta[eta_col][np.isclose(df_data_eta.power, power)],\
+        #         'o-', label='{power} MWt'.format(power=power))
+        # ax.set_xlabel('Tower Height')
+        # ax.set_ylabel('Eta')
+        # plt.legend()
+        # ax.set_title('Subfield {field_num} Efficiency at Sunid {sunid}'.format(field_num=subfield, sunid=sunid))
+        # plt.show()
+
     # fig.colorbar(surf, shrink=0.5, aspect=5)
     ax.set_xlabel('power [MWt]')
     ax.set_ylabel('tht [m]')

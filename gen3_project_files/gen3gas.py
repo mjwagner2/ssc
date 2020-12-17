@@ -1027,7 +1027,8 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        # om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
         ssc.data_set_array( data, b'om_production', om_production); 
@@ -1296,11 +1297,15 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        ['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],         # within all constraints
+        ['optimal', 'surround', 'skip', 88.255,2.5,52.425,745.126,4.988,0.309,0.455,0.406,13.115,27.558,16.68,30.228],
+        ['tht-high', 'surround', 'skip', 88.255,2.5,125,745.126,4.988,0.309,0.455,0.406,13.115,27.558,16.68,30.228],
+        # ['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
     ]
 
-
-    run_single_case(cases[0])
+    # import warnings
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter('ignore')
+    #     run_single_case(cases[1])
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing number of heliostats--------------------------------------------------------------------------------------
@@ -1368,38 +1373,38 @@ if __name__ == "__main__":
     #         )
 
         
-    # multiprocessing.freeze_support()
-    # nthreads = 14
-    # pool = multiprocessing.Pool(processes=nthreads)
-    # results = pool.starmap(run_single_case, [[c] for c in cases])
+    multiprocessing.freeze_support()
+    nthreads = min(6, len(cases))
+    pool = multiprocessing.Pool(processes=nthreads)
+    results = pool.starmap(run_single_case, [[c] for c in cases])
 
 
-    # all_sum_results = {}
-    # casenames = []
+    all_sum_results = {}
+    casenames = []
 
-    # for case in results:
+    for case in results:
     
-    #     if case == results[0]:
-    #         keyord = []
-    #         for k,v in case:
-    #             keyord.append(k)
-    #             all_sum_results[k] = [v]
-    #     else:
-    #         for k,v in case:
-    #             all_sum_results[k].append(v)
+        if case == results[0]:
+            keyord = []
+            for k,v in case:
+                keyord.append(k)
+                all_sum_results[k] = [v]
+        else:
+            for k,v in case:
+                all_sum_results[k].append(v)
 
-    #     casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
-    #     casenames.append(casename)
+        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
+        casenames.append(casename)
 
-    #     # g.write_hourly_results_to_file( casename + '.csv')
+        # g.write_hourly_results_to_file( casename + '.csv')
 
 
-    # fsum = open('cycle-pareto-results.csv', 'w')
-    # fsum.write("," + ",".join(casenames) + '\n')
+    fsum = open('all-case-results.csv', 'w')
+    fsum.write("," + ",".join(casenames) + '\n')
     
-    # for key in keyord:
-    #     fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
+    for key in keyord:
+        fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
 
-    # fsum.close()
+    fsum.close()
 
 

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import multiprocessing
 from globalspline import GlobalSpline2D
 from scipy.interpolate import SmoothBivariateSpline
+import warnings
 
 
 #modules with cost/performance functions
@@ -795,8 +796,10 @@ class Gen3opt:
         N_tubes = ceil(N_tubes_frac)
         mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
 
-        rec_eta_lookup, rec_dP_lookup = receiver.load_receiver_interpolator_provider(\
-            'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            rec_eta_lookup, rec_dP_lookup = receiver.load_receiver_interpolator_provider(\
+                'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
             rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
@@ -1293,22 +1296,7 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        # ['base', 'surround', 'skip', 100, 3, 200, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
-        #['optimal', 'surround', 'skip', 119.559, 2.842, 227.703, 848.329, 4.939, 3/8, 0.569, 0.597, 15.844, 33.027, 25.012, 25.012],   # baseline
-        #         ,           ,       , P_ref, solarm,           h_tower,           dni_des,        rec_height,                  -,  piping_riser_diam, piping_downcomer_diam,         tshours,       dt_charging,  dt_ht_discharging,  dt_lt_discharging
-        # ['optimal', 'surround', 'skip', 72.92, 2.848, 186.262, 869.881, 3.218, 0.308, 0.416, 0.494, 12.111, 35.431, 16.133, 16.133],
-        # ['optimal', 'surround', 'skip', 150.0, 3.5, 250, 650, 8, 0.25, 0.25, 0.398376, 10.7806, 40, 40, 40],
-        # ['optimal', 'surround', 'skip', 131.6319891915241, 2.8379219011998718, 200.0, 786.2033080797777, 5.101032967874522, 0.2740465629638552, 0.5995057445793365, 0.5520398960462897, 6.085558760812901, 19.914669928833234, 28.106233759402585, 28.106233759402585],
-        # ['base', 'surround', 'bucket', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'surround', 'bucket', 81.968, 2.821, 999, 855.007, 5.402, 3/8, 0.436, 0.502, 14.618, 40.602, 23.303, 23.303],
-        # ['base', 'north', 'skip', 100, 3, 999, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'north', 'skip', 126.375, 2.72, 220, 827.2, 4.59, 3/8, 0.559, 0.497, 14.357, 40.265, 12.651, 12.651],
-        # ['base', 'north', 'bucket', 100, 3, 233, 976, 5.3, 3/8, 0.45, 0.45, 13.3, 15, 15, 15],
-        # ['optimal', 'north', 'bucket', 74.06, 2.679, 999, 797.268, 5.036, 3/8, 0.397, 0.491, 15.659, 33.246, 20.725, 20.725],
-        # ['base', 'surround', 'skip', 100, 3.56, 233, 976, 5.3, 0.375, 0.65, 0.65, 15.5, 15, 15, 15],                                      # base
         ['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],         # within all constraints
-        # ['optimal2', 'surround', 'skip', 73.635, 2.846, 165.753, 907.896, 5.977, 0.359, 0.509, 0.644, 11.757, 25.821, 23.604, 12.403],
-        # ['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
     ]
 
 

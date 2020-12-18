@@ -8,7 +8,7 @@ class PySSC:
 			# self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/sscd.dll")
 			self.pdll = CDLL(os.environ.get('SAMNTDIR') + "/deploy/x64/ssc.dll")
 			# self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Debug/sscd.dll") 
-			# self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Release/ssc.dll") 
+			self.pdll = CDLL("C:/Users/mjwagner2/Documents/repositories/ssc-gen3/build/ssc/Release/ssc.dll") 
 			
 		# elif sys.platform == 'darwin':
 		# 	self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.dylib") 

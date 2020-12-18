@@ -4,6 +4,7 @@ import os
 from math import nan, isfinite, ceil
 import csv
 import pandas as pd
+
 import matplotlib.pyplot as plt
 import multiprocessing
 from globalspline import GlobalSpline2D
@@ -788,13 +789,18 @@ class Gen3opt:
             wr.writerows(ud_ind_od_off_sun)
 
         #receiver
-        receiver_design_power = q_pb_des * self.variables.solar_multiple        # all three receivers
-        m_dot_rec_des = receiver_design_power / 3 * 1000 / \
-            (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
-        m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
-        N_tubes_frac = m_dot_rec_des / m_dot_tube_des
-        N_tubes = ceil(N_tubes_frac)
-        mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
+        try:
+            receiver_design_power = q_pb_des * self.variables.solar_multiple        # all three receivers
+            m_dot_rec_des = receiver_design_power / 3 * 1000 / \
+                (receiver.specheat_co2((T_rec_cold_des + T_rec_hot_des)/2) * (T_rec_hot_des - T_rec_cold_des))
+            m_dot_tube_des = receiver.ReceiverTubeDesignMassFlow(self.variables.receiver_tube_diam, self.variables.receiver_height)
+            N_tubes_frac = m_dot_rec_des / m_dot_tube_des
+            N_tubes = ceil(N_tubes_frac)
+            mdot_adj_factor_tube_to_rec = N_tubes / N_tubes_frac
+        except:
+            if not sf_des_only:
+                ssc.data_free(data)
+            return False
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -886,11 +892,8 @@ class Gen3opt:
                     'discharge_low_temp': dhx['duty_discharge_cold']}
         c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
 
-        #availability
-        lift_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
-        #base_avail = 0.98
-        #total_avail = base_avail * lift_avail
-        total_avail = lift_avail
+        #availability --> all availability sources are included in LiftAvailability
+        total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
 
         """
         ####################################################
@@ -1296,7 +1299,7 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        ['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],         # within all constraints
+        ['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
     ]
 
 

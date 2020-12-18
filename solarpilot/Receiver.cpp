@@ -476,13 +476,13 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 		//the dimensional depth of the cavity centroid offset
 		double cdepth = V.rec_cav_cdepth.val * V.rec_cav_rad.val;
 		//calculate the aperture width and set the value
-		double max_width = sqrt(V.rec_cav_rad.val * V.rec_cav_rad.val + cdepth * cdepth) * 2.;
+		double max_width = sqrt(V.rec_cav_rad.val * V.rec_cav_rad.val - cdepth * cdepth) * 2.;
 		V.rec_cav_apw.Setval(max_width * V.rec_cav_apwfrac.val);
 		//aspect ratio of the aperture
 		aspect = V.rec_cav_aph.Val() / V.rec_cav_apw.Val();
 		//calculate aperture area
 		V.aperture_area.Setval(V.rec_cav_aph.Val() * V.rec_cav_apw.Val());
-
+		break;
 	}
     case var_receiver::REC_TYPE::FLAT_PLATE:
     {
@@ -860,7 +860,15 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		//span of a single panel
 		double panel_span = span / _var_receiver->n_panels.val;
 		//calculate single panel area
-		double panel_width = sin(span) * _var_receiver->rec_cav_rad.val * 2.;
+		double panel_width = sin(panel_span) * _var_receiver->rec_cav_rad.val;
+
+		//calculate the vector offset between the center of the aperture and the center of 
+		//the circle circumscribing the panels
+		double cav_ap_offset = _var_receiver->rec_cav_cdepth.val * _var_receiver->rec_cav_rad.val;
+		Vect ap_offset;
+		ap_offset.i = cav_ap_offset * sin(_var_receiver->rec_azimuth.val * D2R) * cos(_var_receiver->rec_elevation.val * D2R);
+		ap_offset.j = cav_ap_offset * cos(_var_receiver->rec_azimuth.val * D2R);
+		ap_offset.k = cav_ap_offset * sin(_var_receiver->rec_elevation.val * D2R);
 
 		for(int i=0; i<_var_receiver->n_panels.val; i++){
 			FluxSurface *S = &_surfaces.at(i);
@@ -869,32 +877,38 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			//Setup the geometry etc.. including setSurfaceGeometry, setSurfaceOffset
 			
 			/*
-			Calculate the panel width based on the total span angle. The span angle is defined
-			such that the minimum bound of the angle passes through (1) a vector from the center of
-			the polygon inscribed circle through the centroid of the farthest panel in the CCW 
-			direction, and (2) a vector from the center of teh polygon inscribed circle through 
-			the centroid of the farthest panel in the CW direction.
+			Calculate the panel width based on the total span angle. 
+			
+			The span angle is defined as follows
+				* Assume the panels making up the cavity receiver surface are part of a regular polygon that can
+				  be circumscribed by a circle.
+				* Consider the circle that fully circumscribes the receiver surfaces. This circle passes through the 
+				  vertices of the surfaces.
+				* The span is the slice of the circle that ranges from most CCW edge to the most CW edge of all 
+				  surfaces. 
+				* The center of the circle does not need to lie in the aperture plane.
 			*/
 				
 			
 			S->setSurfaceGeometry(_var_receiver->rec_height.val, panel_width);
                
 			//Calculate the azimuth angle of the receiver panel
-			double paz = _var_receiver->panel_rotation.val*D2R + PI-span/2. + panel_span * (double)(i+0.5);
+			double paz = _var_receiver->rec_azimuth.val*D2R - PI+span/2. - panel_span * (double)(i+0.5);
 
 			//Calculate the elevation angle of the panel
-			double pzen = _var_receiver->rec_elevation.val*D2R*cos(_var_receiver->panel_rotation.val*D2R-paz);
+			double pel =  _var_receiver->rec_elevation.val*D2R*cos(-paz);
 			//Set the surface normal vector
 			Vect nv;
-			nv.i = -sin(paz)*sin(pzen);
-			nv.j = -cos(paz)*sin(pzen);
-			nv.k = -cos(pzen);
+			nv.i = -sin(paz)*cos(pel);
+			nv.j = -cos(paz)*cos(pel);
+			nv.k = -sin(pel);
 			S->setNormalVector(nv);
 			//Calculate the centroid of the panel in global XYZ coords
 			sp_point pc;
-			pc.x = nv.i * _var_receiver->rec_diameter.val/2.;
-			pc.y = nv.j * _var_receiver->rec_diameter.val/2.;
-			pc.z = nv.k * _var_receiver->rec_diameter.val/2.;
+			pc.x = -nv.i * _var_receiver->rec_cav_rad.val + ap_offset.i + _var_receiver->rec_offset_x_global.Val();
+			pc.y = -nv.j * _var_receiver->rec_cav_rad.val + ap_offset.j + _var_receiver->rec_offset_y_global.Val();
+			pc.z = -nv.k * _var_receiver->rec_cav_rad.val + ap_offset.k + _var_receiver->rec_offset_z_global.Val();
+
 			S->setSurfaceOffset(pc);
 			//Define the precision of the flux map.
 			S->setFluxPrecision(nflux_x,nflux_y);

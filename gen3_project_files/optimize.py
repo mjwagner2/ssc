@@ -7,6 +7,7 @@ import random
 import time
 import os
 from math import erf, isnan 
+import warnings
 
 class global_handler:
     def __init__(self, sf_interp_provider):
@@ -262,7 +263,12 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     # scipy.optimize.fmin_l_bfgs_b(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, maxiter=100, maxfun=150, disp=True, approx_grad=True)
     # scipy.optimize.fmin_slsqp(f_eval, x0, bounds=xb, args=((g,)), epsilon=0.1, iter=50, acc=0.001)
     # scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'maxiter':150, 'disp':True, 'xatol':.001, 'fatol':.01, 'adaptive':True}, method='Nelder-Mead')
-    scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
+    # scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
+
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        scipy.optimize.minimize(f_eval, x0, args=((g,)), options={'eps':0.05, 'maxiter':100, 'ftol':0.001}, bounds=xb, method='slsqp')
 
 
 
@@ -283,12 +289,12 @@ if __name__ == "__main__":
     GS = global_handler(G3field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround'))        #choose 'north' or 'surround'
     
     # Run different field-lift combinations on different threads
-    nthreads = 10
-    nreplicates = 100
+    nthreads = 12
+    nreplicates = 96
     # -------
     all_args = []
     for i in range(nreplicates):
-        all_args.append([i+300, GS]) 
+        all_args.append([i, GS]) 
     # -------
     pool = multiprocessing.Pool(processes=nthreads)
     pool.starmap(optimize, all_args)

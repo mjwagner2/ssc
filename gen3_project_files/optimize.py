@@ -290,7 +290,7 @@ if __name__ == "__main__":
     
     # Run different field-lift combinations on different threads
     nthreads = 12
-    nreplicates = 96
+    nreplicates = 180
     # -------
     all_args = []
     for i in range(nreplicates):

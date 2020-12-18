@@ -1,6 +1,6 @@
 import pandas
 from numpy import array
-from scipy.interpolate import SmoothBivariateSpline
+from scipy.interpolate import SmoothBivariateSpline, Rbf
 
 def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
     """
@@ -52,7 +52,8 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
         for col in cols[2:]:
             interp_funcs[col].append( 
                     #works better than scipy.interpolate.interp2d in this case
-                    SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 ) 
+                    # SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2 ) 
+                    Rbf(power_levels, tower_heights, df_group[col].values, function='thin_plate', smooth=0.0)
                 )    
 
     return interp_funcs
@@ -124,7 +125,7 @@ def create_heliostat_field_lookup(field_interp_provider, q_solarfield_in_kw, h_t
         #convert heliostat total area to heliostat count, if applicable
         scale = heliostat_area_m2 if i > 2 else 1.
 
-        interp_data.append( [ f(q_solarfield_in, h_tower)[0][0]/scale for f in field_interp_provider[col] ] )
+        interp_data.append( [ f(q_solarfield_in, h_tower)/scale for f in field_interp_provider[col] ] )
         
     return array(interp_data).T.tolist()
 

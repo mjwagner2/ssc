@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import multiprocessing
 from globalspline import GlobalSpline2D
 from scipy.interpolate import SmoothBivariateSpline
+import warnings
 
 
 #modules with cost/performance functions
@@ -801,8 +802,10 @@ class Gen3opt:
                 ssc.data_free(data)
             return False
 
-        rec_eta_lookup, rec_dP_lookup = receiver.load_receiver_interpolator_provider(\
-            'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            rec_eta_lookup, rec_dP_lookup = receiver.load_receiver_interpolator_provider(\
+                'resource/rec_lookup_all.csv', mdot_adj_factor_tube_to_rec)
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
             rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)

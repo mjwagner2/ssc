@@ -63,7 +63,9 @@ def load_heliostat_interpolator_provider(efficiency_file_path, field_type):
                     #works better than scipy.interpolate.interp2d in this case
                     # SmoothBivariateSpline(power_levels, tower_heights, df_group[col].values, kx=2, ky=2)
                     # GlobalSpline2D(power_levels, tower_heights, df_group[col].values, kind='linear')   # adds extrapolation to interp2d
-                    Rbf(power_levels, tower_heights, df_group[col].values, function='linear', smooth=0.2)
+                    Rbf(power_levels, tower_heights, df_group[col].values, function='thin_plate', smooth=0.0)
+                    # Rbf(power_levels, tower_heights, df_group[col].values, function='linear', smooth=0.0)
+                    # interp2d(power_levels, tower_heights, df_group[col].values, kind='linear')
                 )    
 
     return interp_funcs
@@ -425,8 +427,8 @@ def PlotFieldVariousPowersHeights(field_file_path, subfield, sunid):
 
 #----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # intp = load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
-    # create_heliostat_field_lookup(intp, 660000, 215, 88)
+    intp = load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
+    create_heliostat_field_lookup(intp, 660000, 215, 88)
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing field table generation---------------------------------------------------------------------------------
@@ -436,14 +438,14 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------
     #---Testing field table generation for different diameters and lengths------------------------------------------------
-    # field_file_path = 'resource/eta_lookup_all.csv'
-    # sunid_1 = 0     # az =  70, zen = 77
-    # sunid_2 = 3     # az = 180, zen = 11.4
-    # sunid_3 = 5     # az = 275, zen = 53
+    field_file_path = 'resource/eta_lookup_all.csv'
+    sunid_1 = 0     # az =  70, zen = 77
+    sunid_2 = 3     # az = 180, zen = 11.4
+    sunid_3 = 5     # az = 275, zen = 53
 
     # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_1)
     # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_2)
-    # PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_3)
+    PlotFieldVariousPowersHeights(field_file_path, subfield=1, sunid=sunid_3)
 
     # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_1)
     # PlotFieldVariousPowersHeights(field_file_path, subfield=2, sunid=sunid_2)

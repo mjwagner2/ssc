@@ -29,3 +29,14 @@ def create_updc_lookup(file_path, T_cycle_in_C):
         row[0] += cycle_adj
 
     return raw_data
+
+def create_indirect_updc_lookup(file_path, T_cycle_HTF_in_C):
+
+    cycle_adj =  T_cycle_HTF_in_C - 715
+
+    #load table
+    raw_data = [[float(v) for v in line.split(",")] for line in open(file_path,'r').readlines()]
+    for row in raw_data:
+        row[0] += cycle_adj
+
+    return raw_data

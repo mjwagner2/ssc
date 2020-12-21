@@ -704,6 +704,11 @@ double C_pc_indirect_Gen3::get_max_q_pc_startup()
 	}
 }
 
+void C_pc_indirect_Gen3::overwrite_startup_time_remaining(double startup_time_remaining /*s*/) {
+
+    m_startup_time_remain_prev = fmax(m_startup_time_remain_prev, startup_time_remaining/3600.0);    //[hr]
+}
+
 void C_pc_indirect_Gen3::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	if (!ms_params.m_is_user_defined_pc)
@@ -998,7 +1003,7 @@ void C_pc_indirect_Gen3::call(const C_csp_weatherreader::S_outputs &weather,
 
 			}
 
-			m_startup_time_remain_calc = fmax(m_startup_time_remain_prev - time_required_su, 0.0);	//[hr]
+			m_startup_time_remain_calc = fmax(fmin(m_startup_time_remain_prev, ms_params.m_startup_time) - time_required_su, 0.0);	//[hr]
 			m_startup_energy_remain_calc = fmax(m_startup_energy_remain_prev - q_startup, 0.0);		//[kWt-hr]
 		}
 
@@ -1429,7 +1434,7 @@ void C_pc_indirect_Gen3::call(const C_csp_weatherreader::S_outputs &weather,
 		double m_dot_htf_required = (q_startup/time_required_su) / (c_htf*(T_htf_hot - ms_params.m_T_htf_cold_ref));	//[kg/s]
 		double m_dot_htf_req_kg_s = m_dot_htf_required*3600.0;	//[kg/hr], convert from kg/s
 
-		m_startup_time_remain_calc = fmax(m_startup_time_remain_prev - time_required_su, 0.0);	//[hr]
+        m_startup_time_remain_calc = fmax(fmin(m_startup_time_remain_prev, ms_params.m_startup_time) - time_required_su, 0.0);	//[hr]
 		m_startup_energy_remain_calc = fmax(m_startup_energy_remain_prev - q_startup, 0.0);		//[kWt-hr]
 
 

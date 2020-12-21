@@ -747,6 +747,13 @@ double C_pc_Rankine_indirect_224::get_max_q_pc_startup()
 	}
 }
 
+void C_pc_Rankine_indirect_224::overwrite_startup_time_remaining(double startup_time_remaining /*s*/)
+{
+    throw(C_csp_exception("method overwrite_startup_time_remaining() is not complete"));
+
+    return;
+}
+
 void C_pc_Rankine_indirect_224::get_max_power_output_operation_constraints(double T_amb /*C*/, double & m_dot_HTF_ND_max, double & W_dot_ND_max, bool is_rec_on)
 {
 	if (!ms_params.m_is_user_defined_pc)

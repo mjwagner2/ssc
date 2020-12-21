@@ -215,6 +215,14 @@ double C_pc_sco2::get_max_q_pc_startup()
 	}
 }
 
+void C_pc_sco2::overwrite_startup_time_remaining(double startup_time_remaining /*s*/)
+{
+    throw(C_csp_exception("method overwrite_startup_time_remaining() is not complete"));
+
+    return;
+}
+
+
 double C_pc_sco2::get_htf_pumping_parasitic_coef()
 {
 	return ms_params.m_htf_pump_coef* (m_m_dot_htf_des / 3600.) / (m_q_dot_design*1000.0);	// kWe/kWt

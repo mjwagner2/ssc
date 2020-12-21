@@ -655,7 +655,7 @@ public:
 
         //       fclose(fp);
 
-         /*FILE* fp = fopen("cmod_to_lk_script_tou_test.lk", "w");
+         /*FILE* fp = fopen("cmod_to_lk_script_peaker_plant_and_schedule.lk", "w");
          
          write_cmod_to_lk_script(fp, m_vartab);*/
 

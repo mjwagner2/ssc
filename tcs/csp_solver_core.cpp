@@ -783,12 +783,39 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
 			progress_msg_frac_current += progress_msg_interval_frac;
 		}
-		
+
+        C_csp_tou::S_csp_tou_outputs mc_tou_outputs_next;
+        mc_tou.call(fmin(mc_kernel.mc_sim_info.ms_ts.m_time + baseline_step, 8760. * 3600.), mc_tou_outputs_next);
+        double f_turbine_tou_next = mc_tou_outputs_next.m_f_turbine;    //[-]
+
 		// Get tou for timestep
 		mc_tou.call(mc_kernel.mc_sim_info.ms_ts.m_time, mc_tou_outputs);
 		size_t tou_period = mc_tou_outputs.m_csp_op_tou;	//[-]
 		double f_turbine_tou = mc_tou_outputs.m_f_turbine;	//[-]
 		double pricing_mult = mc_tou_outputs.m_price_mult;	//[-]
+
+        // If indirect configuration
+        // If cycle must be off this timestep but want it on next timestep
+        //  ... and
+        // Cycle initial state is OFF or standby
+        // Then overwrite cycle startup_time_remaining
+        if (!ms_system_params.are_rec_pc_directly_coupled  
+            && f_turbine_tou == 0.0 && f_turbine_tou_next > 0.0
+            && (pc_operating_state == C_csp_power_cycle::OFF || pc_operating_state == C_csp_power_cycle::STARTUP))
+        {
+            mc_power_cycle.overwrite_startup_time_remaining(mc_kernel.mc_sim_info.ms_ts.m_step);
+            f_turbine_tou = f_turbine_tou_next;
+        }
+
+        // *Cycle* method should be smart about resetting this value during timestep calls
+        // *************************************************************
+        // What do we do to reset startup time
+        //  .. or
+        // if this happens only for a partial startup (or subtimestep)
+        //  .. or
+        // if cycle is already on (is this going to happen for our schedule?? - that's a LOT of standby)
+        // may want to think a little about standby logic looking ahead at tou pricing, but probably not worth it
+
 
 		// Get collector/receiver & power cycle operating states at start of time step (last time step)
 		cr_operating_state = mc_collector_receiver.get_operating_state();

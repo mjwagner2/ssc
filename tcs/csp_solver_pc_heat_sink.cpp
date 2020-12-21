@@ -199,6 +199,13 @@ double C_pc_heat_sink::get_max_q_pc_startup()
 	return 0.0;		//[MWt]
 }
 
+void C_pc_heat_sink::overwrite_startup_time_remaining(double startup_time_remaining /*s*/)
+{
+    throw(C_csp_exception("method overwrite_startup_time_remaining() is not complete"));
+
+    return;
+}
+
 double C_pc_heat_sink::get_htf_pumping_parasitic_coef()
 {
 	return ms_params.m_htf_pump_coef* (m_m_dot_htf_des) / (ms_params.m_q_dot_des*1000.0);	// kWe/kWt

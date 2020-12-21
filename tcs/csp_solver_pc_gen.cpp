@@ -232,6 +232,13 @@ double C_pc_gen::get_htf_pumping_parasitic_coef()
 	return std::numeric_limits<double>::quiet_NaN();	//[MWt]	// kWe/kWt
 }
 
+void C_pc_gen::overwrite_startup_time_remaining(double startup_time_remaining /*s*/)
+{
+    throw(C_csp_exception("C_pc_gen::overwrite_startup_time_remaining() is not complete"));
+
+    return;
+}
+
 
 void C_pc_gen::call(const C_csp_weatherreader::S_outputs &weather,
 	C_csp_solver_htf_1state &htf_state_in,

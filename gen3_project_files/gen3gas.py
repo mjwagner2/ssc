@@ -87,8 +87,18 @@ class Settings:
         self.is_north = False                  # is field north or surround
         self.cycle_efficiency_nominal = 0.454  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
-        self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
-        self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
+
+        "Default (baseload) settings"
+        if(True):
+            self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
+            self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
+            self.is_direct_system = 1   # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
+
+        elif(True):
+            self.dispatch_profile_type = "peaker"  # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
+            self.is_rec_recirc_available = 0  # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
+            self.is_direct_system = 0  # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
+
 
 class Gen3opt:
     def __init__(self, **kwargs):
@@ -618,6 +628,7 @@ class Gen3opt:
 
             f_turb_tou_periods = [0, 1, 1, 0, 0, 0, 0, 0, 0]
             f_dispatch_tou = [-0.205, 3.30, 1, 0, 0, 0, 0, 0, 0]
+            #f_dispatch_tou = [-0.205, 2.67, 1, 0, 0, 0, 0, 0, 0]       # Ty: corrected values to achieve balanced TOD schedule
             weekday_schedule = \
                 [[4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
                  [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
@@ -905,6 +916,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'design_eff', cycle_efficiency);     # 0.43; 
         ssc.data_set_number( data, b'tshours', self.variables.hours_tes );     # 10.3
         ssc.data_set_number( data, b'solarm',  self.variables.solar_multiple);
+        ssc.data_set_number( data, b'is_direct_system', self.settings.is_direct_system);
 
         #heliostat field
         ssc.data_set_number( data, b'helio_width', 8.66 );
@@ -1153,6 +1165,19 @@ class Gen3opt:
             ['Annual energy', 'annual_energy'],
             ['Capacity factor', 'capacity_factor'],
             ['LCOE (real)', 'lcoe_real'],
+            ['PPA price (year 1)', 'ppa_price'],
+            ['Annual gross cycle', 'annual_W_cycle_gross'],
+            ['Annual rec to particle', 'annual_q_rec_to_particles'],
+            ['TOU 1 frac','tou_on_1_annual_frac'],
+            ['TOU1 cap fac','tou_1_cap_fac'],
+            ['TOU 2 frac', 'tou_on_2_annual_frac'],
+            ['TOU2 cap fac', 'tou_2_cap_fac'],
+            ['TOU 3 frac', 'tou_on_3_annual_frac'],
+            ['TOU3 cap fac', 'tou_3_cap_fac'],
+            ['TOU 4 frac', 'tou_on_4_annual_frac'],
+            ['TOU4 cap fac', 'tou_4_cap_fac'],
+            ['Cap fac weighted', 'cap_fac_tou_weighted'],
+            ['Cap fac weighted MIN0', 'cap_fac_tou_weighted_min0'],
             ['Site improvement', 'csp.pt.cost.site_improvements'],
             ['Heliostats', 'csp.pt.cost.heliostats'],
             ['Tower', 'csp.pt.cost.tower'],
@@ -1301,7 +1326,10 @@ if __name__ == "__main__":
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
         ['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
+        #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],         # within all constraints
     ]
+
+    #run_single_case(cases[0])
 
     # import warnings
     # with warnings.catch_warnings():
@@ -1384,7 +1412,7 @@ if __name__ == "__main__":
     casenames = []
 
     for case in results:
-    
+
         if case == results[0]:
             keyord = []
             for k,v in case:
@@ -1402,7 +1430,7 @@ if __name__ == "__main__":
 
     fsum = open('all-case-results.csv', 'w')
     fsum.write("," + ",".join(casenames) + '\n')
-    
+
     for key in keyord:
         fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
 

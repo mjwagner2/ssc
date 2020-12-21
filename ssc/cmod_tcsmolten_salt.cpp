@@ -655,7 +655,7 @@ public:
 
         //       fclose(fp);
 
-         /*FILE* fp = fopen("cmod_to_lk_script_peaker_plant_and_schedule.lk", "w");
+         /*FILE* fp = fopen("cmod_to_lk_debugging_peaker_20_12_21.lk", "w");
          
          write_cmod_to_lk_script(fp, m_vartab);*/
 
@@ -825,7 +825,7 @@ public:
             pc->m_pc_fl_props = as_matrix("store_fl_props");
 
             // Can test with this false so pc code will use Rankine ND performance
-            pc->m_is_user_defined_pc = false;
+            pc->m_is_user_defined_pc = true;
             pc->m_tech_type = 1;
             pc->m_CT = 2;
             pc->m_F_wc = std::vector<double> {0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -835,6 +835,7 @@ public:
             pc->m_n_pl_inc = 8.;
             pc->m_T_ITD_des = 16.;
             pc->m_P_cond_ratio = 1.0028;
+            pc->m_P_boil = 100.0;       //[bar]
 
             // User-Defined Cycle Parameters
             pc->m_T_amb_des = as_double("ud_T_amb_des");    //[C]

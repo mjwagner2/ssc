@@ -82,10 +82,8 @@ class Settings:
         self.print_summary_output = False
         self.save_hourly_results = False
         self.dni_des_ref = 976.
-        self.cycle_temperature_drop = 700 - 547.2
         self.lift_technology = 'skip'    #or 'bucket'
         self.is_north = False                  # is field north or surround
-        self.cycle_efficiency_nominal = 0.454  #must correspond to the nominal efficiency used to develop the cycle lookup tables
         self.scale_hx_cost = 1.
 
         "Default (baseload) settings"
@@ -93,12 +91,19 @@ class Settings:
             self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
             self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
             self.is_direct_system = 1   # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
+            self.cycle_temperature_drop = 700 - 547.2
+            self.cycle_efficiency_nominal = 0.454  # must correspond to the nominal efficiency used to develop the cycle lookup tables
+            self.cycle_max_frac = 1.20
+            self.cycle_cutoff_frac = 0.2
 
         elif(True):
             self.dispatch_profile_type = "peaker"  # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
             self.is_rec_recirc_available = 0  # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
             self.is_direct_system = 0  # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
-
+            self.cycle_temperature_drop = 700 - 541.3
+            self.cycle_efficiency_nominal = 0.5184  # must correspond to the nominal efficiency used to develop the cycle lookup tables
+            self.cycle_max_frac = 1.01
+            self.cycle_cutoff_frac = 0.5
 
 class Gen3opt:
     def __init__(self, **kwargs):
@@ -267,19 +272,22 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_pc_cold_des', NaN );
         ssc.data_set_number( data, b'startup_time', 0.5 );
         ssc.data_set_number( data, b'startup_frac', 0.5 );
-        ssc.data_set_number( data, b'cycle_max_frac', 1.2); #1.05 );
-        ssc.data_set_number( data, b'cycle_cutoff_frac', 0.2 );
+        ssc.data_set_number( data, b'cycle_max_frac', NaN); #1.05 );
+        ssc.data_set_number( data, b'cycle_cutoff_frac', NaN); # 0.2 );
         ssc.data_set_number( data, b'q_sby_frac', 0.2 );
 
         ssc.data_set_number( data, b'ud_T_amb_des', 35 );
         ssc.data_set_number( data, b'ud_f_W_dot_cool_des', 2 );    # was set to 0. Guess for now
         ssc.data_set_number( data, b'ud_m_dot_water_cool_des', 0 );
-        ssc.data_set_number( data, b'ud_T_htf_low', 680 );
-        ssc.data_set_number( data, b'ud_T_htf_high', 715 );
-        ssc.data_set_number( data, b'ud_T_amb_low', 0 );
-        ssc.data_set_number( data, b'ud_T_amb_high', 45 );
-        ssc.data_set_number( data, b'ud_m_dot_htf_low', 0.5 );
-        ssc.data_set_number( data, b'ud_m_dot_htf_high', 1.05 );
+            # 12.21.20 twn: udpc init method now calculates these values from table data rather than importing them
+            #             ... so we don't need to update them when we change the data
+        ssc.data_set_number( data, b'ud_T_htf_low', NaN );
+        ssc.data_set_number( data, b'ud_T_htf_high', NaN );
+        ssc.data_set_number( data, b'ud_T_amb_low', NaN );
+        ssc.data_set_number( data, b'ud_T_amb_high', NaN );
+        ssc.data_set_number( data, b'ud_m_dot_htf_low', NaN );
+        ssc.data_set_number( data, b'ud_m_dot_htf_high', NaN );
+            # --------------------------------------------------------------------------------------------------
         ud_T_htf_ind_od = [[0]]
         ssc.data_set_matrix( data, b'ud_T_htf_ind_od', ud_T_htf_ind_od );
         ud_T_amb_ind_od = [[0]]
@@ -771,7 +779,10 @@ class Gen3opt:
             ####################################################
             """
             ssc.data_set_string( data, b'solar_resource_file', b'resource/daggett_ca_34.865371_-116.783023_psmv3_60_tmy.csv' );
-        
+
+        # 12.22.20 twn: overwrite dT_approach_lt_disch_hx = ht_disch_hx -> overconstrained when specifying both & setting CR = 1
+        self.variables.dT_approach_lt_disch_hx = self.variables.dT_approach_ht_disch_hx
+
         #calculate system temperatures
         T_rec_hot_des = 730  #C this is fixed
         T_pc_hot_des = T_rec_hot_des - (self.variables.dT_approach_charge_hx + self.variables.dT_approach_ht_disch_hx)
@@ -781,11 +792,19 @@ class Gen3opt:
         T_tes_warm_des = T_tes_cold_des + self.variables.dT_approach_charge_hx + self.variables.dT_approach_ht_disch_hx  # cold media entering rec3, then sco2 entering hthx
         T_pc_cold_des = T_pc_hot_des - self.settings.cycle_temperature_drop
 
+        # Indirect cycle configuration wants HTF temps, not CO2 temps
+        T_pc_HTF_hot_des = T_tes_hot_des
+        T_pc_HTF_cold_des = T_tes_cold_des
+
         #cycle efficiency
         cycle_efficiency = self.settings.cycle_efficiency_nominal/0.489 * cycle.calculate_nominal_efficiency(T_pc_hot_des, self.variables.cycle_design_power*1000.)
         q_pb_des = self.variables.cycle_design_power/cycle_efficiency  #MWt
 
-        ud_ind_od = cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des)
+        if(self.settings.is_direct_system):
+            ud_ind_od = cycle.create_updc_lookup('resource/ud_ind_od.csv', T_pc_hot_des)
+        else:
+            ud_ind_od = cycle.create_indirect_updc_lookup('resource/2020_12_04RC__0.005PHX_dP_des_BEST_CASE_INDIRECT_UDPC_OD.csv', T_pc_HTF_hot_des)
+
         if not sf_des_only:
             ssc.data_set_matrix( data, b'ud_ind_od', ud_ind_od );
         with open('resource/ud_ind_od_python.csv', 'w', newline='') as myfile:
@@ -872,8 +891,12 @@ class Gen3opt:
         piping_length_mult = 1.5
         piping_length_const = 50
         L_riser = self.variables.h_tower * piping_length_mult + piping_length_const
-        riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
-        downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
+        if(self.settings.is_direct_system):
+            riser_cost = piping.solve(self.variables.riser_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
+            downcomer_cost = piping.solve(self.variables.downcomer_inner_diam, L_riser, ssc.data_get_number( data, b'P_phx_in_co2_des'))['cost']
+        else:
+            riser_cost = 0.0
+            downcomer_cost = 0.0
 
         #receiver cost
         recd = receiver.calculate_cost(self.variables.receiver_tube_diam, self.variables.receiver_height, N_tubes)
@@ -889,7 +912,7 @@ class Gen3opt:
         #TES costs
         tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
         dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_ht_disch_hx, self.variables.dT_approach_lt_disch_hx, \
-            T_rec_hot_des, T_rec_cold_des, self.settings.scale_hx_cost)
+            T_rec_hot_des, T_rec_cold_des, self.settings.is_direct_system, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
         e_tes = self.variables.hours_tes * q_pb_des * 1000  #kWh       
         tes_spec_cost = tes_spec_bos_cost + hx_cost/e_tes
@@ -986,14 +1009,21 @@ class Gen3opt:
         ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_lt_disch_hx );
         ssc.data_set_number( data, b'is_rec_recirc_available', self.settings.is_rec_recirc_available );
 
-        ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
-        ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
+        # Indirect cycle configuration wants HTF temps, not CO2 temps
+        if self.settings.is_direct_system:
+            ssc.data_set_number( data, b'T_pc_hot_des', T_pc_hot_des );
+            ssc.data_set_number( data, b'T_pc_cold_des', T_pc_cold_des );
+        else:
+            ssc.data_set_number(data, b'T_pc_hot_des', T_pc_HTF_hot_des);
+            ssc.data_set_number(data, b'T_pc_cold_des', T_pc_HTF_cold_des);
 
         # Turbine output and pricing schedules
         #dispatch_profile_type = "peaker"
         f_turb_tou_periods, f_dispatch_tou, \
         weekday_schedule, weekend_schedule = self.get_turb_and_dispatch_schedules(self.settings.dispatch_profile_type)
 
+        ssc.data_set_number(data, b'cycle_max_frac', self.settings.cycle_max_frac);
+        ssc.data_set_number(data, b'cycle_cutoff_frac', self.settings.cycle_cutoff_frac);
         ssc.data_set_array(data, b'f_turb_tou_periods', f_turb_tou_periods);
 
         ssc.data_set_matrix(data, b'weekday_schedule', weekday_schedule);
@@ -1036,6 +1066,14 @@ class Gen3opt:
 
         #------------------------------------------------------------------------------
         #------------------------------------------------------------------------------
+
+        W_dot_recirc_hourly = np.array(ssc.data_get_array(data, b'W_dot_recirc'))
+        W_dot_recirc_max = W_dot_recirc_hourly.max()
+        print("Max recirculator hourly power = ", W_dot_recirc_max)
+
+        m_dot_rec_co2_hourly = np.array(ssc.data_get_array(data, b'm_dot_rec'))
+        m_dot_rec_co2_max = m_dot_rec_co2_hourly.max()
+        print("Max rec co2 mass flow rate = ", m_dot_rec_co2_max)
 
         #O&M cost
         om_bottom_up_model = c_om_fixed
@@ -1185,6 +1223,7 @@ class Gen3opt:
             ['Storage', 'csp.pt.cost.storage'],
             ['Power block', 'csp.pt.cost.power_block'],
             ['Contingency', 'csp.pt.cost.contingency'],
+            ['Recirculator cost', 'csp.pt.cost.recirculator'],
             ['Direct costs subtotal', 'total_direct_cost'],
             # ['EPC', 'csp.pt.cost.epc.total'],
             # ['Total land cost', 'csp.pt.cost.plm.total'],
@@ -1325,11 +1364,12 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        ['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
-        #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],         # within all constraints
+        #['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
+        #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],
+        ['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
     ]
 
-    #run_single_case(cases[0])
+    run_single_case(cases[0])
 
     # import warnings
     # with warnings.catch_warnings():
@@ -1402,38 +1442,38 @@ if __name__ == "__main__":
     #         )
 
         
-    multiprocessing.freeze_support()
-    nthreads = min(6, len(cases))
-    pool = multiprocessing.Pool(processes=nthreads)
-    results = pool.starmap(run_single_case, [[c] for c in cases])
-
-
-    all_sum_results = {}
-    casenames = []
-
-    for case in results:
-
-        if case == results[0]:
-            keyord = []
-            for k,v in case:
-                keyord.append(k)
-                all_sum_results[k] = [v]
-        else:
-            for k,v in case:
-                all_sum_results[k].append(v)
-
-        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
-        casenames.append(casename)
-
-        # g.write_hourly_results_to_file( casename + '.csv')
-
-
-    fsum = open('all-case-results.csv', 'w')
-    fsum.write("," + ",".join(casenames) + '\n')
-
-    for key in keyord:
-        fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
-
-    fsum.close()
+    # multiprocessing.freeze_support()
+    # nthreads = min(6, len(cases))
+    # pool = multiprocessing.Pool(processes=nthreads)
+    # results = pool.starmap(run_single_case, [[c] for c in cases])
+    #
+    #
+    # all_sum_results = {}
+    # casenames = []
+    #
+    # for case in results:
+    #
+    #     if case == results[0]:
+    #         keyord = []
+    #         for k,v in case:
+    #             keyord.append(k)
+    #             all_sum_results[k] = [v]
+    #     else:
+    #         for k,v in case:
+    #             all_sum_results[k].append(v)
+    #
+    #     casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
+    #     casenames.append(casename)
+    #
+    #     # g.write_hourly_results_to_file( casename + '.csv')
+    #
+    #
+    # fsum = open('all-case-results.csv', 'w')
+    # fsum.write("," + ",".join(casenames) + '\n')
+    #
+    # for key in keyord:
+    #     fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
+    #
+    # fsum.close()
 
 

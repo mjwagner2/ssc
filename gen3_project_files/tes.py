@@ -42,7 +42,7 @@ def cp_particle():
     return __particle_specheat
 
 #----------------------------------------------------------------------
-def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_approach_lt_dis, T_rec_out_C, T_rec_in_C, scale_cost=1.):
+def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_approach_lt_dis, T_rec_out_C, T_rec_in_C, is_direct_system = True, scale_cost=1.):
     """
     Inputs: 
     q_cycle_in_kw - cycle design thermal rating / discharge rating at design (kWt)
@@ -197,9 +197,14 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     cost_cold_disch_hx = TotalHxCost(L_cell_cold_disch, N_cells_cold_disch, cold_disch_inlet_and_outlet_temps)
     
     # Total Cost of Each Type of HX
-    cost_charge = 3 * cost_charge_hx
-    cost_hot_disch = 1 * cost_hot_disch_hx
-    cost_cold_disch = 1 * cost_cold_disch_hx
+    if(is_direct_system):
+        cost_charge = 3 * cost_charge_hx
+        cost_hot_disch = 1 * cost_hot_disch_hx
+        cost_cold_disch = 1 * cost_cold_disch_hx
+    else:
+        cost_charge = 3 * cost_charge_hx
+        cost_hot_disch = cost_charge_hx
+        cost_cold_disch = 0.0
 
     #Fractional pressure loss
     dp_charge     = __dp_interp_f(m_dot_co2 / N_cells_charge,     (T_rec_out_C          + T_hot_disch_co2_in )/2.)[0]*L_cell_charge

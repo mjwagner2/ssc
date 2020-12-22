@@ -48,6 +48,7 @@ public:
         double foundation_cost_scaling_linear;      //[$/m] Foundation cost scaling linear
         double particle_lift_cost;                  //[$] Particle lift fixed cost
         double riser_and_downcomer_cost;            //[$] Riser and downcomer fixed cost
+        double recirculator_cost;                   //[$]
 
 			// Receiver
 		double A_rec;					//[m^2] Receiver area
@@ -102,7 +103,7 @@ public:
 		S_cost_model_parameters()
 		{
 			A_sf_refl = site_improv_spec_cost = heliostat_spec_cost = heliostat_fixed_cost = 
-				h_tower = h_rec = h_helio = tower_fixed_cost = tower_cost_scaling_exp = 
+				h_tower = h_rec = h_helio = tower_fixed_cost = tower_cost_scaling_exp = recirculator_cost =
 				A_rec = rec_ref_cost = A_rec_ref = rec_cost_scaling_exp = 
 				Q_storage = tes_spec_cost = W_dot_design = power_cycle_spec_cost = bop_spec_cost = fossil_backup_spec_cost = contingency_rate =
 				total_land_area = plant_net_capacity = EPC_land_spec_cost = EPC_land_perc_direct_cost_smaller = EPC_land_perc_direct_cost_larger =

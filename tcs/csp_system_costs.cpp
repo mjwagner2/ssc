@@ -137,7 +137,7 @@ void C_mspt_system_costs::calculate_costs()
 		N_mspt::direct_capital_precontingency_cost(
 			ms_out.site_improvement_cost,
 			ms_out.heliostat_cost,
-			ms_out.tower_cost + ms_par.particle_lift_cost + ms_par.riser_and_downcomer_cost,
+			ms_out.tower_cost + ms_par.particle_lift_cost + ms_par.riser_and_downcomer_cost + ms_par.recirculator_cost,
 			ms_out.receiver_cost,
 			ms_out.tes_cost,
 			ms_out.power_cycle_cost,

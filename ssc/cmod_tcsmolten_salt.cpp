@@ -283,6 +283,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.heliostats",             "Heliostat cost",                                                                                                                          "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.tower",                  "Tower cost",                                                                                                                              "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.receiver",               "Receiver cost",                                                                                                                           "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.recirculator",           "Recirculator cost",                                                                                                                       "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.storage",                "TES cost",                                                                                                                                "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.power_block",            "Power cycle cost",                                                                                                                        "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "csp.pt.cost.rad_field",              "Radiative field cost"                                                                                                                     "$",            "",                                  "System Costs",                             "*",                                                                "",              ""},
@@ -1483,6 +1484,22 @@ public:
         sys_costs.ms_par.particle_lift_cost = as_double("particle_lift_cost");
         sys_costs.ms_par.riser_and_downcomer_cost = as_double("riser_and_downcomer_cost");
 
+        size_t count_m_dot_rec;
+        ssc_number_t* p_m_dot_rec = as_array("m_dot_rec", &count_m_dot_rec);
+        double m_dot_rec_co2_max = 0.0;
+        for (size_t i_m_dot_rec_co2 = 0; i_m_dot_rec_co2 < count_m_dot_rec; i_m_dot_rec_co2++) {
+            m_dot_rec_co2_max = fmax(m_dot_rec_co2_max, p_m_dot_rec[i_m_dot_rec_co2]);
+        }
+
+        if (are_rec_pc_directly_coupled) {
+            sys_costs.ms_par.recirculator_cost = 0.0;
+        }
+        else{
+            sys_costs.ms_par.recirculator_cost = 11.2E6 * std::pow(m_dot_rec_co2_max / 3600. / 1100., 0.78);
+        }
+
+        assign("csp.pt.cost.recirculator", sys_costs.ms_par.recirculator_cost);     //[$]
+
         sys_costs.ms_par.A_rec = A_rec;
         sys_costs.ms_par.rec_ref_cost = as_double("rec_ref_cost");
         sys_costs.ms_par.A_rec_ref = as_double("rec_ref_area");
@@ -1627,9 +1644,9 @@ public:
         }
 
         // Convert mass flow rates from [kg/hr] to [kg/s]
-        size_t count_m_dot_pc, count_m_dot_rec, count_m_dot_water_pc, count_m_dot_tes_dc, count_m_dot_tes_ch;
-        count_m_dot_pc = count_m_dot_rec = count_m_dot_water_pc = count_m_dot_tes_dc = count_m_dot_tes_ch = 0;
-        ssc_number_t *p_m_dot_rec = as_array("m_dot_rec", &count_m_dot_rec);
+        size_t count_m_dot_pc, count_m_dot_water_pc, count_m_dot_tes_dc, count_m_dot_tes_ch;
+        count_m_dot_pc = count_m_dot_water_pc = count_m_dot_tes_dc = count_m_dot_tes_ch = 0;
+        
         ssc_number_t *p_m_dot_pc = as_array("m_dot_pc", &count_m_dot_pc);
         ssc_number_t *p_m_dot_water_pc = as_array("m_dot_water_pc", &count_m_dot_water_pc);
         ssc_number_t *p_m_dot_tes_dc = as_array("m_dot_tes_dc", &count_m_dot_tes_dc);

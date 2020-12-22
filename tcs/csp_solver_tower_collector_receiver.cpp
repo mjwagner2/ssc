@@ -535,7 +535,7 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
     else {
 
         dP_riser = 0.0;         //[kPa] assume no riser if receivers are recirculating
-        double eta_comp = 0.7;  //[-] compressor isentropic efficiency placeholder - pass as input parameter from cmod
+        double eta_comp = 0.67;  //[-] compressor isentropic efficiency
 
         int comp_code = 0;
         double h_comp_in, s_comp_in, rho_comp_in, T_comp_out, h_comp_out, s_comp_out, rho_comp_out;

@@ -15,7 +15,7 @@ def calculate_nominal_efficiency(T_cycle_in_C, W_cycle_des_kW):
     #correction for reduced power block size
     eta_correction = interp(W_cycle_des_kW/1000., __power_lookup["power"], __power_lookup["correction"])
 
-    return eta_max - eta_correction
+    return eta_max + eta_correction
 
 
 #----------------------------------------------------------------------------

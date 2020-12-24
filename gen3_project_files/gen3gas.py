@@ -736,7 +736,8 @@ class Gen3opt:
 
         non_labor_costs = A + B + C + D + E + F + G + H
 
-        return labor_costs + non_labor_costs
+        # 12.23.20 twn: added normalization versus power block capacity
+        return (labor_costs + non_labor_costs)*(W_pb*1.E-3/100)
 
     #----------------------------------------------------------------
     @staticmethod
@@ -1224,18 +1225,25 @@ class Gen3opt:
             ['Power block', 'csp.pt.cost.power_block'],
             ['Contingency', 'csp.pt.cost.contingency'],
             ['Recirculator cost', 'csp.pt.cost.recirculator'],
+            ['Cycle efficiency', 'design_eff'],
             ['Direct costs subtotal', 'total_direct_cost'],
             # ['EPC', 'csp.pt.cost.epc.total'],
             # ['Total land cost', 'csp.pt.cost.plm.total'],
             # ['Sales tax', 'csp.pt.cost.sales_tax.total'],
             ['Indirect costs subtotal', 'total_indirect_cost'],
             ['Net capital cost', 'cost_installed'],
+            ['NPV costs', 'npv_annual_costs'],
+            ['OM lifetime total', -999.9],
+            ['Analysis period', 'analysis_period'],
             ['Cost per capacity', 'csp.pt.cost.installed_per_capacity'],
             ['Tower height', 'h_tower'],
         ]
 
         for lab,var in printouts:
-            val = ssc.data_get_number(data, var.encode())
+            if(lab == 'OM lifetime total'):
+                val = om_fixed * ssc.data_get_number( data, b'analysis_period')
+            else:
+                val = ssc.data_get_number(data, var.encode())
             self.summary_results.append([lab, val])
 
         self.summary_results.append(["Charge HX duty", dhx['duty_charge']])
@@ -1367,6 +1375,8 @@ if __name__ == "__main__":
         #['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
         #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],
         ['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
+        #['OandM_pars', 'surround', 'skip', 20.0, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
+
     ]
 
     run_single_case(cases[0])

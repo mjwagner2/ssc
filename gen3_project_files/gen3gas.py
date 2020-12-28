@@ -87,7 +87,7 @@ class Settings:
         self.scale_hx_cost = 1.
 
         "Default (baseload) settings"
-        if(True):
+        if(False):
             self.dispatch_profile_type = "baseload" # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
             self.is_rec_recirc_available = 0    # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
             self.is_direct_system = 1   # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver

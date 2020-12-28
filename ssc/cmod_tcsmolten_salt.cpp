@@ -1751,7 +1751,23 @@ public:
 
         assign("capacity_factor", (ssc_number_t)(kWh_per_kW / ((double)n_steps_fixed / (double)steps_per_hour)*100.));
         assign("kwh_per_kw", (ssc_number_t)kWh_per_kW);
-         
+
+        // Resetting these values to uniform because we're scaling energy output (W_DOT_NET) in csp_solver by TOD pricing
+        // This lets us calculate LCOE
+        C_csp_tou_block_schedules uniform_tou;
+        uniform_tou.setup_block_uniform_tod();
+        assign("dispatch_sched_weekday", uniform_tou.ms_params.mc_pricing.mc_weekdays);
+        assign("dispatch_sched_weekend", uniform_tou.ms_params.mc_pricing.mc_weekends);
+        assign("dispatch_factor1",1.0);
+        assign("dispatch_factor2",1.0);
+        assign("dispatch_factor3",1.0);
+        assign("dispatch_factor4",1.0);
+        assign("dispatch_factor5",1.0);
+        assign("dispatch_factor6",1.0);
+        assign("dispatch_factor7",1.0);
+        assign("dispatch_factor8",1.0);
+        assign("dispatch_factor9",1.0);
+
         //Single value outputs from radiative cooling system
 
     }

@@ -7090,7 +7090,11 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 			mc_reported_outputs.value(C_solver_outputs::OP_MODE_2, 0.0);
 			mc_reported_outputs.value(C_solver_outputs::OP_MODE_3, 0.0);
 		}
-		
+
+        // 12.28.20 twn: scale power output by TOD factor to adjust LCOE for peaker plant
+        //               ... TOD should be = 1 for all baseload hours, so shouldn't affect baseload LCOE
+        mc_reported_outputs.value(C_solver_outputs::W_DOT_NET, W_dot_net* pricing_mult);								//[MWe] Total electric power output to grid        
+        // ... but this mucks up all financial calcs that rely on revenue so we need to reset TOD factors and schedules to uniform...
 
 		mc_reported_outputs.value(C_solver_outputs::TOU_PERIOD, (double)tou_period);        //[-]
         if (tou_period == 1) {
@@ -7215,7 +7219,6 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		mc_reported_outputs.value(C_solver_outputs::PC_W_DOT_COOLING, mc_pc_out_solver.m_W_cool_par);           //[MWe] Power cycle cooling power consumption (fan, pumps, etc.)
 		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_FIXED, W_dot_fixed);								//[MWe] Fixed electric parasitic power load 
 		mc_reported_outputs.value(C_solver_outputs::SYS_W_DOT_BOP, W_dot_bop);									//[MWe] Balance-of-plant electric parasitic power load   
-		mc_reported_outputs.value(C_solver_outputs::W_DOT_NET, W_dot_net);								//[MWe] Total electric power output to grid        
 		
             //Dispatch optimization outputs
 		mc_reported_outputs.value(C_solver_outputs::DISPATCH_SOLVE_STATE, dispatch.outputs.solve_state);

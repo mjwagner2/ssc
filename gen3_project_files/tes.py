@@ -80,7 +80,7 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     T_cold_disch_particle_out = T_cold_disch_co2_in + dT_approach_lt_dis    # cold particles leaving low-temp HX
     
     #heat exchanger mass flows
-    cp_co2_cycle = specheat_co2(T_cycle_in + dT_cycle/2)    #kJ/kg-K
+    cp_co2_cycle = specheat_co2(T_cycle_in - dT_cycle/2)    #kJ/kg-K
     m_dot_co2 = q_cycle_in_kw / (cp_co2_cycle * dT_cycle)
     m_dot_particle = q_cycle_in_kw / (__particle_specheat * dT_cycle)
 
@@ -93,6 +93,8 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     cp_co2_cold_disch = specheat_co2( (T_cold_disch_co2_out + T_cold_disch_co2_in)/2 )
     q_cold_disch_duty = m_dot_co2*cp_co2_cold_disch*(T_cold_disch_co2_out - T_cold_disch_co2_in)
 
+    cp_co2_combined_disch = specheat_co2((T_cycle_in + T_cycle_out)/2.)
+    q_combined_disch_duty = q_charge_duty   # kW
 
     #effectiveness
     eta_charge = q_charge_duty / (m_dot_co2 * cp_co2_cycle * (T_rec_out_C - T_charge_particle_in))
@@ -103,18 +105,34 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     cr_min_cold_disch = min([m_dot_co2*cp_co2_cold_disch, m_dot_particle*__particle_specheat])
     eta_cold_disch = q_cold_disch_duty / (cr_min_cold_disch*(T_hot_disch_particle_out - T_cycle_out))
 
+    cr_min_combined_disch = min([m_dot_co2*cp_co2_combined_disch, m_dot_particle*__particle_specheat])
+    eta_combined_disch = q_combined_disch_duty / (cr_min_combined_disch*(T_hot_disch_particle_in - T_cycle_out))
+
     #UA
     UA_charge = m_dot_co2 * cp_co2_cycle * (eta_charge / (1.-eta_charge))  
     
     cr_hot_disch = cr_min_hot_disch / max([m_dot_co2*cp_co2_cold_disch, m_dot_particle*__particle_specheat])
-    UA_hot_disch = cr_min_hot_disch * log( (1 - eta_hot_disch*cr_hot_disch) / (1.-eta_hot_disch)) / (1 - cr_hot_disch)
+    if cr_hot_disch == 1.0:
+        UA_hot_disch = cr_min_hot_disch * eta_hot_disch / (1. - eta_hot_disch)
+    else:
+        UA_hot_disch = cr_min_hot_disch * log( (1 - eta_hot_disch*cr_hot_disch) / (1.-eta_hot_disch)) / (1 - cr_hot_disch)
     
     cr_cold_disch = cr_min_cold_disch / max([m_dot_co2*cp_co2_cold_disch, m_dot_particle*__particle_specheat])
-    UA_cold_disch = cr_min_cold_disch * log( (1 - eta_cold_disch*cr_cold_disch) / (1.-eta_cold_disch)) / (1 - cr_cold_disch)
+    if cr_cold_disch == 1.0:
+        UA_cold_disch = cr_min_cold_disch * eta_cold_disch / (1. - eta_cold_disch)
+    else:
+        UA_cold_disch = cr_min_cold_disch * log( (1 - eta_cold_disch*cr_cold_disch) / (1.-eta_cold_disch)) / (1 - cr_cold_disch)
+
+    cr_combined_disch = cr_min_combined_disch / max([m_dot_co2*cp_co2_combined_disch, m_dot_particle*__particle_specheat])
+    if cr_combined_disch == 1.0:
+        UA_combined_disch = cr_min_combined_disch * eta_combined_disch / (1. - eta_combined_disch)
+    else:
+        UA_combined_disch = cr_min_combined_disch * log( (1. - eta_combined_disch*cr_combined_disch) / (1.-eta_combined_disch))/(1.-cr_combined_disch)
 
     cost_charge = 3400 * scale_cost * UA_charge * 3         # $3.40/UA
     cost_hot_disch = 3400 * scale_cost * UA_hot_disch
     cost_cold_disch = 9800 * scale_cost * UA_cold_disch  # $9.80/UA --- costs from Brayton study
+    cost_combined_disch = 3400 * scale_cost * UA_combined_disch
     
     ### Specify parameters and factors
 
@@ -132,6 +150,7 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     A_charge = UA_charge / U
     A_hot_disch = UA_hot_disch / U
     A_cold_disch = UA_cold_disch / U
+    A_combined_disch = UA_combined_disch / U
 
     #Determine the minimum number of cells
     #Allow fractional number of cells (i.e., omit functions like ceil() and their discreet outputs) to facilitate optimization routines
@@ -158,6 +177,13 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
         N_cells_cold_disch = A_cold_disch / (2 * W_cell * L_cell_cold_disch)
     else:
         N_cells_cold_disch = N_cells_min
+
+    L_cell_combined_disch = A_combined_disch / (2 * W_cell * N_cells_min)
+    if L_cell_combined_disch >= L_cell_max:
+        L_cell_combined_disch = L_cell_max
+        N_cells_combined_disch = A_combined_disch / (2 * W_cell * L_cell_combined_disch)
+    else:
+        N_cells_combined_disch = N_cells_min
 
     #Fraction of total costs associated with low cost materials
     def FracTotalCosts(L_cell):
@@ -190,11 +216,13 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     charge_inlet_and_outlet_temps = (T_rec_in_C, T_rec_out_C, T_charge_particle_in, T_charge_particle_out)
     hot_disch_inlet_and_outlet_temps = (T_hot_disch_co2_in, T_hot_disch_co2_out, T_hot_disch_particle_in, T_hot_disch_particle_out)
     cold_disch_inlet_and_outlet_temps = (T_cold_disch_co2_in, T_cold_disch_co2_out, T_cold_disch_particle_in, T_cold_disch_particle_out)
+    combined_disch_in_and_out_temps = (T_cold_disch_co2_in, T_hot_disch_co2_out, T_hot_disch_particle_in, T_cold_disch_particle_out)
 
     # Costs of each singular HX
     cost_charge_hx = TotalHxCost(L_cell_charge, N_cells_charge, charge_inlet_and_outlet_temps)
     cost_hot_disch_hx = TotalHxCost(L_cell_hot_disch, N_cells_hot_disch, hot_disch_inlet_and_outlet_temps)
     cost_cold_disch_hx = TotalHxCost(L_cell_cold_disch, N_cells_cold_disch, cold_disch_inlet_and_outlet_temps)
+    cost_combined_disch_hx = TotalHxCost(L_cell_combined_disch, N_cells_combined_disch, combined_disch_in_and_out_temps)
     
     # Total Cost of Each Type of HX
     if(is_direct_system):
@@ -203,7 +231,7 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
         cost_cold_disch = 1 * cost_cold_disch_hx
     else:
         cost_charge = 3 * cost_charge_hx
-        cost_hot_disch = cost_charge_hx
+        cost_hot_disch = cost_combined_disch_hx
         cost_cold_disch = 0.0
 
     #Fractional pressure loss

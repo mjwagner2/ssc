@@ -158,6 +158,7 @@ public:
         //[-] False: receiver does NOT have recirculator
         //             and receiver cannot produce heat unless PC is ON
     bool m_is_rec_recirc_available;
+    bool m_is_riser_and_downcomer;
 
 	C_csp_reported_outputs mc_reported_outputs;
 	

@@ -1033,9 +1033,11 @@ public:
         tower.pipe_loss_per_m = as_double("piping_loss");        //[Wt/m]
 
         tower.m_is_rec_recirc_available = as_boolean("is_rec_recirc_available");        //[-]
+        tower.m_is_riser_and_downcomer = true;
         // If indirect system, then must have a recirculator
         if (!are_rec_pc_directly_coupled) {
             tower.m_is_rec_recirc_available = true;
+            tower.m_is_riser_and_downcomer = false;
         }
 
         // Calculate tower inlet pressure using power block outlet pressure and a temporary HX representing the tes low-temp HX

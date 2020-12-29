@@ -238,7 +238,10 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
     double q_dot_des_first_rec = collector_receivers.at(0).get_design_thermal_power();          // [MWt]
     m_m_dot_co2_des = q_dot_des_first_rec*1000. / (cp_avg * (T_rec_hot_des - T_rec_cold_des));    // [kg/s]
     double T_riser_in = T_rec_cold_des;        // [K] assuming equal to first receiver cold design temperature
-    double P_drop_riser = f_dP_riser(m_m_dot_co2_des, T_riser_in - 273.15, P_prev, riser_diam, riser_length, mc_field_htfProps); // [kPa]
+    double P_drop_riser = 0.0;
+    if(m_is_riser_and_downcomer) {
+        P_drop_riser = f_dP_riser(m_m_dot_co2_des, T_riser_in - 273.15, P_prev, riser_diam, riser_length, mc_field_htfProps); // [kPa]
+    }
     dP_sf += P_drop_riser;
     P_prev -= P_drop_riser;     // [kPa] pressure after riser before first receiver
     m_P_riser_out_des = P_prev;
@@ -263,7 +266,10 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
     }
 
     //Downcomer pressure loss
-    double P_drop_downcomer = f_dP_riser(m_m_dot_co2_des, _solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+    double P_drop_downcomer = 0.0;
+    if (m_is_riser_and_downcomer) {
+        P_drop_downcomer = f_dP_riser(m_m_dot_co2_des, _solved_params.m_T_htf_cold_des - 273.15, P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
+    }
     dP_sf += P_drop_downcomer;
     P_prev -= P_drop_downcomer;
 
@@ -855,7 +861,8 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver_prev;
 
     //we will ignore estimated riser pressure loss if the receivers are in off mode
-    
+    bool is_rec_recirc = cr_out_solver.m_is_rec_recirc_in;      //[-]
+
     for (std::vector<int>::size_type i = 0; i != collector_receivers.size(); i++) {
         // SHOULD THIS BE IN REVERSE ORDER?
         collector_receivers.at(i).off(weather, htf_state_in_next, cr_out_solver_prev, sim_info);
@@ -925,7 +932,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
         //riser pressure loss
         if (i == 0)
         {
-            if(cr_out_solver.m_m_dot_salt_tot > 0.)
+            if(cr_out_solver.m_m_dot_salt_tot > 0. && !is_rec_recirc)
                 dP_riser = f_dP_riser(cr_out_solver.m_m_dot_salt_tot/3600., receiver_outputs.m_T_salt_cold, 
                                       htf_state_in.m_pres, riser_diam, riser_length, mc_field_htfProps); //[kPa]
             else
@@ -969,7 +976,7 @@ void C_csp_tower_collector_receiver::off(const C_csp_weatherreader::S_outputs &w
             mc_reported_outputs.value(E_DP_CO2_HX_3, dP_hx);                                        //[kPa]
 
             //downcomer pressure loss
-            if (cr_out_solver.m_m_dot_salt_tot > 0.)
+            if (cr_out_solver.m_m_dot_salt_tot > 0. && !is_rec_recirc)
                 dP_downcomer = f_dP_riser(cr_out_solver.m_m_dot_salt_tot / 3600., receiver_outputs.m_T_salt_cold,
                     P_prev, downcomer_diam, riser_length, mc_field_htfProps); //[kPa]
             else

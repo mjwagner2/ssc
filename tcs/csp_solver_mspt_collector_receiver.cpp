@@ -302,7 +302,8 @@ void C_csp_mspt_collector_receiver::on(const C_csp_weatherreader::S_outputs &wea
 void C_csp_mspt_collector_receiver::estimates(const C_csp_weatherreader::S_outputs &weather,
 	const C_csp_solver_htf_1state &htf_state_in,
 	C_csp_collector_receiver::S_csp_cr_est_out &est_out,
-	const C_csp_solver_sim_info &sim_info)
+	const C_csp_solver_sim_info &sim_info,
+    bool is_rec_recirc_in)
 {
 	// For now, define estimates(...) shell that calls call() with operation mode defined.
 	// Should eventually develop an estimate(...) method for the MSPT

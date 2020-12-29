@@ -1071,13 +1071,15 @@ void C_csp_tower_collector_receiver::on(const C_csp_weatherreader::S_outputs &we
 void C_csp_tower_collector_receiver::estimates(const C_csp_weatherreader::S_outputs &weather,
 	const C_csp_solver_htf_1state &htf_state_in,
 	C_csp_collector_receiver::S_csp_cr_est_out &est_out,
-	const C_csp_solver_sim_info &sim_info)
+	const C_csp_solver_sim_info &sim_info,
+    bool is_rec_recirc_in)
 {	
 	C_csp_collector_receiver::S_csp_cr_inputs inputs;
 	inputs.m_input_operation_mode = C_csp_collector_receiver::STEADY_STATE;
 	inputs.m_field_control = 1.0;
 
     C_csp_collector_receiver::S_csp_cr_out_solver cr_out_solver;
+    cr_out_solver.m_is_rec_recirc_in = is_rec_recirc_in;
 
     call(weather, htf_state_in, inputs, cr_out_solver, sim_info);
 

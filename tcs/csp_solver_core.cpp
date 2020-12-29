@@ -921,17 +921,21 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 		// Solve collector/receiver at steady state with design inputs and weather to estimate output
 		mc_cr_htf_state_in.m_temp = m_T_htf_pc_cold_est + 30;	//[C]
         mc_cr_htf_state_in.m_particle_temp = m_T_htf_cold_des - 273.15;  //[C] convert from K
+        C_csp_collector_receiver::S_csp_cr_est_out est_out;
+        bool is_rec_recirc_est = false;
         if (ms_system_params.are_rec_pc_directly_coupled) {
             mc_cr_htf_state_in.m_pres = mc_pc_out_solver.m_P_phx_in * 1.e3;		//[kPa]
         }
         else {
             mc_cr_htf_state_in.m_pres = m_P_cold_des;   //[kPa]
+            is_rec_recirc_est = true;
         }
-		C_csp_collector_receiver::S_csp_cr_est_out est_out;
+		
 		mc_collector_receiver.estimates(mc_weather.ms_outputs,
 			mc_cr_htf_state_in,
 			est_out,
-			mc_kernel.mc_sim_info);
+			mc_kernel.mc_sim_info,
+            is_rec_recirc_est);
 		double q_dot_cr_startup = est_out.m_q_startup_avail;
 		double q_dot_cr_on = est_out.m_q_dot_avail;
 		double m_dot_cr_on = est_out.m_m_dot_avail;		            //[kg/hr]
@@ -2841,7 +2845,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     mc_collector_receiver.estimates(mc_weather.ms_outputs,
                         mc_cr_htf_state_in,
                         est_out,
-                        mc_kernel.mc_sim_info);
+                        mc_kernel.mc_sim_info,
+                        false);
 
                     double m_dot_store_avail = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
                     double m_dot_store_min = min(m_m_dot_tes_des * 0.5, m_dot_store_avail);
@@ -2981,7 +2986,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     mc_collector_receiver.estimates(mc_weather.ms_outputs,
                         mc_cr_htf_state_in,
                         est_out,
-                        mc_kernel.mc_sim_info);
+                        mc_kernel.mc_sim_info,
+                        false);
 
                     double m_dot_store_min = 0.;
                     double m_dot_store_max = mc_tes.get_hot_m_dot_available(0., mc_kernel.mc_sim_info.ms_ts.m_step) * 3600. + est_out.m_m_dot_store_avail;   //[kg/hr]
@@ -4881,7 +4887,8 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
                     mc_collector_receiver.estimates(mc_weather.ms_outputs,
                         mc_cr_htf_state_in,
                         est_out,
-                        mc_kernel.mc_sim_info);
+                        mc_kernel.mc_sim_info,
+                        false);
 
                     double T_hot_htf, T_cold_store_est, m_dot_store_est;
                     mc_tes.discharge_est(est_out.m_T_htf_hot + 273.15, est_out.m_m_dot_avail / 3600., est_out.m_P_htf_hot,

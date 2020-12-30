@@ -528,6 +528,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_MATRIX, "sco2_preprocess_table_out",          "sCO2 cycle preprocessed data in UDPC format",                                                                                             "",             "",                                  "",                                         "?=[[0]]",                                                          "",              "COL_LABEL=UDPC_SCO2_PREPROC,ROW_LABEL=NO_ROW_LABEL"},
 
     // Annual single-value outputs
+    { SSC_OUTPUT,    SSC_NUMBER, "tower_rec_deltaP_des",               "Total tower receiver pressure drop at design",                                                                                            "MPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_energy",                      "Annual total electric power to grid",                                                                                                     "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cycle_gross",               "Electrical source - power cycle gross output",                                                                                            "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cooling_tower",             "Total of condenser operation parasitics",                                                                                                 "kWhe",         "",                                  "PC",                                       "*",                                                                "",              ""},
@@ -656,7 +657,7 @@ public:
 
         //       fclose(fp);
 
-         /*FILE* fp = fopen("cmod_to_lk_debugging_peaker_20_12_21.lk", "w");
+         /*FILE* fp = fopen("cmod_to_lk_debugging_baseload_20_12_30.lk", "w");
          
          write_cmod_to_lk_script(fp, m_vartab);*/
 
@@ -1684,6 +1685,8 @@ public:
             size_t hour = (size_t)ceil(p_time_final_hr[i]);
             p_gen[i] = (ssc_number_t)(p_W_dot_net[i] * 1.E3 * haf(hour));           //[kWe]
         }
+
+        assign("tower_rec_deltaP_des", tower.ms_solved_params.m_dP_sf * 1.E-3);
 
         accumulate_annual_for_year("gen", "annual_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed/steps_per_hour);
         

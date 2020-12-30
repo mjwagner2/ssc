@@ -466,6 +466,8 @@ public:
 		}
 	};
 
+    S_csp_cr_solved_params ms_solved_params;
+
 	struct S_csp_cr_inputs
 	{	
 		double m_field_control;			//[-] Defocus signal from controller (can PC and TES accept all receiver output?)

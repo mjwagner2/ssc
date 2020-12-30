@@ -294,6 +294,8 @@ void C_csp_tower_collector_receiver::init(C_csp_collector_receiver::S_csp_cr_ini
     // Pass through to solved_params so solver core can access
     solved_params.m_is_rec_recirc_available = m_is_rec_recirc_available;    //[-]
 
+    ms_solved_params = solved_params;
+
 	return;
 }
 

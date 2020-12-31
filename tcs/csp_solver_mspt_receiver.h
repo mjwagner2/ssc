@@ -62,6 +62,7 @@ public:
 	// Data
 	double m_w_rec;					//[m]
 	double m_h_rec;					//[m]
+    double m_rec_tube_diameter;     //[in]
 	//double m_A_sf;					//[m2]
 
 	// 8.10.2015 twn: add tower piping thermal losses to receiver performance
@@ -102,6 +103,8 @@ public:
 		const C_csp_solver_sim_info &sim_info);
 
 	virtual void converged();
+
+    double deltaP_correlation(double m_dot_frac /*-*/, double P_kPa /*kPa*/);
 
     void calc_pump_performance(double rho_f, double mdot, double ffact, double &PresDrop_calc,
         double &WdotPump_calc);

@@ -8,6 +8,7 @@ C_mspt_receiver::C_mspt_receiver()
 {    
 	m_w_rec = std::numeric_limits<double>::quiet_NaN();
 	m_h_rec = std::numeric_limits<double>::quiet_NaN();
+    m_rec_tube_diameter = std::numeric_limits<double>::quiet_NaN();
 
 	m_pipe_loss_per_m = std::numeric_limits<double>::quiet_NaN();
 	m_pipe_length_add = std::numeric_limits<double>::quiet_NaN();
@@ -38,6 +39,17 @@ C_mspt_receiver::C_mspt_receiver()
 
 C_mspt_receiver::~C_mspt_receiver()
 {}
+
+double C_mspt_receiver::deltaP_correlation(double m_dot_frac /*-*/, double P_kPa /*kPa*/) {
+
+    double x_deltaP = pow(m_h_rec, 1.7) * m_dot_frac / (pow(P_kPa, 0.5) * pow(m_rec_tube_diameter, 4.4)) * 100.0;
+
+    double deltaP = 0.0013*pow(x_deltaP,2) - 0.2096*x_deltaP + 30.037;
+
+    // L_m ^ 1.7 * m_dot_frac / (P_kPa ^ 0.5 * d_in ^ 4.4) * 100
+
+    return deltaP;
+}
 
 void C_mspt_receiver::init()
 {
@@ -93,6 +105,7 @@ void C_mspt_receiver::init()
     //receiver design efficiency and pressure drop
     m_eta_rec_des = m_efficiency_lookup.bilinear_2D_interp(1., m_T_htf_cold_des - 273.15);
     m_dp_rec_des = m_pressure_lookup.bilinear_2D_interp(1., m_P_cold_des);	//kPa
+    m_dp_rec_des = deltaP_correlation(1., m_P_cold_des);    //kPa
 
 
     double T_design_avg = (m_T_htf_hot_des + m_T_htf_cold_des) / 2.;   // [C]
@@ -357,6 +370,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 
                 //look up receiver pressure drop
                 Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
+                Pres_D = deltaP_correlation(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
 			    break;
 			}
@@ -412,6 +426,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
 				}
 				q_thermal = m_dot_salt*c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
                 Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
+                Pres_D = deltaP_correlation(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
 			    if (q_dot_inc_sum < m_q_dot_inc_min)
 				    rec_is_off = true;
@@ -425,6 +440,7 @@ void C_mspt_receiver::call(const C_csp_weatherreader::S_outputs &weather,
                 f_rec_timestep = 1.0;
                 q_thermal = m_dot_salt * c_p_coolant*(T_salt_hot_rec - T_salt_cold_in);
                 Pres_D = m_pressure_lookup.bilinear_2D_interp(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
+                Pres_D = deltaP_correlation(m_dot_salt / m_dot_rec_des, P_in /*kPa*/); //returns kPa
 
                 if (q_dot_inc_sum < m_q_dot_inc_min && m_mode_prev == C_csp_collector_receiver::ON)
                     rec_is_off = true;

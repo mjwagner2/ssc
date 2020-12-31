@@ -174,6 +174,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'v_wind_max', 15 );
 
         #total height and width of all recievers (cost calculation)
+        ssc.data_set_number(data, b'rec_tube_diameter_inches', NaN);  # [in]
         ssc.data_set_number( data, b'rec_height', NaN );     #524.67 m^2
         ssc.data_set_number( data, b'D_rec', NaN );
         ssc.data_set_number( data, b'h_tower', NaN );
@@ -949,6 +950,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'dni_des', self.variables.dni_design_point );
 
         #total height and width of all recievers (cost calculation)
+        ssc.data_set_number( data, b'rec_tube_diameter_inches', self.variables.receiver_tube_diam ); #[in]
         ssc.data_set_number( data, b'rec_height', self.variables.receiver_height );     #524.67 m^2
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
@@ -1081,7 +1083,7 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        # om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        #om_fixed = min(om_sam_default_model, om_bottom_up_model)
         om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
@@ -1218,6 +1220,10 @@ class Gen3opt:
             ['Cap fac weighted', 'cap_fac_tou_weighted'],
             ['Cap fac weighted MIN0', 'cap_fac_tou_weighted_min0'],
             ['Site improvement', 'csp.pt.cost.site_improvements'],
+            ['A_sf', 'A_sf'],
+            ['N_hel_pre', -999],
+            ['q_sf_des_pre', -999],
+            ['total_q_rec_inc', 'annual_q_rec_inc'],
             ['Heliostats', 'csp.pt.cost.heliostats'],
             ['Tower', 'csp.pt.cost.tower'],
             ['Receiver', 'csp.pt.cost.receiver'],
@@ -1226,6 +1232,7 @@ class Gen3opt:
             ['Contingency', 'csp.pt.cost.contingency'],
             ['Recirculator cost', 'csp.pt.cost.recirculator'],
             ['Cycle efficiency', 'design_eff'],
+            ['Design CR deltaP', 'tower_rec_deltaP_des'],
             ['Direct costs subtotal', 'total_direct_cost'],
             # ['EPC', 'csp.pt.cost.epc.total'],
             # ['Total land cost', 'csp.pt.cost.plm.total'],
@@ -1242,6 +1249,10 @@ class Gen3opt:
         for lab,var in printouts:
             if(lab == 'OM lifetime total'):
                 val = om_fixed * ssc.data_get_number( data, b'analysis_period')
+            elif(lab == 'q_sf_des_pre'):
+                val = q_sf_des
+            elif(lab == 'N_hel_pre'):
+                val = N_hel
             else:
                 val = ssc.data_get_number(data, var.encode())
             self.summary_results.append([lab, val])
@@ -1374,9 +1385,14 @@ if __name__ == "__main__":
     cases = [
         #['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
         #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],
-        ['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
+        #['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
+        #['peaker_low_power_opt', 'surround', 'skip', 39.208, 1.36, 50, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
+        #['peaker_74_27_Mwe', 'surround', 'skip', 74.27, 1.252, 50, 749.98, 3.444, 0.30, 0.00, 0.00, 13.138, 30.186, 29.416, 25.938],
+        #['peaker_scale_low_power_opt', 'surround', 'skip', 74.27, 1.36, 100, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
         #['OandM_pars', 'surround', 'skip', 20.0, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
-
+        #['baseload_25MWe', 'surround', 'skip', 25.261, 2.503, 50.7, 858.58, 2.924, 0.304, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
+        #['baseload_50MWe', 'surround', 'skip', 50.522, 2.503, 101.4, 858.58, 5.19, 0.3125, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
+        ['peaker_best_rbf', 'surround', 'skip', 46.77, 1.353, 40, 803.67, 4.11, 0.3125, 0.00, 0.00, 14.248, 40, 28.726, 0 ],
     ]
 
     run_single_case(cases[0])

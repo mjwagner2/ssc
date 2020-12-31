@@ -271,6 +271,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
 
     // optimized outputs updated depending on run type 
+    { SSC_INOUT,     SSC_NUMBER, "rec_tube_diameter_inches",           "Receiver tube diameter",                                                                                                                  "in",           "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INOUT,     SSC_NUMBER, "rec_height",                         "Receiver height",                                                                                                                         "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "D_rec",                              "The overall outer diameter of the receiver",                                                                                              "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "h_tower",                            "Tower height",                                                                                                                            "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
@@ -969,6 +970,7 @@ public:
         //// *********************************************************
         double H_rec = as_double("rec_height");
         double D_rec = as_double("D_rec");
+        double rec_tube_diameter_inches = as_double("rec_tube_diameter_inches");    //[in]
         double A_rec = H_rec * D_rec;
 
 
@@ -978,6 +980,7 @@ public:
 
         trans_receiver->m_w_rec = D_rec;
         trans_receiver->m_h_rec = H_rec;
+        trans_receiver->m_rec_tube_diameter = rec_tube_diameter_inches;     //[in]
         trans_receiver->m_field_fl = as_integer("rec_htf");
         trans_receiver->m_field_fl_props = as_matrix("field_fl_props");
         trans_receiver->m_pipe_loss_per_m = as_double("piping_loss");                       //[Wt/m]

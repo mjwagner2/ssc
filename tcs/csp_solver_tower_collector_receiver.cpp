@@ -563,6 +563,9 @@ void C_csp_tower_collector_receiver::call(const C_csp_weatherreader::S_outputs& 
 
         htf_state_in_next.m_pres = m_P_riser_out_des;   //[kPa]
         htf_state_in_next.m_temp = T_comp_out - 273.15; //[C]
+
+        // Don't let receiver inlet (which is recirc outlet) get to hot. Excess temperature is rejected somewhere
+        htf_state_in_next.m_temp = min(htf_state_in_next.m_temp, 0.5 * (T_rec_cold_des + T_rec_hot_des) - 273.15);
     }
     cr_out_solver.m_dP_sf += dP_riser;
 

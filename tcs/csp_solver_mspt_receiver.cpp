@@ -46,6 +46,8 @@ double C_mspt_receiver::deltaP_correlation(double m_dot_frac /*-*/, double P_kPa
 
     double deltaP = 0.0013*pow(x_deltaP,2) - 0.2096*x_deltaP + 30.037;
 
+    deltaP = fmin(deltaP, P_kPa - 1000.0);      // don't let pressure drop result in negative pressure 
+
     // L_m ^ 1.7 * m_dot_frac / (P_kPa ^ 0.5 * d_in ^ 4.4) * 100
 
     return deltaP;

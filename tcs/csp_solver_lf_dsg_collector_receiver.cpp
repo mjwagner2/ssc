@@ -1904,7 +1904,8 @@ void C_csp_lf_dsg_collector_receiver::on(const C_csp_weatherreader::S_outputs &w
 void C_csp_lf_dsg_collector_receiver::estimates(const C_csp_weatherreader::S_outputs &weather,
 	const C_csp_solver_htf_1state &htf_state_in,
 	C_csp_collector_receiver::S_csp_cr_est_out &est_out,
-	const C_csp_solver_sim_info &sim_info)
+	const C_csp_solver_sim_info &sim_info,
+    bool is_rec_recirc_in)
 {
 	if( m_operating_mode == C_csp_collector_receiver::ON )
 	{

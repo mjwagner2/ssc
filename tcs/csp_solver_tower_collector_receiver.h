@@ -158,6 +158,7 @@ public:
         //[-] False: receiver does NOT have recirculator
         //             and receiver cannot produce heat unless PC is ON
     bool m_is_rec_recirc_available;
+    bool m_is_riser_and_downcomer;
 
 	C_csp_reported_outputs mc_reported_outputs;
 	
@@ -200,7 +201,8 @@ public:
 	virtual void estimates(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,
 		C_csp_collector_receiver::S_csp_cr_est_out &est_out,
-		const C_csp_solver_sim_info &sim_info);
+		const C_csp_solver_sim_info &sim_info,
+        bool is_rec_recirc_in);
 
 	virtual void converged();
 

@@ -271,6 +271,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
 
     // optimized outputs updated depending on run type 
+    { SSC_INOUT,     SSC_NUMBER, "rec_tube_diameter_inches",           "Receiver tube diameter",                                                                                                                  "in",           "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_INOUT,     SSC_NUMBER, "rec_height",                         "Receiver height",                                                                                                                         "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "D_rec",                              "The overall outer diameter of the receiver",                                                                                              "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
     { SSC_INOUT,     SSC_NUMBER, "h_tower",                            "Tower height",                                                                                                                            "m",            "",                                  "Tower and Receiver",                       "*",                                                                "",              ""},
@@ -528,6 +529,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_MATRIX, "sco2_preprocess_table_out",          "sCO2 cycle preprocessed data in UDPC format",                                                                                             "",             "",                                  "",                                         "?=[[0]]",                                                          "",              "COL_LABEL=UDPC_SCO2_PREPROC,ROW_LABEL=NO_ROW_LABEL"},
 
     // Annual single-value outputs
+    { SSC_OUTPUT,    SSC_NUMBER, "tower_rec_deltaP_des",               "Total tower receiver pressure drop at design",                                                                                            "MPa",          "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_energy",                      "Annual total electric power to grid",                                                                                                     "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cycle_gross",               "Electrical source - power cycle gross output",                                                                                            "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cooling_tower",             "Total of condenser operation parasitics",                                                                                                 "kWhe",         "",                                  "PC",                                       "*",                                                                "",              ""},
@@ -656,7 +658,7 @@ public:
 
         //       fclose(fp);
 
-         /*FILE* fp = fopen("cmod_to_lk_debugging_peaker_20_12_21.lk", "w");
+         /*FILE* fp = fopen("cmod_to_lk_debugging_baseload_20_12_30.lk", "w");
          
          write_cmod_to_lk_script(fp, m_vartab);*/
 
@@ -968,6 +970,7 @@ public:
         //// *********************************************************
         double H_rec = as_double("rec_height");
         double D_rec = as_double("D_rec");
+        double rec_tube_diameter_inches = as_double("rec_tube_diameter_inches");    //[in]
         double A_rec = H_rec * D_rec;
 
 
@@ -977,6 +980,7 @@ public:
 
         trans_receiver->m_w_rec = D_rec;
         trans_receiver->m_h_rec = H_rec;
+        trans_receiver->m_rec_tube_diameter = rec_tube_diameter_inches;     //[in]
         trans_receiver->m_field_fl = as_integer("rec_htf");
         trans_receiver->m_field_fl_props = as_matrix("field_fl_props");
         trans_receiver->m_pipe_loss_per_m = as_double("piping_loss");                       //[Wt/m]
@@ -1033,9 +1037,11 @@ public:
         tower.pipe_loss_per_m = as_double("piping_loss");        //[Wt/m]
 
         tower.m_is_rec_recirc_available = as_boolean("is_rec_recirc_available");        //[-]
+        tower.m_is_riser_and_downcomer = true;
         // If indirect system, then must have a recirculator
         if (!are_rec_pc_directly_coupled) {
             tower.m_is_rec_recirc_available = true;
+            tower.m_is_riser_and_downcomer = false;
         }
 
         // Calculate tower inlet pressure using power block outlet pressure and a temporary HX representing the tes low-temp HX
@@ -1682,6 +1688,8 @@ public:
             size_t hour = (size_t)ceil(p_time_final_hr[i]);
             p_gen[i] = (ssc_number_t)(p_W_dot_net[i] * 1.E3 * haf(hour));           //[kWe]
         }
+
+        assign("tower_rec_deltaP_des", tower.ms_solved_params.m_dP_sf * 1.E-3);
 
         accumulate_annual_for_year("gen", "annual_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed/steps_per_hour);
         

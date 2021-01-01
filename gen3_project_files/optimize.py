@@ -47,10 +47,10 @@ def update_qsf_calculation(x_scaled, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
-        data.variables.dT_approach_ht_disch_hx,\
-        data.variables.dT_approach_lt_disch_hx = x_unscaled
+        data.variables.dT_approach_ht_disch_hx  = x_unscaled #,\
+        # data.variables.dT_approach_lt_disch_hx = x_unscaled
 
-    # data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
+    data.variables.dT_approach_lt_disch_hx = data.variables.dT_approach_ht_disch_hx
     q_sf_des = data.exec(sf_des_only=True)
 
     return q_sf_des
@@ -93,10 +93,10 @@ def f_eval(x, data):
         data.variables.downcomer_inner_diam, \
         data.variables.hours_tes,\
         data.variables.dT_approach_charge_hx,\
-        data.variables.dT_approach_ht_disch_hx,\
-        data.variables.dT_approach_lt_disch_hx = x_unscaled
+        data.variables.dT_approach_ht_disch_hx = x_unscaled #,\
+        # data.variables.dT_approach_lt_disch_hx = x_unscaled
 
-    # data.variables.dT_approach_ht_disch_hx = data.variables.dT_approach_lt_disch_hx
+    data.variables.dT_approach_lt_disch_hx = data.variables.dT_approach_ht_disch_hx
     
     try:
         simok = data.exec()
@@ -144,7 +144,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
 
     # choose the case based on the thread_id integer
     # casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
-    casename = "2020-12-7a"
+    casename = "2020-12-29-g3"
     case = "{:03d}_{:s}".format(thread_id, casename)
 
     # instantiate the case
@@ -174,7 +174,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
         [   4   ,  20   ],   # [8] hours_tes
         [   10  ,  40   ],   # [9] dT_approach_charge_hx
         [   10  ,  40   ],   # [10] dT_approach_ht_disch_hx
-        [   10  ,  40   ],   # [11] dT_approach_lt_disch_hx
+        # [   10  ,  40   ],   # [11] dT_approach_lt_disch_hx
     ]
     
     if "x0" in kwargs:
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     
     # Run different field-lift combinations on different threads
     nthreads = 12
-    nreplicates = 100
+    nreplicates = 144
     # -------
     all_args = []
     for i in range(nreplicates):

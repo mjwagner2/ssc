@@ -38,7 +38,7 @@ def update_qsf_calculation(x_scaled, data):
 
     # Assign variables before calling exec
     data.variables.cycle_design_power,\
-        data.variables.solar_multiple,\
+        # data.variables.solar_multiple,\
         data.variables.h_tower,\
         data.variables.dni_design_point,\
         data.variables.receiver_height,\
@@ -50,6 +50,7 @@ def update_qsf_calculation(x_scaled, data):
         data.variables.dT_approach_ht_disch_hx  = x_unscaled #,\
         # data.variables.dT_approach_lt_disch_hx = x_unscaled
 
+    data.variables.solar_multiple = 3.
     data.variables.dT_approach_lt_disch_hx = data.variables.dT_approach_ht_disch_hx
     q_sf_des = data.exec(sf_des_only=True)
 
@@ -84,7 +85,7 @@ def f_eval(x, data):
     # x_unscaled[4] = x_unscaled[4] * (receiver_height_max - receiver_height_min) + receiver_height_min   # [4] = receiver_height
 
     data.variables.cycle_design_power,\
-        data.variables.solar_multiple,\
+        # data.variables.solar_multiple,\
         data.variables.h_tower,\
         data.variables.dni_design_point,\
         data.variables.receiver_height,\
@@ -144,7 +145,7 @@ def optimize(thread_id, GlobalHandler, **kwargs):
 
     # choose the case based on the thread_id integer
     # casename = ["north-bucket", "surround-bucket", "north-skip", "surround-skip"][thread_id % 4]
-    casename = "2020-12-29-g3"
+    casename = "2021-1-3-g3"
     case = "{:03d}_{:s}".format(thread_id, casename)
 
     # instantiate the case
@@ -162,12 +163,11 @@ def optimize(thread_id, GlobalHandler, **kwargs):
     
     # set variable bounds
     xb = [
-        [   15  ,  100  ],   # [0] cycle_design_power
-        [   2.5 ,  3.5  ],   # [1] solar_multiple
+        [   50  ,  120  ],   # [0] cycle_design_power
+        [   2.2 ,  3.2  ],   # [1] solar_multiple
         [   50  ,  200  ],   # [2] h_tower
         [   650 ,  1200 ],   # [3] dni_design_point
-        [    2 ,   7  ],   # [4] receiver_height
-        # [   0   ,  1    ],   # [4] receiver_height, normalized
+        [    2 ,   7  ],     # [4] receiver_height
         [   .25 ,  .375 ],   # [5] receiver tube outside diameter
         [   .3 ,   .75  ],   # [6] riser_inner_diam
         [   .3 ,   .75  ],   # [7] downcomer_inner_diam
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     
     # Run different field-lift combinations on different threads
     nthreads = 12
-    nreplicates = 144
+    nreplicates = 120
     # -------
     all_args = []
     for i in range(nreplicates):

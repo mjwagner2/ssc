@@ -96,7 +96,7 @@ class Settings:
             self.cycle_max_frac = 1.20
             self.cycle_cutoff_frac = 0.2
 
-        elif(True):
+        elif(False):
             self.dispatch_profile_type = "peaker"  # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
             self.is_rec_recirc_available = 0  # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
             self.is_direct_system = 0  # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
@@ -1083,8 +1083,8 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        #om_fixed = min(om_sam_default_model, om_bottom_up_model)
-        om_fixed = om_bottom_up_model
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        # om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
         ssc.data_set_array( data, b'om_production', om_production); 
@@ -1360,8 +1360,10 @@ def run_single_case(casevars):
     g.variables.downcomer_inner_diam, \
     g.variables.hours_tes, \
     g.variables.dT_approach_charge_hx, \
-    g.variables.dT_approach_ht_disch_hx, \
-    g.variables.dT_approach_lt_disch_hx = casevars
+    g.variables.dT_approach_ht_disch_hx  = casevars #, \
+    # g.variables.dT_approach_lt_disch_hx = casevars
+
+    g.variables.dT_approach_lt_disch_hx = g.variables.dT_approach_ht_disch_hx
 
     g.settings.is_north = 'north' in northstr
 
@@ -1392,7 +1394,7 @@ if __name__ == "__main__":
         #['OandM_pars', 'surround', 'skip', 20.0, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
         #['baseload_25MWe', 'surround', 'skip', 25.261, 2.503, 50.7, 858.58, 2.924, 0.304, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
         #['baseload_50MWe', 'surround', 'skip', 50.522, 2.503, 101.4, 858.58, 5.19, 0.3125, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
-        ['peaker_best_rbf', 'surround', 'skip', 46.77, 1.353, 40, 803.67, 4.11, 0.3125, 0.00, 0.00, 14.248, 40, 28.726, 0 ],
+        ['peaker_best_rbf', 'surround', 'skip', 46.77, 1.353, 40, 803.67, 4.11, 0.3125, 0.50, 0.50, 14.248, 40, 28.726 ],
     ]
 
     run_single_case(cases[0])

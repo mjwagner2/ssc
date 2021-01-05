@@ -540,7 +540,7 @@ bool AutoPilot::Setup(var_map &V, bool /*for_optimize*/)
 	True	-	no errors setting up the field
 	False	-	errors setting up the field
 	*/
-	_cancel_simulation = false;	
+	_cancel_simulation = false;
 
 	//Dynamically allocate the solar field object, if needed
 	if(! _is_solarfield_external )
@@ -730,7 +730,7 @@ void AutoPilot::PrepareFluxSimulation(sp_flux_table &fluxtab, int flux_res_x, in
 
 void AutoPilot::PostProcessFlux(sim_result &result, sp_flux_map &fluxmap, int flux_layer)
 {
-	if(! _cancel_simulation){
+	if(!_cancel_simulation){
 				
 		int itot=0;
 		Rvector *Recs = _SF->getReceivers();

@@ -22,7 +22,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <algorithm>
 #include <stdexcept>
-
 #include "sam_csp_util.h"
 //#include "waterprop.h"
 #include "water_properties.h"

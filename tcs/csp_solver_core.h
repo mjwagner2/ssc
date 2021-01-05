@@ -954,7 +954,8 @@ public:
 			PC_W_DOT_COOLING,     //[MWe] Parasitic condenser operation power
 			SYS_W_DOT_FIXED,      //[MWe] Parasitic fixed power consumption
 			SYS_W_DOT_BOP,        //[MWe] Parasitic BOP power consumption
-			W_DOT_NET             //[MWe] System total electric power to grid
+			W_DOT_NET,            //[MWe] System total electric power to grid
+            W_DOT_NET_UNWEIGHTED  //[MWe] 
 		};
 	};
 	

@@ -530,7 +530,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
     // Annual single-value outputs
     { SSC_OUTPUT,    SSC_NUMBER, "tower_rec_deltaP_des",               "Total tower receiver pressure drop at design",                                                                                            "MPa",          "",                                  "",                                         "*",                                                                "",              "" },
-    { SSC_OUTPUT,    SSC_NUMBER, "annual_energy",                      "Annual total electric power to grid",                                                                                                     "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_NUMBER, "annual_energy",                      "Annual total electric power to grid",                                                                                                     "kWhe",         "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "annual_energy_unweighted",           "Annual total electric power to grid",                                                                                                     "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cycle_gross",               "Electrical source - power cycle gross output",                                                                                            "kWhe",         "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_W_cooling_tower",             "Total of condenser operation parasitics",                                                                                                 "kWhe",         "",                                  "PC",                                       "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_q_rec_inc",                   "Annual receiver incident thermal power after reflective losses",                                                                          "MWt-hr",       "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
@@ -538,6 +539,8 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
     { SSC_OUTPUT,    SSC_NUMBER, "annual_eta_rec_th",                  "Annual receiver thermal efficiency ignoring rec reflective loss",                                                                         "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_eta_rec_th_incl_refl",        "Annual receiver thermal efficiency including reflective loss",                                                                            "",             "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "annual_q_rec_to_particles",          "Annual receiver thermal power to particles",                                                                                              "kWt-hr",       "",                                  "Tower and Receiver",                       "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "annual_W_recirc",                    "Annual recirculator energy",                                                                                                              "kWhe",         "",                                  "",                                         "*",                                                                "",              "" },
+    { SSC_OUTPUT,    SSC_NUMBER, "annual_tank_losses",                 "Annual tank losses",                                                                                                                      "kWt-hr",       "",                                  "",                                         "*",                                                                "",              "" },
 
     { SSC_OUTPUT,    SSC_NUMBER, "tou_on_1_annual_frac",               "Fraction of annual hours that are in TOU 1",                                                                                              "-",            "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "tou_1_cap_fac",                      "Capacity factor for TOU 1",                                                                                                               "-",            "",                                  "",                                         "*",                                                                "",              "" },
@@ -553,6 +556,7 @@ static var_info _cm_vtab_tcsmolten_salt[] = {
 
     { SSC_OUTPUT,    SSC_NUMBER, "conversion_factor",                  "Gross to net conversion factor",                                                                                                          "%",            "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "capacity_factor",                    "Capacity factor",                                                                                                                         "%",            "",                                  "",                                         "*",                                                                "",              ""},
+    { SSC_OUTPUT,    SSC_NUMBER, "capacity_factor_unweighted",                    "Capacity factor",                                                                                                                         "%",            "",                                  "",                                         "*",                                                                "",              "" },
     { SSC_OUTPUT,    SSC_NUMBER, "kwh_per_kw",                         "First year kWh/kW",                                                                                                                       "kWh/kW",       "",                                  "",                                         "*",                                                                "",              ""},
     { SSC_OUTPUT,    SSC_NUMBER, "annual_total_water_use",             "Total annual water usage, cycle + mirror washing",                                                                                        "m3",           "",                                  "",                                         "*",                                                                "",              ""},
 
@@ -658,7 +662,7 @@ public:
 
         //       fclose(fp);
 
-         /*FILE* fp = fopen("cmod_to_lk_debugging_baseload_20_12_30.lk", "w");
+         /*FILE* fp = fopen("cmod_to_lk_check_recirc_outlet_temp_20_12_31.lk", "w");
          
          write_cmod_to_lk_script(fp, m_vartab);*/
 
@@ -1395,6 +1399,7 @@ public:
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::SYS_W_DOT_BOP, allocate("P_plant_balance_tot", n_steps_fixed), n_steps_fixed);
 
         csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::W_DOT_NET, allocate("P_out_net", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::W_DOT_NET_UNWEIGHTED, allocate("P_out_net_unweighted", n_steps_fixed), n_steps_fixed);
 
 
 
@@ -1674,6 +1679,7 @@ public:
 
         size_t count;
         ssc_number_t *p_W_dot_net = as_array("P_out_net", &count);
+        ssc_number_t* p_W_dot_net_unweighted = as_array("P_out_net_unweighted", &count);
         ssc_number_t *p_time_final_hr = as_array("time_hr", &count);
 
         // 'adjustment_factors' class stores factors in hourly array, so need to index as such
@@ -1683,16 +1689,21 @@ public:
 
 
         ssc_number_t *p_gen = allocate("gen", count);
+        ssc_number_t* p_gen_unweighted = allocate("gen_unweighted", count);
         for( size_t i = 0; i < count; i++ )
         {
             size_t hour = (size_t)ceil(p_time_final_hr[i]);
             p_gen[i] = (ssc_number_t)(p_W_dot_net[i] * 1.E3 * haf(hour));           //[kWe]
+            p_gen_unweighted[i] = (ssc_number_t)(p_W_dot_net_unweighted[i] * 1.E3 * haf(hour)); //[kWe]
         }
 
         assign("tower_rec_deltaP_des", tower.ms_solved_params.m_dP_sf * 1.E-3);
 
         accumulate_annual_for_year("gen", "annual_energy", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed/steps_per_hour);
-        
+        accumulate_annual_for_year("gen_unweighted", "annual_energy_unweighted", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
+
+        accumulate_annual_for_year("tank_losses","annual_tank_losses", 1000.0 * sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);        //[kWt-hr]
+
         accumulate_annual_for_year("P_cycle", "annual_W_cycle_gross", 1000.0*sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed/steps_per_hour);        //[kWe-hr]
         accumulate_annual_for_year("P_cooling_tower_tot", "annual_W_cooling_tower", 1000.0*sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);        //[kWe-hr]
 
@@ -1700,6 +1711,7 @@ public:
         accumulate_annual_for_year("q_thermal_loss", "annual_q_rec_loss", sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);
 
         accumulate_annual_for_year("Q_dot_to_particles", "annual_q_rec_to_particles", 1000.0 * sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);        //[kWt-hr]
+        accumulate_annual_for_year("W_dot_recirc", "annual_W_recirc", 1000.0 * sim_setup.m_report_step / 3600.0, steps_per_hour, 1, n_steps_fixed / steps_per_hour);        //[kWe-hr]
 
         assign("annual_eta_rec_th", (ssc_number_t)(1.0 - as_number("annual_q_rec_loss") / as_number("annual_q_rec_inc")));
         assign("annual_eta_rec_th_incl_refl", (ssc_number_t)(as_number("rec_absorptance")*as_number("annual_eta_rec_th")));
@@ -1743,14 +1755,18 @@ public:
         assign("annual_total_water_use", (ssc_number_t)(V_water_cycle + V_water_mirrors));
 
         ssc_number_t ae = as_number("annual_energy");
+        ssc_number_t ae_unweighted = as_number("annual_energy_unweighted");
         ssc_number_t pg = as_number("annual_W_cycle_gross");
         ssc_number_t convfactor = (pg != 0) ? 100 * ae / pg : (ssc_number_t)0.0;
         assign("conversion_factor", convfactor);
 
         double kWh_per_kW = 0.0;
+        double kWh_per_kW_unweighted = 0.0;
         double nameplate = system_capacity;     //[kWe]
-        if(nameplate > 0.0)
+        if (nameplate > 0.0) {
             kWh_per_kW = ae / nameplate;
+            kWh_per_kW_unweighted = ae_unweighted / nameplate;
+        }
 
         assign("tou_1_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_1") / (nameplate * as_number("tou_on_1_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
         assign("tou_2_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_2") / (nameplate * as_number("tou_on_2_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
@@ -1758,6 +1774,7 @@ public:
         assign("tou_4_cap_fac", (ssc_number_t)(as_number("sum_w_dot_net_4") / (nameplate * as_number("tou_on_4_annual_frac") * ((double)n_steps_fixed / (double)steps_per_hour)) * 100.0));
 
         assign("capacity_factor", (ssc_number_t)(kWh_per_kW / ((double)n_steps_fixed / (double)steps_per_hour)*100.));
+        assign("capacity_factor_unweighted", (ssc_number_t)(kWh_per_kW_unweighted / ((double)n_steps_fixed / (double)steps_per_hour) * 100.));
         assign("kwh_per_kw", (ssc_number_t)kWh_per_kW);
 
         // Resetting these values to uniform because we're scaling energy output (W_DOT_NET) in csp_solver by TOD pricing

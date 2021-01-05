@@ -638,6 +638,7 @@ class Gen3opt:
             f_turb_tou_periods = [0, 1, 1, 0, 0, 0, 0, 0, 0]
             f_dispatch_tou = [-0.205, 3.30, 1, 0, 0, 0, 0, 0, 0]
             #f_dispatch_tou = [-0.205, 2.67, 1, 0, 0, 0, 0, 0, 0]       # Ty: corrected values to achieve balanced TOD schedule
+            #f_dispatch_tou = [0, 2.48, 1, 0, 0, 0, 0, 0, 0]
             weekday_schedule = \
                 [[4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
                  [4, 4, 4, 4, 4, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
@@ -1083,8 +1084,8 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        #om_fixed = min(om_sam_default_model, om_bottom_up_model)
-        om_fixed = om_bottom_up_model
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        #om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
         ssc.data_set_array( data, b'om_production', om_production); 
@@ -1204,11 +1205,15 @@ class Gen3opt:
 
         printouts = [
             ['Annual energy', 'annual_energy'],
+            ['Unweighted annual energy', 'annual_energy_unweighted'],
             ['Capacity factor', 'capacity_factor'],
+            ['Capacity factor unweighted', 'capacity_factor_unweighted'],
             ['LCOE (real)', 'lcoe_real'],
             ['PPA price (year 1)', 'ppa_price'],
             ['Annual gross cycle', 'annual_W_cycle_gross'],
+            ['Annual recirc energy', 'annual_W_recirc'],
             ['Annual rec to particle', 'annual_q_rec_to_particles'],
+            ['Annual tank losses', 'annual_tank_losses'],
             ['TOU 1 frac','tou_on_1_annual_frac'],
             ['TOU1 cap fac','tou_1_cap_fac'],
             ['TOU 2 frac', 'tou_on_2_annual_frac'],
@@ -1383,16 +1388,11 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        #['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
-        #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],
-        #['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
-        #['peaker_low_power_opt', 'surround', 'skip', 39.208, 1.36, 50, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
-        #['peaker_74_27_Mwe', 'surround', 'skip', 74.27, 1.252, 50, 749.98, 3.444, 0.30, 0.00, 0.00, 13.138, 30.186, 29.416, 25.938],
-        #['peaker_scale_low_power_opt', 'surround', 'skip', 74.27, 1.36, 100, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
-        #['OandM_pars', 'surround', 'skip', 20.0, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
-        #['baseload_25MWe', 'surround', 'skip', 25.261, 2.503, 50.7, 858.58, 2.924, 0.304, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
-        #['baseload_50MWe', 'surround', 'skip', 50.522, 2.503, 101.4, 858.58, 5.19, 0.3125, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
-        ['peaker_best_rbf', 'surround', 'skip', 46.77, 1.353, 40, 803.67, 4.11, 0.3125, 0.00, 0.00, 14.248, 40, 28.726, 0 ],
+        ['21_01_03_MW_base_opt', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255, 0],
+        #['21_01_04_MW_peak_opt', 'surround', 'skip', 83.506, 1.288, 95.687, 713.305, 4.334, 0.375, 0, 0, 12.65, 38.87, 32.973, 0],
+        #['21_01_04_MW_peak_opt2', 'surround', 'skip', 63.087, 1.474, 67.418, 757.744, 3.317, 0.348, 0, 0, 15.644, 39.663, 29.863, 0],
+        #['21_01_04_MW_peak_opt_sigfig', 'surround', 'skip', 63., 1.47, 67.4, 760, 3.3, 0.348, 0, 0, 15.6, 40., 30., 0],
+        #['21_01_04_MW_peak_opt_sigfig', 'surround', 'skip', 65., 1.5, 70, 760, 3.3, 0.35, 0, 0, 15.6, 40., 30., 0],
     ]
 
     run_single_case(cases[0])

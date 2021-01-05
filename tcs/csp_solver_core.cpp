@@ -279,6 +279,7 @@ static C_csp_reported_outputs::S_output_info S_solver_output_info[] =
 	{C_csp_solver::C_solver_outputs::SYS_W_DOT_FIXED, C_csp_reported_outputs::TS_WEIGHTED_AVE},	  //[MWe] Parasitic fixed power consumption
 	{C_csp_solver::C_solver_outputs::SYS_W_DOT_BOP, C_csp_reported_outputs::TS_WEIGHTED_AVE},		  //[MWe] Parasitic BOP power consumption
 	{C_csp_solver::C_solver_outputs::W_DOT_NET, C_csp_reported_outputs::TS_WEIGHTED_AVE},			  //[MWe] System total electric power to grid
+    {C_csp_solver::C_solver_outputs::W_DOT_NET_UNWEIGHTED, C_csp_reported_outputs::TS_WEIGHTED_AVE},			  //[MWe] System total electric power to grid
 
 	csp_info_invalid
 };
@@ -7100,6 +7101,7 @@ void C_csp_solver::Ssimulate(C_csp_solver::S_sim_setup & sim_setup)
 
         // 12.28.20 twn: scale power output by TOD factor to adjust LCOE for peaker plant
         //               ... TOD should be = 1 for all baseload hours, so shouldn't affect baseload LCOE
+        mc_reported_outputs.value(C_solver_outputs::W_DOT_NET_UNWEIGHTED, W_dot_net);       //[MWe]
         mc_reported_outputs.value(C_solver_outputs::W_DOT_NET, W_dot_net* pricing_mult);								//[MWe] Total electric power output to grid        
         // ... but this mucks up all financial calcs that rely on revenue so we need to reset TOD factors and schedules to uniform...
 

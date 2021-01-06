@@ -96,7 +96,7 @@ class Settings:
             self.cycle_max_frac = 1.20
             self.cycle_cutoff_frac = 0.2
 
-        elif(True):
+        elif(False):
             self.dispatch_profile_type = "peaker"  # "baseload" or "peaker" defines f_turb, f_dispatch and scheedules in get_turb_and_dispatch_schedules(self, dispatch_profile_type)
             self.is_rec_recirc_available = 0  # 1: Receiver has option to use recirculator, 0: receiver cannot produce heat unless PC is ON
             self.is_direct_system = 0  # 1 (true) config is cycle supplying receiver, 0 (false) is recirculator always moving co2 through receiver
@@ -1073,11 +1073,11 @@ class Gen3opt:
 
         W_dot_recirc_hourly = np.array(ssc.data_get_array(data, b'W_dot_recirc'))
         W_dot_recirc_max = W_dot_recirc_hourly.max()
-        print("Max recirculator hourly power = ", W_dot_recirc_max)
+        # print("Max recirculator hourly power = ", W_dot_recirc_max)
 
         m_dot_rec_co2_hourly = np.array(ssc.data_get_array(data, b'm_dot_rec'))
         m_dot_rec_co2_max = m_dot_rec_co2_hourly.max()
-        print("Max rec co2 mass flow rate = ", m_dot_rec_co2_max)
+        # print("Max rec co2 mass flow rate = ", m_dot_rec_co2_max)
 
         #O&M cost
         om_bottom_up_model = c_om_fixed
@@ -1086,6 +1086,7 @@ class Gen3opt:
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
         om_fixed = min(om_sam_default_model, om_bottom_up_model)
         #om_fixed = om_bottom_up_model
+
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
         ssc.data_set_array( data, b'om_production', om_production); 
@@ -1365,8 +1366,10 @@ def run_single_case(casevars):
     g.variables.downcomer_inner_diam, \
     g.variables.hours_tes, \
     g.variables.dT_approach_charge_hx, \
-    g.variables.dT_approach_ht_disch_hx, \
-    g.variables.dT_approach_lt_disch_hx = casevars
+    g.variables.dT_approach_ht_disch_hx  = casevars #, \
+    # g.variables.dT_approach_lt_disch_hx = casevars
+
+    g.variables.dT_approach_lt_disch_hx = g.variables.dT_approach_ht_disch_hx
 
     g.settings.is_north = 'north' in northstr
 
@@ -1388,12 +1391,12 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        ['21_01_03_MW_base_opt', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255, 0],
+        ['21_01_03_MW_base_opt', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255],
         #['21_01_04_MW_peak_opt', 'surround', 'skip', 83.506, 1.288, 95.687, 713.305, 4.334, 0.375, 0, 0, 12.65, 38.87, 32.973, 0],
         #['21_01_04_MW_peak_opt2', 'surround', 'skip', 63.087, 1.474, 67.418, 757.744, 3.317, 0.348, 0, 0, 15.644, 39.663, 29.863, 0],
         #['21_01_04_MW_peak_opt_sigfig', 'surround', 'skip', 63., 1.47, 67.4, 760, 3.3, 0.348, 0, 0, 15.6, 40., 30., 0],
-        #['21_01_04_MW_peak_opt_sigfig', 'surround', 'skip', 65., 1.5, 70, 760, 3.3, 0.35, 0, 0, 15.6, 40., 30., 0],
-    ]
+        #['21_01_04_MW_peak_opt_sigfig', 'surround', 'skip', 65., 1.5, 70, 760, 3.3, 0.35, 0, 0, 15.6, 40., 30.],
+        ]
 
     run_single_case(cases[0])
 

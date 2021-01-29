@@ -757,7 +757,6 @@ bool interop::HermiteFluxSimulationHandler(sim_results& results, SolarField& SF,
 	return true;
 }
 
-//TODO: Transfer over all function calls to new function definition
 bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, SolarField& SF, var_map& vset, Hvector& helios)
 {
 	/*
@@ -850,7 +849,6 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 			//SimC.soltrace_callback(ntotal, ntraced, ntotrace, stagenum, nstages, (void*)NULL);
 			//TODO: This doesn't seem to be updating progress
 			SimC.soltrace_callback(ntotal, ntraced, ntotrace, stagenum, nstages, SimC.soltrace_callback_data);
-
 
 			// if dialog's cancel button was pressed, send cancel signal to all threads
 			if (SimC._cancel_simulation)
@@ -1263,7 +1261,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 
 
 				}
-				//TODO:  SimProgressUpdateMT(nsim_done, nsim_req); // uses wx
+				//TODO:  SimProgressUpdateMT(nsim_done, nsim_req); // uses wex
 				if (nthread_done == nthreads) break;
 				std::this_thread::sleep_for(std::chrono::milliseconds(75));
 

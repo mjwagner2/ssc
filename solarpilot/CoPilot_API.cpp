@@ -969,18 +969,17 @@ SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads = 1, bool update_aimpoi
     start = std::clock();
 
     //Which type of simulation?
-    bool ok;
+    bool simok;
     switch (simtype)
     {
     case var_fluxsim::FLUX_MODEL::HERMITE_ANALYTICAL:
-        ok = interop::HermiteFluxSimulationHandler(*res, *SF, *helios);
+        simok = interop::HermiteFluxSimulationHandler(*res, *SF, *helios);
         break;
     case var_fluxsim::FLUX_MODEL::SOLTRACE:
-        ok = interop::SolTraceFluxSimulation(*SC, *res, *SF, *V, *helios);
+        simok = interop::SolTraceFluxSimulation(*SC, *res, *SF, *V, *helios);
         break;
     default:
-        ok = false;
-        break;
+        return false;
     }
 
     //End timer
@@ -993,7 +992,7 @@ SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads = 1, bool update_aimpoi
     //F.GetFluxPlotObject()->SetPlotData(*SF, *helios, 0);
     //F.GetFieldPlotObject()->SetPlotData(*SF, FIELD_PLOT::EFF_TOT);
 
-    return true;
+    return simok;
 }
 
 SPEXPORT const char *sp_summary_results(sp_data_t p_data)

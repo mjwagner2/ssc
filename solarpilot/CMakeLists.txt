@@ -25,6 +25,7 @@ set(SOLARPILOT_SRC
 	Ambient.cpp
 	API_structures.cpp
 	AutoPilot_API.cpp
+	CoPilot_API.cpp
 	definitions.cpp
 	exceptions.hpp
 	Financial.cpp

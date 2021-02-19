@@ -973,7 +973,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'particle_lift_cost', lift_cost*normal(1,0.3) )  #  60e6 );
         ssc.data_set_number( data, b'riser_and_downcomer_cost',  normal(1, 0.3)*(riser_cost + downcomer_cost) );
 
-        ssc.data_set_number( data, b'rec_ref_cost', normal(rec_total_cost, 0.3)*rec_total_cost);
+        ssc.data_set_number( data, b'rec_ref_cost', normal(1., 0.3)*rec_total_cost);
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
 
         #field costs
@@ -1396,11 +1396,9 @@ def run_single_case(casevars):
 if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
-    cases = [
-        ['baseload_gen3_best', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255],
-    ]
+    case = ['baseload_gen3_best', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255]
 
-    run_single_case(cases[0])
+    # run_single_case(cases[0])
 
     #---------------------------------------------------------------------------------------------------------------------
 
@@ -1422,39 +1420,41 @@ if __name__ == "__main__":
     #             [row[col] for col in datcols]
     #         )
 
-        
-    # multiprocessing.freeze_support()
-    # nthreads = min(6, len(cases))
-    # pool = multiprocessing.Pool(processes=nthreads)
-    # results = pool.starmap(run_single_case, [[c] for c in cases])
-    #
-    #
-    # all_sum_results = {}
-    # casenames = []
-    #
-    # for case in results:
-    #
-    #     if case == results[0]:
-    #         keyord = []
-    #         for k,v in case:
-    #             keyord.append(k)
-    #             all_sum_results[k] = [v]
-    #     else:
-    #         for k,v in case:
-    #             all_sum_results[k].append(v)
-    #
-    #     casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
-    #     casenames.append(casename)
-    #
-    #     # g.write_hourly_results_to_file( casename + '.csv')
-    #
-    #
-    # fsum = open('all-case-results.csv', 'w')
-    # fsum.write("," + ",".join(casenames) + '\n')
-    #
-    # for key in keyord:
-    #     fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
-    #
-    # fsum.close()
+    
+    cases = [case for i in range(3)]
+
+    multiprocessing.freeze_support()
+    nthreads = min(6, len(cases))
+    pool = multiprocessing.Pool(processes=nthreads)
+    results = pool.starmap(run_single_case, [[c] for c in cases])
+    
+    
+    all_sum_results = {}
+    casenames = []
+    
+    for case in results:
+    
+        if case == results[0]:
+            keyord = []
+            for k,v in case:
+                keyord.append(k)
+                all_sum_results[k] = [v]
+        else:
+            for k,v in case:
+                all_sum_results[k].append(v)
+    
+        casename = case[1][1] + '-' + case[2][1] + '-' + case[0][1]
+        casenames.append(casename)
+    
+        # g.write_hourly_results_to_file( casename + '.csv')
+    
+    
+    fsum = open('uncertanty-results.csv', 'w')
+    fsum.write("," + ",".join(casenames) + '\n')
+    
+    for key in keyord:
+        fsum.write( ','.join([key] + [str(v) for v in all_sum_results[key]]) + '\n')
+    
+    fsum.close()
 
 

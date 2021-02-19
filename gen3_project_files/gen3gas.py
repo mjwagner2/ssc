@@ -842,8 +842,9 @@ class Gen3opt:
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
             rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
-        eff_random = random(1., 0.028) 
-        rec_efficiency_lookup['eta'] = [v*eff_random for v in rec_efficiency_lookup['eta']]
+        eff_random = normal(1., 0.028) 
+        for row in rec_efficiency_lookup:
+            row[2]*=eff_random
 
         if not sf_des_only:
             ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
@@ -853,8 +854,9 @@ class Gen3opt:
 
         rec_pressure_lookup = receiver.create_receiver_dP_lookup(\
             rec_dP_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
-        dp_random = random(1, 0.318)
-        rec_dP_lookup['dP_kPa'] = [v*dp_random for v in rec_dP_lookup['dP_kPa']]  #modify for random
+        dp_random = normal(1, 0.318)
+        for row in rec_pressure_lookup:
+            row[2] *= dp_random
 
         if not sf_des_only:
             ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
@@ -936,7 +938,7 @@ class Gen3opt:
         c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
 
         #availability --> all availability sources are included in LiftAvailability
-        total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)*random(1., 0.02)
+        total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)*normal(1., 0.02)
 
         """
         ####################################################
@@ -962,16 +964,16 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', random(1,0.15)*3000000);     # this is just used for the default SAM implementation
+        ssc.data_set_number( data, b'tower_fixed_cost', normal(1,0.15)*3000000);     # this is just used for the default SAM implementation
         ssc.data_set_number( data, b'tower_exp', 0.0113 );            # this is just used for the default SAM implementation
-        found_rand = random(1., 0.15)
+        found_rand = normal(1., 0.15)
         ssc.data_set_number( data, b'foundation_fixed_cost', 20116200*found_rand );
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69*found_rand );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661*found_rand );
-        ssc.data_set_number( data, b'particle_lift_cost', lift_cost*random(1,0.3) )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost',  random(1, 0.3)*(riser_cost + downcomer_cost) );
+        ssc.data_set_number( data, b'particle_lift_cost', lift_cost*normal(1,0.3) )  #  60e6 );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost',  normal(1, 0.3)*(riser_cost + downcomer_cost) );
 
-        ssc.data_set_number( data, b'rec_ref_cost', normal(rec_total_cost, 0.3*rec_total_cost);
+        ssc.data_set_number( data, b'rec_ref_cost', normal(rec_total_cost, 0.3)*rec_total_cost);
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
 
         #field costs
@@ -986,7 +988,7 @@ class Gen3opt:
 
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
-        epc_rand = random(1., 0.1)
+        epc_rand = normal(1., 0.1)
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6*epc_rand );
         ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6*epc_rand );
         ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6*epc_rand );
@@ -1008,7 +1010,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'piping_downcomer_diam', self.variables.downcomer_inner_diam );
         ssc.data_set_number( data, b'L_recHX', 1.650 );
         ssc.data_set_number( data, b'n_cells_recHX', 51400 );
-        ssc.data_set_number( data, b'eta_pump', random(1., 0.05)*lift_eff );
+        ssc.data_set_number( data, b'eta_pump', normal(1., 0.05)*lift_eff );
 
 
         ssc.data_set_number( data, b'T_rec_hot_des', T_rec_hot_des );
@@ -1016,7 +1018,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_tes_hot_des', T_tes_hot_des );
         ssc.data_set_number( data, b'T_tes_warm_des', T_tes_warm_des );
         ssc.data_set_number( data, b'T_tes_cold_des', T_tes_cold_des );
-        tes_performance_random = random(1, 0.15)   #<< random tes performance correction
+        tes_performance_random = normal(1, 0.15)   #<< random tes performance correction
         ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx*tes_performance_random );
         ssc.data_set_number( data, b'dt_ht_discharging', self.variables.dT_approach_ht_disch_hx*tes_performance_random );
         ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_lt_disch_hx*tes_performance_random );
@@ -1093,7 +1095,7 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        om_fixed = min(om_sam_default_model, om_bottom_up_model)*random(1.,0.25)
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)*normal(1.,0.25)
         # om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]

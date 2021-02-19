@@ -4,6 +4,7 @@ from scipy.interpolate import interp2d
 from receiver import calculate_tower_height, specheat_co2
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.random import normal
 
 __particle_specheat = 1.3 #[kJ/kg-K]
 __particle_density = 1600 #[kg/m3]
@@ -219,10 +220,11 @@ def calculate_hx_cost(q_cycle_in_kw, dT_approach_chg, dT_approach_ht_dis, dT_app
     combined_disch_in_and_out_temps = (T_cold_disch_co2_in, T_hot_disch_co2_out, T_hot_disch_particle_in, T_cold_disch_particle_out)
 
     # Costs of each singular HX
-    cost_charge_hx = TotalHxCost(L_cell_charge, N_cells_charge, charge_inlet_and_outlet_temps)
-    cost_hot_disch_hx = TotalHxCost(L_cell_hot_disch, N_cells_hot_disch, hot_disch_inlet_and_outlet_temps)
-    cost_cold_disch_hx = TotalHxCost(L_cell_cold_disch, N_cells_cold_disch, cold_disch_inlet_and_outlet_temps)
-    cost_combined_disch_hx = TotalHxCost(L_cell_combined_disch, N_cells_combined_disch, combined_disch_in_and_out_temps)
+    hx_rand = normal(1, 0.3)
+    cost_charge_hx = hx_rand*TotalHxCost(L_cell_charge, N_cells_charge, charge_inlet_and_outlet_temps)
+    cost_hot_disch_hx = hx_rand*TotalHxCost(L_cell_hot_disch, N_cells_hot_disch, hot_disch_inlet_and_outlet_temps)
+    cost_cold_disch_hx = hx_rand*TotalHxCost(L_cell_cold_disch, N_cells_cold_disch, cold_disch_inlet_and_outlet_temps)
+    cost_combined_disch_hx = hx_rand*TotalHxCost(L_cell_combined_disch, N_cells_combined_disch, combined_disch_in_and_out_temps)
     
     # Total Cost of Each Type of HX
     if(is_direct_system):

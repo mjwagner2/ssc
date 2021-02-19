@@ -911,7 +911,7 @@ class Gen3opt:
 
         #receiver cost
         recd = receiver.calculate_cost(self.variables.receiver_tube_diam, self.variables.receiver_height, N_tubes)
-        rec_total_cost = recd['total_cost'] 
+        rec_total_cost = normal(1., 0.3)*recd['total_cost'] 
         rec_area = recd['A_rec']
         D_rec = recd['W_rec']
 
@@ -921,7 +921,7 @@ class Gen3opt:
         lift_eff = tes.calculate_lift_efficiency(q_sf_des*1000, receiver_design_power*1000, m_dot_p, self.settings.lift_technology)
 
         #TES costs
-        tes_spec_bos_cost = tes.calculate_balance_tes_cost(q_pb_des*1000.)
+        tes_spec_bos_cost = normal(1, 0.3)*tes.calculate_balance_tes_cost(q_pb_des*1000.)
         dhx = tes.calculate_hx_cost(q_pb_des*1000, self.variables.dT_approach_charge_hx, self.variables.dT_approach_ht_disch_hx, self.variables.dT_approach_lt_disch_hx, \
             T_rec_hot_des, T_rec_cold_des, self.settings.is_direct_system, self.settings.scale_hx_cost)
         hx_cost = dhx['total_cost']
@@ -973,7 +973,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'particle_lift_cost', lift_cost*normal(1,0.3) )  #  60e6 );
         ssc.data_set_number( data, b'riser_and_downcomer_cost',  normal(1, 0.3)*(riser_cost + downcomer_cost) );
 
-        ssc.data_set_number( data, b'rec_ref_cost', normal(1., 0.3)*rec_total_cost);
+        ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost);
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
 
         #field costs
@@ -984,7 +984,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'plant_spec_cost', 600 );
 
         #TES
-        ssc.data_set_number( data, b'tes_spec_cost', normal(tes_spec_cost, 0.3*tes_spec_bos_cost))  #$/kwht
+        ssc.data_set_number( data, b'tes_spec_cost', tes_spec_cost)  #$/kwht
 
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
@@ -1421,7 +1421,7 @@ if __name__ == "__main__":
     #         )
 
     
-    cases = [case for i in range(3)]
+    cases = [case for i in range(1000)]
 
     multiprocessing.freeze_support()
     nthreads = min(6, len(cases))

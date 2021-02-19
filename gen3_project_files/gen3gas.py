@@ -908,6 +908,10 @@ class Gen3opt:
         else:
             riser_cost = 0.0
             downcomer_cost = 0.0
+            
+        riser_rand = normal(1, 0.3)
+        riser_cost *= riser_rand
+        downcomer_cost *= riser_rand
 
         #receiver cost
         recd = receiver.calculate_cost(self.variables.receiver_tube_diam, self.variables.receiver_height, N_tubes)
@@ -947,7 +951,7 @@ class Gen3opt:
         """
         #design
         ssc.data_set_number( data, b'P_ref', self.variables.cycle_design_power );
-        ssc.data_set_number( data, b'design_eff', cycle_efficiency);     # 0.43; 
+        ssc.data_set_number( data, b'design_eff', cycle_efficiency + normal(0, 0.03));     # 0.43; 
         ssc.data_set_number( data, b'tshours', self.variables.hours_tes );     # 10.3
         ssc.data_set_number( data, b'solarm',  self.variables.solar_multiple);
         ssc.data_set_number( data, b'is_direct_system', self.settings.is_direct_system);
@@ -971,7 +975,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69*found_rand );
         ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661*found_rand );
         ssc.data_set_number( data, b'particle_lift_cost', lift_cost*normal(1,0.3) )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost',  normal(1, 0.3)*(riser_cost + downcomer_cost) );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost',  riser_cost + downcomer_cost );
 
         ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost);
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
@@ -1349,13 +1353,13 @@ class Gen3opt:
 
 #------------------------------------------------------------------------------
 
-def run_single_case(casevars):
+def run_single_case(id, casevars):
 
     g = Gen3opt()
 
-    g.settings.print_summary_output = True
-    g.settings.save_hourly_results = True
-    g.settings.print_ssc_messages = True
+    g.settings.print_summary_output = False
+    g.settings.save_hourly_results = False
+    g.settings.print_ssc_messages = False
 
     # g.settings.scale_hx_cost = 0.5
     
@@ -1389,7 +1393,10 @@ def run_single_case(casevars):
     for key,v in g.summary_results:
         sum_results.append([key, v])
     
-    g.write_hourly_results_to_file()
+    if g.settings.save_hourly_results:
+        g.write_hourly_results_to_file()
+    else:
+        print(id, g.summary_results[2])
 
     return sum_results
 
@@ -1424,9 +1431,9 @@ if __name__ == "__main__":
     cases = [case for i in range(1000)]
 
     multiprocessing.freeze_support()
-    nthreads = min(6, len(cases))
+    nthreads = min(13, len(cases))
     pool = multiprocessing.Pool(processes=nthreads)
-    results = pool.starmap(run_single_case, [[c] for c in cases])
+    results = pool.starmap(run_single_case, [[i,c] for i,c in enumerate(cases)])
     
     
     all_sum_results = {}

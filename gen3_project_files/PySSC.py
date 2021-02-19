@@ -10,7 +10,7 @@ class PySSC:
 			# self.pdll = CDLL("C:\\Users\\tneises\\Documents\\Projects\\GitHub\\build\\ssc\\ssc\\Release\\ssc.dll")
 			#self.pdll = CDLL("C:\\Users\\tneises\\Documents\\Projects\\GitHub\\build\\ssc\\ssc\\Debug\\sscd.dll")
 			# self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/repositories/ssc-gen3/build/ssc/Debug/sscd.dll")
-			self.pdll = CDLL("C:/Users/mjwagner2/Documents/repositories/ssc-gen3/build/ssc/Release/ssc.dll")
+			self.pdll = CDLL("C:/repositories/ssc-gen3/build/ssc/Release/ssc.dll")
 
 		# elif sys.platform == 'darwin':
 		# 	self.pdll = CDLL("C:/Users/mwagner/Documents/NREL/projects/gen3-gas/workspace/system-optimization/ssc.dylib") 

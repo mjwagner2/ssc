@@ -11,6 +11,7 @@ from globalspline import GlobalSpline2D
 from scipy.interpolate import SmoothBivariateSpline
 import warnings
 
+from numpy.random import normal, uniform 
 
 #modules with cost/performance functions
 import piping
@@ -841,6 +842,9 @@ class Gen3opt:
 
         rec_efficiency_lookup = receiver.create_receiver_eta_lookup(\
             rec_eta_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
+        eff_random = random(1., 0.028) 
+        rec_efficiency_lookup['eta'] = [v*eff_random for v in rec_efficiency_lookup['eta']]
+
         if not sf_des_only:
             ssc.data_set_matrix(data, b'rec_efficiency_lookup', rec_efficiency_lookup )
         with open('resource/rec_efficiency_python.csv', 'w', newline='') as myfile:
@@ -849,6 +853,9 @@ class Gen3opt:
 
         rec_pressure_lookup = receiver.create_receiver_dP_lookup(\
             rec_dP_lookup, D_tube=self.variables.receiver_tube_diam, L_tube=self.variables.receiver_height)
+        dp_random = random(1, 0.318)
+        rec_dP_lookup['dP_kPa'] = [v*dp_random for v in rec_dP_lookup['dP_kPa']]  #modify for random
+
         if not sf_des_only:
             ssc.data_set_matrix(data, b'rec_pressure_lookup', rec_pressure_lookup )
         with open('resource/rec_pressure_python.csv', 'w', newline='') as myfile:
@@ -929,7 +936,7 @@ class Gen3opt:
         c_om_fixed = self.AnnualOAndMCosts(self.variables.cycle_design_power * 1.e3, helio_area * N_hel, rec_total_cost, duty_HXs)
 
         #availability --> all availability sources are included in LiftAvailability
-        total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)
+        total_avail = tes.LiftAvailability(q_pb_des * 1e3, self.settings.lift_technology)*random(1., 0.02)
 
         """
         ####################################################
@@ -955,15 +962,16 @@ class Gen3opt:
         ssc.data_set_number( data, b'D_rec', D_rec );
         ssc.data_set_number( data, b'h_tower', self.variables.h_tower );
 
-        ssc.data_set_number( data, b'tower_fixed_cost', 3000000);     # this is just used for the default SAM implementation
+        ssc.data_set_number( data, b'tower_fixed_cost', random(1,0.15)*3000000);     # this is just used for the default SAM implementation
         ssc.data_set_number( data, b'tower_exp', 0.0113 );            # this is just used for the default SAM implementation
-        ssc.data_set_number( data, b'foundation_fixed_cost', 20116200 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69 );
-        ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661 );
-        ssc.data_set_number( data, b'particle_lift_cost', lift_cost )  #  60e6 );
-        ssc.data_set_number( data, b'riser_and_downcomer_cost',  riser_cost + downcomer_cost );
+        found_rand = random(1., 0.15)
+        ssc.data_set_number( data, b'foundation_fixed_cost', 20116200*found_rand );
+        ssc.data_set_number( data, b'foundation_cost_scaling_quadratic', 1672.69*found_rand );
+        ssc.data_set_number( data, b'foundation_cost_scaling_linear', -183661*found_rand );
+        ssc.data_set_number( data, b'particle_lift_cost', lift_cost*random(1,0.3) )  #  60e6 );
+        ssc.data_set_number( data, b'riser_and_downcomer_cost',  random(1, 0.3)*(riser_cost + downcomer_cost) );
 
-        ssc.data_set_number( data, b'rec_ref_cost', rec_total_cost );
+        ssc.data_set_number( data, b'rec_ref_cost', normal(rec_total_cost, 0.3*rec_total_cost);
         ssc.data_set_number( data, b'rec_ref_area', rec_area );
 
         #field costs
@@ -974,13 +982,14 @@ class Gen3opt:
         ssc.data_set_number( data, b'plant_spec_cost', 600 );
 
         #TES
-        ssc.data_set_number( data, b'tes_spec_cost', tes_spec_cost)  #$/kwht
+        ssc.data_set_number( data, b'tes_spec_cost', normal(tes_spec_cost, 0.3*tes_spec_bos_cost))  #$/kwht
 
         #land
         ssc.data_set_number( data, b'contingency_rate', 7 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6 );
-        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6 );
+        epc_rand = random(1., 0.1)
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.smaller', 16.6*epc_rand );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.percent.larger', 17.6*epc_rand );
+        ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.smaller', 5.e6*epc_rand );
         ssc.data_set_number( data, b'csp.pt.cost.epc.fixed.larger', 0. );
         ssc.data_set_number( data, b'csp.pt.cost.epc.permitting', permitting_costs )
 
@@ -999,7 +1008,7 @@ class Gen3opt:
         ssc.data_set_number( data, b'piping_downcomer_diam', self.variables.downcomer_inner_diam );
         ssc.data_set_number( data, b'L_recHX', 1.650 );
         ssc.data_set_number( data, b'n_cells_recHX', 51400 );
-        ssc.data_set_number( data, b'eta_pump', lift_eff );
+        ssc.data_set_number( data, b'eta_pump', random(1., 0.05)*lift_eff );
 
 
         ssc.data_set_number( data, b'T_rec_hot_des', T_rec_hot_des );
@@ -1007,9 +1016,10 @@ class Gen3opt:
         ssc.data_set_number( data, b'T_tes_hot_des', T_tes_hot_des );
         ssc.data_set_number( data, b'T_tes_warm_des', T_tes_warm_des );
         ssc.data_set_number( data, b'T_tes_cold_des', T_tes_cold_des );
-        ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx );
-        ssc.data_set_number( data, b'dt_ht_discharging', self.variables.dT_approach_ht_disch_hx );
-        ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_lt_disch_hx );
+        tes_performance_random = random(1, 0.15)   #<< random tes performance correction
+        ssc.data_set_number( data, b'dt_charging', self.variables.dT_approach_charge_hx*tes_performance_random );
+        ssc.data_set_number( data, b'dt_ht_discharging', self.variables.dT_approach_ht_disch_hx*tes_performance_random );
+        ssc.data_set_number( data, b'dt_lt_discharging', self.variables.dT_approach_lt_disch_hx*tes_performance_random );
         ssc.data_set_number( data, b'is_rec_recirc_available', self.settings.is_rec_recirc_available );
 
         # Indirect cycle configuration wants HTF temps, not CO2 temps
@@ -1083,7 +1093,7 @@ class Gen3opt:
         annual_W_cycle_gross = ssc.data_get_number( data, b'annual_W_cycle_gross' )     # [kWhe]
         W_cycle_gross = self.variables.cycle_design_power * 1.e3                        # [kWe]
         om_sam_default_model = 40. * W_cycle_gross + 3. * annual_W_cycle_gross * 1.e-3  # [$]
-        om_fixed = min(om_sam_default_model, om_bottom_up_model)
+        om_fixed = min(om_sam_default_model, om_bottom_up_model)*random(1.,0.25)
         # om_fixed = om_bottom_up_model
         ssc.data_set_array( data, b'om_fixed', [om_fixed] );
         om_production = [0]
@@ -1377,7 +1387,7 @@ def run_single_case(casevars):
     for key,v in g.summary_results:
         sum_results.append([key, v])
     
-    #g.write_hourly_results_to_file()
+    g.write_hourly_results_to_file()
 
     return sum_results
 
@@ -1385,70 +1395,11 @@ if __name__ == "__main__":
     # , , , P_ref,              solarm,         h_tower, dni_des,          rec_height,      -,                  piping_riser_diam, piping_downcomer_diam, tshours,   dt_charging,           dt_ht_discharging,       dt_lt_discharging
     # , , , cycle_design_power, solar_multiple, h_tower, dni_design_point, receiver_height, receiver_tube_diam, riser_inner_diam,  downcomer_inner_diam,  hours_tes, dT_approach_charge_hx, dT_approach_ht_disch_hx, dT_approach_lt_disch_hx
     cases = [
-        #['optimal3', 'surround', 'skip', 85.413, 2.618, 193.008, 884.63, 2.572, 0.306, 0.643, 0.491, 13.991, 36.385, 17.622, 28.523],       # below receiver min height
-        #['optimal1', 'surround', 'skip', 84.1, 2.5, 188.544, 789.287, 6.28, 0.375, 0.631, 0.577, 15.499, 34.613, 37.325, 37.325],
-        #['gen3opt_Mike', 'surround', 'skip', 85.602, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
-        #['peaker_low_power_opt', 'surround', 'skip', 39.208, 1.36, 50, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
-        #['peaker_74_27_Mwe', 'surround', 'skip', 74.27, 1.252, 50, 749.98, 3.444, 0.30, 0.00, 0.00, 13.138, 30.186, 29.416, 25.938],
-        #['peaker_scale_low_power_opt', 'surround', 'skip', 74.27, 1.36, 100, 767.4, 3.436, 0.302, 0.00, 0.00, 13.737, 38.676, 25.148, 25.938],
-        #['OandM_pars', 'surround', 'skip', 20.0, 2.749, 110.965, 815.074, 4.793, 0.307, 0.507, 0.475, 11.722, 35.902, 30.015, 25.938],
-        #['baseload_25MWe', 'surround', 'skip', 25.261, 2.503, 50.7, 858.58, 2.924, 0.304, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
-        #['baseload_50MWe', 'surround', 'skip', 50.522, 2.503, 101.4, 858.58, 5.19, 0.3125, 0.405, 0.313, 8.794, 38.747, 14.999, 25.938],
-        ['peaker_best_rbf', 'surround', 'skip', 46.77, 1.353, 40, 803.67, 4.11, 0.3125, 0.50, 0.50, 14.248, 40, 28.726 ],
+        ['baseload_gen3_best', 'surround', 'skip', 83.045, 2.2, 110.71, 650, 4.342, 0.375, 0.399, 0.403, 11.381, 31.009, 23.255],
     ]
 
     run_single_case(cases[0])
 
-    # import warnings
-    # with warnings.catch_warnings():
-    #     warnings.simplefilter('ignore')
-    #     run_single_case(cases[1])
-
-    #---------------------------------------------------------------------------------------------------------------------
-    #---Testing number of heliostats--------------------------------------------------------------------------------------
-    # def number_heliostats(q_sf_des):
-    #     helio_area = 72.75
-    #     h_tower = receiver.calculate_tower_height(q_solarfield_in_kw = q_sf_des * 1e3, is_north = False, wp_data = False)
-
-    #     interp_provider = field.load_heliostat_interpolator_provider('resource/eta_lookup_all.csv', 'surround')
-    #     eta_map = field.create_heliostat_field_lookup(interp_provider, q_sf_des*1000, h_tower, helio_area)
-    #     df_eta_map = pd.DataFrame(eta_map, columns=['az', 'zen', 'eta1', 'eta2', 'eta3', 'nhel1', 'nhel2', 'nhel3'])
-    #     df_eta_map['nhel_total'] = df_eta_map['nhel1'] + df_eta_map['nhel2'] + df_eta_map['nhel3']
-    #     return df_eta_map['nhel_total'].max()
-
-    # q_sf_dess = [66.8, 334, 850]        # 66.8 MWt -> 1465; 334 MWt -> 7537; 850 MWt -> 20801
-    # N_heliostats = [number_heliostats(q_sf_des) for q_sf_des in q_sf_dess]
-    # x=None
-
-    #---------------------------------------------------------------------------------------------------------------------
-    #---Testing O&M costs()-----------------------------------------------------------------------------------------------
-    # helio_area_total = 72.75 * 7537
-    # rec_total_cost = 77740724
-    # duty_HXs = {'charge': 279717, 'discharge_high_temp': 157858, 'discharge_low_temp': 112405}
-    # cycle_design_powers = np.arange(4, 130, 2)
-    # o_and_m_detailed = [Gen3opt.AnnualOAndMCosts(cycle_design_power * 1.e3, helio_area_total, rec_total_cost, duty_HXs) for \
-    #     cycle_design_power in cycle_design_powers]
-    # o_and_m_simplified = [Gen3opt.AnnualOAndMCostsSimplified(cycle_design_power * 1.e3) for \
-    #     cycle_design_power in cycle_design_powers]
-    
-    # fig = plt.figure()
-    # ax = fig.add_subplot(1, 1, 1)
-    # ax.plot(cycle_design_powers, o_and_m_detailed, label='Detailed')
-    # ax.plot(cycle_design_powers, o_and_m_simplified, label='Simplified')
-    # ax.set_xlim(0, 130)
-    # ax.set_ylim(0, 15e6)
-    # ax.set_xlabel('Power Block Scale [MWe]')
-    # ax.set_ylabel('O&M Costs [$/kWht]')
-    # ax.set_title('O&M Costs\n\
-    #     Total Heliostat Area = {helio_area:.0f} [m2], Receiver Cost = {rec_total_cost:.0f} [$],\n\
-    #         Charge HX Duty = {charge:.0f} [MWt], High-Temp Discharge HX Duty = {discharge_high_temp:.0f} [MWt],\n\
-    #             Low-Temp Discharge HX Duty = {discharge_low_temp:.0f} [MWt]'\
-    #             .format(helio_area=helio_area_total, rec_total_cost=rec_total_cost,\
-    #                 charge=duty_HXs['charge'] * 1e-3, discharge_high_temp=duty_HXs['discharge_high_temp'] * 1e-3,\
-    #                     discharge_low_temp=duty_HXs['discharge_low_temp'] * 1e-3))
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
     #---------------------------------------------------------------------------------------------------------------------
 
     # import pandas as pd

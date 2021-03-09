@@ -6,16 +6,6 @@
 #include "shared/lib_weatherfile.h"
 
 
-static void EditorOutput(const char *msg)
-{
-    //SPFrame::Instance().ScriptMessageOutput(msg);
-}
-
-extern int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data);
-
-extern int MessageHandler(const char* message, void* data);
-
-
 struct api_helper
 {
     SolarField solarfield;
@@ -29,7 +19,6 @@ struct api_helper
     bool use_api_callback;
 
     std::string __str_data;  //used to pass string data back to API language     
-    //bool (*soltrace_callback)(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data);
 
     api_helper()
     {
@@ -42,6 +31,8 @@ struct api_helper
         sim_control.soltrace_callback_data = (void*)this;
         sim_control.message_callback = MessageHandler;
         sim_control.message_callback_data = (void*)this;
+        sim_control.layout_log_callback = MessageHandler;
+        sim_control.layout_log_callback_data = (void*)this;
 
         use_api_callback = false;
 
@@ -53,8 +44,6 @@ SPEXPORT const char* sp_version(sp_data_t p_data)
     api_helper* mc = static_cast<api_helper*>(p_data);
     var_map* V = &mc->variables;
     
-       // TODO: Need to set up somewhere.  Maybe in solarfield.cpp line 319 within Create()?
-        // where and how?
     return V->sf.version.val.c_str();
 }
 
@@ -1012,7 +1001,8 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
 
     if (results->size() < 1)
     {
-        EditorOutput("No simulation summary results exist. Please simulate first.");
+        ret = "No simulation summary results exist. Please simulate first.";
+        mc->sim_control.message_callback(ret.c_str(), mc->sim_control.message_callback_data);
         ret = "Failure";
         return ret.c_str();
     }
@@ -1021,7 +1011,6 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
     for (size_t i = 0; i < V->recs.size(); i++)
     {
         interop::CreateResultsTable(results->at(i), table);
-        //F.CreateResultsTable(results->at(i), table);
         
         unordered_map<std::string, double> res_map;
 
@@ -2295,8 +2284,6 @@ int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace
         api->message_log.clear();
 
         (*api->external_callback)((sp_number_t)((double)ntraced / (double)(std::max((int)ntotrace, 1))), messages.c_str());
-        // Old call
-        //(*api->external_callback)((sp_number_t)((double)ntraced / (double)(std::max((int)ntracedtotal, 1))), messages.c_str());
     }
     return 1;
 };
@@ -2305,8 +2292,6 @@ int MessageHandler(const char* message, void* data)
 {
     api_helper* api = static_cast<api_helper*>(data);
 
-    //std::string mymessage(message);
-    //api->message_log.push_back(mymessage);
     if (api->use_api_callback)
     {
         (*api->external_callback)((sp_number_t)0., message);

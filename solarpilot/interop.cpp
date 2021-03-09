@@ -777,6 +777,138 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 	that we're using, the results will be correct.
 
 	*/
+	bool is_load_raydata = vset.flux.is_load_raydata.val;
+	bool is_save_raydata = vset.flux.is_save_raydata.val;
+	//raydata_file
+	std::string raydata_file = vset.flux.raydata_file.val;
+
+	//check that the file exists
+	vector<vector<double> > raydat_st0;
+	vector<vector<double> > raydat_st1;
+	int nsunrays_loadst = 0;
+	if (is_load_raydata)
+	{
+		if (!ioutil::file_exists(raydata_file.c_str()))
+			throw spexception("Specified ray data file does not exist. Looking for file: " + raydata_file);
+
+		//Load the ray data from a file
+		ifstream fdat(raydata_file);
+
+		if (fdat.is_open())
+		{
+
+			string str;
+			str.reserve(96);
+
+			char line[96];
+			bool nextloop = false;
+			bool firstline = true;
+			while (fdat.getline(line, 96))
+			{
+				//first line is number of sun rays
+				if (firstline)
+				{
+					for (int i = 0; i < 16; i++)
+					{
+						if (line[i] == '\n' || i == 15)
+						{
+							to_integer(str, &nsunrays_loadst);
+							str.clear();
+							str.reserve(96);
+							break;
+						}
+						else
+						{
+							str.push_back(line[i]);
+						}
+					}
+					firstline = false;
+					continue;
+				}
+
+
+				vector<double> dat(8);
+
+
+				int ilast = 0;
+
+				for (int i = 0; i < 96; i++)
+				{
+					//check for the transition character
+					if (line[i] == '#')
+					{
+						nextloop = true;
+						break;
+					}
+
+					if (line[i] == ',')
+					{
+						to_double(str, &dat[ilast++]);
+
+						//clear the string
+						str.clear();
+						str.reserve(96);
+						//if this was the 8th entry, go to next line
+						if (ilast > 7)
+							break;
+					}
+					else
+					{
+						str.push_back(line[i]);
+					}
+				}
+				ilast = 0;
+
+				if (nextloop) break;
+
+				raydat_st0.push_back(dat);
+			}
+
+			//next loop to get stage 1 input rays
+			while (fdat.getline(line, 96))
+			{
+				vector<double> dat(7);
+
+				int ilast = 0;
+				//int istr = 0;
+				for (int i = 0; i < 96; i++)
+				{
+					if (line[i] == ',')
+					{
+						to_double(str, &dat[ilast++]);
+
+						//clear the string
+						str.clear();
+						str.reserve(96);
+						//if this was the 8th entry, go to next line
+						if (ilast > 6)
+							break;
+					}
+					else
+					{
+						str.push_back(line[i]);
+					}
+				}
+				ilast = 0;
+
+				raydat_st1.push_back(dat);
+			}
+
+			fdat.close();
+		}
+
+		//set the number of traced rays based on the length of the supplied data
+		int nray = (int)raydat_st0.size();
+
+		vset.flux.min_rays.val = nray;
+	}
+	//for saving, check that the specified directory exists. If none specified or if it doesn't exist, prepend the working directory.
+	//TODO: Remove SPFrame and wxString dependence
+	//if (is_save_raydata)
+	//{
+	//	if (!raydata_file.DirExists())
+	//		raydata_file = _working_dir.GetPath(true) + raydata_file.GetName();
+	//}
 
 	bool err_maxray = false;
 	int minrays, maxrays;
@@ -816,14 +948,31 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 			//get random seed
 			int seed = SF.getFluxObject()->getRandomObject()->integer();
 			//setup the thread
-			SimC._stthread[i].Setup(pcxt, i, seed);
+			SimC._stthread[i].Setup(pcxt, i, seed, is_load_raydata, is_save_raydata);
+
+			////Decide how many rays to trace for each thread. Evenly divide and allocate remainder to thread 0
+			int rays_this_thread = SimC._STSim->sim_raycount / SimC._n_threads;
+			if (i == 0) rays_this_thread += (SimC._STSim->sim_raycount % SimC._n_threads);
+			//when loading ray data externally, we need to divide up receiver stage hits
+			int rays_this_thread1 = raydat_st1.size() / SimC._n_threads;     //for receiver stage input rays
+			if (i == 0) rays_this_thread1 += (raydat_st1.size() % SimC._n_threads);
+
+			//if loading ray data, add by thread here
+			if (is_load_raydata)
+			{
+				SimC._stthread[i].CopyStageRayData(raydat_st0, 0, rays_alloc, rays_alloc + rays_this_thread);
+				SimC._stthread[i].CopyStageRayData(raydat_st1, 1, rays_alloc1, rays_alloc1 + rays_this_thread1);   //for receiver stage input rays
+			}
+			rays_alloc += rays_this_thread;
+			rays_alloc1 += rays_this_thread1;
+
+			st_sim_params(pcxt, rays_this_thread, SimC._STSim->sim_raymax / SimC._n_threads);
 		}
 
 		for (int i = 0; i < SimC._n_threads; i++)
 		{
 			thread(&STSimThread::StartThread, std::ref(SimC._stthread[i])).detach();
 		}
-		//wxLogMessage((wxString)("Running threads"));
 		int ntotal = 0, ntraced = 0, ntotrace = 0, stagenum = 0, nstages = 0;
 
 		// every now and then query the threads and update the UI;
@@ -845,9 +994,6 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 				ntotaltraces += ntotal;
 			}
 
-			//SolTraceProgressUpdate(ntotal, ntraced, ntotrace, stagenum, nstages, (void*)NULL);
-			//SimC.soltrace_callback(ntotal, ntraced, ntotrace, stagenum, nstages, (void*)NULL);
-			//TODO: This doesn't seem to be updating progress
 			SimC.soltrace_callback(ntotal, ntraced, ntotrace, stagenum, nstages, SimC.soltrace_callback_data);
 
 			// if dialog's cancel button was pressed, send cancel signal to all threads
@@ -877,6 +1023,15 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 			}
 		}
 
+		//Consolidate the stage 0 ray data if needed
+		if (is_save_raydata && !errors_found)
+		{
+			for (int i = 0; i < SimC._n_threads; i++)
+			{
+				st0datawrap.push_back(SimC._stthread[i].GetStage0RayDataObject());
+				st1datawrap.push_back(SimC._stthread[i].GetStage1RayDataObject());
+			}
+		}
 	}
 	else
 	{
@@ -885,24 +1040,29 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		int seed = SF.getFluxObject()->getRandomObject()->integer();
 		ST_System::LoadIntoContext(SimC._STSim, cxt);
 
-		/*
-		Passes an optional pointer to a callback function that updates the GUI.
-		*/
+		//Passes an optional pointer to a callback function that updates the GUI.
 		int minrays = SimC._STSim->sim_raycount;
 		int maxrays = SimC._STSim->sim_raymax;
 
 		//simulate, setting the UI callback and a pointer to the UI class
 		st_sim_params(cxt, minrays, maxrays);
+
 		bool sim_result = st_sim_run(cxt, seed, true, SimC.soltrace_callback, SimC.soltrace_callback_data) != -1;
 		if(sim_result)
 			contexts.push_back(cxt);
 		else
 			err_maxray = true;  //hit max ray limit if function returns false
+
+		if (is_save_raydata && !err_maxray)
+		{
+			st0datawrap.push_back(&raydat_st0);
+			st1datawrap.push_back(&raydat_st1);
+		}
 	}
 
 	//reset the progress gauge
 	SimC._is_mt_simulation = false;
-	//_flux_gauge->SetValue(0);
+	//_flux_gauge->SetValue(0);		//TODO: is this important?
 	//Did the simulation terminate after reaching the max ray count?
 	if (err_maxray)
 	{
@@ -958,12 +1118,14 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 	//DNI
 	double dni = vset.sf.dni_des.val / 1000.;    //[kw/m2]
 
+	//if the heliostat field ray data is loaded from a file, just specify the number of sun rays based on this value
+	if (is_load_raydata)
+		SimC._STSim->IntData.nsunrays = nsunrays_loadst;
+
 	//Get bounding box and sun ray information to calculate power per ray
 	SimC._STSim->IntData.q_ray = (bounds[1] - bounds[0]) * (bounds[3] - bounds[2]) / float(SimC._STSim->IntData.nsunrays) * dni;
 
-
 	bool skip_receiver = false;
-
 	if (!skip_receiver)
 	{
 
@@ -979,6 +1141,39 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		P.dni = dni;
 		double azzen[2] = { az, PI / 2. - el };
 		results.back().process_raytrace_simulation(SF, P, 2, azzen, helios, SimC._STSim->IntData.q_ray, SimC._STSim->IntData.emap, SimC._STSim->IntData.smap, SimC._STSim->IntData.rnum, nint, bounds);
+	}
+
+	//If the user wants to save stage0 ray data, do so here
+	if (is_save_raydata)
+	{
+		ofstream fout(raydata_file);
+		fout.clear();
+		//first line is number of sun rays
+		fout << SimC._STSim->IntData.nsunrays << "\n";
+		//write heliostat IN stage
+		for (int i = 0; i < (int)st0datawrap.size(); i++)
+		{
+			for (int j = 0; j < (int)st0datawrap.at(i)->size(); j++)
+			{
+				for (int k = 0; k < 8; k++)
+					fout << st0datawrap.at(i)->at(j).at(k) << ",";
+				fout << "\n";
+			}
+		}
+		//special separator
+		fout << "#\n";
+		//write receiver IN stage
+		for (int i = 0; i < (int)st1datawrap.size(); i++)
+		{
+			for (int j = 0; j < (int)st1datawrap.at(i)->size(); j++)
+			{
+				for (int k = 0; k < 7; k++)
+					fout << st1datawrap.at(i)->at(j).at(k) << ",";
+				fout << "\n";
+			}
+		}
+
+		fout.close();
 	}
 
 	//If the user wants to save the ray data, do so here
@@ -1007,17 +1202,15 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 					SimC._STSim->IntData.cosx[i], SimC._STSim->IntData.cosy[i], SimC._STSim->IntData.cosz[i],
 					SimC._STSim->IntData.emap[i], SimC._STSim->IntData.smap[i], SimC._STSim->IntData.rnum[i]);
 			}
-			fclose(file);
+			std::fclose(file);  // REMOVE: fclose(file);
 		}
 
 	}
-
 	//Clean up
 	SimC._STSim->IntData.DeallocateArrays();
 	if (SimC._stthread != 0) delete[] SimC._stthread;
 
 	return true;
-
 }
 
 bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
@@ -1185,6 +1378,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 
 	//Is it possible to run a multithreaded simulation?
 	int nsim_req = SF.calcNumRequiredSimulations();
+	std::string msg;
 	if (SimC._n_threads > 1 && nsim_req > 1)
 	{
 		//More than 1 thread and more than 1 simulation to run
@@ -1201,11 +1395,9 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 
 			//Duplicate SF objects in memory
 
-			/* //TODO:
-			wxString msg;
-			msg.Printf("Preparing %d threads for simulation", SimC._n_threads);
-			_layout_log->AppendText(msg);
-			*/
+			msg = "Preparing " + std::to_string(SimC._n_threads) + " threads for simulation";
+			SimC.layout_log_callback(msg.c_str(), SimC.layout_log_callback_data);
+
 			SolarField** SFarr;
 			SFarr = new SolarField * [nthreads];
 			for (int i = 0; i < nthreads; i++)
@@ -1235,15 +1427,13 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 				sim_first = sim_last;
 				sim_last = min(sim_last + npert, nsim_req);
 			}
-			/* //TODO
-			msg.Printf("\n%d ms | Simulating %d design hours", _sim_watch.Time(), nsim_req);
-			_layout_log->AppendText(msg);
-			*/
+
+			msg = "Simulating " + std::to_string(nsim_req) + " design hours";
+			SimC.layout_log_callback(msg.c_str(), SimC.layout_log_callback_data);
 
 			//Run
 			for (int i = 0; i < nthreads; i++)
 				thread(&LayoutSimThread::StartThread, std::ref(simthread[i])).detach();
-
 
 			//Wait loop
 			while (true)
@@ -1258,13 +1448,10 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 					simthread[i].GetStatus(&ns, &nr);
 					nsim_done += ns;
 					nsim_remain += nr;
-
-
 				}
 				//TODO:  SimProgressUpdateMT(nsim_done, nsim_req); // uses wex
 				if (nthread_done == nthreads) break;
 				std::this_thread::sleep_for(std::chrono::milliseconds(75));
-
 			}
 
 			//Check to see whether the simulation was cancelled

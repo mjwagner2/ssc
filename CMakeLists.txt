@@ -25,7 +25,9 @@ set(CMAKE_CXX_STANDARD 11)
 
 Project(solarpilot_codelibs)
 
-add_subdirectory(splinter)
+if(NOT COPILOT_API)
+	add_subdirectory(splinter)
+endif()
 add_subdirectory(shared)
 add_subdirectory(solarpilot)
 add_subdirectory(nlopt)

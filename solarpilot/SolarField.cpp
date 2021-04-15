@@ -271,11 +271,7 @@ SolarField::SolarField( const SolarField &sf )
 	}
 
 	//Flux
-	//if(_flux != (Flux*)NULL ) delete _flux;
-	if (_flux != 0) delete _flux;
 	_flux = new Flux( *sf._flux );
-
-
 }
 
 

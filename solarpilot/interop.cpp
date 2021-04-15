@@ -1398,8 +1398,8 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 			msg = "Preparing " + std::to_string(SimC._n_threads) + " threads for simulation";
 			SimC.layout_log_callback(msg.c_str(), SimC.layout_log_callback_data);
 
-			SolarField** SFarr;
-			SFarr = new SolarField * [nthreads];
+			SolarField **SFarr;
+			SFarr = new SolarField*[nthreads];
 			for (int i = 0; i < nthreads; i++)
 			{
 				SFarr[i] = new SolarField(SF);

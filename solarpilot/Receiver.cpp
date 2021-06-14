@@ -429,13 +429,15 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 	    }
         case var_receiver::REC_TYPE::CAVITY: 
         {
-        	//if(! _var_receiver->is_polygon.val){		/*	2 | Continuous open cylinder - internal cavity	*/
-	    	//	_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV ;
-	    	//}
-	    	//else
-			{
-	    		_rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_CAV;			/*	7 | Discrete open N-polygon - internal cavity	*/
+        	if(! _var_receiver->is_polygon.val){		/*	2 | Continuous open cylinder - internal cavity	*/
+	    		//_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV ;  << Should be this. Start with plane rect for debugging
+				_rec_geom = Receiver::REC_GEOM_TYPE::PLANE_RECT;
 	    	}
+	    	else
+			{
+				_rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_CAV;			/*	7 | Discrete open N-polygon - internal cavity	*/
+	    	}
+			break;
 	    }
         case var_receiver::REC_TYPE::FLAT_PLATE:
         {   //Flat plate

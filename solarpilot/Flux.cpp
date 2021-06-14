@@ -2962,6 +2962,14 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	}
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
+		//TODO >> JK
+	{
+
+
+
+
+		break;
+	}
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
 	case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
 	case Receiver::REC_GEOM_TYPE::POLYGON_CAV:

@@ -430,12 +430,13 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
         case var_receiver::REC_TYPE::CAVITY: 
         {
         	if(! _var_receiver->is_polygon.val){		/*	2 | Continuous open cylinder - internal cavity	*/
-	    		//_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV ;  << Should be this. Start with plane rect for debugging
+	    		//_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV;  //<< Should be this. Start with plane rect for debugging
 				_rec_geom = Receiver::REC_GEOM_TYPE::PLANE_RECT;
 	    	}
 	    	else
 			{
-				_rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_CAV;			/*	7 | Discrete open N-polygon - internal cavity	*/
+                throw spexception("Unsupported geometry type");
+                _rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_CAV;			/*	7 | Discrete open N-polygon - internal cavity	*/
 	    	}
 			break;
 	    }
@@ -855,7 +856,28 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 	//	else{
 		/*	7 | Discrete open N-polygon - internal cavity	*/
 		//Use the number of panels as the number of polygon facets. Each facet is its own surface.
-		_surfaces.resize(_var_receiver->n_panels.val);
+		_surfaces.resize(1 + _var_receiver->n_panels.val); //cavity aperture plus panels
+
+        //Create flux surface for aperture
+        FluxSurface* S = &_surfaces.at(0);
+        S->setParent(this);
+
+        sp_point loc;  //Define aperture location and geometry
+        loc.Set(0., 0., 0.);   //the flux surface offset relative to receiver coordinates should be zero for single-aperture receivers
+        S->setSurfaceGeometry(_var_receiver->rec_height.val, _var_receiver->rec_width.val, 0.);
+        S->setSurfaceOffset(loc);
+
+        Vect nv;    //Define aperture normal vector
+        double rec_az = _var_receiver->rec_azimuth.val * D2R;
+        double rec_elevation = _var_receiver->rec_elevation.val * D2R;
+        nv.i = sin(rec_az) * cos(rec_elevation);
+        nv.j = cos(rec_az) * cos(rec_elevation);
+        nv.k = sin(rec_elevation);
+        S->setNormalVector(nv);
+        S->setSurfaceSpanAngle(-PI / 2., PI / 2.);
+        S->setFluxPrecision(nflux_x, nflux_y); //Aperture flux parameters
+        S->setMaxFlux(_var_receiver->peak_flux.val);
+        S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 
 		//calculate the span of the receiver surfaces
 		double span = PI + 2. * asin(_var_receiver->rec_cav_cdepth.val);
@@ -872,8 +894,8 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		ap_offset.j = cav_ap_offset * cos(_var_receiver->rec_azimuth.val * D2R);
 		ap_offset.k = cav_ap_offset * sin(_var_receiver->rec_elevation.val * D2R);
 
-		for(int i=0; i<_var_receiver->n_panels.val; i++){
-			FluxSurface *S = &_surfaces.at(i);
+		for(int i=1; i<=_var_receiver->n_panels.val; i++){
+			S = &_surfaces.at(i);
 			S->setParent(this);
 
 			//Setup the geometry etc.. including setSurfaceGeometry, setSurfaceOffset
@@ -991,6 +1013,7 @@ void Receiver::CalculateAbsorberArea(){
 		_absorber_area = ( _var_receiver->rec_height.val * _var_receiver->rec_width.val );
 		break;
 	case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
+    case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	{
 		//calculate the span of the receiver surfaces
 		double span = PI + 2.*asin(_var_receiver->rec_cav_cdepth.val);
@@ -1005,7 +1028,6 @@ void Receiver::CalculateAbsorberArea(){
 	}
 	//unsupported receiver geometries
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
-	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 		//_absorber_area = ( _var_receiver->rec_height.val * _var_receiver->rec_diameter.val * fabs(_var_receiver->span_max.val*D2R - _var_receiver->span_min.val*D2R)/2. );
 		//break;
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:

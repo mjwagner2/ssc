@@ -862,9 +862,18 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
         FluxSurface* S = &_surfaces.at(0);
         S->setParent(this);
 
+        //calculate the span of the receiver surfaces
+        double span = PI + 2. * asin(_var_receiver->rec_cav_cdepth.val);
+        //span of a single panel
+        double panel_span = span / _var_receiver->n_panels.val;
+        //calculate single panel width
+        double panel_width = panel_span * _var_receiver->rec_cav_rad.val;
+        //calculate aperture width
+        double ap_width = 2. * _var_receiver->rec_cav_rad.val * cos((span - PI) / 2.);
+
         sp_point loc;  //Define aperture location and geometry
         loc.Set(0., 0., 0.);   //the flux surface offset relative to receiver coordinates should be zero for single-aperture receivers
-        S->setSurfaceGeometry(_var_receiver->rec_height.val, _var_receiver->rec_width.val, 0.);
+        S->setSurfaceGeometry(_var_receiver->rec_height.val, ap_width, 0.);
         S->setSurfaceOffset(loc);
 
         Vect nv;    //Define aperture normal vector
@@ -878,13 +887,6 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
         S->setFluxPrecision(nflux_x, nflux_y); //Aperture flux parameters
         S->setMaxFlux(_var_receiver->peak_flux.val);
         S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
-
-		//calculate the span of the receiver surfaces
-		double span = PI + 2. * asin(_var_receiver->rec_cav_cdepth.val);
-		//span of a single panel
-		double panel_span = span / _var_receiver->n_panels.val;
-		//calculate single panel area
-		double panel_width = sin(panel_span) * _var_receiver->rec_cav_rad.val;
 
 		//calculate the vector offset between the center of the aperture and the center of 
 		//the circle circumscribing the panels
@@ -917,7 +919,8 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setSurfaceGeometry(_var_receiver->rec_height.val, panel_width);
                
 			//Calculate the azimuth angle of the receiver panel
-			double paz = _var_receiver->rec_azimuth.val*D2R - PI+span/2. - panel_span * (double)(i+0.5);
+			double paz = _var_receiver->rec_azimuth.val*D2R - PI+span/2. - panel_span * (double)(i-0.5);
+            if (paz < -PI) { paz = paz + 2 * PI; }
 
 			//Calculate the elevation angle of the panel
 			double pel =  _var_receiver->rec_elevation.val*D2R*cos(-paz);
@@ -938,7 +941,8 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setFluxPrecision(nflux_x,nflux_y);
 			S->setMaxFlux(_var_receiver->peak_flux.val);
 			//Call the method to set up the flux hit test grid.
-			S->DefineFluxPoints(*_var_receiver, _rec_geom);
+			//S->DefineFluxPoints(*_var_receiver, _rec_geom);
+            S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 		}
 	}
 	else if(rec_type == var_receiver::REC_TYPE::FLAT_PLATE){ //Flat plate

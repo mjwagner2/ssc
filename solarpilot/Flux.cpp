@@ -2251,9 +2251,9 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 				//Translate the flux point location into global coordinates
 				sp_point pt_g
                 (
-                    pt->location.x + fs_offset->x + rec_offset.x,
-                    pt->location.y + fs_offset->y + rec_offset.y,
-                    pt->location.z + fs_offset->z + rec_offset.z + tht
+                    pt->location.x + rec_offset.x,
+                    pt->location.y + rec_offset.y,
+                    pt->location.z + rec_offset.z + tht
                 ); 
 
 				//Project the current flux point into the image plane as defined by the 
@@ -3127,6 +3127,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
         for (int i = 1; i <= nPanels; i++) { //Update flux grid of each actual receiver panel
             FS = &rec->getFluxSurfaces()->at(i);
             fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, islast);
+            //fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, false, islast);
         }
 
 		break;

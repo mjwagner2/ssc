@@ -707,6 +707,9 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			
 		//this uses a single curved surface
 		_surfaces.resize(1);
+
+		//force nPanels to 1 for external receiver
+		getVarMap()->n_panels.val = 1;		
 				
 		FluxSurface *S = &_surfaces.at(0);
 		S->setParent(this);

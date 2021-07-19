@@ -2139,7 +2139,7 @@ void Flux::hermiteIntegral(double G[5], double F[5], double X[2], double A[2], d
 #endif
 }
 
-void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, double tht, bool clear_grid, bool norm_grid, bool show_progress)
+void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, double tht, bool clear_grid, bool norm_grid, bool show_progress, double* total_flux)
 {
 	/* 
 	Take a set of points defining the flux plane within the flux_surface object, a solar field geometry, 
@@ -2291,6 +2291,17 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 		siminfo->Reset();
 		siminfo->setCurrentSimulation(0);
 	}
+	// if a variable pointer is provided for the total_flux, calculate and report back the value
+	if (total_flux != 0)
+	{
+		double fsum = 0.;
+		for (int i = 0; i < nfx; i++) {
+			for (int j = 0; j < nfy; j++) {
+				fsum += grid->at(i).at(j).flux;
+			}
+		}
+		(*total_flux) = fsum;
+	}
 	if(norm_grid){
 		//Normalize the flux to sum to 1
 		double fsum=0.;
@@ -2306,6 +2317,7 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 				grid->at(i).at(j).flux *= 1./fsum;
 			}
 		}
+
 	}
 
 }
@@ -2712,8 +2724,8 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	int nfx, nfy, ny_in, ny_del, istart, jstart, iend, jend, jsave,kk,jspan;
 
 
-	//switch (recgeom)
-    switch (Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV)
+	switch (recgeom)
+    //switch (Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV)
 	{
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED:
 	case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:
@@ -3121,14 +3133,39 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
         //The flux grid needs to be updated after each heliostat
         HV.clear();
         HV.push_back(&H);
+		//calculate for the aperture first
         fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, islast);
 
+		//calculate the flux for each panel, leaving the flux in dimensional terms
         int nPanels = Rv->n_panels.val;
-        for (int i = 1; i <= nPanels; i++) { //Update flux grid of each actual receiver panel
+		double flux_all_panels = 0.;	//keep track of the total accumulated flux on all panels
+        for (int i = 1; i < nPanels+1; i++) { //Update flux grid of each actual receiver panel
             FS = &rec->getFluxSurfaces()->at(i);
-            fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, islast);
-            //fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, false, islast);
+			
+			double flux_this_panel;
+            
+			fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, false /*islast*/, false, islast ? &flux_this_panel : 0);
+			
+			if (islast)
+				flux_all_panels += flux_this_panel;
         }
+
+		//if this is the last call, now normalize the flux according to the total accumulated flux
+		if (islast)
+		{
+			for (int i = 1; i < nPanels+1; i++)
+			{
+				FluxGrid *FG = rec->getFluxSurfaces()->at(i).getFluxMap();
+						
+				for (size_t j = 0; j < FG->size(); j++)
+				{
+					for (size_t k = 0; k < FG->front().size(); k++)
+					{
+						FG->at(j).at(k).flux *= 1. / flux_all_panels;
+					}
+				}
+			}
+		}
 
 		break;
 	}

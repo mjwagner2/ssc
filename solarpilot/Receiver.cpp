@@ -430,8 +430,8 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
         case var_receiver::REC_TYPE::CAVITY: 
         {
         	if(! _var_receiver->is_polygon.val){		/*	2 | Continuous open cylinder - internal cavity	*/
-	    		//_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV;  //<< Should be this. Start with plane rect for debugging
-				_rec_geom = Receiver::REC_GEOM_TYPE::PLANE_RECT;
+	    		_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV;  //<< Should be this. Start with plane rect for debugging
+				//_rec_geom = Receiver::REC_GEOM_TYPE::PLANE_RECT;
 	    	}
 	    	else
 			{
@@ -1023,11 +1023,11 @@ void Receiver::CalculateAbsorberArea(){
     case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	{
 		//calculate the span of the receiver surfaces
-		double span = PI + 2.*asin(_var_receiver->rec_cav_cdepth.val);
+		double span = PI + 2. * asin(_var_receiver->rec_cav_cdepth.val);
 		//span of a single panel
 		double panel_span = span / _var_receiver->n_panels.val;
-		//calculate single panel area
-		double panel_width = sin(span) * _var_receiver->rec_cav_rad.val * 2.;
+		//calculate single panel width
+		double panel_width = panel_span * _var_receiver->rec_cav_rad.val;
 		double panel_area = panel_width * _var_receiver->rec_height.val;
 
 		_absorber_area = panel_area * (double)_var_receiver->n_panels.val;

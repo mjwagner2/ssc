@@ -932,9 +932,9 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setNormalVector(nv);
 			//Calculate the centroid of the panel in global XYZ coords
 			sp_point pc;
-			pc.x = -nv.i * _var_receiver->rec_cav_rad.val + ap_offset.i + _var_receiver->rec_offset_x_global.Val();
-			pc.y = -nv.j * _var_receiver->rec_cav_rad.val + ap_offset.j + _var_receiver->rec_offset_y_global.Val();
-			pc.z = -nv.k * _var_receiver->rec_cav_rad.val + ap_offset.k + _var_receiver->rec_offset_z_global.Val();
+			pc.x = -nv.i * _var_receiver->rec_cav_rad.val - ap_offset.i + _var_receiver->rec_offset_x_global.Val();
+			pc.y = -nv.j * _var_receiver->rec_cav_rad.val - ap_offset.j + _var_receiver->rec_offset_y_global.Val();
+			pc.z = -nv.k * _var_receiver->rec_cav_rad.val - ap_offset.k + _var_receiver->rec_offset_z_global.Val();
 
 			S->setSurfaceOffset(pc);
 			//Define the precision of the flux map.

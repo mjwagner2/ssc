@@ -135,8 +135,41 @@ void FluxSurface::DefineFluxPoints(var_receiver &V, int rec_geom, int nx, int ny
 		}
 		break;
 	}
+    case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
+    case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
+    {
+        _area = _height * _width;
+        _flux_grid.resize(_nflux_x); //Number of rows
+
+        double rec_dw = _width / _nflux_x;
+        double rec_dh = _height / _nflux_y;
+
+        Vect xHat, yHat;
+        yHat.i = -sin(V.rec_azimuth.val * D2R) * sin(V.rec_elevation.val * D2R);
+        yHat.j = -cos(V.rec_azimuth.val * D2R) * sin(V.rec_elevation.val * D2R);
+        yHat.k = cos(V.rec_elevation.val * D2R);
+        xHat = Toolbox::crossprod(yHat, _normal);
+
+        sp_point floc;
+        //floc.Set(0, 0, 0);
+
+        for (int i = 0; i < _nflux_x; i++) {
+            _flux_grid.at(i).resize(_nflux_y);	//number of columns
+            for (int j = 0; j < _nflux_y; j++) {
+                //
+                floc.x = ((-_width + rec_dw) / 2. + (double)i * rec_dw) * xHat.i + ((-_height + rec_dh) / 2. + (double)j * rec_dh) * yHat.i;
+                floc.y = ((-_width + rec_dw) / 2. + (double)i * rec_dw) * xHat.j + ((-_height + rec_dh) / 2. + (double)j * rec_dh) * yHat.j;
+                floc.z = ((-_width + rec_dw) / 2. + (double)i * rec_dw) * xHat.k + ((-_height + rec_dh) / 2. + (double)j * rec_dh) * yHat.k;
+
+
+                //Set up the point
+                _flux_grid.at(i).at(j).Setup(floc, _normal, _max_flux);
+            }
+        }
+
+        break;
+    }
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
-	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	{		
 		//1 | Continuous open cylinder - external
 		//2 | Continuous open cylinder - internal cavity
@@ -196,7 +229,6 @@ void FluxSurface::DefineFluxPoints(var_receiver &V, int rec_geom, int nx, int ny
 		break;
 	}
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
-	case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
 	{		//3 | Planar rectangle, or 7 | Planar surface of a cavity
 		/* 
 		The receiver is a rectangle divided into _nflux_x nodes in the horizontal direction and
@@ -945,7 +977,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setMaxFlux(_var_receiver->peak_flux.val);
 			//Call the method to set up the flux hit test grid.
 			//S->DefineFluxPoints(*_var_receiver, _rec_geom);
-            S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
+            S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV);
 		}
 	}
 	else if(rec_type == var_receiver::REC_TYPE::FLAT_PLATE){ //Flat plate

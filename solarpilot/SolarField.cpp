@@ -4201,9 +4201,39 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 	for(int n=0; n<nrec; n++){
 		if(! _receivers.at(n)->isReceiverEnabled() ) continue;
 		FluxSurfaces *surfaces = _receivers.at(n)->getFluxSurfaces();
-		for(unsigned int i=0; i<surfaces->size(); i++){
-			_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true, true, true);
+
+		// for multiple panels
+		if (surfaces->size() > 1)	
+		{
+			double total_flux = 0.;
+			for (unsigned int i = 0; i < surfaces->size(); i++)
+			{
+				double panel_flux;
+				_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true, false, true, &panel_flux);
+				if(i>0)	//0th surface in multi-panel receiver is aperture virtual surface
+					total_flux += panel_flux;
+			}
+			//normalize flux for active surfaces
+			for (unsigned int i = 1; i < surfaces->size(); i++)
+			{
+				FluxGrid* fg = surfaces->at(i).getFluxMap();
+				for (size_t j = 0; j < fg->size(); j++)
+				{
+					for (size_t k = 0; k < fg->front().size(); k++)
+					{
+						fg->at(j).at(k).flux *= (double)(_var_map->recs.at(n).n_panels.val) / total_flux;
+					}
+				}
+			}
 		}
+		// for single panel
+		else
+		{
+			for (unsigned int i = 0; i < surfaces->size(); i++)
+				_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true, true, true);
+		}
+
+
 	}
 
 }

@@ -3161,7 +3161,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 				{
 					for (size_t k = 0; k < FG->front().size(); k++)
 					{
-						FG->at(j).at(k).flux *= 1. / flux_all_panels;
+						FG->at(j).at(k).flux *= (double)(nPanels) / flux_all_panels;
 					}
 				}
 			}
@@ -3282,7 +3282,8 @@ void Flux::keepExistingAimPoint(Heliostat &H, SolarField &SF, double[] /*args*/)
     case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED:
     case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:
     case Receiver::REC_GEOM_TYPE::PLANE_RECT:
-    {
+	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
+	{
         //get the aimpoint, the heliostat location and vector to the aimpoint, and then calculate
         //the relative position of the intersection on the image plain
         sp_point *aim = H.getAimPoint();       //global coordinates
@@ -3317,7 +3318,6 @@ void Flux::keepExistingAimPoint(Heliostat &H, SolarField &SF, double[] /*args*/)
     }
     case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
     case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
-    case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
     case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
     case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
     default:

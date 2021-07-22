@@ -40,8 +40,10 @@ class SolarField;
 class Heliostat;
 class Receiver;
 class FluxSurface;
+class LayoutSimThread;
 struct sim_params;
 struct ST_System;
+class STSimThread;
 typedef std::vector<FluxSurface> FluxSurfaces;
 typedef std::vector<Heliostat*> Hvector;
 typedef std::vector<Receiver*> Rvector;
@@ -143,40 +145,64 @@ public:
 	void ClearAll();
 };
 
-
-namespace interop
+class grid_emulator_base
 {
-	/* 
-	Provides functions that calculate simulatin input values based on other specified data.
+protected:
+	std::vector<std::vector<std::string> > data;
+	std::vector<std::string> rowlabs;
+	std::vector<std::string> collabs;
 
-	E.g. - given a layout simulation method, calculate the days/hours of the year to simulate.
+	int _nrow;
+	int _ncol;
 
-	Methods in this class can be called by the GUI or the (future) API to update variables
-	within the var_set object.
-	*/
+public:
+	void CreateGrid(int nrow, int ncol);
+	bool SetColLabelValue(int col, std::string value);
+	bool SetRowLabelValue(int row, std::string value);
+	bool SetCellValue(int row, int col, std::string value);
+	bool SetCellValue(std::string value, int row, int col);
+	void AddRow(int row, std::string label, std::string units, double value, int sigfigs = -1,
+		double mean = std::numeric_limits<double>::quiet_NaN(),
+		double min = std::numeric_limits<double>::quiet_NaN(),
+		double max = std::numeric_limits<double>::quiet_NaN(),
+		double stdev = std::numeric_limits<double>::quiet_NaN());
 
-	//-- Methods for calculating simulation input values
-	void GenerateSimulationWeatherData(var_map &V, int design_method, ArrayString &wf_entries);
-	void GenerateSimulationWeatherData(var_map &V, int design_method, std::vector<std::string> &wf_entries);	//overload
-	bool parseRange(std::string &range, int &rangelow, int &rangehi, bool &include_low, bool &include_hi);
-	void ticker_initialize(int indices[], int n);
-	bool ticker_increment(int lengths[], int indices[], bool changed[], int n);
-
-	//Simulation setup methods
-	bool PerformanceSimulationPrep(SolarField &SF, Hvector &helios, int sim_method);
-#ifdef SP_USE_SOLTRACE
-	bool SolTraceFluxSimulation_ST(st_context_t cxt, SolarField &SF, Hvector &helios, Vect &sunvect,
-                                int callback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void *data),
-                                void *par, 
-                                std::vector<std::vector<double> > *st0data, std::vector<std::vector<double> > *st1data, bool save_stage_data, bool load_stage_data);
-	bool SolTraceFluxSimulation_ST(st_context_t cxt, int seed, ST_System &ST, 
-                                int callback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void *data),
-                                void *par, 
-std::vector<std::vector<double> > *st0data, std::vector<std::vector<double> > *st1data, bool save_stage_data, bool load_stage_data);
-#endif
-	void UpdateMapLayoutData(var_map &V, Hvector *helios);
+	int GetNumberRows();
+	int GetNumberCols();
+	std::string GetRowLabelValue(int row);
+	std::string GetColLabelValue(int col);
+	std::string GetCellValue(int row, int col);
+	virtual std::vector<std::string> GetPrintableTable(std::string eol = "\n");
 };
 
+
+//Class for simulation control variables.
+class SimControl
+{
+public:
+	int
+		_n_threads,
+		_n_threads_active;
+	bool
+		_is_mt_simulation,
+		_cancel_simulation;
+
+	STSimThread* _stthread;
+	ST_System* _STSim;
+
+	SimControl();
+
+	void SetThreadCount(int nthreads);
+	int (*soltrace_callback)(st_uint_t, st_uint_t, st_uint_t, st_uint_t, st_uint_t, void*);
+	void* soltrace_callback_data;
+
+	int (*message_callback)(const char*, void*);
+	void* message_callback_data;
+
+	int (*layout_log_callback)(const char*, void*);
+	void* layout_log_callback_data;
+
+};
 
 //Classes for collecting and processing simulation results
 class stat_object
@@ -275,5 +301,43 @@ public:
 };
 
 typedef std::vector<sim_result> sim_results;
+
+namespace interop
+{
+	/*
+	Provides functions that calculate simulatin input values based on other specified data.
+
+	E.g. - given a layout simulation method, calculate the days/hours of the year to simulate.
+
+	Methods in this class can be called by the GUI or the (future) API to update variables
+	within the var_set object.
+	*/
+
+	//-- Methods for calculating simulation input values
+	void GenerateSimulationWeatherData(var_map& V, int design_method, ArrayString& wf_entries);
+	void GenerateSimulationWeatherData(var_map& V, int design_method, std::vector<std::string>& wf_entries);	//overload
+	bool parseRange(std::string& range, int& rangelow, int& rangehi, bool& include_low, bool& include_hi);
+	void ticker_initialize(int indices[], int n);
+	bool ticker_increment(int lengths[], int indices[], bool changed[], int n);
+
+	//Simulation setup methods
+	bool PerformanceSimulationPrep(SolarField& SF, Hvector& helios, int sim_method);
+#ifdef SP_USE_SOLTRACE
+	bool SolTraceFluxSimulation_ST(st_context_t cxt, SolarField& SF, Hvector& helios, Vect& sunvect,
+		int callback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data),
+		void* par,
+		std::vector<std::vector<double> >* st0data, std::vector<std::vector<double> >* st1data, bool save_stage_data, bool load_stage_data);
+	bool SolTraceFluxSimulation_ST(st_context_t cxt, int seed, ST_System& ST,
+		int callback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data),
+		void* par,
+		std::vector<std::vector<double> >* st0data, std::vector<std::vector<double> >* st1data, bool save_stage_data, bool load_stage_data);
+#endif
+	void UpdateMapLayoutData(var_map& V, Hvector* helios);
+	bool HermiteFluxSimulationHandler(sim_results& results, SolarField& SF, Hvector& helios);
+	bool SolTraceFluxSimulation(SimControl& SimC, sim_results& results, SolarField& SF, var_map& vset, Hvector& helios);
+	bool SolTraceFluxBinning(SimControl& STSimC, SolarField& SF);
+	bool DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, LayoutSimThread* simthread);
+	void CreateResultsTable(sim_result& result, grid_emulator_base& table);
+};
 
 #endif

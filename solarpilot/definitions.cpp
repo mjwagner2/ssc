@@ -837,6 +837,7 @@ void var_solarfield::addptrs(unordered_map<std::string, spbase*> &pmap)
 	_local_varptrs["solarfield.0.template_rule"] = &template_rule;
 	_local_varptrs["solarfield.0.tht"] = &tht;
 	_local_varptrs["solarfield.0.trans_limit_fact"] = &trans_limit_fact;
+	_local_varptrs["solarfield.0.version"] = &version;
 	_local_varptrs["solarfield.0.xy_field_shape"] = &xy_field_shape;
 	_local_varptrs["solarfield.0.xy_rect_aspect"] = &xy_rect_aspect;
 	_local_varptrs["solarfield.0.zone_div_tol"] = &zone_div_tol;

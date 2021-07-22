@@ -130,7 +130,7 @@ public:
     struct VAR_DIM { enum A { DIM_T, DIM_NT, DIM_T2, DIM_2T_TRI }; };
 
     mrec_optimization_vars();
-    //~mrec_optimization_vars();
+    ~mrec_optimization_vars();
 
     void add_var(const std::string &vname, int var_type /* VAR_TYPE enum */, int var_dim /* VAR_DIM enum */, int var_dim_size, REAL lowbo = -DEF_INFINITE, REAL upbo = DEF_INFINITE);
     void add_var(const std::string &vname, int var_type /* VAR_TYPE enum */, int var_dim /* VAR_DIM enum */, int var_dim_size, int var_dim_size2, REAL lowbo = -DEF_INFINITE, REAL upbo = DEF_INFINITE);
@@ -323,29 +323,34 @@ int multi_rec_opt_helper::run(SolarField *SF)
         /* 
         performance constraint - maintain desired power fractions by setting fractional power
         for all receivers equal to the first receiver
-        */
-        for (int j = 1; j < Nrec; j++)
-        {
-            //gamma_r is the fraction of power expected to be delivered by receiver 'r'
-            double gamma_0 = SF->getVarMap()->recs.front().q_rec_des.Val() / SF->getVarMap()->sf.q_des.val;
-            //sum all power delivered by receiver 0. do this each time, since row/col values are disturbed when adding constraints
-            for (int i = 0; i < Nh; i++)
-            {
-                int id = helios.at(i)->getId();
-                col[i] = O.column("x", i, 0);
-                row[i] = power_allocs.at(id).at(0) / gamma_0;
-            }
 
-            double gamma_r = SF->getVarMap()->recs.at(j).q_rec_des.Val() / SF->getVarMap()->sf.q_des.val;
-            //sum all power delivered by receiver r (r>=1).
-            for (int i = 0; i < Nh; i++)
+        Only enforce this constraint if the checkbox is enabled
+        */
+        if (SF->getVarMap()->sf.is_multirec_powfrac.val)
+        {
+            for (int j = 1; j < Nrec; j++)
             {
-                int id = helios.at(i)->getId();
-                col[Nh + i] = O.column("x", i, j);
-                row[Nh + i] = -power_allocs.at(id).at(j) / gamma_r;
+                //gamma_r is the fraction of power expected to be delivered by receiver 'r'
+                double gamma_0 = SF->getVarMap()->recs.front().q_rec_des.Val() / SF->getVarMap()->sf.q_des.val;
+                //sum all power delivered by receiver 0. do this each time, since row/col values are disturbed when adding constraints
+                for (int i = 0; i < Nh; i++)
+                {
+                    int id = helios.at(i)->getId();
+                    col[i] = O.column("x", i, 0);
+                    row[i] = power_allocs.at(id).at(0) / gamma_0;
+                }
+
+                double gamma_r = SF->getVarMap()->recs.at(j).q_rec_des.Val() / SF->getVarMap()->sf.q_des.val;
+                //sum all power delivered by receiver r (r>=1).
+                for (int i = 0; i < Nh; i++)
+                {
+                    int id = helios.at(i)->getId();
+                    col[Nh + i] = O.column("x", i, j);
+                    row[Nh + i] = -power_allocs.at(id).at(j) / gamma_r;
+                }
+                //the constraint means sum of power from receiver 0 minus sum of power from receiver 'r' equals zero when scaled by their power fractions.
+                add_constraintex(lp, Nh*2, row, col, EQ, 0.);
             }
-            //the constraint means sum of power from receiver 0 minus sum of power from receiver 'r' equals zero when scaled by their power fractions.
-            add_constraintex(lp, Nh*2, row, col, EQ, 0.);
         }
     }
     else
@@ -468,6 +473,12 @@ int multi_rec_opt_helper::run(SolarField *SF)
         results[id][rec] = vars[i];
     }
 
+    delete[] vars;
+    if (lp != NULL) {
+        /* clean up such that all used memory by lpsolve is freed */
+        delete_lp(lp);
+    }
+
     //create a pointer map between heliostat ID and heliostat address
     unordered_map<int, Heliostat*> hmap;
     std::vector<Heliostat>* hobjs = SF->getHeliostatObjects();
@@ -531,6 +542,12 @@ mrec_optimization_vars::mrec_optimization_vars()
     current_mem_pos = 0;
     alloc_mem_size = 0;
 }
+
+mrec_optimization_vars::~mrec_optimization_vars()
+{
+    delete[] data;
+}
+
 void mrec_optimization_vars::add_var(const std::string &vname, int var_type /* VAR_TYPE enum */, int var_dim /* VAR_DIM enum */, int var_dim_size, REAL lobo, REAL upbo)
 {
     if (var_dim == VAR_DIM::DIM_T2)
@@ -590,7 +607,7 @@ bool mrec_optimization_vars::construct()
     if (current_mem_pos < 0 || current_mem_pos > 1000000)
         throw std::runtime_error("Bad memory allocation when constructing variable table for dispatch optimization.");
 
-    data = new REAL[current_mem_pos];
+    data = new REAL[current_mem_pos];  //where is this deallocated?
 
     alloc_mem_size = current_mem_pos;
 

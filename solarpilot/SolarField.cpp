@@ -271,9 +271,7 @@ SolarField::SolarField( const SolarField &sf )
 	}
 
 	//Flux
-	//if(_flux != (Flux*)NULL ) delete _flux;
 	_flux = new Flux( *sf._flux );
-
 }
 
 
@@ -288,7 +286,8 @@ void SolarField::Create(var_map &V){
     _var_map = &V;  //point to te variables used to create this variable
     //_layout_data = V.sf.layout_data.val;  //copy string layout data
 
-
+	//Set Version Number
+	V.sf.version.val = "SolarPILOT Version: 1.4.0";
 
 	//Clean out possible existing variables
 	Clean();
@@ -556,13 +555,24 @@ void SolarField::Clean(){
 
 	for(int i=0; i<4; i++) _helio_extents[i] = 0.;
 	_layout.clear();
+
+	for (unsigned int i = 0; i < _layout_groups.size(); i++) {
+		_layout_groups.at(i).clear();
+	}
+	_layout_groups.clear();
+
 	_helio_objects.clear();
 	_helio_templates.clear();
     _helio_template_objects.clear();
-	_heliostats.clear();
 	_helio_groups.clear();
 	_helio_by_id.clear();
 	_neighbors.clear();
+	_heliostats.clear();
+
+	//Delete receivers
+	for (unsigned int i = 0; i < _receivers.size(); i++) {
+		delete _receivers.at(i);
+	}
 	_receivers.clear();
 	
 	_is_created = false;
@@ -1414,11 +1424,13 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
         to_double(vdata.at(7), &P.Simweight);
         P.is_layout = true;
         
-        DTobj dt;
+        DateTime dt;
         dt.setZero();
+		dt._year = 2010.; //added to remove error being printed to screen
         dt._mday = dom;
         dt._hour = hour;
         dt._month = month;
+		dt._yday = dt.GetDayOfYear();
 
         //Calculate the sun position vector
         double az, zen;

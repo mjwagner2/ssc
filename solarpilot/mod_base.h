@@ -80,7 +80,8 @@ class simulation_info
 	This object provides information to the calling program on the status of the 
 	simulations underway.
 	*/
-	bool (*_callback)(simulation_info* siminfo, void *data);
+	typedef bool (*callbackPtr)(simulation_info* siminfo, void* data);
+	callbackPtr _callback;
 	void *_callback_data;
 
 	double
@@ -107,7 +108,7 @@ public:
 	void Reset();
 
 	//Sets
-	void setCallbackFunction(bool (*updateFunc)(simulation_info* siminfo, void *data), void *cdata);
+	void setCallbackFunction(callbackPtr updateFunc, void *cdata);
 	bool setCurrentSimulation(int val);
 	bool setTotalSimulationCount(int val);
 	void clearSimulationNotices();
@@ -115,7 +116,7 @@ public:
 	bool addSimulationNotice(std::string notice);
 	void isEnabled(bool state);
     void* getCallbackData();
-	void* getCallbackFunction();
+	callbackPtr getCallbackFunction();
 };
 
 class simulation_error

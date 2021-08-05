@@ -447,7 +447,8 @@ void constraint_auto_eval(unsigned m, double *result, unsigned n, const double* 
         if (!rit->is_enabled.val)
             continue;
 
-        result[rct++] = flux.at(rct) - rit->peak_flux.val;      //estimate of the violation of the flux contraint 
+	rct++;
+        result[rct] = flux.at(rct) - rit->peak_flux.val;      //estimate of the violation of the flux contraint 
 
     }
     
@@ -492,7 +493,7 @@ AutoPilot::~AutoPilot()
     if( _opt != 0 )
         delete _opt;
 
-	return;
+    return;
 }
 
 void AutoPilot::SetSummaryCallback( bool (*callback)(simulation_info* siminfo, void *data), void *cdata)

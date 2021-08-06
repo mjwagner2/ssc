@@ -2091,8 +2091,8 @@ void sim_result::process_analytical_simulation(SolarField &SF, sim_params &P, in
         time_date_stamp = ss.str();
         aim_method = SF.getVarMap()->flux.aim_method.val + " aimpoints";
 
-		//SF.getFinancialObject()->calcPlantCapitalCost(*SF.getVarMap());	//Always update the plant cost
-		total_installed_cost = V->fin.total_installed_cost.Val(); //SF.getFinancialObject()->getTotalInstalledCost();
+		SF.getFinancialObject()->calcPlantCapitalCost(*SF.getVarMap());	//Always update the plant cost
+		total_installed_cost = V->fin.total_installed_cost.Val(); 
 		coe_metric = total_installed_cost/_q_coe;
 		
 		process_flux_stats(receivers);

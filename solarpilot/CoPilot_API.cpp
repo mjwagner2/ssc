@@ -1,9 +1,11 @@
 #include <fstream>
+#include <cstring>
 #include "rapidxml.hpp"
 
 #include "CoPilot_API.h"
 #include "IOUtil.h"
 #include "shared/lib_weatherfile.h"
+
 
 
 struct api_helper
@@ -139,7 +141,7 @@ SPEXPORT bool sp_set_number(sp_data_t p_data, const char* name, sp_number_t v)
         }
         else {
             //no problems, just set the variable
-            svalue = my_to_string(v);
+            svalue = std::to_string(v);
         }
         mc->variables._varptrs.at(sname)->set_from_string(svalue.c_str());
         return true;
@@ -753,7 +755,12 @@ SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads = 0) //, bool sa
 
     //Saving local verison of weather data
     weatherfile wf;
-    if (!wf.open(weatherfile_str)) return 0; //error
+    if (!wf.open(weatherfile_str))
+    {
+        std::string msg = "ERROR: Failed to open weather file.  Please check provided file path.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+    	return false; //error
+    }
 
     //Update the weather data
     std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";

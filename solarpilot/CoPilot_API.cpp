@@ -1768,9 +1768,9 @@ SPEXPORT sp_number_t* sp_heliostats_by_region(sp_data_t p_data, const char* coor
     {
         //construct a polygon from the listed points
         std::vector< sp_point > polygon;
-        for (size_t i = 0; i < *len_arg; i++)
+        for (size_t i = 0; i < *len_arg; i+=2)
         {
-            polygon.push_back(sp_point(arguments[i], arguments[i++], 0.));
+            polygon.push_back(sp_point(arguments[i], arguments[i+1], 0.));
         }
 
         for (size_t i = 0; i < helios->size(); i++)

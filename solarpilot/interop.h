@@ -21,7 +21,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef _INTEROP_
-#define _INTEROP_ 1
+#define _INTEROP_
 
 #include <string>
 #include <map>
@@ -32,9 +32,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mod_base.h"
 #include "heliodata.h"
 #include "definitions.h"
-#ifdef SP_USE_SOLTRACE
 #include "stapi.h"
-#endif
 
 class SolarField;
 class Heliostat;

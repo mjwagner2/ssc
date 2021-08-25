@@ -71,7 +71,7 @@ else()
 		add_compile_options(-arch x86_64 -fno-common)
   		add_definitions(-DWX_PRECOMP)
 	else()
-		add_definitions(-D__64BIT__)
+		add_definitions(-D__64BIT__ -DSP_STANDALONE -DSP_USE_SOLTRACE -DSP_USE_THREADS)
 	endif()
 	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11" )
 	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -Wno-sign-compare -Wno-unused-variable -Wno-uninitialized -Wno-int-to-pointer-cast ")
@@ -115,24 +115,31 @@ endif()
 
 if (MSVC)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
-	
-	if(COPILOT_API)
-		target_link_libraries(solarpilot lpsolve nlopt shared coretrace)
-		
-		set(COPILOT_DLL $<TARGET_FILE_DIR:solarpilot>/$<TARGET_FILE_BASE_NAME:solarpilot>.dll)
-
-		if(EXISTS ${CMAKE_SOURCE_DIR}/solarpilot/deploy/api)
-			set(DLL_COPY_PATH ${CMAKE_SOURCE_DIR}/solarpilot/deploy/api)	
-		else()
-			set(DLL_COPY_PATH ${CMAKE_SOURCE_DIR})
-		endif()
-
-		add_custom_command(
-			TARGET solarpilot
-			POST_BUILD
-			COMMAND ${CMAKE_COMMAND}
-			ARGS -E copy $<TARGET_FILE:solarpilot> ${COPILOT_DLL} ${DLL_COPY_PATH}
-		)
-		
-	endif()
+else()
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:LINUX")
 endif()
+	
+if(COPILOT_API)
+	target_link_libraries(solarpilot lpsolve nlopt shared coretrace)
+	if (MSVC)		
+		set(COPILOT_DLL $<TARGET_FILE_DIR:solarpilot>/$<TARGET_FILE_BASE_NAME:solarpilot>.dll)
+	else()
+		set(COPILOT_DLL $<TARGET_FILE_DIR:solarpilot>/$<TARGET_FILE_BASE_NAME:solarpilot>.so)
+	endif()
+	
+
+	if(EXISTS ${CMAKE_SOURCE_DIR}/SolarPILOT/deploy/api)
+		set(DLL_COPY_PATH ${CMAKE_SOURCE_DIR}/SolarPILOT/deploy/api)	
+	else()
+		set(DLL_COPY_PATH ${CMAKE_SOURCE_DIR})
+	endif()
+
+	add_custom_command(
+		TARGET solarpilot
+		POST_BUILD
+		COMMAND ${CMAKE_COMMAND}
+		ARGS -E copy $<TARGET_FILE:solarpilot> ${COPILOT_DLL} ${DLL_COPY_PATH}
+	)
+		
+endif()
+

@@ -447,9 +447,8 @@ void constraint_auto_eval(unsigned m, double *result, unsigned n, const double* 
         if (!rit->is_enabled.val)
             continue;
 
-	rct++;
         result[rct] = flux.at(rct) - rit->peak_flux.val;      //estimate of the violation of the flux contraint 
-
+		rct++;	
     }
     
     return;
@@ -949,7 +948,8 @@ bool AutoPilot::Optimize(vector<double*> &optvars, vector<double> &upper_range, 
         if (!all_written)
             os << "\n     | ";  //start a new line
 
-        else if (all_written)
+        //else 
+		if (all_written)
             break;
     }
     os << "| Obj.    | Flux    ";
@@ -987,8 +987,11 @@ bool AutoPilot::Optimize(vector<double*> &optvars, vector<double> &upper_range, 
         oo << "\nObjective: " << AO.m_objective.back(); //objbest;
         _summary_siminfo->addSimulationNotice(oo.str() );
     }
-    catch(...){
-        V->opt.flux_penalty.val = flux_penalty_save;
+    catch(const std::exception &e){
+		ostringstream oo;
+		oo << "Exception occurred:\t" << e.what();
+		_summary_siminfo->addSimulationNotice(oo.str());
+		V->opt.flux_penalty.val = flux_penalty_save;
         return false;
     }
 

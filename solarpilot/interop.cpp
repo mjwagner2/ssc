@@ -1396,7 +1396,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 			//Duplicate SF objects in memory
 
 			msg = "Preparing " + std::to_string(SimC._n_threads) + " threads for simulation";
-			SimC.layout_log_callback(msg.c_str(), SimC.layout_log_callback_data);
+			SimC.layout_log_callback(0., msg.c_str(), SimC.layout_log_callback_data);
 
 			SolarField **SFarr;
 			SFarr = new SolarField*[nthreads];
@@ -1429,7 +1429,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 			}
 
 			msg = "Simulating " + std::to_string(nsim_req) + " design hours";
-			SimC.layout_log_callback(msg.c_str(), SimC.layout_log_callback_data);
+			SimC.layout_log_callback(0., msg.c_str(), SimC.layout_log_callback_data);
 
 			//Run
 			for (int i = 0; i < nthreads; i++)
@@ -1450,6 +1450,8 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 					nsim_remain += nr;
 				}
 				//TODO:  SimProgressUpdateMT(nsim_done, nsim_req); // uses wex
+				SimC.layout_log_callback((double)nsim_done / (double)nsim_req, "", SimC.layout_log_callback_data);
+
 				if (nthread_done == nthreads) break;
 				std::this_thread::sleep_for(std::chrono::milliseconds(75));
 			}

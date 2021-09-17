@@ -33,7 +33,7 @@ struct api_helper
         sim_control.soltrace_callback_data = (void*)this;
         sim_control.message_callback = MessageHandler;
         sim_control.message_callback_data = (void*)this;
-        sim_control.layout_log_callback = MessageHandler;
+        sim_control.layout_log_callback = ProgressHandler;
         sim_control.layout_log_callback_data = (void*)this;
 
         use_api_callback = false;
@@ -2297,6 +2297,14 @@ int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace
 
 int MessageHandler(const char* message, void* data)
 {
+    /*
+    type        |   name        | Description
+    -------------------------------------------
+    const char* | message       | Messages produced by the simulation
+    void*       | data          | Pointer to data (to be type-cast) accompanying the message
+    */
+    
+    
     api_helper* api = static_cast<api_helper*>(data);
 
     if (api->use_api_callback)
@@ -2306,3 +2314,22 @@ int MessageHandler(const char* message, void* data)
     return 1;
 }
 
+int ProgressHandler(double progress, const char* message, void* data)
+{
+    /*
+    type        |   name        | Description
+    -------------------------------------------
+    double      | progress      | Progress of the simulation [0...1]
+    const char* | message       | Messages produced by the simulation
+    void*       | data          | Pointer to data (to be type-cast) accompanying the message
+    */
+
+
+    api_helper* api = static_cast<api_helper*>(data);
+
+    if (api->use_api_callback)
+    {
+        (*api->external_callback)((sp_number_t)progress, message);
+    }
+    return 1;
+}

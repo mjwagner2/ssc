@@ -117,3 +117,5 @@ extern "C" {
 extern int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data);
 
 extern int MessageHandler(const char* message, void* data);
+
+extern int ProgressHandler(double progress, const char* message, void* data);

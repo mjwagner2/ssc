@@ -197,7 +197,7 @@ public:
 	int (*message_callback)(const char*, void*);
 	void* message_callback_data;
 
-	int (*layout_log_callback)(const char*, void*);
+	int (*layout_log_callback)(double progress, const char*, void*);
 	void* layout_log_callback_data;
 
 };

@@ -1040,7 +1040,9 @@ void AutoPilot::PostEvaluationUpdate(int iter, vector<double> &pos, /*vector<dou
     if( note != 0 )
         os << *note;
 
-    _summary_siminfo->addSimulationNotice( os.str() );
+	if (!_summary_siminfo->addSimulationNotice(os.str()))
+		CancelSimulation();
+
 
 }
 

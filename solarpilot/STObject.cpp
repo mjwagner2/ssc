@@ -1150,7 +1150,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			*/
 			break;
 		case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
-			break;
+			//break;
 		case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 		{
 			double

@@ -105,6 +105,8 @@ extern "C" {
 
     SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname);
 
+    SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname);
+
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
 
 #ifdef __cplusplus

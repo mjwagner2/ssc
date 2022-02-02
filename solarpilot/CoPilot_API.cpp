@@ -2193,6 +2193,36 @@ SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname)
     return false;
 }
 
+SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname)
+{
+    /*
+	Load a SolarPILOT .spt file. Returns true if successful.
+	Returns: (string:path):boolean
+    */
+
+    api_helper *mc = static_cast<api_helper*>(p_data);
+    var_map* V = &mc->variables;
+
+    if (!ioutil::file_exists(sp_fname))
+    {
+        return false;
+    }
+
+    try
+    {
+        parametric p;
+        optimization o;
+
+        ioutil::parseXMLInputFile(sp_fname, *V, p, o);
+        return true;
+    }
+    catch (...)
+    {
+
+    }
+    return false;
+}
+
 SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
 {
     /*

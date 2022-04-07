@@ -5,16 +5,19 @@
 #include "CoPilot_API.h"
 #include "IOUtil.h"
 #include "shared/lib_weatherfile.h"
+#include "API_structures.h"
 
 
 
-struct api_helper
+struct CopilotObject
 {
     SolarField solarfield;
     var_map variables;
     sim_results results;
     LayoutSimThread* simthread;
     SimControl sim_control;
+    sp_optical_table opttab;
+
     std::vector<std::string> message_log;
 
     int (*external_callback)(sp_number_t fraction_complete, const char* notices);
@@ -22,7 +25,7 @@ struct api_helper
 
     std::string __str_data;  //used to pass string data back to API language     
 
-    api_helper()
+    CopilotObject()
     {
         variables.reset();
         solarfield.Create(variables);
@@ -43,7 +46,7 @@ struct api_helper
 
 SPEXPORT const char* sp_version(sp_data_t p_data)
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     
     return V->sf.version.val.c_str();
@@ -51,31 +54,31 @@ SPEXPORT const char* sp_version(sp_data_t p_data)
 
 SPEXPORT void sp_set_callback(sp_data_t p_data, int(*fcallback)(sp_number_t, const char*))
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     mc->external_callback = fcallback;
     mc->use_api_callback = true;
 }
 
 SPEXPORT void sp_disable_callback(sp_data_t p_data)
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     mc->use_api_callback = false;
 }
 
 SPEXPORT void sp_cancel_simulation(sp_data_t p_data)
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     mc->sim_control._cancel_simulation = true;
 }
 
 SPEXPORT sp_data_t sp_data_create()
 {
-    return static_cast<sp_data_t> (new api_helper);
+    return static_cast<sp_data_t> (new CopilotObject);
 }
 
 SPEXPORT bool sp_data_free(sp_data_t p_data)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
 
     if (mc)
     {
@@ -92,7 +95,7 @@ SPEXPORT void var_free_memory(sp_number_t* varptr)
 
 SPEXPORT bool sp_set_number(sp_data_t p_data, const char* name, sp_number_t v)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
     
     //make sure the specified variable exists
@@ -150,7 +153,7 @@ SPEXPORT bool sp_set_number(sp_data_t p_data, const char* name, sp_number_t v)
 
 SPEXPORT bool sp_set_string(sp_data_t p_data, const char *name, const char *value)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     //create a string copy of the variable name
@@ -201,7 +204,7 @@ SPEXPORT bool sp_set_string(sp_data_t p_data, const char *name, const char *valu
 /** Assigns value of type SP_VEC_DOUBLE and SP_VEC_INTEGER */
 SPEXPORT bool sp_set_array(sp_data_t p_data, const char *name, sp_number_t *pvalues, int length)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     //make sure the specified variable exists
@@ -243,7 +246,7 @@ SPEXPORT bool sp_set_array(sp_data_t p_data, const char *name, sp_number_t *pval
 /** Assigns value of type @a SSC_MATRIX . Matrices are specified as a continuous array, in row-major order.  Example: the matrix [[5,2,3],[9,1,4]] is stored as [5,2,3,9,1,4]. */
 SPEXPORT bool sp_set_matrix(sp_data_t p_data, const char *name, sp_number_t *pvalues, int nrows, int ncols)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     //make sure the specified variable exists
@@ -290,7 +293,7 @@ SPEXPORT sp_number_t sp_get_number(sp_data_t p_data, const char* name)
     /*
     Return value of type double, int, or bool. Bools are returned as 0 or 1.
     */
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
@@ -345,7 +348,7 @@ SPEXPORT sp_number_t sp_get_number(sp_data_t p_data, const char* name)
 /** Returns the value of a @a SP_STRING variable with the given name. */
 SPEXPORT const char *sp_get_string(sp_data_t p_data, const char *name)
 {
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
@@ -375,7 +378,7 @@ SPEXPORT sp_number_t *sp_get_array(sp_data_t p_data, const char *name, int *leng
     Populates 'value_array' with 'length' entries
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
@@ -413,13 +416,99 @@ SPEXPORT sp_number_t *sp_get_array(sp_data_t p_data, const char *name, int *leng
     return values;
 }
 
+SPEXPORT int sp_get_array_size(sp_data_t p_data, const char* name)
+{
+    /*
+    Returns the length of array 'name'
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SimControl* SC = &mc->sim_control;
+
+    if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
+    {
+        std::string msg = "No such variable: " + std::string(name);
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    //make sure the data type of the variable provided matches the internal data type
+    int dattype = mc->variables._varptrs.at(name)->dattype;
+    if (!(dattype == SP_DATTYPE::SP_VEC_DOUBLE || dattype == SP_DATTYPE::SP_VEC_INTEGER))
+    {
+        std::string msg = "Data type of " + std::string(name) + " is not compatible with sp_get_array_size.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    spbase* var = mc->variables._varptrs[name];
+    std::string varstr = var->as_string();
+
+    //convert the string formatted vector to a vector<double>
+    std::vector<double> Vd;
+    spbase::_setv(varstr, Vd);
+
+    //set length for return
+    return (int)Vd.size();
+}
+
+SPEXPORT double sp_get_array_value_by_index(sp_data_t p_data, const char* name, int index)
+{
+    /*
+    Returns array value at 'index' position
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SimControl* SC = &mc->sim_control;
+
+    if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
+    {
+        std::string msg = "No such variable: " + std::string(name);
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    //make sure the data type of the variable provided matches the internal data type
+    int dattype = mc->variables._varptrs.at(name)->dattype;
+    if (!(dattype == SP_DATTYPE::SP_VEC_DOUBLE || dattype == SP_DATTYPE::SP_VEC_INTEGER))
+    {
+        std::string msg = "Data type of " + std::string(name) + " is not compatible with sp_get_double_array_value_by_index.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    spbase* var = mc->variables._varptrs[name];
+    std::string varstr = var->as_string();
+
+    //convert the string formatted vector to a vector<double>
+    std::vector<double> Vd;
+    spbase::_setv(varstr, Vd);
+
+    //test index to be within valid range
+    if (index<0 || index > (int) Vd.size()-1)
+    {
+        std::string msg = "Index " + std::to_string(index) + " is outside valid range of array " + std::string(name) + " use sp_get_array_size to get the valid size.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    if (dattype == SP_DATTYPE::SP_VEC_INTEGER)
+    {
+        return (double) Vd.at(index);
+    }
+    else
+    {
+        return Vd.at(index);
+    }
+}
+
 SPEXPORT sp_number_t *sp_get_matrix(sp_data_t p_data, const char *name, int *nrows, int* ncols)
 {
     /*
     Populates 'value_array' with 'length' entries
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
@@ -459,6 +548,134 @@ SPEXPORT sp_number_t *sp_get_matrix(sp_data_t p_data, const char *name, int *nro
     return values;
 }
 
+SPEXPORT int sp_get_matrix_row_size(void* p_data, const char* name)
+{
+    /*
+    Returns size of matrix. nrows is returned, ncols is returned by reference
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SimControl* SC = &mc->sim_control;
+
+    if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
+    {
+        std::string msg = "No such variable: " + std::string(name);
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    //make sure the data type of the variable provided matches the internal data type
+    int dattype = mc->variables._varptrs.at(name)->dattype;
+    if (dattype != SP_DATTYPE::SP_MATRIX_T)
+    {
+        std::string msg = "Data type of " + std::string(name) + " is not compatible with sp_get_matrix.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    spbase* var = mc->variables._varptrs[name];
+    std::string varstr = var->as_string();
+
+    //convert the string formatted vector 
+    matrix_t<double> Md;
+    spbase::_setv(varstr, Md);
+
+    //set lengths for return
+    return (int) Md.nrows();
+}
+
+SPEXPORT int sp_get_matrix_col_size(void* p_data, const char* name)
+{
+    /*
+    Returns size of matrix. nrows is returned, ncols is returned by reference
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SimControl* SC = &mc->sim_control;
+
+    if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
+    {
+        std::string msg = "No such variable: " + std::string(name);
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    //make sure the data type of the variable provided matches the internal data type
+    int dattype = mc->variables._varptrs.at(name)->dattype;
+    if (dattype != SP_DATTYPE::SP_MATRIX_T)
+    {
+        std::string msg = "Data type of " + std::string(name) + " is not compatible with sp_get_matrix.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<int>::quiet_NaN();
+    }
+
+    spbase* var = mc->variables._varptrs[name];
+    std::string varstr = var->as_string();
+
+    //convert the string formatted vector 
+    matrix_t<double> Md;
+    spbase::_setv(varstr, Md);
+
+    //set lengths for return
+    return (int)Md.ncols();
+}
+
+SPEXPORT double sp_get_matrix_value_by_index(void* p_data, const char* name, int row_index, int col_index)
+{
+    /*
+    Populates 'value_array' with 'length' entries
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SimControl* SC = &mc->sim_control;
+
+    if (mc->variables._varptrs.find(name) == mc->variables._varptrs.end())
+    {
+        std::string msg = "No such variable: " + std::string(name);
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    //make sure the data type of the variable provided matches the internal data type
+    int dattype = mc->variables._varptrs.at(name)->dattype;
+    if (dattype != SP_DATTYPE::SP_MATRIX_T)
+    {
+        std::string msg = "Data type of " + std::string(name) + " is not compatible with sp_get_matrix.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    spbase* var = mc->variables._varptrs[name];
+    std::string varstr = var->as_string();
+
+    //convert the string formatted vector 
+    matrix_t<double> Md;
+    spbase::_setv(varstr, Md);
+
+    //allocate space at the value_array pointer
+    sp_number_t* values = new sp_number_t[(int)(Md.nrows() * Md.ncols())];
+    //set lengths for return
+    int ncols = (int)Md.ncols();
+    int nrows = (int)Md.nrows();
+
+    //test index to be within valid range
+    if (row_index<0 || row_index > nrows - 1)
+    {
+        std::string msg = "Row index " + std::to_string(row_index) + " is outside valid range of matrix " + std::string(name) + " use sp_get_matrix_size to get the valid size.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    else if (col_index<0 || col_index > ncols - 1)
+    {
+        std::string msg = "Column index " + std::to_string(col_index) + " is outside valid range of matrix " + std::string(name) + " use sp_get_matrix_size to get the valid size.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    //return value from matrix
+    return Md.at(row_index, col_index);
+}
+
 SPEXPORT void sp_reset_geometry(sp_data_t p_data)
 {
     /*
@@ -466,7 +683,7 @@ SPEXPORT void sp_reset_geometry(sp_data_t p_data)
 	Returns: (void):null
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     mc->variables.reset();
 }
 
@@ -477,7 +694,7 @@ SPEXPORT int sp_add_receiver(sp_data_t p_data, const char* receiver_name)
 	Returns: (string:name[, boolean:make selection]):integer
     */
 
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     SimControl* SC = &mc->sim_control;
 
     std::string tname = std::string(receiver_name);
@@ -520,7 +737,7 @@ SPEXPORT bool sp_drop_receiver(sp_data_t p_data, const char* receiver_name)
 	Returns: (integer:index)
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SimControl* SC = &mc->sim_control;
 
@@ -550,7 +767,7 @@ SPEXPORT int sp_add_heliostat_template(sp_data_t p_data, const char* heliostat_n
     */
 
     //Add a heliostat
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SimControl* SC = &mc->sim_control;
 
@@ -587,7 +804,7 @@ SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat
 	Returns: (string:template name):bool
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SimControl* SC = &mc->sim_control;
 
@@ -616,7 +833,7 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
 	Returns: (void):boolean
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
@@ -721,7 +938,7 @@ SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads = 0) //, bool sa
         
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
     var_map* V = &mc->variables;
 
@@ -798,7 +1015,7 @@ SPEXPORT bool sp_assign_layout(sp_data_t p_data, sp_number_t* pvalues, int nrows
         "<template (int)> <location X> <location Y> <location Z> <x focal length> <y focal length> <cant i> <cant j> <cant k> <aim X> <aim Y> <aim Z>" (array:positions)
     Returns: boolean
     */
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
 
     //assign layout positions
@@ -836,7 +1053,7 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
         "Information includes: [index, position-x, position-y, position-z, template_id, ranking metric value]...[corner positions x,y,z]
     Returns: (void):table
     */
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     //var_map* V = &mc->variables;
     SimControl* SC = &mc->sim_control;
 
@@ -891,7 +1108,7 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
 
 SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = false)
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     std::string tab_header;
 
     tab_header.append("id,");
@@ -930,7 +1147,7 @@ SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads = 1, bool update_aimpoi
     Returns: [table:options]):boolean
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
     var_map* V = &mc->variables;
     sim_results* res = &mc->results;
@@ -998,7 +1215,7 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
 	Returns: (void):array
     */
     
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
 
     grid_emulator_base table;
@@ -1084,6 +1301,40 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
     return mc->__str_data.c_str();
 }
 
+SPEXPORT double sp_get_receiver_power(sp_data_t p_data)
+{
+    /*
+    Return an array of tables with summary results from each simulation. The array length is greater than 1 for multiple-receiver simulations.
+    Returns: (void):array
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+
+    grid_emulator_base table;
+    sim_results* results = &mc->results;
+
+    if (results->size() < 1)
+    {
+        return 0.0;
+    }
+
+    // for multiple receivers
+    for (size_t i = 0; i < V->recs.size(); i++)
+    {
+        interop::CreateResultsTable(results->at(i), table);
+
+        unordered_map<std::string, double> res_map;
+
+        for (int j = 0; j < table.GetNumberRows(); j++)
+        {
+            res_map.insert({ table.GetRowLabelValue(j), std::stod(table.GetCellValue(j, 1)) });
+        }
+
+        return res_map.at("Power absorbed by the receiver");
+    }
+}
+
 SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols, sp_number_t* selhel = NULL, int nselhel = 0, bool get_corners = false)
 {
     /*
@@ -1114,7 +1365,7 @@ SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols
         "([array:selected heliostat indices]):array");
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
 
@@ -1242,7 +1493,7 @@ SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols
 
 SPEXPORT const char* sp_detail_results_header(sp_data_t p_data, bool get_corners = false)
 {
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
 
     if (SF->getHeliostats()->size() > 0)
@@ -1308,7 +1559,7 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
 	Returns: ([integer:receiver id]):array
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
 
     Receiver *rec;
@@ -1572,7 +1823,7 @@ SPEXPORT void sp_clear_land(sp_data_t p_data, const char* type = NULL)
 	Reset the land boundary polygons, clearing any data. Optionally specify 'type' as 'inclusion' or 'exclusion'.
 	Returns: ([string:type]):void
     */
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
 
     bool clear_inclusions = true;
@@ -1603,7 +1854,7 @@ SPEXPORT bool sp_add_land(sp_data_t p_data, const char* type, sp_number_t* polyg
 	Add land inclusion or a land exclusion region within a specified polygon. Specify the type as 'inclusion' or 'exclusion', and optionally append (true) or overwrite (false) the existing regions.
 	Returns: (array:polygon, string:type[, boolean:append=true]):boolean
     */
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     var_land& L = V->land;
 
@@ -1670,7 +1921,7 @@ SPEXPORT sp_number_t* sp_heliostats_by_region(sp_data_t p_data, const char* coor
     Returns an array of included heliostat ID's and locations. : array
     */
 
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
     Hvector *helios = SF->getHeliostats();
     SimControl* SC = &mc->sim_control;
@@ -1866,7 +2117,7 @@ SPEXPORT sp_number_t* sp_heliostats_by_region(sp_data_t p_data, const char* coor
         else
         {
             //get the string data and break it up into units
-            if (svgfname_data == NULL)
+            if (!svgfname_data)
             {
                 std::string msg = "svg data must be provided for the svg option.";
                 SC->message_callback(msg.c_str(), SC->message_callback_data);
@@ -1950,10 +2201,10 @@ SPEXPORT bool sp_modify_heliostats(sp_data_t p_data, sp_number_t* helio_data, in
     The length of each variable array must match the length of the ID array. For example, 
     modify_heliostats([1,2,3], { 'location'=[[1.,10.],[2.,11.],[3.,12.]] } );, (array:heliostat IDs, table:variables)
     
-    Returns: none
+    Returns: boolean
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
     
@@ -2162,6 +2413,219 @@ SPEXPORT bool sp_modify_heliostats(sp_data_t p_data, sp_number_t* helio_data, in
     return true;
 }
 
+
+SPEXPORT bool sp_calculate_optical_efficiency_table(sp_data_t p_data, int ud_n_az = NULL, int ud_n_zen = NULL)
+{
+    /*
+    Generates a solar field optical efficiency table based an even spacing of azimuths and zeniths angles.
+    
+    Param: ud_n_az: User-defined number of azimuth sampling points
+    Param: ud_n_zen: User-defined number of zenith sampling points
+
+    Returns: boolean
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    SolarField* SF = &mc->solarfield;
+    SimControl* SC = &mc->sim_control;
+    sp_optical_table* opttab = &mc->opttab;
+
+    SC->_cancel_simulation = false;
+
+    //set the solar positions to calculate
+    if (ud_n_az == NULL && ud_n_zen == NULL) {
+        //set the solar positions for calculation to the default values
+        double def_az[] = { 0.,  30.,  60.,  90., 120., 150., 180., 210., 240., 270., 300., 330. };
+        double def_zen[] = { 0.50,   7.,  15.,  30.,  45.,  60.,  75.,  85. };
+
+        //set the solar positions based on defaults
+        opttab->azimuths.assign(def_az, def_az + 12);
+        opttab->zeniths.assign(def_zen, def_zen + 8);
+    }
+    else {
+        //set the solar positions based on even spacing and user-defined size
+        opttab->azimuths.clear();
+        double az_delta = 360. / double(ud_n_az);
+        for (int i = 0; i < ud_n_az; i++)
+            opttab->azimuths.push_back(0 + i * az_delta);
+
+        opttab->zeniths.clear();
+        double zen_delta = 85. / double(ud_n_zen - 1); // removing low angles solar positions
+        for (int i = 0; i < ud_n_zen; i++)
+            opttab->zeniths.push_back(0 + i * zen_delta);
+    }
+
+    int neff_az = opttab->azimuths.size();
+    int neff_zen = opttab->zeniths.size();
+
+    double dni = SF->getVarMap()->sf.dni_des.val;
+    sim_params P;
+    P.dni = dni;
+    P.Tamb = 25.;
+
+    int neff_tot = neff_az * neff_zen;
+
+    sim_results results;
+    results.resize(neff_tot);
+    std::string neff_tot_str = my_to_string(neff_tot);
+    int k = 0;
+    for (int j = 0; j < neff_zen; j++) {
+        for (int i = 0; i < neff_az; i++) {
+            //Update the solar position
+            double azzen[2];
+            azzen[0] = opttab->azimuths.at(i) * D2R;
+            azzen[1] = opttab->zeniths.at(j) * D2R;
+            //Run the performance simulation
+            if (!SC->_cancel_simulation)
+                SF->Simulate(azzen[0], azzen[1], P);
+            if (!SC->_cancel_simulation)
+                results.at(k++).process_analytical_simulation(*SF, P, 0, azzen);
+
+            if (SC->_cancel_simulation)
+                return false;
+
+        }
+    }
+    //collect all of the results and process into the efficiency table data structure
+    opttab->eff_data.clear();
+    k = 0;
+    for (int j = 0; j < neff_zen; j++) {
+        std::vector<double> row;
+        for (int i = 0; i < neff_az; i++) {
+            row.push_back(results.at(k++).eff_total_sf.ave);
+        }
+        opttab->eff_data.push_back(row);
+    }
+
+    return true;
+}
+
+
+SPEXPORT sp_number_t* sp_get_optical_efficiency_table(sp_data_t p_data, int* nrows, int* ncols)
+{
+    /*
+    Gets optical efficiency table in the following format:
+        First row: Elevation angles (with leading zero)
+        First column: Azimuth angles
+        Rest of columns: Optical efficiency corresponding to elevation angle
+
+    Param: nrows: number of rows
+    Param: ncols: number of cols
+
+    Returns: boolean
+    */
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    sp_optical_table* opttab = &mc->opttab;
+
+    // add one to account for zenith (row) and azimuth (col) 
+    *nrows = (int)opttab->azimuths.size() + 1;
+    *ncols = (int)opttab->zeniths.size() + 1;
+
+    sp_number_t* efftab = new sp_number_t[(*nrows) * (*ncols)];
+
+    //rows
+    for (size_t i = 0; i < *nrows; i++)
+    {
+        //cols
+        for (size_t j = 0; j < *ncols; j++)
+        {
+            if (i == 0 && j == 0) {
+                efftab[i * (*ncols) + j] = 0; // leading zero
+            }
+            else if (i == 0) {
+                efftab[i * (*ncols) + j] = (90. - opttab->zeniths.at(j - 1)); // Elevation angle
+            }
+            else if (i != 0 && j == 0) {
+                efftab[i * (*ncols) + j] = opttab->azimuths.at(i - 1);
+            }
+            else {
+                efftab[i * (*ncols) + j] = opttab->eff_data.at(j - 1).at(i - 1);
+            }
+        }
+    }
+    return efftab;
+}
+
+
+SPEXPORT bool sp_save_optical_efficiency_table(sp_data_t p_data, const char* sp_fname, const char* table_name)
+{
+    /*
+    Saves optical efficiency table as a CSV file in the following format:
+        First row: Elevation angles (with leading zero)
+        First column: Azimuth angles
+        Rest of columns: Optical efficiency corresponding to elevation angle        
+
+    Param: sp_fname: location to save efficiency table file
+    Param: table_name: specific table name for Modelica table output file. 
+        If equal to "none", then table format follows sp_get_optical_efficiency_table. 
+        Otherwise, table format is consistent with Modelica with extra header lines and elevation angle to be in ascending order.
+
+    Returns: boolean
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    sp_optical_table* opttab = &mc->opttab;
+
+    std::string fname(sp_fname);
+    if (!ioutil::dir_exists(ioutil::path_only(fname).c_str()))
+    {
+        return false;
+    }
+
+    try
+    {
+        std::ofstream of(fname);
+        std::string sep = ", ";
+
+        int neff_zen = opttab->zeniths.size();
+        int neff_az = opttab->azimuths.size();
+
+        if (of.is_open())      //check whether the file is accessible
+        {
+            // Specific Modelica table file formatting
+            std::string tablename(table_name);
+            if (tablename != "none") {
+                of << "#1\n";
+                of << "double " << tablename << "(" << to_string(neff_az + 1) << "," << to_string(neff_zen + 1) << ")\n";
+            }
+
+            // First row is elevation angles with leading 0
+            of << "0";
+            for (int i = 0; i < neff_zen; i++) {
+                int ind = i;
+                if (tablename != "none") {
+                    ind = (neff_zen - (int)1) - i; // ascending order
+                }
+                std::string el_val = to_string(90. - opttab->zeniths.at(ind));  
+                of << sep << el_val;
+            }
+            of << "\n";
+
+            // Rest of rows lead with azimuth then efficiency at azimuth and corresponding zenith
+            for (int i = 0; i < neff_az; i++) {
+                std::string az_val = to_string(opttab->azimuths.at(i));
+                of << az_val;
+                for (int j = 0; j < neff_zen; j++) {
+                    int ind = j;
+                    if (tablename != "none") {
+                        ind = (neff_zen - (int)1) - j; // ascending order
+                    }
+                    std::string eff_val = to_string(opttab->eff_data.at(ind).at(i)); // ascending order
+                    of << sep << eff_val;
+                }
+                of << "\n";
+            }
+        }
+        of.close();
+
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname)
 {
     /*
@@ -2169,7 +2633,7 @@ SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname)
 	Returns: (string:path):boolean
     */
 
-    api_helper *mc = static_cast<api_helper*>(p_data);
+    CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
 
     std::string fname(sp_fname);
@@ -2193,13 +2657,43 @@ SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname)
     return false;
 }
 
+SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname)
+{
+    /*
+    Loads a SolarPILOT .spt file. Returns true if successful.
+    Returns: boolean
+    */
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+
+    if (!ioutil::file_exists(sp_fname))
+    {
+        return false;
+    }
+
+    try
+    {
+        parametric p;
+        optimization o;
+
+        ioutil::parseXMLInputFile(sp_fname, *V, p, o);
+        return true;
+    }
+    catch (...)
+    {
+
+    }
+    return false;
+}
+
 SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
 {
     /*
 	Dump the variable structure to a text csv file. Returns true if successful.
 	Returns: (string:path):boolean
     */
-    api_helper* mc = static_cast<api_helper*>(p_data);
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SimControl* SC = &mc->sim_control;
 
@@ -2279,7 +2773,7 @@ int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace
     
     return 1 if ok, return 0 to kill soltrace simulation
     */
-    api_helper* api= static_cast<api_helper*>(data);
+    CopilotObject* api= static_cast<CopilotObject*>(data);
 
     if (api->use_api_callback)
     {
@@ -2305,7 +2799,7 @@ int MessageHandler(const char* message, void* data)
     */
     
     
-    api_helper* api = static_cast<api_helper*>(data);
+    CopilotObject* api = static_cast<CopilotObject*>(data);
 
     if (api->use_api_callback)
     {
@@ -2325,7 +2819,7 @@ int ProgressHandler(double progress, const char* message, void* data)
     */
 
 
-    api_helper* api = static_cast<api_helper*>(data);
+    CopilotObject* api = static_cast<CopilotObject*>(data);
 
     if (api->use_api_callback)
     {

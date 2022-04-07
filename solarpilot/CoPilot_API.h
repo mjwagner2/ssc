@@ -3,11 +3,10 @@
 
 
 
-#include <unordered_map>
 #include <string>
 #include <ctime>
 #include "SolarField.h"
-//#include "interop.h"
+#include "interop.h"
 
 #if defined(_WINDLL)
 #define SPEXPORT __declspec(dllexport)
@@ -58,7 +57,18 @@ extern "C" {
     SPEXPORT sp_number_t* sp_get_array(sp_data_t p_data, const char* name, int* length);
     //SPEXPORT void sp_get_array(sp_data_t p_data, const char *name, sp_number_t* values, int *length);
 
+    SPEXPORT int sp_get_array_size(sp_data_t p_data, const char* name);
+
+    SPEXPORT double sp_get_array_value_by_index(sp_data_t p_data, const char* name, int index);
+
     SPEXPORT sp_number_t* sp_get_matrix(sp_data_t p_data, const char* name, int* ncols, int* nrows);
+
+    SPEXPORT int sp_get_matrix_row_size(void* p_data, const char* name);
+
+    SPEXPORT int sp_get_matrix_col_size(void* p_data, const char* name);
+
+    SPEXPORT double sp_get_matrix_value_by_index(void* p_data, const char* name, int row_index, int col_index);
+
 
     SPEXPORT void sp_reset_geometry(sp_data_t p_data);
 
@@ -83,6 +93,8 @@ extern "C" {
 
     SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads, bool update_aimpoints); //bool save_detail,
 
+    SPEXPORT double sp_get_receiver_power(sp_data_t p_data);
+
     SPEXPORT const char* sp_summary_results(sp_data_t p_data);
 
     SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols, sp_number_t* selhel, int nselhel, bool get_corners);
@@ -103,7 +115,15 @@ extern "C" {
 
     SPEXPORT bool sp_modify_heliostats(sp_data_t p_data, sp_number_t* helio_data, int* nhel, int* ncols, const char* table_hdr);
 
+    SPEXPORT bool sp_calculate_optical_efficiency_table(sp_data_t p_data, int ud_n_az, int ud_n_zen);
+
+    SPEXPORT sp_number_t* sp_get_optical_efficiency_table(sp_data_t p_data, int* nrows, int* ncols);
+
+    SPEXPORT bool sp_save_optical_efficiency_table(sp_data_t p_data, const char* sp_fname, const char* table_name);
+
     SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname);
+
+    SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname);
 
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
 

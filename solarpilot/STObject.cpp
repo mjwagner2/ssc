@@ -1276,14 +1276,14 @@ void ST_System::LoadIntoContext(ST_System *System, st_context_t spcxt){
 			f->OpticSurfNumber, f->ApertureStopOrGratingType, f->DiffractionOrder,
 			0., 0.,
 			f->Reflectivity, f->Transmissivity,
-			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL );
+			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL, 0, 0, NULL, NULL );
 
 		f = &System->OpticsList[nopt]->Back;
 		st_optic(spcxt, idx, 2, f->DistributionType,
 			f->OpticSurfNumber, f->ApertureStopOrGratingType, f->DiffractionOrder,
 			0., 0.,
 			f->Reflectivity, f->Transmissivity,
-			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL );
+			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL, 0, 0, NULL, NULL );
 	}
 
 	//Add all of the elements and stages

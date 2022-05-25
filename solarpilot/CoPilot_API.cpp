@@ -1294,7 +1294,6 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
 
         ret.append("Receiver name, " + (i == 0 ? "All receivers" : results->at(i).receiver_names.front() ) );
     }
-
     mc->__str_data.clear();
     mc->__str_data = ret;
 
@@ -2426,6 +2425,7 @@ SPEXPORT bool sp_calculate_optical_efficiency_table(sp_data_t p_data, int ud_n_a
     */
 
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
     sp_optical_table* opttab = &mc->opttab;
@@ -2455,49 +2455,72 @@ SPEXPORT bool sp_calculate_optical_efficiency_table(sp_data_t p_data, int ud_n_a
             opttab->zeniths.push_back(0 + i * zen_delta);
     }
 
-    int neff_az = opttab->azimuths.size();
-    int neff_zen = opttab->zeniths.size();
-
     double dni = SF->getVarMap()->sf.dni_des.val;
     sim_params P;
     P.dni = dni;
     P.Tamb = 25.;
+    P.Patm = 1.;
 
-    int neff_tot = neff_az * neff_zen;
+    //Which type of simulation is this?
+    int simtype = V->flux.flux_model.mapval();    //0=Delsol, 1=Soltrace
+    Hvector* helios = SF->getHeliostats();
 
-    sim_results results;
-    results.resize(neff_tot);
-    std::string neff_tot_str = my_to_string(neff_tot);
+    sim_results* results = &mc->results;
+    results->clear();
+    results->resize(1);
+
+    int neff_az = opttab->azimuths.size();
+    int neff_zen = opttab->zeniths.size();
     int k = 0;
+    bool allsimok = true;
     for (int j = 0; j < neff_zen; j++) {
         for (int i = 0; i < neff_az; i++) {
             //Update the solar position
-            double azzen[2];
-            azzen[0] = opttab->azimuths.at(i) * D2R;
-            azzen[1] = opttab->zeniths.at(j) * D2R;
-            //Run the performance simulation
-            if (!SC->_cancel_simulation)
-                SF->Simulate(azzen[0], azzen[1], P);
-            if (!SC->_cancel_simulation)
-                results.at(k++).process_analytical_simulation(*SF, P, 0, azzen);
+            V->flux.flux_solar_az_in.set_from_string(my_to_string(opttab->azimuths.at(i)).c_str());
+            V->flux.flux_solar_el_in.set_from_string(my_to_string(90. - opttab->zeniths.at(j)).c_str());
+            V->flux.flux_time_type.combo_select_by_mapval(var_fluxsim::FLUX_TIME_TYPE::SUN_POSITION);
+
+            //Set-up simulation
+            if (!interop::PerformanceSimulationPrep(*SF, *helios, simtype)) return false;
+            Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
+            SF->calcHeliostatShadows(sun);
+            if (SF->ErrCheck()) return false;
+            
+            //Which type of simulation?
+            bool simok;
+            switch (simtype)
+            {
+            case var_fluxsim::FLUX_MODEL::HERMITE_ANALYTICAL:
+                simok = interop::HermiteFluxSimulationHandler(*results, *SF, *helios);
+                break;
+            case var_fluxsim::FLUX_MODEL::SOLTRACE:
+                simok = interop::SolTraceFluxSimulation(*SC, *results, *SF, *V, *helios);
+                break;
+            default:
+                return false;
+            }
+
+            allsimok = allsimok && simok;
+            results->push_back(sim_result());
 
             if (SC->_cancel_simulation)
                 return false;
-
         }
     }
+
     //collect all of the results and process into the efficiency table data structure
     opttab->eff_data.clear();
     k = 0;
     for (int j = 0; j < neff_zen; j++) {
         std::vector<double> row;
         for (int i = 0; i < neff_az; i++) {
-            row.push_back(results.at(k++).eff_total_sf.ave);
+            row.push_back(results->at(k).eff_total_sf.wtmean / results->at(k).eff_absorption.wtmean); // reporting field optical efficiency only
+            k++;
         }
         opttab->eff_data.push_back(row);
     }
 
-    return true;
+    return allsimok;
 }
 
 

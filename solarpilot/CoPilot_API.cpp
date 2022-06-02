@@ -321,18 +321,42 @@ SPEXPORT sp_number_t sp_get_number(sp_data_t p_data, const char* name)
     {
     case SP_INT:
     {
-        spvar<int> *v = static_cast<spvar<int>*>(var);
-        return (sp_number_t)v->val;
+        if (var->is_output)
+        {
+            spout<int>* v = static_cast<spout<int>*>(var);
+            return (sp_number_t)v->Val();
+        }
+        else
+        {
+            spvar<int>* v = static_cast<spvar<int>*>(var);
+            return (sp_number_t)v->val;
+        }
     }
     case SP_DOUBLE:
     {
-        spvar<double> *v = static_cast<spvar<double>*>(var);
-        return (sp_number_t)v->val;
+        if (var->is_output)
+        {
+            spout<double>* v = static_cast<spout<double>*>(var);
+            return (sp_number_t)v->Val();
+        }
+        else
+        {
+            spvar<double>* v = static_cast<spvar<double>*>(var);
+            return (sp_number_t)v->val;
+        }
     }
     case SP_BOOL:
     {
-        spvar<bool> *v = static_cast<spvar<bool>*>(var);
-        return (sp_number_t)(v->val ? 1. : 0.);
+        if (var->is_output)
+        {
+            spout<bool>* v = static_cast<spout<bool>*>(var);
+            return (sp_number_t)(v->Val() ? 1. : 0.);
+        }
+        else
+        {
+            spvar<bool>* v = static_cast<spvar<bool>*>(var);
+            return (sp_number_t)(v->val ? 1. : 0.);
+        }
     }
     case SP_STRING: //only if combo
     {

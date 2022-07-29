@@ -80,6 +80,8 @@ extern "C" {
 
     SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat_name);
 
+    SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int* nrecord, int* ncol);
+
     SPEXPORT bool sp_update_geometry(sp_data_t p_data);
 
     SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads);
@@ -126,6 +128,9 @@ extern "C" {
     SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname);
 
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
+
+    //SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname);
+    SPEXPORT void _sp_free_var(sp_number_t* m);
 
 #ifdef __cplusplus
 }

@@ -850,6 +850,99 @@ SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat
     return false;
 }
 
+
+bool _load_weather_file(var_map* V, ArrayString &wf_output)
+{
+    std::string weatherfile_str = std::string(V->amb.weather_file.val);
+
+    Ambient::readWeatherFile(*V);
+
+    //Saving local verison of weather data
+    weatherfile wf;
+    if (!wf.open(weatherfile_str))
+    {
+        //std::string msg = "'update_geometry' function cannot find weather file at " + weatherfile_str + "\n Please adjust desired file path or location to be consistent.";
+        //SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false; //error
+    }
+
+    //Update the weather data
+    std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
+    char cline[300];
+
+    int nrec = (int)wf.nrecords();
+
+    //ArrayString local_wfdat;
+    wf_output.resize(nrec);
+
+    weather_record wrec;
+    for (int i = 0; i < nrec; i++)
+    {
+        //int year, month, day, hour;
+        wf.read(&wrec);
+        sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
+        std::string line(cline);
+        wf_output.at(i) = line;
+    }
+
+    return true;
+}
+
+
+SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord, int *ncol)
+{
+    /*
+    Generate the simulation days and hours needed to evaluate performance of the field over time. This 
+    function is provided as a convenience for generating this information, but is called internally
+    by the layout algorithm when needed.
+    */
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SolarField* SF = &mc->solarfield;
+    SimControl* SC = &mc->sim_control;
+
+    if (SF->getHeliostats()->size() == 0)
+    {
+        //no layout exists, so we should be calling the 'run_layout' method instead
+        std::string msg = "No layout exists, so the 'update_geometry' function cannot be executed. Please first create or import a layout using 'run_layout'.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return 0;
+    }
+
+    ArrayString local_wfdat;
+    if (!_load_weather_file(V, local_wfdat))
+    {
+        std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false; //error
+    }
+
+    interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
+
+    WeatherData* wd = &V->sf.sim_step_data.Val();
+    *nrecord = wd->_N_items;
+
+    sp_number_t* simsteps_out = new sp_number_t[6 * (*nrecord)];
+
+    {
+        *ncol = 7; 
+        for (int i = 0; i < *nrecord; i++)
+        {
+            int j = 0;
+            simsteps_out[i * *ncol + j++] = wd->Month.at(i);
+            simsteps_out[i * *ncol + j++] = wd->Day.at(i);
+            simsteps_out[i * *ncol + j++] = wd->Hour.at(i);
+            simsteps_out[i * *ncol + j++] = wd->DNI.at(i);
+            simsteps_out[i * *ncol + j++] = wd->T_db.at(i);
+            simsteps_out[i * *ncol + j++] = wd->V_wind.at(i);
+            simsteps_out[i * *ncol + j++] = wd->Step_weight.at(i);
+        }
+    }
+
+    return simsteps_out;
+}
+
+
 SPEXPORT bool sp_update_geometry(sp_data_t p_data)
 {
     /*
@@ -870,37 +963,38 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
         return false;
     }
 
-    std::string weatherfile_str = std::string(V->amb.weather_file.val);
+    //std::string weatherfile_str = std::string(V->amb.weather_file.val);
+    ArrayString local_wfdat;
 
-    Ambient::readWeatherFile(*V);
-    
-    //Saving local verison of weather data
-    weatherfile wf;
-    if (!wf.open(weatherfile_str))
+    //Ambient::readWeatherFile(*V);
+    //
+    ////Saving local verison of weather data
+    //weatherfile wf;
+    //if (!wf.open(weatherfile_str))
+    if(! _load_weather_file(V, local_wfdat))
     {
-        std::string msg = "'update_geometry' function cannot find weather file at " + weatherfile_str + "\n Please adjust desired file path or location to be consistent.";
+        std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
         SC->message_callback(msg.c_str(), SC->message_callback_data);
         return false; //error
     }
 
-    //Update the weather data
-    std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
-    char cline[300];
+    ////Update the weather data
+    //std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
+    //char cline[300];
 
-    int nrec = (int)wf.nrecords();
+    //int nrec = (int)wf.nrecords();
 
-    ArrayString local_wfdat;
-    local_wfdat.resize(nrec);
+    //local_wfdat.resize(nrec);
 
-    weather_record wrec;
-    for (int i = 0; i < nrec; i++)
-    {
-        //int year, month, day, hour;
-        wf.read(&wrec);
-        sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
-        std::string line(cline);
-        local_wfdat.at(i) = line;
-    }
+    //weather_record wrec;
+    //for (int i = 0; i < nrec; i++)
+    //{
+    //    //int year, month, day, hour;
+    //    wf.read(&wrec);
+    //    sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
+    //    std::string line(cline);
+    //    local_wfdat.at(i) = line;
+    //}
 
     //F.UpdateDesignSelect(V->sf.des_sim_detail.mapval(), *V);
         // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
@@ -2811,6 +2905,20 @@ SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
         //std::runtime_error(e.what());
     }
     return false;
+}
+
+SPEXPORT void _sp_free_var(sp_number_t* m)
+{
+    try
+    {
+        if(m!=0)
+            delete[] m;
+
+    }
+    catch (...)
+    {
+        return;
+    }
 }
 
 

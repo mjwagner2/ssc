@@ -682,7 +682,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		return false;	//Error, should have been cleared earlier
 	}
 	else{	
-		nhtemp = (int)SF.getHeliostatTemplates()->size();
+		//nhtemp = (int)SF.getHeliostatTemplates()->size();
+		nhtemp = (int)helios.size();
+		OpticsList.reserve(nhtemp);
 		for(int i=0; i<nhtemp; i++){
 			OpticsList.push_back( new ST_OpticalPropertySet() );
 		}
@@ -694,10 +696,14 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 	//map the optics pointer to the heliostat template name
 	unordered_map<std::string, ST_OpticalPropertySet*> optics_map;
 
-	int ii=0;
-	for(htemp_map::iterator it = SF.getHeliostatTemplates()->begin(); it != SF.getHeliostatTemplates()->end(); it++){
-		Heliostat *H = it->second;
-		OpticsList.at(ii)->Name = (*H->getHeliostatName()).c_str();
+	for(int ii=0; ii<nhtemp; ii++)
+	{
+		//Heliostat *H = it->second;
+		Heliostat* H = helios.at(ii);
+		char hname[30];
+		sprintf(hname, "heliostat_%d", ii);
+		//OpticsList.at(ii)->Name = (*H->getHeliostatName()).c_str() + H->getId();
+		OpticsList.at(ii)->Name = hname;
 		optics_map[ OpticsList.at(ii)->Name ] = OpticsList.at(ii);
 		
 		/* 
@@ -795,7 +801,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		OpticsList.at(ii)->Back.RMSSlopeError = 100.0;
 		OpticsList.at(ii)->Back.RMSSpecError = 0.;
 		
-		ii++;
+		//ii++;
 	}
 	
 	/*
@@ -901,7 +907,10 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 
 		char shape = Hv->is_round.mapval() == var_heliostat::IS_ROUND::ROUND ? 'c' : 'r';
 
-		string opticname = (*H->getHeliostatName()).c_str();
+		char hname[30];
+		sprintf(hname, "heliostat_%d", i);
+
+		string opticname = hname;
 
 		for(int j=0; j<ncantx; j++){
 			for(int k=0; k<ncanty; k++){

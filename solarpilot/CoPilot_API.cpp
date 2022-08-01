@@ -6,6 +6,7 @@
 #include "IOUtil.h"
 #include "shared/lib_weatherfile.h"
 #include "API_structures.h"
+#include "STObject.h"
 
 
 
@@ -2905,6 +2906,49 @@ SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
         //std::runtime_error(e.what());
     }
     return false;
+}
+
+SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname)
+{
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SimControl* SC = &mc->sim_control;
+    SolarField* SF = &mc->solarfield;
+
+    Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
+
+    ST_System STSim;
+    STSim.CreateSTSystem(*SF, *SF->getHeliostats(), sun);
+
+
+    FILE* file = fopen(sp_fname, "w");
+    if (!file)
+    {
+        std::string msg = "File Error: Error opening the SolTrace output file. Please make sure the file is closed and the directory is not write-protected.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false;
+    }
+    STSim.Write(file);
+    std::fclose(file);  // REMOVE: fclose(file);
+    return true;
+
+}
+
+SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt)
+{
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SimControl* SC = &mc->sim_control;
+    SolarField* SF = &mc->solarfield;
+
+    Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
+
+    ST_System STSim;
+    STSim.CreateSTSystem(*SF, *SF->getHeliostats(), sun);
+
+    ST_System::LoadIntoContext(&STSim, solt_cxt);
+
+    return true;
 }
 
 SPEXPORT void _sp_free_var(sp_number_t* m)

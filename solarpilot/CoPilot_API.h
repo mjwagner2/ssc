@@ -129,7 +129,10 @@ extern "C" {
 
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
 
-    //SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname);
+    SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname);
+
+    SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt);
+
     SPEXPORT void _sp_free_var(sp_number_t* m);
 
 #ifdef __cplusplus

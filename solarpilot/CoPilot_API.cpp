@@ -902,42 +902,41 @@ SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
 
-    if (SF->getHeliostats()->size() == 0)
-    {
-        //no layout exists, so we should be calling the 'run_layout' method instead
-        std::string msg = "No layout exists, so the 'update_geometry' function cannot be executed. Please first create or import a layout using 'run_layout'.";
-        SC->message_callback(msg.c_str(), SC->message_callback_data);
-        return 0;
-    }
+    //if (SF->getHeliostats()->size() == 0)
+    //{
+    //    //no layout exists, so we should be calling the 'run_layout' method instead
+    //    std::string msg = "No layout exists, so the 'update_geometry' function cannot be executed. Please first create or import a layout using 'run_layout'.";
+    //    SC->message_callback(msg.c_str(), SC->message_callback_data);
+    //    return 0;
+    //}
 
-    ArrayString local_wfdat;
-    if (!_load_weather_file(V, local_wfdat))
-    {
-        std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
-        SC->message_callback(msg.c_str(), SC->message_callback_data);
-        return false; //error
-    }
+    //ArrayString local_wfdat;
+    //if (!_load_weather_file(V, local_wfdat))
+    //{
+    //    std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
+    //    SC->message_callback(msg.c_str(), SC->message_callback_data);
+    //    return false; //error
+    //}
 
-    interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
+    //interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
 
     WeatherData* wd = &V->sf.sim_step_data.Val();
     *nrecord = wd->_N_items;
 
-    sp_number_t* simsteps_out = new sp_number_t[6 * (*nrecord)];
+    *ncol = 7; 
+    
+    sp_number_t* simsteps_out = new sp_number_t[(*ncol) * (*nrecord)];
 
+    for (int i = 0; i < *nrecord; i++)
     {
-        *ncol = 7; 
-        for (int i = 0; i < *nrecord; i++)
-        {
-            int j = 0;
-            simsteps_out[i * *ncol + j++] = wd->Month.at(i);
-            simsteps_out[i * *ncol + j++] = wd->Day.at(i);
-            simsteps_out[i * *ncol + j++] = wd->Hour.at(i);
-            simsteps_out[i * *ncol + j++] = wd->DNI.at(i);
-            simsteps_out[i * *ncol + j++] = wd->T_db.at(i);
-            simsteps_out[i * *ncol + j++] = wd->V_wind.at(i);
-            simsteps_out[i * *ncol + j++] = wd->Step_weight.at(i);
-        }
+        int j = 0;
+        simsteps_out[i * *ncol + j++] = wd->Month.at(i);
+        simsteps_out[i * *ncol + j++] = wd->Day.at(i);
+        simsteps_out[i * *ncol + j++] = wd->Hour.at(i);
+        simsteps_out[i * *ncol + j++] = wd->DNI.at(i);
+        simsteps_out[i * *ncol + j++] = wd->T_db.at(i);
+        simsteps_out[i * *ncol + j++] = wd->V_wind.at(i);
+        simsteps_out[i * *ncol + j++] = wd->Step_weight.at(i);
     }
 
     return simsteps_out;

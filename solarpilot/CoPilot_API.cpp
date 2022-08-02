@@ -896,47 +896,50 @@ SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord
     Generate the simulation days and hours needed to evaluate performance of the field over time. This 
     function is provided as a convenience for generating this information, but is called internally
     by the layout algorithm when needed.
+
+    This function requires that the solar field has been previously created and exists in the Copilot object
     */
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
 
-    //if (SF->getHeliostats()->size() == 0)
-    //{
-    //    //no layout exists, so we should be calling the 'run_layout' method instead
-    //    std::string msg = "No layout exists, so the 'update_geometry' function cannot be executed. Please first create or import a layout using 'run_layout'.";
-    //    SC->message_callback(msg.c_str(), SC->message_callback_data);
-    //    return 0;
-    //}
-
-    //ArrayString local_wfdat;
-    //if (!_load_weather_file(V, local_wfdat))
-    //{
-    //    std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
-    //    SC->message_callback(msg.c_str(), SC->message_callback_data);
-    //    return false; //error
-    //}
-
-    //interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
+    if (SF->getHeliostatObjects()->size() == 0)
+    {
+        throw(std::runtime_error("The function sp_generate_simulation_days requires an existing field layout."));
+        return 0;
+    }
 
     WeatherData* wd = &V->sf.sim_step_data.Val();
     *nrecord = wd->_N_items;
 
-    *ncol = 7; 
+    *ncol = 9; 
     
     sp_number_t* simsteps_out = new sp_number_t[(*ncol) * (*nrecord)];
+
+    DateTime DT;
 
     for (int i = 0; i < *nrecord; i++)
     {
         int j = 0;
-        simsteps_out[i * *ncol + j++] = wd->Month.at(i);
-        simsteps_out[i * *ncol + j++] = wd->Day.at(i);
-        simsteps_out[i * *ncol + j++] = wd->Hour.at(i);
+        int month = wd->Month.at(i);
+        int dom = wd->Day.at(i);
+        double hour = wd->Hour.at(i);
+        simsteps_out[i * *ncol + j++] = month;
+        simsteps_out[i * *ncol + j++] = dom;
+        simsteps_out[i * *ncol + j++] = hour;
         simsteps_out[i * *ncol + j++] = wd->DNI.at(i);
         simsteps_out[i * *ncol + j++] = wd->T_db.at(i);
         simsteps_out[i * *ncol + j++] = wd->V_wind.at(i);
         simsteps_out[i * *ncol + j++] = wd->Step_weight.at(i);
+
+        int doy = DT.GetDayOfYear(2011, int(month), int(dom));
+        Ambient::setDateTime(DT, hour, doy);
+        double az, zen;
+        Ambient::calcSunPosition(*V, DT, &az, &zen, true);
+        
+        simsteps_out[i * *ncol + j++] = az;
+        simsteps_out[i * *ncol + j++] = zen;
     }
 
     return simsteps_out;

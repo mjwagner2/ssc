@@ -1621,19 +1621,22 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
 SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar)
 {
     /*
-    Execute an optimization run, returning the optimized result and iteration information. 
+    Execute an optimization run, returning the optimized result and iteration information.
+
     Variables to be optimized are passed in a vector, with each row containing a table specifying 
     {variable, step, upbound, lowbound, inital}. The table must include the variable key, others are optional. 
     
     The return table includes the following: 'result':table of variable names and associated optimized values, 
     'objective':number, 'flux':number, 'iterations':array of evaluation point, objective, flux. 
+    
     Optional arguments include maxiterations/tolerance/defaultstep/powerpenalty/nthreads.,
     (vector:variable tables[, table:options])
     Returns: table
     */
 
-    //api_helper *mc = static_cast<api_helper*>(p_data);
+    //CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     //var_map* V = &mc->variables;
+    //SolarField* SF = &mc->solarfield;
     //
     ////get the variable table
     //if (cxt.arg_count() < 1 || cxt.arg(0).type() != lk::vardata_t::VECTOR)
@@ -1684,11 +1687,11 @@ SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar)
     //
     ////set up variables
     //int nv = vartab.vec()->size();
-    //vector<double*> optvars(nv);
-    //vector<double> upper(nv);
-    //vector<double> lower(nv);
-    //vector<double> stepsize(nv);
-    //vector<string> names(nv);
+    //std::vector<double*> optvars(nv);
+    //std::vector<double> upper(nv);
+    //std::vector<double> lower(nv);
+    //std::vector<double> stepsize(nv);
+    //std::vector<std::string> names(nv);
     //
     //for (size_t i = 0; i < nv; i++)
     //{
@@ -1704,7 +1707,7 @@ SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar)
     //
     //    spvar<double> *varptr = static_cast<spvar<double>*>(V->_varptrs.at(varname));
     //    optvars.at(i) = &varptr->val;
-    //    vector<string> namedat = split(varname, ".");
+    //    std::vector<std::string> namedat = split(varname, ".");
     //    names.at(i) = namedat.back();
     //
     //    lk::varhash_t *varhash = vartab.vec()->at(i).hash();
@@ -1744,7 +1747,7 @@ SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar)
     //    SFopt_MT->SetSummaryCallback(LKInfoCallback, SF->getSimInfoObject()->getCallbackData());
     //
     //    //set up the weather data for simulation
-    //    vector<string> wdata;
+    //    std::vector<std::string> wdata;
     //    for (int i = 0; i < local_wfdat->size(); i++)
     //        wdata.push_back(local_wfdat->at(i));
     //    SFopt_MT->GenerateDesignPointSimulations(*V, wdata);
@@ -1837,7 +1840,7 @@ SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar)
     //cxt.result().hash_item("objective", obj_vals.back());
     //cxt.result().hash_item("flux", fluxresult);
     //cxt.result().hash_item("iterations", iter_vec);
-    //
+    
 }
 
 SPEXPORT void sp_clear_land(sp_data_t p_data, const char* type = NULL)

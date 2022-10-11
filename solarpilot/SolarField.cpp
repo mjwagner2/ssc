@@ -1224,6 +1224,14 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
 	//Keep track of the min/max field extents too
 	double xmin=9.e99, xmax=-9.e99, ymin=9.e99, ymax=-9.e99;
 	double hpx, hpy, hpz;
+
+	// creating a local mapping of heliostat template ids and index
+	unordered_map<int, Heliostat*> temps_by_id;
+	htemp_map* helio_temps = SF.getHeliostatTemplates();
+	for (unsigned int i = 0; i < helio_temps->size(); i++) {
+		int id = helio_temps->at(i)->getId();
+		temps_by_id[id] = helio_temps->at(i);
+	}
 	
 	//For each heliostat position
 	for(int i=0; i<Npos; i++){
@@ -1236,7 +1244,7 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
         {
             try
             {
-                htemp = SF.getHeliostatTemplates()->at( layout->at(i).helio_type );
+				htemp = temps_by_id[layout->at(i).helio_type];
             }
             catch(...)
             {

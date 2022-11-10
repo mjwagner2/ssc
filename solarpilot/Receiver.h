@@ -31,7 +31,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 //Declare referenced classes
 class Receiver;
-class SolarField;
 class Heliostat;
 
 

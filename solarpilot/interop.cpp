@@ -100,6 +100,20 @@ SimControl::SimControl()
 	_stthread = 0;
 	_STSim = 0;
 }
+
+SimControl::~SimControl()
+{
+	if (_STSim != 0) delete _STSim;
+	if (_stthread != 0) delete[] _stthread;
+
+	_n_threads = 1;
+	_n_threads_active = 1;
+	_is_mt_simulation = false;
+	_cancel_simulation = false;
+
+	_stthread = 0;
+	_STSim = 0;
+}
 //--------------------
 
 //interop namespace

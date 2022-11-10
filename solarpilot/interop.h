@@ -190,6 +190,7 @@ public:
 	ST_System* _STSim;
 
 	SimControl();
+	~SimControl();
 
 	void SetThreadCount(int nthreads);
 	int (*soltrace_callback)(st_uint_t, st_uint_t, st_uint_t, st_uint_t, st_uint_t, void*);

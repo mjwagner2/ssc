@@ -317,6 +317,7 @@ void ioutil::parseXMLInputFile(const string &fname,var_map &V, parametric &par_d
 	xml_document<> doc;
 	doc.parse<0>(fstr);
 	xml_node<> *top_node = doc.first_node();	//<data>
+	delete[] fstr;
 
 	//get version
 	string version = top_node->first_node("version")->value();

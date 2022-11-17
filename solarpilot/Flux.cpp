@@ -2725,7 +2725,6 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 
 
 	switch (recgeom)
-    //switch (Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV)
 	{
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED:
 	case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:

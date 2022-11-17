@@ -445,7 +445,7 @@ public:
 
 	void resize(size_t nr, size_t nc)
 	{
-		if (nr < 1 || nc < 1) return;
+		if (nr < 0 || nc < 0) return;
 		if (nr == n_rows && nc == n_cols) return;
 			
 		if (t_array) delete [] t_array;

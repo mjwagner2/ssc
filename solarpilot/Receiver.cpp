@@ -229,7 +229,7 @@ void FluxSurface::DefineFluxPoints(var_receiver &V, int rec_geom, int nx, int ny
 		break;
 	}
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
-	{		//3 | Planar rectangle, or 7 | Planar surface of a cavity
+	{		//3 | Planar rectangle, or 7 | Planar surface of a cavity, or flat falling particle curtain
 		/* 
 		The receiver is a rectangle divided into _nflux_x nodes in the horizontal direction and
 		_nflux_y nodes in the vertical direction. Each node is of area A_rec/(_nflux_x * _nflux_y).
@@ -482,6 +482,12 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 		    }
             break;
 	    }
+		case var_receiver::REC_TYPE::FALLING_PARTICLE:
+		{	// Falling particle reciever
+			_rec_geom = (Receiver::REC_GEOM_TYPE::PLANE_RECT);
+			//_rec_geom = (Receiver::REC_GEOM_TYPE::FALL_FLAT);
+			//TODO: added if statement if curtain is curved...
+		}
         default:
             break;
     };
@@ -526,6 +532,17 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 		//aperture area
 		V.aperture_area.Setval(height * V.rec_width.val);
         break;
+	}
+	case var_receiver::REC_TYPE::FALLING_PARTICLE:
+	{
+		// Falling particle
+		aspect = height / V.rec_width.val;
+		//aperature area
+		V.aperture_area.Setval(height * V.rec_width.val);
+		//curtain height and width
+		V.curtain_total_height.Setval(V.norm_curtain_height.val * V.rec_height.val);
+		V.curtain_width.Setval(V.norm_curtain_width.val * V.rec_width.val);
+		break;
 	}
     //else{
     default:
@@ -591,6 +608,8 @@ double Receiver::getReceiverWidth(var_receiver &V)
 			return V.rec_width.val;
 		case var_receiver::REC_TYPE::CAVITY:
 			return V.rec_cav_apw.Val();
+		case var_receiver::REC_TYPE::FALLING_PARTICLE:
+			return V.curtain_width.Val();
     } 
 } 
 
@@ -687,6 +706,7 @@ void Receiver::CalculateNormalVector(sp_point &Hloc, PointVect &NV){
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
+	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 		//All other types should be simply equal to the user-specified az/zen
 		//The approximate aim point is:
 		NV.x = _var_receiver->rec_offset_x_global.Val();
@@ -761,22 +781,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		S->setNormalVector(nv); 
 						
 		if(! _var_receiver->is_open_geom.val){
-			//_rec_geom = _var_receiver->is_polygon.val ? 
-			//	Receiver::REC_GEOM_TYPE::POLYGON_CLOSED : 
-			//	Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED 
-   //             ;		/*	0 | Continuous closed cylinder - external	*/
-
 			S->setSurfaceSpanAngle(-PI,PI);	//Full surround
-            //_var_receiver->span_min.val = -PI;
-            //_var_receiver->span_max.val = PI; //enforce closedness - overwrite any other values
-		}
-		else{
-			//_rec_geom = _var_receiver->is_polygon.val ? 
-			//	Receiver::REC_GEOM_TYPE::POLYGON_OPEN : 
-			//	Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN
-   //             ;		/*	1 | Continuous open cylinder - external	*/
-			//A curved surface that doesn't form a closed circle. Extents are defined by the span angles.
-			//S->setSurfaceSpanAngle(_var_receiver->span_min.val*D2R, _var_receiver->span_max.val*D2R);
 		}
 			
 		//Default setup will be for a single flux test point on the surface. In more detailed
@@ -784,112 +789,8 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		S->setFluxPrecision(nflux_x,nflux_y);
 		S->setMaxFlux(_var_receiver->peak_flux.val);
 		S->DefineFluxPoints(*_var_receiver, _rec_geom);
-
-		//}
-		//else{
-		//	/* Discrete external cylinders of polygonal shape */
-
-		//	//The flux surface of the polygon will still be represented as a single surface
-		//	_surfaces.resize(1);
-
-		//	FluxSurface *S = &_surfaces.front();
-		//	S->setParent(this);
-
-		//	//Setup the geometry etc.. including setSurfaceGeometry, setSurfaceOffset
-		//	double pdaz, wpanel;
-		//	if(! _is_open_geom){
-		//		_rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_CLOSED;		/*	5 | Discrete closed N-polygon - external	*/
-
-		//		//Calculate the panel width
-		//		pdaz = 2.*PI/double(_var_receiver->n_panels.val);	//The azimuthal span of each panel
-		//		wpanel = _var_receiver->rec_diameter.val/2.*tan(pdaz); //Width of each panel
-		//							
-		//	}
-		//	else{
-		//		_rec_geom = Receiver::REC_GEOM_TYPE::POLYGON_OPEN;		/*	6 | Discrete open N-polygon - external	*/
-
-		//		//Calculate the panel width based on the total span angle. The span angle is defined
-		//		//such that the minimum bound of the angle passes through (1) a vector from the center of
-		//		//the polygon inscribed circle through the centroid of the farthest panel in the CCW 
-		//		//direction, and (2) a vector from the center of teh polygon inscribed circle through 
-		//		//the centroid of the farthest panel in the CW direction.
-		//		pdaz = (_var_receiver->span_max.val*D2R - _var_receiver->span_min.val*D2R)/double(_var_receiver->n_panels.val-1);
-		//		wpanel = _var_receiver->rec_diameter.val/2.*tan(pdaz);	//width of each panel
-		//			
-		//	}
-		//	S->setSurfaceGeometry(_var_receiver->rec_height.val, wpanel);
-
-		//	//Calculate the azimuth angle of the receiver panel
-		//	double paz = _var_receiver->panel_rotation.val*D2R + pdaz*double(i);
-		//	//Calculate the elevation angle of the panel
-		//	double pzen = _rec_elevation*cos(_var_receiver->panel_rotation.val*D2R-paz);
-		//	//Set the surface normal vector
-		//	Vect nv;
-		//	nv.i = sin(paz)*sin(pzen);
-		//	nv.j = cos(paz)*sin(pzen);
-		//	nv.k = cos(pzen);
-		//	S->setNormalVector(nv);
-
-		//	//Calculate the centroid of the panel in global XYZ coords
-		//	sp_point pc;
-		//	pc.x = nv.i * _var_receiver->rec_diameter.val/2.;
-		//	pc.y = nv.j * _var_receiver->rec_diameter.val/2.;
-		//	pc.z = nv.k * _var_receiver->rec_diameter.val/2.;
-		//	S->setSurfaceOffset(pc);
-
-		//	//Define the precision of the flux map.
-		//	S->setFluxPrecision(nflux_x,nflux_y);
-		//	S->setMaxFlux(_var_receiver->peak_flux.val);
-		//	//Call the method to set up the flux hit test grid.
-		//	S->DefineFluxPoints(_rec_geom);
-
-		//}
 	}
 	else if(rec_type == var_receiver::REC_TYPE::CAVITY){ //Cavity
-	//	if(! _var_receiver->is_polygon.val){		/*	2 | Continuous open cylinder - internal cavity	*/
-	//		
-	//		//1) Indicate which specific geometry type should be used with "_rec_geom"
-	//		_rec_geom = Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV ;
-
-	//		//2) Calculate and set the number of surfaces used for the recever. Resize "_surfaces".
-	//		_surfaces.resize(1);
-	//		FluxSurface *S = &_surfaces.at(0);
-	//		S->setParent(this);
-
-	//		//3) Calculate and set the normal vector for each surface (if not curved surfaces) with setNormalVector(Vect).
-
-	//		sp_point loc;
- //           loc.Set( _var_receiver->rec_offset_x.val, _var_receiver->rec_offset_y.val, _var_receiver->rec_offset_z.val );
-	//		S->setSurfaceGeometry( _var_receiver->rec_height.val, _var_receiver->rec_width.val, _var_receiver->rec_diameter.val/2. );
-	//		S->setSurfaceOffset( loc );
-	//		//For continuous cylindrical surfaces, the normal vector will define the azimuth and zenith of the receiver surface.
-	//		Vect nv;
- //           double rec_az = _var_receiver->rec_azimuth.val * D2R;
- //           double rec_el = _var_receiver->rec_elevation.val * D2R;
-
-	//		nv.i = sin(rec_az)*cos(rec_el);
-	//		nv.j = cos(rec_az)*cos(rec_el);
-	//		nv.k = sin(rec_el);
-	//		S->setNormalVector(nv); 
-	//					
-	//		//4) Setup the geometry etc.. including setSurfaceGeometry, setSurfaceOffset, setSurfaceSpanAngle, if applicable.
-	//		S->setSurfaceSpanAngle(_var_receiver->span_min.val*D2R, _var_receiver->span_max.val*D2R);
-	//					
-	//		//5) Define the precision of the flux map.
-	//		
-	//		//Default setup will be for a single flux test point on the surface. In more detailed
-	//		//flux mapping runs, this can be changed to whatever the desired resolution is.
-	//		S->setFluxPrecision(nflux_x,nflux_y);
-	//		
-	//		//6) Define the maximum flux for each panel.
-	//		S->setMaxFlux(_var_receiver->peak_flux.val);
-	//		
-	//		//7) Call the method to set up the flux hit test grid.
-	//		S->DefineFluxPoints(*_var_receiver, _rec_geom);			
-
-	//	}
-	//	else{
-		/*	7 | Discrete open N-polygon - internal cavity	*/
 		//Use the number of panels as the number of polygon facets. Each facet is its own surface.
 		_surfaces.resize(1 + _var_receiver->n_panels.val); //cavity aperture plus panels
 
@@ -897,7 +798,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
         FluxSurface* S = &_surfaces.at(0);
         S->setParent(this);
 
-        //calculate the span of the receiver surfaces
+        //calculate the span of the receiver surfaces (angle from edge of receiver to centroid to other receiver edge)
         double span = PI + 2. * asin(_var_receiver->rec_cav_cdepth.val);
         //span of a single panel
         double panel_span = span / _var_receiver->n_panels.val;
@@ -924,11 +825,11 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
         S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 
 		//calculate the vector offset between the center of the aperture and the center of 
-		//the circle circumscribing the panels
+		//the circle circumscribing the panels - This is actually the reversed direction
 		double cav_ap_offset = _var_receiver->rec_cav_cdepth.val * _var_receiver->rec_cav_rad.val;
 		Vect ap_offset;
 		ap_offset.i = cav_ap_offset * sin(_var_receiver->rec_azimuth.val * D2R) * cos(_var_receiver->rec_elevation.val * D2R);
-		ap_offset.j = cav_ap_offset * cos(_var_receiver->rec_azimuth.val * D2R);
+		ap_offset.j = cav_ap_offset * cos(_var_receiver->rec_azimuth.val * D2R) * cos(_var_receiver->rec_elevation.val * D2R); //TODO: Why does this not have a cos(elevation)?
 		ap_offset.k = cav_ap_offset * sin(_var_receiver->rec_elevation.val * D2R);
 
 		for(int i=1; i<=_var_receiver->n_panels.val; i++){
@@ -954,7 +855,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setSurfaceGeometry(_var_receiver->rec_height.val, panel_width);
                
 			//Calculate the azimuth angle of the receiver panel
-			double paz = _var_receiver->rec_azimuth.val*D2R - PI+span/2. - panel_span * (double)(i-0.5);
+			double paz = _var_receiver->rec_azimuth.val*D2R - PI + span/2. - panel_span * (double)(i-0.5);
             if (paz < -PI) { paz = paz + 2 * PI; }
 
 			//Calculate the elevation angle of the panel
@@ -1025,10 +926,90 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		S->DefineFluxPoints(*_var_receiver, _rec_geom);	
 
 	}
+	else if (rec_type == var_receiver::REC_TYPE::FALLING_PARTICLE) {
+		//1) Indicate which specific geometry type should be used with "_rec_geom"
+		//_rec_geom = (Receiver::REC_GEOM_TYPE::PLANE_RECT);
+		//2) Calculate and set the number of surfaces used for the recever.Resize "_surfaces".
+		int n_troughs = _var_receiver->norm_heights_depths.val.nrows();
+		_surfaces.resize(1 + n_troughs + 1); //Aperture plus curtains between troughs (n+1)
+		//3) Calculate and set the normal vector for each surface(if not curved surfaces) with setNormalVector(Vect).
+		// 
+		//Create flux surface for aperture
+		FluxSurface* S = &_surfaces.at(0);
+		S->setParent(this);
+		S->setSurfaceGeometry(_var_receiver->rec_height.val, _var_receiver->rec_width.val, 0.);
+		sp_point loc;
+		loc.x = _var_receiver->rec_offset_x_global.Val();
+		loc.y = _var_receiver->rec_offset_y_global.Val();
+		loc.z = _var_receiver->rec_offset_z_global.Val();
+		//loc.Set(0., 0., 0.); // Should the aperature be offset from the curtain? or the Curtain be offset to the aperature;
+		S->setSurfaceOffset(loc);
 
-	//Set up the absorber panels
+		// Aperature surface normal
+		Vect nv;
+		double rec_az = _var_receiver->rec_azimuth.val * D2R;
+		double rec_elevation = _var_receiver->rec_elevation.val * D2R;
+		nv.i = sin(rec_az) * cos(rec_elevation);
+		nv.j = cos(rec_az) * cos(rec_elevation);
+		nv.k = sin(rec_elevation);
+		S->setNormalVector(nv);
+		S->setSurfaceSpanAngle(-PI / 2., PI / 2.);
+		S->setFluxPrecision(nflux_x, nflux_y); //Aperture flux parameters
+		S->setMaxFlux(_var_receiver->peak_flux.val);
+		S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 
+		double max_height = _var_receiver->curtain_total_height.Val();	// Particle curtain maximum height
+		double max_depth = _var_receiver->max_curtain_depth.val;	// Particle curtain maximum depth (from the aperature)
+		double curtain_width = _var_receiver->curtain_width.Val(); // Particle curtain width
 
+		double last_trough_height = 1.0;	// Normalized height of previous trough 
+		double last_trough_depth = 1.0;		// Normalized depth of the previous trough
+
+		// Generate all particle curtains - Starting at the top of the curtain and working down
+		for (int i = 1; i <= n_troughs + 1; i++) {
+			S = &_surfaces.at(i);
+			S->setParent(this);
+			
+			double curtain_height;
+			double height_norm = 1.0, depth_norm = 1.0;
+			if (i != n_troughs + 1) {
+				height_norm = _var_receiver->norm_heights_depths.val.at(i - 1, 0); // height
+				depth_norm = _var_receiver->norm_heights_depths.val.at(i - 1, 1); // depth
+				// curtain height less the distance of from particle stacking at trough
+				curtain_height = (last_trough_height - height_norm) * max_height;
+					// - (last_trough_depth - depth_norm) * max_depth * tan(angle_repose * D2R); // Accounting for the angle of repose
+			}
+			else {
+				// Last curtain 
+				curtain_height = last_trough_height * max_height;
+			}
+			S->setSurfaceGeometry(curtain_height, curtain_width, 0.);
+
+			//Set the surface normal vector (always vertical)
+			Vect nv;
+			nv.i = sin(rec_az);
+			nv.j = cos(rec_az);
+			nv.k = 0;
+			S->setNormalVector(nv);
+			//Calculate the centroid of the curtain in global XYZ coords
+			sp_point pc;
+			pc.x = -nv.i * last_trough_depth * max_depth + _var_receiver->rec_offset_x_global.Val();
+			pc.y = -nv.j * last_trough_depth * max_depth + _var_receiver->rec_offset_y_global.Val();
+			pc.z = last_trough_height * max_height - curtain_height / 2.0
+				- _var_receiver->rec_height.val / 2.0 + _var_receiver->rec_offset_z_global.Val();
+			S->setSurfaceOffset(pc);
+
+			//5) Define the precision of the flux map.
+			S->setFluxPrecision(nflux_x, nflux_y);
+			//6) Define the maximum flux for each panel.
+			S->setMaxFlux(_var_receiver->peak_flux.val);
+			//7) Call the method to set up the flux hit test grid.
+			S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
+
+			last_trough_height = height_norm;
+			last_trough_depth = depth_norm;
+		}
+	}
 }
 
 void Receiver::CalculateAbsorberArea(){
@@ -1063,6 +1044,11 @@ void Receiver::CalculateAbsorberArea(){
 		double panel_area = panel_width * _var_receiver->rec_height.val;
 
 		_absorber_area = panel_area * (double)_var_receiver->n_panels.val;
+		break;
+	}
+	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+	{
+		_absorber_area = _var_receiver->curtain_total_height.Val() * _var_receiver->curtain_width.Val();
 		break;
 	}
 	//unsupported receiver geometries

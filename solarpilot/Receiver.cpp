@@ -484,8 +484,8 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 	    }
 		case var_receiver::REC_TYPE::FALLING_PARTICLE:
 		{	// Falling particle reciever
-			_rec_geom = (Receiver::REC_GEOM_TYPE::PLANE_RECT);
-			//_rec_geom = (Receiver::REC_GEOM_TYPE::FALL_FLAT);
+			//_rec_geom = (Receiver::REC_GEOM_TYPE::PLANE_RECT);
+			_rec_geom = (Receiver::REC_GEOM_TYPE::FALL_FLAT);
 			//TODO: added if statement if curtain is curved...
 		}
         default:

@@ -175,7 +175,7 @@ public:
 	/* Define an enumeration structure for receiver geometry types */
 	struct REC_GEOM_TYPE { 
 		enum A { CYLINDRICAL_CLOSED, CYLINDRICAL_OPEN, CYLINDRICAL_CAV, PLANE_RECT, 
-			PLANE_ELLIPSE, POLYGON_CLOSED, POLYGON_OPEN, POLYGON_CAV}; 
+			PLANE_ELLIPSE, POLYGON_CLOSED, POLYGON_OPEN, POLYGON_CAV, FALL_FLAT}; 
 	};
 
 	//Declare "GET" access functions

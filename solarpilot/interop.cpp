@@ -1360,6 +1360,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 		case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:
 		case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
 		case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
+		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 		default:
 			return false;
 			break;

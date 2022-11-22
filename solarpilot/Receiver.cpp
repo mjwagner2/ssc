@@ -933,7 +933,6 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		int n_troughs = _var_receiver->norm_heights_depths.val.nrows();
 		_surfaces.resize(1 + n_troughs + 1); //Aperture plus curtains between troughs (n+1)
 		//3) Calculate and set the normal vector for each surface(if not curved surfaces) with setNormalVector(Vect).
-		// 
 		//Create flux surface for aperture
 		FluxSurface* S = &_surfaces.at(0);
 		S->setParent(this);

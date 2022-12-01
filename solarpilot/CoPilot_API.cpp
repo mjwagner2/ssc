@@ -6,6 +6,7 @@
 #include "IOUtil.h"
 #include "shared/lib_weatherfile.h"
 #include "API_structures.h"
+#include "STObject.h"
 
 
 
@@ -850,6 +851,101 @@ SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat
     return false;
 }
 
+
+bool _load_weather_file(var_map* V, ArrayString &wf_output)
+{
+    std::string weatherfile_str = std::string(V->amb.weather_file.val);
+
+    Ambient::readWeatherFile(*V);
+
+    //Saving local verison of weather data
+    weatherfile wf;
+    if (!wf.open(weatherfile_str))
+    {
+        //std::string msg = "'update_geometry' function cannot find weather file at " + weatherfile_str + "\n Please adjust desired file path or location to be consistent.";
+        //SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false; //error
+    }
+
+    //Update the weather data
+    std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
+    char cline[300];
+
+    int nrec = (int)wf.nrecords();
+
+    //ArrayString local_wfdat;
+    wf_output.resize(nrec);
+
+    weather_record wrec;
+    for (int i = 0; i < nrec; i++)
+    {
+        //int year, month, day, hour;
+        wf.read(&wrec);
+        sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
+        std::string line(cline);
+        wf_output.at(i) = line;
+    }
+
+    return true;
+}
+
+
+SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord, int *ncol)
+{
+    /*
+    Generate the simulation days and hours needed to evaluate performance of the field over time. This 
+    function is provided as a convenience for generating this information, but is called internally
+    by the layout algorithm when needed.
+
+    This function requires that the solar field has been previously created and exists in the Copilot object
+    */
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SolarField* SF = &mc->solarfield;
+    SimControl* SC = &mc->sim_control;
+
+    if (SF->getHeliostatObjects()->size() == 0)
+    {
+        throw(std::runtime_error("The function sp_generate_simulation_days requires an existing field layout."));
+        return 0;
+    }
+
+    WeatherData* wd = &V->sf.sim_step_data.Val();
+    *nrecord = wd->_N_items;
+
+    *ncol = 9; 
+    
+    sp_number_t* simsteps_out = new sp_number_t[(*ncol) * (*nrecord)];
+
+    DateTime DT;
+
+    for (int i = 0; i < *nrecord; i++)
+    {
+        int j = 0;
+        int month = wd->Month.at(i);
+        int dom = wd->Day.at(i);
+        double hour = wd->Hour.at(i);
+        simsteps_out[i * *ncol + j++] = month;
+        simsteps_out[i * *ncol + j++] = dom;
+        simsteps_out[i * *ncol + j++] = hour;
+        simsteps_out[i * *ncol + j++] = wd->DNI.at(i);
+        simsteps_out[i * *ncol + j++] = wd->T_db.at(i);
+        simsteps_out[i * *ncol + j++] = wd->V_wind.at(i);
+        simsteps_out[i * *ncol + j++] = wd->Step_weight.at(i);
+
+        int doy = DT.GetDayOfYear(2011, int(month), int(dom));
+        Ambient::setDateTime(DT, hour, doy);
+        double az, zen;
+        Ambient::calcSunPosition(*V, DT, &az, &zen, true);
+        
+        simsteps_out[i * *ncol + j++] = az;
+        simsteps_out[i * *ncol + j++] = zen;
+    }
+
+    return simsteps_out;
+}
+
+
 SPEXPORT bool sp_update_geometry(sp_data_t p_data)
 {
     /*
@@ -870,40 +966,16 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
         return false;
     }
 
-    std::string weatherfile_str = std::string(V->amb.weather_file.val);
+    ArrayString local_wfdat;
 
-    Ambient::readWeatherFile(*V);
-    
-    //Saving local verison of weather data
-    weatherfile wf;
-    if (!wf.open(weatherfile_str))
+    if(! _load_weather_file(V, local_wfdat))
     {
-        std::string msg = "'update_geometry' function cannot find weather file at " + weatherfile_str + "\n Please adjust desired file path or location to be consistent.";
+        std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
         SC->message_callback(msg.c_str(), SC->message_callback_data);
         return false; //error
     }
 
-    //Update the weather data
-    std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
-    char cline[300];
-
-    int nrec = (int)wf.nrecords();
-
-    ArrayString local_wfdat;
-    local_wfdat.resize(nrec);
-
-    weather_record wrec;
-    for (int i = 0; i < nrec; i++)
-    {
-        //int year, month, day, hour;
-        wf.read(&wrec);
-        sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
-        std::string line(cline);
-        local_wfdat.at(i) = line;
-    }
-
-    //F.UpdateDesignSelect(V->sf.des_sim_detail.mapval(), *V);
-        // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
+    // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
     interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
 
     //Set up the solar field
@@ -1070,11 +1142,13 @@ SPEXPORT bool sp_assign_layout(sp_data_t p_data, sp_number_t* pvalues, int nrows
     return simok;
 }
 
-SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners = false)
+SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners = false, bool get_optical_details = false)
 {
     /*
     Get information regarding the heliostat field layout. Returns matrix with each row corresponding to a heliostat.
-        "Information includes: [index, position-x, position-y, position-z, template_id, ranking metric value]...[corner positions x,y,z]
+        "Information includes: [index, position-x, position-y, position-z, template_id, ranking metric value]
+            (get_corners=true) ...[corner positions x,y,z] 
+            (get_optical_details=true) ...[focal length.x, .y, panel1.x, .y, .z, .i, .j, .k, panel2.x,...]
     Returns: (void):table
     */
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
@@ -1090,6 +1164,8 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
     *ncol = 6;
     if (get_corners)
         *ncol += (int) hels->at(0)->getCornerCoords()->size() * 3;  // assumes all heliostats have a equal number of corners 
+    if (get_optical_details)
+        *ncol += 4 + (int)hels->at(0)->getPanels()->ncells() * 6; // focal length xy, panel width, panel height, panel xyz, panel ijk 
 
     sp_number_t* layoutinfo = new sp_number_t[(*nhelio) * (*ncol)];
 
@@ -1117,6 +1193,30 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
             }
 
         }
+        if (get_optical_details)
+        {
+            c++; layoutinfo[i * (*ncol) + c] = hel->getFocalX();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getFocalY();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getWidth();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getHeight();
+
+            int ncantx = (int)hel->getPanels()->ncols();
+            int ncanty = (int)hel->getPanels()->nrows();
+
+            for (size_t j = 0; j < ncantx; j++) 
+            {
+                for (size_t k = 0; k < ncanty; k++) 
+                {
+                    PointVect* pan = hel->getPanel(k, j)->getOrientation();
+                    c++; layoutinfo[i * (*ncol) + c] = pan->x;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->y;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->z;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->i;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->j;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->k;
+                }
+            }
+        }
 
         if ((i == 0) && (c != *ncol - 1))
         {
@@ -1130,7 +1230,7 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
     return layoutinfo;
 }
 
-SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = false)
+SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = false, bool get_optical_details = false)
 {
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     std::string tab_header;
@@ -1142,16 +1242,36 @@ SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = f
     tab_header.append("helio_template_id,");
     tab_header.append("layout_metric");
 
-    if (get_corners)
+    if (get_corners || get_optical_details)
     {
         SolarField* SF = &mc->solarfield;
         Heliostat* hel = SF->getHeliostats()->at(0);
-        std::vector<std::string > coords{ "x", "y", "z" };
-        for (size_t j = 0; j < (int)hel->getCornerCoords()->size(); j++)
+        if (get_corners)
         {
-            for (size_t i = 0; i < coords.size(); i++)
+            std::vector<std::string > coords{ "x", "y", "z" };
+            for (size_t j = 0; j < (int)hel->getCornerCoords()->size(); j++)
             {
-                tab_header.append(",corner" + std::to_string(j) + "_" + coords.at(i));
+                for (size_t i = 0; i < coords.size(); i++)
+                {
+                    tab_header.append(",corner" + std::to_string(j) + "_" + coords.at(i));
+                }
+            }
+        }
+        if (get_optical_details)
+        {
+            tab_header.append(",focal_x,focal_y,panel_width,panel_height");
+            int ncantx = (int)hel->getPanels()->ncols();
+            int ncanty = (int)hel->getPanels()->nrows();
+            std::vector<std::string > attrs{ "x","y","z","i","j","k" };
+            for (size_t j = 0; j < ncantx; j++)
+            {
+                for (size_t k = 0; k < ncanty; k++)
+                {
+                    for (size_t m = 0; m < attrs.size(); m++)
+                    {
+                        tab_header.append(",panel_" + std::to_string(k) + "_" + std::to_string(j) + "_" + attrs.at(m));
+                    }
+                }
             }
         }
     }
@@ -2814,6 +2934,63 @@ SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
         //std::runtime_error(e.what());
     }
     return false;
+}
+
+SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname)
+{
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SimControl* SC = &mc->sim_control;
+    SolarField* SF = &mc->solarfield;
+
+    Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
+
+    ST_System STSim;
+    STSim.CreateSTSystem(*SF, *SF->getHeliostats(), sun);
+
+
+    FILE* file = fopen(sp_fname, "w");
+    if (!file)
+    {
+        std::string msg = "File Error: Error opening the SolTrace output file. Please make sure the file is closed and the directory is not write-protected.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false;
+    }
+    STSim.Write(file);
+    std::fclose(file);  // REMOVE: fclose(file);
+    return true;
+
+}
+
+SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt)
+{
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    var_map* V = &mc->variables;
+    SimControl* SC = &mc->sim_control;
+    SolarField* SF = &mc->solarfield;
+
+    Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
+
+    ST_System STSim;
+    STSim.CreateSTSystem(*SF, *SF->getHeliostats(), sun);
+
+    ST_System::LoadIntoContext(&STSim, solt_cxt);
+
+    return true;
+}
+
+SPEXPORT void _sp_free_var(sp_number_t* m)
+{
+    try
+    {
+        if(m!=0)
+            delete[] m;
+
+    }
+    catch (...)
+    {
+        return;
+    }
 }
 
 

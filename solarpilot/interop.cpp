@@ -1571,7 +1571,7 @@ void interop::CreateResultsTable(sim_result& result, grid_emulator_base& table)
 		{
 			table.AddRow(id++, "Cloudiness efficiency", "%", 100. * result.eff_cloud.wtmean, 2);
 			table.AddRow(id++, "Shadowing and Cosine efficiency", "%", 100. * result.eff_cosine.wtmean, 2);
-			table.AddRow(id++, "Reflection efficiency", "%", 100. * result.eff_reflect.wtmean, 2);
+			table.AddRow(id++, "Reflection and Attenuation efficiency", "%", 100. * result.eff_reflect.wtmean, 2);
 			table.AddRow(id++, "Blocking efficiency", "%", 100. * result.eff_blocking.wtmean, 2);
 			table.AddRow(id++, "Image intercept efficiency", "%", 100. * result.eff_intercept.wtmean, 2);
 			table.AddRow(id++, "Absorption efficiency", "%", 100. * result.eff_absorption.wtmean, 2);

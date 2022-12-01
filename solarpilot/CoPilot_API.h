@@ -89,9 +89,9 @@ extern "C" {
     SPEXPORT bool sp_assign_layout(sp_data_t p_data, sp_number_t* pvalues, int nrows, int ncols, int nthreads);
 
     //SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol);
-    SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners);
+    SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners, bool get_optical_details);
 
-    SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners);
+    SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners, bool get_optical_details);
 
     SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads, bool update_aimpoints); //bool save_detail,
 

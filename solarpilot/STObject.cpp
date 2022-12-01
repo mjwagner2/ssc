@@ -690,19 +690,15 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		}
 	}
 
-	//int *optic = new int[nhtemp];
-	//double grating[] = {0.,0.,0.};
-	
 	//map the optics pointer to the heliostat template name
 	unordered_map<std::string, ST_OpticalPropertySet*> optics_map;
 
 	for(int ii=0; ii<nhtemp; ii++)
 	{
-		//Heliostat *H = it->second;
 		Heliostat* H = helios.at(ii);
 		char hname[30];
 		sprintf(hname, "heliostat_%d", ii);
-		//OpticsList.at(ii)->Name = (*H->getHeliostatName()).c_str() + H->getId();
+
 		OpticsList.at(ii)->Name = hname;
 		optics_map[ OpticsList.at(ii)->Name ] = OpticsList.at(ii);
 		
@@ -715,6 +711,8 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		*/
 		
 		double refl = H->getTotalReflectivity();	//reflectivity * soiling
+		//scale reflectance by attenuation for this heliostat
+		refl *= H->getEfficiencyAtten();
 		//Note that the reflected energy is also reduced by the fraction of inactive heliostat aperture. Since
 		//we input the actual heliostat dimensions into soltrace, apply this derate on the reflectivity.
 		var_heliostat *Hv = H->getVarMap();
@@ -875,10 +873,6 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		return false;
 	}
 
-	/*for(int i=0; i<nh; i++){
-		h_stage->ElementList.push_back( new ST_Element() );
-	}*/
-	
 	//keep track of the heliostat area
 	double Ahtot=0.;
 	for(int i=0; i<nh; i++){
@@ -899,13 +893,23 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		bool enabled = H->IsInLayout();
 		
 		sp_point *P; 
-		Vect *V;
 		P = H->getLocation();
-		V = H->getTrackVector();
-		
-		double zrot = R2D*Toolbox::ZRotationTransform(*V);
+		Vect V;
+		sp_point* aim = H->getAimPoint();
+		V.i = aim->x - P->x;
+		V.j = aim->y - P->y;
+		V.k = aim->z - P->z;
+		Toolbox::unitvect(V);
+		V.Add(sunvect);
+		V.Scale(0.5);
+		Toolbox::unitvect(V);
+
+		double zrot = R2D*Toolbox::ZRotationTransform(V);
 
 		char shape = Hv->is_round.mapval() == var_heliostat::IS_ROUND::ROUND ? 'c' : 'r';
+
+		double track_zen = std::acos(V.k);
+		double track_az = std::atan2(V.i, V.j);
 
 		char hname[30];
 		sprintf(hname, "heliostat_%d", i);
@@ -929,10 +933,10 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 					Toolbox::unitvect(Faim);
 
 					//Rotate to match heliostat rotation
-					Toolbox::rotation( H->getZenithTrack(), 0, Floc);
-					Toolbox::rotation( H->getZenithTrack(), 0, Faim);
-					Toolbox::rotation( H->getAzimuthTrack(), 2, Floc);
-					Toolbox::rotation( H->getAzimuthTrack(), 2, Faim);
+					Toolbox::rotation( track_zen, 0, Floc);
+					Toolbox::rotation( track_zen, 0, Faim);
+					Toolbox::rotation( track_az, 2, Floc);
+					Toolbox::rotation( track_az, 2, Faim);
 
 					element->Origin[0] = P->x + Floc.x;
 					element->Origin[1] = P->y + Floc.y;
@@ -948,9 +952,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 					element->Origin[1] = P->y;
 					element->Origin[2] = P->z;
 				
-					element->AimPoint[0] = P->x + V->i*1000.;
-					element->AimPoint[1] = P->y + V->j*1000.;
-					element->AimPoint[2] = P->z + V->k*1000.;
+					element->AimPoint[0] = P->x + V.i*1000.;
+					element->AimPoint[1] = P->y + V.j*1000.;
+					element->AimPoint[2] = P->z + V.k*1000.;
 				}
 
 				//element->ZRot = 0.;

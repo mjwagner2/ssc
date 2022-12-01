@@ -966,14 +966,8 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
         return false;
     }
 
-    //std::string weatherfile_str = std::string(V->amb.weather_file.val);
     ArrayString local_wfdat;
 
-    //Ambient::readWeatherFile(*V);
-    //
-    ////Saving local verison of weather data
-    //weatherfile wf;
-    //if (!wf.open(weatherfile_str))
     if(! _load_weather_file(V, local_wfdat))
     {
         std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
@@ -981,26 +975,7 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
         return false; //error
     }
 
-    ////Update the weather data
-    //std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
-    //char cline[300];
-
-    //int nrec = (int)wf.nrecords();
-
-    //local_wfdat.resize(nrec);
-
-    //weather_record wrec;
-    //for (int i = 0; i < nrec; i++)
-    //{
-    //    //int year, month, day, hour;
-    //    wf.read(&wrec);
-    //    sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
-    //    std::string line(cline);
-    //    local_wfdat.at(i) = line;
-    //}
-
-    //F.UpdateDesignSelect(V->sf.des_sim_detail.mapval(), *V);
-        // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
+    // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
     interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
 
     //Set up the solar field
@@ -1167,11 +1142,13 @@ SPEXPORT bool sp_assign_layout(sp_data_t p_data, sp_number_t* pvalues, int nrows
     return simok;
 }
 
-SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners = false)
+SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners = false, bool get_optical_details = false)
 {
     /*
     Get information regarding the heliostat field layout. Returns matrix with each row corresponding to a heliostat.
-        "Information includes: [index, position-x, position-y, position-z, template_id, ranking metric value]...[corner positions x,y,z]
+        "Information includes: [index, position-x, position-y, position-z, template_id, ranking metric value]
+            (get_corners=true) ...[corner positions x,y,z] 
+            (get_optical_details=true) ...[focal length.x, .y, panel1.x, .y, .z, .i, .j, .k, panel2.x,...]
     Returns: (void):table
     */
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
@@ -1187,6 +1164,8 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
     *ncol = 6;
     if (get_corners)
         *ncol += (int) hels->at(0)->getCornerCoords()->size() * 3;  // assumes all heliostats have a equal number of corners 
+    if (get_optical_details)
+        *ncol += 4 + (int)hels->at(0)->getPanels()->ncells() * 6; // focal length xy, panel width, panel height, panel xyz, panel ijk 
 
     sp_number_t* layoutinfo = new sp_number_t[(*nhelio) * (*ncol)];
 
@@ -1214,6 +1193,30 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
             }
 
         }
+        if (get_optical_details)
+        {
+            c++; layoutinfo[i * (*ncol) + c] = hel->getFocalX();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getFocalY();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getWidth();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getHeight();
+
+            int ncantx = (int)hel->getPanels()->ncols();
+            int ncanty = (int)hel->getPanels()->nrows();
+
+            for (size_t j = 0; j < ncantx; j++) 
+            {
+                for (size_t k = 0; k < ncanty; k++) 
+                {
+                    PointVect* pan = hel->getPanel(k, j)->getOrientation();
+                    c++; layoutinfo[i * (*ncol) + c] = pan->x;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->y;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->z;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->i;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->j;
+                    c++; layoutinfo[i * (*ncol) + c] = pan->k;
+                }
+            }
+        }
 
         if ((i == 0) && (c != *ncol - 1))
         {
@@ -1227,7 +1230,7 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
     return layoutinfo;
 }
 
-SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = false)
+SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = false, bool get_optical_details = false)
 {
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     std::string tab_header;
@@ -1239,16 +1242,36 @@ SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners = f
     tab_header.append("helio_template_id,");
     tab_header.append("layout_metric");
 
-    if (get_corners)
+    if (get_corners || get_optical_details)
     {
         SolarField* SF = &mc->solarfield;
         Heliostat* hel = SF->getHeliostats()->at(0);
-        std::vector<std::string > coords{ "x", "y", "z" };
-        for (size_t j = 0; j < (int)hel->getCornerCoords()->size(); j++)
+        if (get_corners)
         {
-            for (size_t i = 0; i < coords.size(); i++)
+            std::vector<std::string > coords{ "x", "y", "z" };
+            for (size_t j = 0; j < (int)hel->getCornerCoords()->size(); j++)
             {
-                tab_header.append(",corner" + std::to_string(j) + "_" + coords.at(i));
+                for (size_t i = 0; i < coords.size(); i++)
+                {
+                    tab_header.append(",corner" + std::to_string(j) + "_" + coords.at(i));
+                }
+            }
+        }
+        if (get_optical_details)
+        {
+            tab_header.append(",focal_x,focal_y,panel_width,panel_height");
+            int ncantx = (int)hel->getPanels()->ncols();
+            int ncanty = (int)hel->getPanels()->nrows();
+            std::vector<std::string > attrs{ "x","y","z","i","j","k" };
+            for (size_t j = 0; j < ncantx; j++)
+            {
+                for (size_t k = 0; k < ncanty; k++)
+                {
+                    for (size_t m = 0; m < attrs.size(); m++)
+                    {
+                        tab_header.append(",panel_" + std::to_string(k) + "_" + std::to_string(j) + "_" + attrs.at(m));
+                    }
+                }
             }
         }
     }

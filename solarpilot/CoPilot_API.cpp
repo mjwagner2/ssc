@@ -2716,6 +2716,47 @@ SPEXPORT sp_number_t* sp_get_optical_efficiency_table(sp_data_t p_data, int* nro
     return efftab;
 }
 
+SPEXPORT bool sp_calculate_get_optical_efficiency_table(sp_data_t p_data, const size_t n_azi, const size_t n_elev,
+    double* azimuths, double* elevation, double* eff_matrix)
+{
+    /*
+    Generates and gets solar field optical efficiency table based an even spacing of azimuths and zeniths angles (Returns elevation angles)
+
+    Param: n_azi: User-defined number of azimuth sampling points
+    Param: n_elev: User-defined number of zenith sampling points
+    Param: azimuths: Pointer to an array for storage of azimuths angles
+    Param: elevation: Pointer to an array for storage of elevation angles
+    Param: eff_matrix: Pointer to an matrix for storage of the optical efficiency table. 
+                        Table is in the form of azimuth (rows) by elevation (columns).
+
+    Returns: None
+    */
+    bool calculation_sucessful = sp_calculate_optical_efficiency_table(p_data, (int)n_azi, (int)n_elev);
+
+    CopilotObject* mc = static_cast<CopilotObject*>(p_data);
+    sp_optical_table* opttab = &mc->opttab;
+
+    for (size_t i = 0; i < n_azi; i++)
+    {
+        azimuths[i] = opttab->azimuths.at(i);
+    }
+    for (size_t i = 0; i < n_elev; i++)
+    {
+        elevation[i] = (90. - opttab->zeniths.at(n_elev - 1 - i)); // Elevation angle, in ascending order
+    }
+    //cols
+    for (size_t j = 0; j < n_elev; j++)
+    {
+        //rows
+        for (size_t i = 0; i < n_azi; i++)
+        {
+            eff_matrix[n_elev * i + j] = opttab->eff_data.at(n_elev - 1 - j).at(i); // consistent with elevation angle
+        }
+    }
+    //sp_save_optical_efficiency_table(p_data, "C:\\Users\\WHamilt2\\Documents\\testing_table.txt", "test"); //For debugging
+
+    return calculation_sucessful;
+}
 
 SPEXPORT bool sp_save_optical_efficiency_table(sp_data_t p_data, const char* sp_fname, const char* table_name)
 {

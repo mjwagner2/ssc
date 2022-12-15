@@ -121,6 +121,9 @@ extern "C" {
 
     SPEXPORT sp_number_t* sp_get_optical_efficiency_table(sp_data_t p_data, int* nrows, int* ncols);
 
+    SPEXPORT bool sp_calculate_get_optical_efficiency_table(sp_data_t p_data, const size_t ud_n_az, const size_t ud_n_zen,
+        double* azimuths, double* zenith, double* eff_matrix);
+
     SPEXPORT bool sp_save_optical_efficiency_table(sp_data_t p_data, const char* sp_fname, const char* table_name);
 
     SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname);

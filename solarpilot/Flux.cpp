@@ -737,10 +737,6 @@ double Flux::imagePlaneIntercept(var_map &V, Heliostat &H, Receiver *Rec, Vect *
 	
     double h_rad = H.getRadialPos();		//[m] Get the heliostat radius from the tower
 
-    /*if(Rec->getReceiverType() == Receiver::REC_TYPE::CYLINDRICAL
-        && h_rad < Rec->getReceiverWidth()/2.)
-        return 0.0;
-   */     
 	Vect rnorm;
 	rnorm.Set(NV.i, NV.j, NV.k);
 	if(Toolbox::dotprod(rnorm, *H.getTowerVector()) < 0.) view_ok = true;	//We actually want the opposite of the tower vector, so take negative dot products to be ok.
@@ -2136,7 +2132,8 @@ void Flux::hermiteIntegral(double G[5], double F[5], double X[2], double A[2], d
 #endif
 }
 
-void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, double tht, bool clear_grid, bool norm_grid, bool show_progress, double* total_flux)
+void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvector &helios, double tht, 
+	bool update_intercept, bool show_progress)
 {
 	/* 
 	Take a set of points defining the flux plane within the flux_surface object, a solar field geometry, 
@@ -2178,6 +2175,11 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 
 	Here, (x,y) is normalized by the standard deviation of the image error in x and y respectively.
 
+
+	--------------
+	Call ClearFluxGridResetMaxFlux() before this call if you want to clear flux grid and reset max flux to zero
+	Call Normalize() on fluxsurface after this call if you want to normalize
+
 	*/
 	
 	//get the flux grid
@@ -2185,20 +2187,17 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 	int 
 		nfx = (int)grid->size(),
 		nfy = (int)grid->at(0).size();
-	//Zero the grid values
-	if(clear_grid) 
-    {
-        flux_surface.ClearFluxGrid();
-        flux_surface.setMaxObservedFlux(0.);
-    }
+
+	//Get receiver variable map
+	var_receiver* rec_var_map = flux_surface.getParent()->getVarMap();
 
 	//Get the flux surface offset
 	sp_point *fs_offset = flux_surface.getSurfaceOffset();
     sp_point rec_offset;
     rec_offset.Set(
-        flux_surface.getParent()->getVarMap()->rec_offset_x_global.Val(),
-        flux_surface.getParent()->getVarMap()->rec_offset_y_global.Val(),
-        flux_surface.getParent()->getVarMap()->rec_offset_z_global.Val()
+		rec_var_map->rec_offset_x_global.Val(),
+		rec_var_map->rec_offset_y_global.Val(),
+		rec_var_map->rec_offset_z_global.Val()
     );
     	
 	int nh = (int)helios.size();
@@ -2212,8 +2211,14 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 		if(show_progress && i % update_every == 0)
 			siminfo->setCurrentSimulation(i+1);
 		
-        if(! helios.at(i)->IsEnabled() )
-            continue;
+		// Create 'flux' grids to update heliostat intercept efficiency
+		matrix_t<double> hel_flux, hel_flux_wo_block;
+		hel_flux.resize_fill(nfx, nfy, 0.0);
+		hel_flux_wo_block.resize_fill(nfx, nfy, 0.0);
+
+		if (!helios.at(i)->IsEnabled()) {
+			continue;
+		}    
 
 		//Get the image error std dev's
 		double sigx, sigy;	
@@ -2241,10 +2246,8 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 				//Calculate the dot product between the flux point normal and the helio->receiver vector
 				double f_dot_t = Toolbox::dotprod(pt->normal, rvec);	
 				//If the dot product is negative, the point is not in view of the heliostat, so continue.
-				if(f_dot_t < 0.) continue;
-				if(f_dot_t>1.){
-					continue;
-				}
+				if (f_dot_t < 0.) continue;
+				if (f_dot_t > 1.) continue;
 				//Translate the flux point location into global coordinates
 				sp_point pt_g
                 (
@@ -2252,7 +2255,13 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
                     pt->location.y + fs_offset->y + rec_offset.y,
                     pt->location.z + fs_offset->z + rec_offset.z + tht
                 ); 
-
+				//Test if the flux point is in view of the heliostat...
+				bool is_hel_in_fp_view = true;
+				if (rec_var_map->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE
+					|| rec_var_map->rec_type.mapval() == var_receiver::REC_TYPE::CAVITY) {
+					is_hel_in_fp_view = this->checkApertureSnout(pt_g, hloc, aim, rec_var_map);
+				}
+				
 				//Project the current flux point into the image plane as defined by the 
 				//aim point and the heliostat-to-receiver vector.
 				sp_point pt_ip;
@@ -2280,44 +2289,125 @@ void Flux::fluxDensity(simulation_info *siminfo, FluxSurface &flux_surface, Hvec
 				//Calculate the flux
                 double hfe = hermiteFluxEval(helios.at(i), xn, yn) * exp( -0.5 *( xn*xn + yn*yn) );
 				
-                pt->flux += f_dot_t * hfe * cnorm;
+				if (is_hel_in_fp_view) {
+					pt->flux += f_dot_t * hfe * cnorm;
+					hel_flux.at(j, k) = f_dot_t * hfe * cnorm;
+				}
+
+				hel_flux_wo_block.at(j, k) = f_dot_t * hfe * cnorm;
 			}
+		}
+
+		if (update_intercept) {
+			// Update intercept efficiency based on what actually hit receiver
+			double hfsum = helios.at(i)->getFluxHitRec();
+			double hf_wo_block_sum = helios.at(i)->getTotflux();
+			for (int i = 0; i < nfx; i++) {
+				for (int j = 0; j < nfy; j++) {
+					hfsum += hel_flux.at(i, j);
+					hf_wo_block_sum += hel_flux_wo_block.at(i, j);
+				}
+			}
+			helios.at(i)->setFluxHitRec(hfsum);
+			helios.at(i)->setTotFlux(hf_wo_block_sum);
 		}
 	}
 	if(show_progress){
 		siminfo->Reset();
 		siminfo->setCurrentSimulation(0);
 	}
-	// if a variable pointer is provided for the total_flux, calculate and report back the value
-	if (total_flux != 0)
-	{
-		double fsum = 0.;
-		for (int i = 0; i < nfx; i++) {
-			for (int j = 0; j < nfy; j++) {
-				fsum += grid->at(i).at(j).flux;
-			}
-		}
-		(*total_flux) = fsum;
-	}
-	if(norm_grid){
-		//Normalize the flux to sum to 1
-		double fsum=0.;
-		for(int i=0; i<nfx; i++){
-			for(int j=0; j<nfy; j++){
-				fsum += grid->at(i).at(j).flux;
-			}
-		}
-		//make sure fsum is positive
-		fsum = max(fsum, 1.e-6);
-		for(int i=0; i<nfx; i++){
-			for(int j=0; j<nfy; j++){
-				grid->at(i).at(j).flux *= 1./fsum;
-			}
-		}
-
-	}
-
 }
+
+bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  var_receiver* rec_var_map) {
+	/*
+	Test if fluxpoint is in view of the heliostat through the aperture and snout (if applicable)
+
+	INPUTS:
+	hloc: Heliostat global location
+	fp_g: flux point location in global coordinates
+	aim: aimpoint in global coordinates
+	rec_var_map: receiver variable map
+	*/ 
+
+	//Calculate the unit vector between flux point and heliostat
+	Vect fp_helio_vec(hloc->x - fp_g.x, hloc->y - fp_g.y, hloc->z - fp_g.z);
+	Toolbox::unitvect(fp_helio_vec);
+
+	// Calculate aperture normal vector
+	Vect ap_norm;
+	double rec_az = rec_var_map->rec_azimuth.val * D2R;
+	double rec_el = rec_var_map->rec_elevation.val * D2R;
+	ap_norm.i = sin(rec_az) * cos(rec_el);
+	ap_norm.j = cos(rec_az) * cos(rec_el);
+	ap_norm.k = sin(rec_el);
+
+	// Find point where fluxpoint to heliostat vector intersects aperture
+	sp_point ap_ip;
+	Toolbox::plane_intersect(*aim, ap_norm, fp_g, fp_helio_vec, ap_ip);
+
+	// Translate the intersect point into coordinates relative to the aim point
+	ap_ip.Subtract(*aim);
+
+	// This rotation now expresses intersect point in x,y coordinates of the aperture plane.
+	Toolbox::rotation(pi - rec_az, 2, ap_ip);
+	Toolbox::rotation(pi / 2 - rec_el, 0, ap_ip);
+
+	// Test if point is within the aperture
+	double rec_width = rec_var_map->rec_width.val;
+	double rec_height = rec_var_map->rec_height.val;
+	if (std::abs(ap_ip.x) > rec_width / 2)
+		return false;
+	if (std::abs(ap_ip.y) > rec_height / 2)
+		return false;
+
+	// If SNOUT exist test if flux point can see heliostat through SNOUT
+	if (rec_var_map->is_snout.val) {
+		sp_point snout_offset;
+		snout_offset.x = rec_var_map->snout_depth.val * sin(rec_az) * cos(rec_el);
+		snout_offset.y = rec_var_map->snout_depth.val * cos(rec_az) * cos(rec_el);
+		snout_offset.z = rec_var_map->snout_depth.val * sin(rec_el);
+		sp_point snout_p = *aim;
+		snout_p.Add(snout_offset);
+
+		// Find point where fluxpoint to heliostat vector intersects snout
+		sp_point snout_ip;
+		Toolbox::plane_intersect(snout_p, ap_norm, fp_g, fp_helio_vec, snout_ip);
+
+		// Translate the intersect point into coordinates relative to the aim point
+		snout_ip.Subtract(*aim);
+
+		// This rotation now expresses intersect point in x,y coordinates of the snout aperture plane.
+		Toolbox::rotation(pi - rec_az, 2, snout_ip);
+		Toolbox::rotation(pi / 2 - rec_el, 0, snout_ip);
+
+		// Calculate snout width based on similar triangles
+		double snout_width;
+		if (rec_var_map->snout_horiz_angle.val == 0) {
+			snout_width = rec_width;
+		}
+		else if (rec_var_map->snout_horiz_angle.val > 0 && rec_var_map->snout_horiz_angle.val < 180) {
+			double ap_depth = (rec_width / 2) / tan((rec_var_map->snout_horiz_angle.val / 2) * D2R);
+			snout_width = rec_width * (rec_var_map->snout_depth.val + ap_depth) / ap_depth;
+		}
+		else
+			throw spexception("SNOUT horizontal angle must be between 0 and 180 degrees.");
+
+		// Calculate snout vertical offset
+		double snout_vert_offset = rec_var_map->snout_depth.val * tan(rec_var_map->snout_vert_angle.val * D2R);
+		// Test if point is within the snout aperture
+		if (std::abs(snout_ip.x) > snout_width / 2)
+			return false;
+		if (snout_ip.y < 0 && snout_ip.y < -(rec_height / 2 + snout_vert_offset)) // Too low
+			return false;
+		else if (snout_ip.y > 0 && snout_ip.y > rec_height / 2) // Too high
+			return false;
+	}
+
+	// Success! The flux point can view the heliostat
+	return true;
+}
+
+
 
 double Flux::hermiteFluxEval(Heliostat *H, double xs, double ys){
 	/* 
@@ -2700,6 +2790,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	
 	//Associate the receiver with the heliostat
 	H.setWhichReceiver(rec);
+	H.resetInterceptCorrection();
     
     var_receiver *Rv = rec->getVarMap();
 	double opt_height = Rv->optical_height.Val(); // + rec->getOffsetZ(),       << optical height already includes Z offset
@@ -2819,12 +2910,13 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		//The flux grid needs to be updated after each heliostat
 		HV.clear();
 		HV.push_back(&H);
-		fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1.? true : false, islast);
+		if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux();
+		fluxDensity(SF.getSimInfoObject(), *FS, HV, tht);
+		if (islast) FS->Normalize();
 		break;
 	}
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
-	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
@@ -2834,7 +2926,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		jsave = 0;
 
 		//Get the receiver that this heliostat is aiming at
-		FS = &rec->getFluxSurfaces()->at(0);	//Should be only one flux surface for this type of receiver
+		FS = &rec->getFluxSurfaces()->at(0);	//Should be only one flux surface for this type of receiver or aiming at aperture (cavity and falling)
 		FG = FS->getFluxMap();
         double totflux = FS->getTotalFlux();
 
@@ -2962,43 +3054,40 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 
 		//Update assignment in fluxplane coordinates (ignoring offsets)
 		H.calcAndSetAimPointFluxPlane(Fp->location, *rec, H);
-		
+
 		//The flux grid needs to be updated after each heliostat
 		HV.clear();
 		HV.push_back(&H);
-		fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1.? true : false, islast);
+		if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux();
+		// If a plane rectangle receiver, then update heliostat intercept factors
+		fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, recgeom == Receiver::REC_GEOM_TYPE::PLANE_RECT);
+		if (islast) FS->Normalize();
 
-		// For plane receiver, we're done here
 		if (recgeom == Receiver::REC_GEOM_TYPE::PLANE_RECT)
-			break;
+			break; // For plane receiver, we're done here
 		
 		// calculate the flux for each cavity surface, leaving the flux in dimensional terms
 		FluxSurfaces* fs = rec->getFluxSurfaces();
 		int nSurfs = fs->size() - 1;
 		double flux_all_surfs = 0.;	//keep track of the total accumulated flux on all panels
-        for (int i = 1; i < nSurfs +1; i++) { //Update flux grid of each actual receiver panel
+        for (int i = 1; i <= nSurfs; i++) { //Update flux grid of each actual receiver panel
             FS = &rec->getFluxSurfaces()->at(i);
-			
-			double flux_this_panel;
-            
-			fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, false /*islast*/, false, islast ? &flux_this_panel : 0);
-			
-			if (islast)
-				flux_all_surfs += flux_this_panel;
+			if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux();
+			fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, true);
+			if (islast) flux_all_surfs += FS->getTotalFlux();
         }
 
 		//if this is the last call, now normalize the flux according to the total accumulated flux
 		if (islast)
 		{
-			for (int i = 1; i < nSurfs+1; i++)
+			for (int i = 1; i <= nSurfs; i++)
 			{
 				FluxGrid *FG = rec->getFluxSurfaces()->at(i).getFluxMap();
-						
 				for (size_t j = 0; j < FG->size(); j++)
 				{
 					for (size_t k = 0; k < FG->front().size(); k++)
 					{
-						FG->at(j).at(k).flux *= (double)(nSurfs) / flux_all_surfs;
+						FG->at(j).at(k).flux *= (double)(Rv->n_panels.val) / flux_all_surfs; // (double)(nSurfs) / flux_all_surfs;
 					}
 				}
 			}
@@ -3108,6 +3197,7 @@ void Flux::keepExistingAimPoint(Heliostat &H, SolarField &SF, double[] /*args*/)
     case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 	{
         //get the aimpoint, the heliostat location and vector to the aimpoint, and then calculate
         //the relative position of the intersection on the image plain

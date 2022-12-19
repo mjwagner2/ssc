@@ -41,6 +41,8 @@ public:
 
 	void resetMetrics();
 	double calcTotalEfficiency();
+    void correctInterceptEfficiency();
+    void resetInterceptCorrection();
 	
 	double getDataByIndex( const int id );
 	void setDataByIndex( const int id, double value);
@@ -61,8 +63,12 @@ public:
         eta_cloud,	//[-] Loss due to cloudiness (performance simulation only)
         energy_value, //[Wh] energy delivered over the simulation time period
         energy_annual, //[Wh] estimated total annual energy for the heliostat
-        eta_annual; //[-] estimated annual total efficiency
-		
+        eta_annual, //[-] estimated annual total efficiency
+        intercept_correction, //[-] Intercept efficiency correction based on flux density calculation
+        tot_flux,
+        flux_hit_rec;
+    bool
+        has_int_eff_corrected; //[-] Has intercept efficiency been corrected based on flux density calculation
 };
 
 #endif

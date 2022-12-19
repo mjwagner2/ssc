@@ -104,6 +104,8 @@ public:
 	void installPanels();	//Define the cant panel locations, pointing vectors, and shape
 	void updateTrackVector(Vect &sunvect);	//Update the tracking vector for the heliostat
 	double calcTotalEfficiency();
+	void correctInterceptEfficiency();
+	void resetInterceptCorrection();
     static void calcAndSetAimPointFluxPlane(sp_point &aimpos_abs, Receiver &Rec, Heliostat &H);
 	void resetMetrics();
 	void CopyImageData(const Heliostat *Hsrc);
@@ -143,6 +145,9 @@ public:
     double getEnergyValue();
     double getAnnualEnergy();
     double getAnnualEfficiency();
+	double getInterceptCorrection();
+	double getTotflux();
+	double getFluxHitRec();
 	double getAzimuthTrack();
 	double getZenithTrack();
     double getArea();
@@ -185,6 +190,9 @@ public:
 	void setRankingMetricValue(double rval);
     void setAnnualEfficiency(double eta_annual);
     void setAnnualEnergy(double p_annual);
+	void setInterceptCorrection(double int_corr);
+	void setTotFlux(double tot_flux);
+	void setFluxHitRec(double flux_hit_rec);
     void setLocation(double x, double y, double z);
 	void setAimPoint(double x, double y, double z);
 	void setAimPoint(sp_point &Aim);

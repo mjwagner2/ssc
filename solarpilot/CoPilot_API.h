@@ -80,6 +80,8 @@ extern "C" {
 
     SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat_name);
 
+    SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int* nrecord, int* ncol);
+
     SPEXPORT bool sp_update_geometry(sp_data_t p_data);
 
     SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads);
@@ -87,9 +89,9 @@ extern "C" {
     SPEXPORT bool sp_assign_layout(sp_data_t p_data, sp_number_t* pvalues, int nrows, int ncols, int nthreads);
 
     //SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol);
-    SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners);
+    SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* ncol, bool get_corners, bool get_optical_details);
 
-    SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners);
+    SPEXPORT const char* sp_get_layout_header(sp_data_t p_data, bool get_corners, bool get_optical_details);
 
     SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads, bool update_aimpoints); //bool save_detail,
 
@@ -119,6 +121,9 @@ extern "C" {
 
     SPEXPORT sp_number_t* sp_get_optical_efficiency_table(sp_data_t p_data, int* nrows, int* ncols);
 
+    SPEXPORT bool sp_calculate_get_optical_efficiency_table(sp_data_t p_data, const size_t ud_n_az, const size_t ud_n_zen,
+        double* azimuths, double* zenith, double* eff_matrix);
+
     SPEXPORT bool sp_save_optical_efficiency_table(sp_data_t p_data, const char* sp_fname, const char* table_name);
 
     SPEXPORT bool sp_save_from_script(sp_data_t p_data, const char* sp_fname);
@@ -126,6 +131,12 @@ extern "C" {
     SPEXPORT bool sp_load_from_script(sp_data_t p_data, const char* sp_fname);
 
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
+
+    SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname);
+
+    SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt);
+
+    SPEXPORT void _sp_free_var(sp_number_t* m);
 
 #ifdef __cplusplus
 }

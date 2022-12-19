@@ -3992,6 +3992,9 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
             break;
 		}
 
+		//update the tracking vector after updating the aimpoint
+		_heliostats.at(i)->updateTrackVector(Sun);
+
 
 		//Update the progress bar
         if(! P.is_layout )

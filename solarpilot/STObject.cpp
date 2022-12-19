@@ -1220,6 +1220,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
 		case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
 		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		default:
 			throw spexception("Unsupported receiver type in SolTrace geometry generation algorithm.");
 			break;

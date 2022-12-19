@@ -135,6 +135,7 @@ public:
 	void DefineFluxPoints(var_receiver &V, int rec_geom, int nx=-1, int ny=-1);
 	void Normalize();
 	void ClearFluxGrid();
+	void ClearFluxGridResetMaxFlux();
 };
 
 typedef std::vector<FluxSurface> FluxSurfaces;
@@ -175,7 +176,7 @@ public:
 	/* Define an enumeration structure for receiver geometry types */
 	struct REC_GEOM_TYPE { 
 		enum A { CYLINDRICAL_CLOSED, CYLINDRICAL_OPEN, CYLINDRICAL_CAV, PLANE_RECT, 
-			PLANE_ELLIPSE, POLYGON_CLOSED, POLYGON_OPEN, POLYGON_CAV, FALL_FLAT}; 
+			PLANE_ELLIPSE, POLYGON_CLOSED, POLYGON_OPEN, POLYGON_CAV, FALL_FLAT, FALL_CURVE}; 
 	};
 
 	//Declare "GET" access functions

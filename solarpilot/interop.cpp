@@ -1361,6 +1361,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 		case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
 		case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
 		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		default:
 			return false;
 			break;
@@ -1977,10 +1978,21 @@ void sim_result::process_flux_stats(Rvector *recs)
 	double fave=0., fave2=0., fmax = -9.e9, fmin = 9.e9;
 	int nf = 0;
 	for( int i=0; i<(int)recs->size(); i++){
+		int recgeom = recs->at(i)->getGeometryType();
 		FluxSurfaces *fs = recs->at(i)->getFluxSurfaces();
-		for(int j=0; j<(int)fs->size(); j++){
+		int start_surf = 0;
+		switch (recs->at(i)->getVarMap()->rec_type.mapval())
+		{
+		case var_receiver::REC_TYPE::CAVITY:
+		case var_receiver::REC_TYPE::FALLING_PARTICLE:
+			start_surf = 1; // Skip aperture surface
+			break;
+		default:
+			break;
+		}
+
+		for(int j=start_surf; j<(int)fs->size(); j++){
 			FluxGrid *fg = fs->at(j).getFluxMap();
-			//double ascale = fs->at(j).getSurfaceArea()/atot;
 			int 
 				nx = fs->at(j).getFluxNX(),
 				ny = fs->at(j).getFluxNY();

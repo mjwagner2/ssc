@@ -1627,6 +1627,7 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
 	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		//Cavity receiver | 2362
 	{		
 		//2	|	Continuous open cylinder - internal cavity
@@ -2443,6 +2444,7 @@ void Flux::simpleAimPoint(sp_point *Aim, sp_point *AimF, Heliostat &H, SolarFiel
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
 	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		//2	|	Continuous open cylinder - internal cavity
 		//3	|	Planar rectangle
 		//4	|	Planar ellipse
@@ -2824,6 +2826,8 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
 	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
+	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 	{
 		//3	|	Planar rectangle
 

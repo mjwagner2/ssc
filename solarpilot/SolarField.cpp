@@ -982,7 +982,7 @@ bool SolarField::CheckReceiverAcceptance(Receiver* Rec, sp_point *hpos, double t
     //Rotate into receiver aperture coordinates
     double raz = Rv->rec_azimuth.val*D2R;
     double rel = 0.;
-    if (rectype == var_receiver::REC_TYPE::FLAT_PLATE)
+    if (rectype == var_receiver::REC_TYPE::FLAT_PLATE || rectype == var_receiver::REC_TYPE::FALLING_PARTICLE)
         rel = Rv->rec_elevation.val*D2R;
 
     Toolbox::rotation(PI - raz, 2, hv_r);
@@ -4215,11 +4215,6 @@ void SolarField::HermiteFluxSimulation(Hvector &helios, bool keep_existing_profi
 		AnalyticalFluxSimulation(helios);
 	}
 
-	for (int i = 0; i < (int)helios.size(); i++) {
-		helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
-		helios.at(i)->correctInterceptEfficiency();
-	}
-
 	CalcDimensionalFluxProfiles(helios);
 }
 
@@ -4272,7 +4267,11 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 			surfaces->at(0).Normalize();
 		}
 	}
-
+	
+	for (int i = 0; i < (int)helios.size(); i++) {
+		helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
+		helios.at(i)->correctInterceptEfficiency();
+	}
 }
 
 void SolarField::CalcDimensionalFluxProfiles(Hvector &helios)

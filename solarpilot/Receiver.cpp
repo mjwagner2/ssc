@@ -545,10 +545,6 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
             break;
     };
 
-
-	//Receiver area
-	CalculateAbsorberArea();
-
     //aspect
 	double height = V.rec_height.val;
 	double aspect;
@@ -603,12 +599,14 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
     }
 
 	V.rec_aspect.Setval( aspect ); 
+
+	//Receiver area
+	CalculateAbsorberArea();
 	V.absorber_area.Setval( _absorber_area );   //calculated by CalculateAbsorberArea
 
 	//receiver optical height
 	double zoff = V.rec_offset_z_global.Val();
 	V.optical_height.Setval( tht + zoff );
-
 
 	//Estimated heat loss
 	double tp = 0.;
@@ -1012,9 +1010,9 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		S->setMaxFlux(_var_receiver->peak_flux.val);
 		S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 
-		double max_height = _var_receiver->curtain_total_height.Val();	// Particle curtain maximum height
+		double max_height = _var_receiver->norm_curtain_height.val * _var_receiver->rec_height.val;	// Particle curtain maximum height
 		double max_depth = _var_receiver->max_curtain_depth.val;		// Particle curtain maximum depth (from the aperture)
-		double curtain_width = _var_receiver->max_curtain_width.Val();		// Particle curtain width
+		double curtain_width = _var_receiver->norm_curtain_width.val * _var_receiver->rec_width.val; // Particle curtain width
 
 		double last_trough_height = 1.0;	// Normalized height of previous trough 
 		double last_trough_depth = 1.0;		// Normalized depth of the previous trough

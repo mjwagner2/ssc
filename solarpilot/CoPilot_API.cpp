@@ -1695,18 +1695,20 @@ SPEXPORT const char* sp_detail_results_header(sp_data_t p_data, bool get_corners
     return nullptr;
 }
 
-SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id = 0)
+SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id = 0, int flux_surf = 0)
 {
     /*
-	Retrieve the receiver fluxmap, optionally specifying the receiver ID to retrieve.
+	Retrieve the receiver fluxmap, optionally specifying the receiver ID and/or flux surface to retrieve.
 	Returns: ([integer:receiver id]):array
+
+    TODO: create a function that returns all fluxmaps for all receivers?
     */
 
     CopilotObject *mc = static_cast<CopilotObject*>(p_data);
     SolarField* SF = &mc->solarfield;
 
+    // Get receiver
     Receiver *rec;
-
     if (rec_id != 0)
     {
         if (rec_id > SF->getReceivers()->size() - 1)
@@ -1719,7 +1721,19 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
         rec = SF->getReceivers()->front();
     }
 
-    FluxGrid *fg = rec->getFluxSurfaces()->front().getFluxMap();
+    // Get flux surface
+    FluxGrid* fg;
+    if (flux_surf != 0)
+    {
+        if (flux_surf > rec->getFluxSurfaces()->size() - 1)
+            return nullptr;
+
+        fg = rec->getFluxSurfaces()->at(flux_surf).getFluxMap();
+    }
+    else
+    {
+        fg = rec->getFluxSurfaces()->front().getFluxMap();
+    }
 
     *nrows = (int)fg->front().size();
     *ncols = (int)fg->size();

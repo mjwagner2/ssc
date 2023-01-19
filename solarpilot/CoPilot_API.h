@@ -104,7 +104,7 @@ extern "C" {
 
     SPEXPORT const char* sp_detail_results_header(sp_data_t p_data, bool get_corners);
 
-    SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id);
+    SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id, int flux_surf);
 
     SPEXPORT void sp_optimize(sp_data_t p_data, sp_number_t* pvalues, int nvar);
 

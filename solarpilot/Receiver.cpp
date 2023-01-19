@@ -728,6 +728,7 @@ void Receiver::CalculateNormalVector(sp_point &Hloc, PointVect &NV){
 	*/
 	
     double rec_elevation = _var_receiver->rec_elevation.val * D2R;
+	if (_var_receiver->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_elevation = 0.0;
     double rec_az = _var_receiver->rec_azimuth.val * D2R;
 
 	//This will have to be modified to allow for multi-surface receivers and polygons. TO DO
@@ -1000,7 +1001,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		// Aperture surface normal
 		Vect nv;
 		double rec_az = _var_receiver->rec_azimuth.val * D2R;
-		double rec_elevation = _var_receiver->rec_elevation.val * D2R;
+		double rec_elevation = 0.0; //_var_receiver->rec_elevation.val* D2R; Assuming no elevation angle
 		nv.i = sin(rec_az) * cos(rec_elevation);
 		nv.j = cos(rec_az) * cos(rec_elevation);
 		nv.k = sin(rec_elevation);

@@ -812,6 +812,7 @@ bool SolarField::UpdateLayoutGroups(double lims[4]){
 	mesh_data.tht = Sv->tht.val;
 	mesh_data.alpha = Rv->rec_azimuth.val*D2R;
 	mesh_data.theta = Rv->rec_elevation.val*D2R;
+	if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) mesh_data.theta = 0.0;
 	//double width;
 	Receiver *rec = _receivers.front();
 	mesh_data.w_rec = Rv->rec_width.val; //sqrt(powf(_receivers.front()->getReceiverWidth(),2) + powf(_receivers.front()->getReceiverHeight(),2));
@@ -982,8 +983,7 @@ bool SolarField::CheckReceiverAcceptance(Receiver* Rec, sp_point *hpos, double t
     //Rotate into receiver aperture coordinates
     double raz = Rv->rec_azimuth.val*D2R;
     double rel = 0.;
-    if (rectype == var_receiver::REC_TYPE::FLAT_PLATE || rectype == var_receiver::REC_TYPE::FALLING_PARTICLE)
-        rel = Rv->rec_elevation.val*D2R;
+    if (rectype == var_receiver::REC_TYPE::FLAT_PLATE) rel = Rv->rec_elevation.val*D2R;
 
     Toolbox::rotation(PI - raz, 2, hv_r);
     Toolbox::rotation(PI - rel, 0, hv_r);

@@ -1641,6 +1641,7 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 		double ryn = Rv->rec_height.val/tht/2.;		//Normalized half-height of the aperture
 		double rec_az = Rv->rec_azimuth.val*D2R+pi;			//In DELSOL; user input for RAZM is 180=N; but later adjusted to 0=N
 		double rec_zen = pi/2. - Rv->rec_elevation.val*D2R;		//Receiver zenith angle {90 = horizontal; >90 downward facing
+		if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_zen = pi/2.; // elevation is 0.0
 		double hloc_az_i = cos(hloc_az);		//Cosine of the heliostat position azimuth angle
 		double hloc_az_j = sin(hloc_az);		//Sine ""
 		double rec_az_i = cos(rec_az);		//Cosine receiver aperture azimuth angle
@@ -2337,6 +2338,7 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 	Vect ap_norm;
 	double rec_az = rec_var_map->rec_azimuth.val * D2R;
 	double rec_el = rec_var_map->rec_elevation.val * D2R;
+	if (rec_var_map->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_el = 0.0;
 	ap_norm.i = sin(rec_az) * cos(rec_el);
 	ap_norm.j = cos(rec_az) * cos(rec_el);
 	ap_norm.k = sin(rec_el);
@@ -2954,6 +2956,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		//Rotate the heliostat vector into receiver plane coordinates
 		rnaz = Rv->rec_azimuth.val*D2R;
 		rnel = Rv->rec_elevation.val*D2R;
+		if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rnel = 0.;
 		vtemp.Set(r_to_h);
 		Toolbox::rotation(Pi-rnaz, 2, vtemp);
 		Toolbox::rotation(-rnel, 0, vtemp);

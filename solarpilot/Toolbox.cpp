@@ -1676,8 +1676,18 @@ double Toolbox::ZRotationTransform(Vect &normal_vect){
 
 	//Calculate Euler angles
 	double alpha = atan2(normal_vect.i, normal_vect.k);		//Rotation about the Y axis
-	double bsign = normal_vect.j > 0. ? 1. : -1.;
-	double beta = -bsign*acos( ( pow(normal_vect.i,2) + pow(normal_vect.k,2) )/ max(sqrt(pow(normal_vect.i,2) + pow(normal_vect.k,2)), 1.e-8) );	//Rotation about the modified X axis
+	double leg_ratio = (pow(normal_vect.i, 2) + pow(normal_vect.k, 2)) / max(sqrt(pow(normal_vect.i, 2) + pow(normal_vect.k, 2)), 1.e-8);
+	double beta;
+	if (leg_ratio <= -1.) {
+		beta = PI;
+	}
+	else if (leg_ratio >= 1.0) {
+		beta = 0.;
+	}
+	else {
+		double bsign = normal_vect.j > 0. ? 1. : -1.;
+		beta = -bsign * acos(leg_ratio);	//Rotation about the modified X axis
+	}
 
 	//Calculate the modified axis vector
 	Vect modax;
@@ -1725,7 +1735,7 @@ double Toolbox::ZRotationTransform(double Az, double Zen){
 	//Calculate the normal vector to the heliostat based on elevation and azimuth
 	double Pi = PI;
 	double el = Pi/2.-Zen;
-	double az = Az+Pi;	//Transform to 0..360 (in radians)
+	double az = Az; // +Pi;	//Transform to 0..360 (in radians)
 	Vect aim;
 	aim.Set( sin(az)*cos(el), cos(az)*cos(el), sin(el) );
 	return ZRotationTransform(aim);

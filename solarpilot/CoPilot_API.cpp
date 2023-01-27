@@ -1197,8 +1197,8 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
         {
             c++; layoutinfo[i * (*ncol) + c] = hel->getFocalX();
             c++; layoutinfo[i * (*ncol) + c] = hel->getFocalY();
-            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getWidth();
-            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0).getHeight();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0, 0).getWidth();
+            c++; layoutinfo[i * (*ncol) + c] = hel->getPanels()->at(0, 0).getHeight();
 
             int ncantx = (int)hel->getPanels()->ncols();
             int ncanty = (int)hel->getPanels()->nrows();

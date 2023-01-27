@@ -196,7 +196,7 @@ public:
 	int (*soltrace_callback)(st_uint_t, st_uint_t, st_uint_t, st_uint_t, st_uint_t, void*);
 	void* soltrace_callback_data;
 
-	int (*message_callback)(const char*, void*);
+	int (*message_callback)(const char*, void*);  // TODO: How can these callbacks pass exceptions?
 	void* message_callback_data;
 
 	int (*layout_log_callback)(double progress, const char*, void*);

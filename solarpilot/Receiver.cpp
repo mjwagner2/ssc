@@ -235,6 +235,7 @@ void FluxSurface::DefineFluxPoints(var_receiver &V, int rec_geom, int nx, int ny
 		break;
 	}
 	case Receiver::REC_GEOM_TYPE::PLANE_RECT:
+	case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 	{		//3 | Planar rectangle, or 7 | Planar surface of a cavity, or flat falling particle curtain
 		/* 
 		The receiver is a rectangle divided into _nflux_x nodes in the horizontal direction and
@@ -1011,6 +1012,11 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		S->setMaxFlux(_var_receiver->peak_flux.val);
 		S->DefineFluxPoints(*_var_receiver, Receiver::REC_GEOM_TYPE::PLANE_RECT);
 
+		if (_var_receiver->norm_curtain_height.val < 1.0)
+			throw spexception("Normalized curtain height must be greater than or equal to 1.0.");
+		if (_var_receiver->norm_curtain_width.val < 1.0)
+			throw spexception("Normalized curtain width must be greater than or equal to 1.0.");
+
 		double max_height = _var_receiver->norm_curtain_height.val * _var_receiver->rec_height.val;	// Particle curtain maximum height
 		double max_depth = _var_receiver->max_curtain_depth.val;		// Particle curtain maximum depth (from the aperture)
 		double curtain_width = _var_receiver->norm_curtain_width.val * _var_receiver->rec_width.val; // Particle curtain width
@@ -1055,6 +1061,12 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 				S->setSurfaceGeometry(curtain_height, 0., curtain_radius);
 				double span = asin(curtain_width / 2 / _var_receiver->curtain_radius.val);
 				S->setSurfaceSpanAngle(-span, span);
+
+				double req_depth = curtain_radius - sqrt(pow(curtain_radius, 2.) - pow(curtain_width / 2., 2.));
+				if (req_depth > max_depth)
+					throw spexception("Cavity depth is not deep enough for curved curtain geometry. Increase curtain depth or increase curtain radius.");
+				if (2. * curtain_radius < curtain_width)
+					throw spexception("Curtain radius is too small for desired curtain width. Curtain radius must be at least half the curtain width." );
 			}
 			else
 				S->setSurfaceGeometry(curtain_height, curtain_width, 0.);
@@ -1134,9 +1146,8 @@ void Receiver::CalculateAbsorberArea(){
 	case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 	{
 		FluxSurfaces* surfaces = this->getFluxSurfaces();
-		int nSurfs = surfaces->size() - 1;
 		double area = 0;
-		for (int i = 1; i <= nSurfs; i++) {
+		for (int i = 1; i < surfaces->size(); i++) {
 			area += surfaces->at(i).getSurfaceArea();
 		}
 		_absorber_area = area;

@@ -3345,13 +3345,20 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 			
 		}
 	}
-	
-	//Simulate efficiency for all heliostats
-	for(int i=0; i<nh; i++)
-		SimulateHeliostatEfficiency(this, Sun, _heliostats.at(i), P); 
-	
-	
 
+	int method = _var_map->flux.aim_method.mapval();
+	int flux_model = _var_map->flux.flux_model.mapval();
+
+	//Simulate efficiency for all heliostats
+	for (int i = 0; i < nh; i++) {
+		SimulateHeliostatEfficiency(this, Sun, _heliostats.at(i), P);
+		
+		// Correct Intercept efficiency for image size priority but not if SolTrace
+		if (method == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY && flux_model != var_fluxsim::FLUX_MODEL::SOLTRACE) {
+			_heliostats.at(i)->setInterceptCorrection(_heliostats.at(i)->getFluxHitRec() / _heliostats.at(i)->getTotflux());
+			_heliostats.at(i)->correctInterceptEfficiency();
+		}
+	}
 
 }
 

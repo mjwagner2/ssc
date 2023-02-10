@@ -2344,11 +2344,12 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 	ap_norm.k = sin(rec_el);
 
 	// Find point where fluxpoint to heliostat vector intersects aperture
+	sp_point rec_offset(rec_var_map->rec_offset_x_global.Val(), rec_var_map->rec_offset_y_global.Val(), rec_var_map->optical_height.Val());
 	sp_point ap_ip;
-	Toolbox::plane_intersect(*aim, ap_norm, fp_g, fp_helio_vec, ap_ip);
+	Toolbox::plane_intersect(rec_offset, ap_norm, fp_g, fp_helio_vec, ap_ip);
 
 	// Translate the intersect point into coordinates relative to the aim point
-	ap_ip.Subtract(*aim);
+	ap_ip.Subtract(rec_offset);
 
 	// This rotation now expresses intersect point in x,y coordinates of the aperture plane.
 	Toolbox::rotation(pi - rec_az, 2, ap_ip);
@@ -2368,7 +2369,7 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 		snout_offset.x = rec_var_map->snout_depth.val * sin(rec_az) * cos(rec_el);
 		snout_offset.y = rec_var_map->snout_depth.val * cos(rec_az) * cos(rec_el);
 		snout_offset.z = rec_var_map->snout_depth.val * sin(rec_el);
-		sp_point snout_p = *aim;
+		sp_point snout_p = rec_offset;
 		snout_p.Add(snout_offset);
 
 		// Find point where fluxpoint to heliostat vector intersects snout
@@ -2376,7 +2377,7 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 		Toolbox::plane_intersect(snout_p, ap_norm, fp_g, fp_helio_vec, snout_ip);
 
 		// Translate the intersect point into coordinates relative to the aim point
-		snout_ip.Subtract(*aim);
+		snout_ip.Subtract(snout_p);
 
 		// This rotation now expresses intersect point in x,y coordinates of the snout aperture plane.
 		Toolbox::rotation(pi - rec_az, 2, snout_ip);
@@ -3104,7 +3105,6 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		throw spexception("Receiver geometry not supported for Image Size Aim Point calculation");
 		return;
 	}
-
 	return;
 
 }

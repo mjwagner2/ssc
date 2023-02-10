@@ -76,7 +76,8 @@ public:
 	double RMSSlopeError;
 	double RMSSpecError;
 
-	double Grating[4];	
+	double RefractiveIndex[2]; 	 // Real, Imag
+	double Grating[4];
 	void Write(FILE *fdat);
 };
 

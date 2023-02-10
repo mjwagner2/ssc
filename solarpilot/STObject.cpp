@@ -41,6 +41,7 @@ ST_OpticalProperties::ST_OpticalProperties()
 {
 	int i;
 	for (i=0;i<4;i++) Grating[i] = 0;
+	for (i=0;i<2;i++) RefractiveIndex[i] = 0;
 	
 	OpticSurfNumber = 1;
 	ApertureStopOrGratingType = 0;
@@ -63,11 +64,8 @@ ST_OpticalProperties &ST_OpticalProperties::operator=(const ST_OpticalProperties
 	RMSSlopeError = rhs.RMSSlopeError;
 	RMSSpecError = rhs.RMSSpecError;
 	
-	for (int i=0;i<4;i++)
-	{
-		//RefractiveIndex[i] = rhs.RefractiveIndex[i];
-		Grating[i] = rhs.Grating[i];
-	}
+	for (int i=0;i<4;i++) Grating[i] = rhs.Grating[i];
+	for (int i=0;i<2;i++) RefractiveIndex[i] = rhs.RefractiveIndex[i];
 
 	return *this;
 }
@@ -84,7 +82,7 @@ void ST_OpticalProperties::Write(FILE *fdat){
 		DistributionType,
 		ApertureStopOrGratingType, OpticSurfNumber, DiffractionOrder,
 		Reflectivity, Transmissivity, RMSSlopeError, RMSSpecError,
-		0., 0.,
+		RefractiveIndex[0], RefractiveIndex[1],
 		Grating[0], Grating[1], Grating[2], Grating[3] );
 
 }
@@ -784,10 +782,10 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		OpticsList.at(ii)->Front.DiffractionOrder = 0;
 		OpticsList.at(ii)->Front.Reflectivity = refl;
 		OpticsList.at(ii)->Front.Transmissivity = 0.;
+		for(int j=0; j<2; j++) OpticsList.at(ii)->Front.RefractiveIndex[j] = 0.;
 		for(int j=0; j<4; j++) OpticsList.at(ii)->Front.Grating[j] = 0.;
 		OpticsList.at(ii)->Front.RMSSlopeError = errnorm;
 		OpticsList.at(ii)->Front.RMSSpecError = errsurface;
-		//st_optic(cxt, optic[ii], 1, 'g', 0, 0, 0, 0., 0., refl, 0., grating, errnorm, errsurf, 0, 0, NULL, NULL);
 		//add the back
 		OpticsList.at(ii)->Back.DistributionType = 'g';
 		OpticsList.at(ii)->Back.OpticSurfNumber = 0;
@@ -795,6 +793,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		OpticsList.at(ii)->Back.DiffractionOrder = 0;
 		OpticsList.at(ii)->Back.Reflectivity = 0.;
 		OpticsList.at(ii)->Back.Transmissivity = 0.;
+		for(int j=0; j<2; j++) OpticsList.at(ii)->Back.RefractiveIndex[j] = 0.;
 		for(int j=0; j<4; j++) OpticsList.at(ii)->Back.Grating[j] = 0.;
 		OpticsList.at(ii)->Back.RMSSlopeError = 100.0;
 		OpticsList.at(ii)->Back.RMSSpecError = 0.;
@@ -1704,14 +1703,14 @@ void ST_System::LoadIntoContext(ST_System *System, st_context_t spcxt){
 		ST_OpticalProperties *f = &System->OpticsList[nopt]->Front;
 		st_optic(spcxt, idx, 1, f->DistributionType,
 			f->OpticSurfNumber, f->ApertureStopOrGratingType, f->DiffractionOrder,
-			0., 0.,
+			f->RefractiveIndex[0], f->RefractiveIndex[1],
 			f->Reflectivity, f->Transmissivity,
 			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL, 0, 0, NULL, NULL );
 
 		f = &System->OpticsList[nopt]->Back;
 		st_optic(spcxt, idx, 2, f->DistributionType,
 			f->OpticSurfNumber, f->ApertureStopOrGratingType, f->DiffractionOrder,
-			0., 0.,
+			f->RefractiveIndex[0], f->RefractiveIndex[1],
 			f->Reflectivity, f->Transmissivity,
 			f->Grating, f->RMSSlopeError, f->RMSSpecError, 0, 0, NULL, NULL, 0, 0, NULL, NULL );
 	}

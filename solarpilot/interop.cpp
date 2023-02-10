@@ -1112,6 +1112,7 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 
 	//Collect all of the results
 	int ind = 0;
+	int rstart = 0;
 	for (int i = 0; i < nc; i++)
 	{
 		int cs = csizes.at(i);
@@ -1122,11 +1123,25 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		st_stagemap(contexts.at(i), &SimC._STSim->IntData.smap[ind]);
 		st_raynumbers(contexts.at(i), &SimC._STSim->IntData.rnum[ind]);
 
+		// Make rays numbers unique by adding the previous context max ray number
+		if (i != 0) {
+			int c_max_rays = 0;
+			for (int j = 0; j < cs; j++) {
+				if (SimC._STSim->IntData.smap[ind + j] == 2) { // hit stage 2
+					c_max_rays = SimC._STSim->IntData.rnum[ind + j - 1]; //max ray number was last ray of stage 1
+					break; // once we hit stage 2 we're done
+				}
+			}
+			rstart += c_max_rays; // Update ray numbers
+			for (int j = 0; j < cs; j++) {
+				SimC._STSim->IntData.rnum[ind + j] += rstart;
+			}
+		}
+
 		int nsr;
 		st_sun_stats(contexts.at(i), &bounds[0], &bounds[1], &bounds[2], &bounds[3], &nsr);    //Bounds should always be the same
 		SimC._STSim->IntData.nsunrays += nsr;
 		ind += cs;
-
 	}
 
 	//DNI
@@ -1155,6 +1170,12 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		P.dni = dni;
 		double azzen[2] = { az, PI / 2. - el };
 		results.back().process_raytrace_simulation(SF, P, 2, azzen, helios, SimC._STSim->IntData.q_ray, SimC._STSim->IntData.emap, SimC._STSim->IntData.smap, SimC._STSim->IntData.rnum, nint, bounds);
+	
+		// Correct Intercept efficiency based on Ray tracing
+		for (int i = 0; i < (int)helios.size(); i++) {
+			helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
+			helios.at(i)->correctInterceptEfficiency();
+		}
 	}
 
 	//If the user wants to save stage0 ray data, do so here
@@ -1356,12 +1377,72 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			}
 			break;
 		}
+		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
+		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
+		{
+			// Aperture window - Cannot be determined without modifing ST set-up
+			fs = &Rec->getFluxSurfaces()->at(0);
+			fs->ClearFluxGrid();
+
+			//The number of points in the flux grid 
+			//(x-axis receiver width, y axis is receiver height)
+			nfx = fs->getFluxNX();
+			nfy = fs->getFluxNY();
+
+			int n_panels = RV->n_panels.val;
+
+			Arec = Rec->getAbsorberArea();
+			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy * n_panels);
+
+			// Get curtain surface flux
+			for (int i = 1; i <= n_panels; i++) {
+				fs = &Rec->getFluxSurfaces()->at(i);
+				fs->ClearFluxGrid();
+				fg = fs->getFluxMap();
+
+				e_ind = i; //element index for this receiver
+			
+				rel = 0.0;
+				raz = RV->rec_azimuth.val * D2R;
+
+				double ap_height = RV->rec_height.val;
+
+				rh = fs->getSurfaceHeight();
+				rw = RV->max_curtain_width.Val();
+
+				sp_point offset = *fs->getSurfaceOffset();
+				offset.z += RV->optical_height.Val();
+
+				for (int j = 0; j < SimC._STSim->IntData.nint; j++)
+				{    //loop through each intersection
+
+					if (SimC._STSim->IntData.smap[j] != rstage1 || abs(SimC._STSim->IntData.emap[j]) != e_ind) continue;    //only consider rays that interact with this element
+
+					//Where did the ray hit relative to the location of the receiver?
+					rayhit.Set(SimC._STSim->IntData.hitx[j] - offset.x, SimC._STSim->IntData.hity[j] - offset.y, SimC._STSim->IntData.hitz[j] - offset.z);
+
+					//Do any required transform to get the ray intersection into receiver coordinates
+					Toolbox::rotation(PI - raz, 2, rayhit);
+					Toolbox::rotation(-rel, 0, rayhit);
+
+					//Calculate the point location in relative cylindrical coorinates
+					pw = 0.5 + rayhit.i / rw;    //0 at "starboard" side, increase towards "port"
+					ph = 0.5 + rayhit.k / rh;    //0 for flux grid at bottom of the panel, 1 at top
+
+					//Calculate which bin to add this ray to in the flux grid
+					ibin = int(floor(pw * nfx));
+					jbin = int(floor(ph * nfy));
+
+					//Add the magnitude of the flux to the correct bin
+					fg->at(ibin).at(jbin).flux += dqspec;
+				}
+			}
+			break;
+		}
 		case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:
 		case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:
 		case Receiver::REC_GEOM_TYPE::POLYGON_OPEN:
 		case Receiver::REC_GEOM_TYPE::POLYGON_CAV:
-		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
-		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		default:
 			return false;
 			break;
@@ -1579,7 +1660,7 @@ void interop::CreateResultsTable(sim_result& result, grid_emulator_base& table)
 			table.AddRow(id++, "Absorption efficiency", "%", 100. * result.eff_absorption.wtmean, 2);
 			table.AddRow(id++, "Solar field optical efficiency", "%", 100. * result.eff_total_sf.wtmean / result.eff_absorption.wtmean, 2);
 			table.AddRow(id++, "Optical efficiency incl. receiver", "%", 100. * result.eff_total_sf.wtmean, 2);
-			table.AddRow(id++, "Incident flux", "kW/m2", result.flux_density.ave, -1, result.flux_density.min, result.flux_density.max, result.flux_density.stdev);
+			table.AddRow(id++, "Incident flux", "kW/m2", result.flux_density.ave, -1, nan, result.flux_density.min, result.flux_density.max, result.flux_density.stdev);
 			table.AddRow(id++, "No. rays traced", "-", result.num_ray_traced, 0);
 			table.AddRow(id++, "No. heliostat ray intersections", "-", result.num_ray_heliostat, 0);
 			table.AddRow(id++, "No. receiver ray intersections", "-", result.num_ray_receiver, 0);
@@ -2145,18 +2226,40 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 		num_heliostats_used = (int)helios.size();
 		for(int i=0; i<num_heliostats_used; i++){
 			total_heliostat_area += helios.at(i)->getArea();
+			helios.at(i)->resetInterceptCorrection();
 		}
         double dni = P.dni; //W/m2
-
+		
+		// vector of heliostat values with the ray as the index
+		var_receiver* RV = SF.getReceivers()->at(0)->getVarMap();
+		int max_rec_e = 1; //Maximum Receiver element number, it is assumed that absorbing elements are between zero and this value
+		if (RV->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) {
+			max_rec_e = RV->n_panels.val;
+		}
+		int max_rays = *std::max_element(rnum, rnum + ntot);
+		std::vector<int> ray_helios(max_rays+1, -1); // Rays start at 1
+		var_heliostat* Hv = helios.front()->getVarMap();
+		int npanels = 1;
+		if (Hv->is_faceted.val) {
+			npanels = Hv->n_cant_x.val * Hv->n_cant_y.val;
+		}
 
 		//Process the ray data
 		int st, st0=0, ray, ray0=0, el;
 		int nhin=0, nhout=0, nhblock=0, nhabs=0, nrin=0, nrspill=0, nrabs=0;
+		int h_ind;
 
 		for(int i=0; i<ntot; i++){ //for each ray hit
 			st = smap[i];	//Stage
 			ray = rnum[i];	//Ray number
 			el = emap[i];	//Element
+
+			//Determine the heliostat from the element number in stage 1
+			if (st == 1) { //Heliostat stage
+				if (ray_helios[ray] == -1) { // first intersection only
+					ray_helios[ray] = (std::abs(el) - 1) / npanels;
+				}
+			}
 			
 			//Check first to see if the ray number has changed without logging data
 			if((ray != ray0) && (ray0 != 0)){
@@ -2184,13 +2287,13 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 				}
 				else{  //Receiver
 					nrin++;
-					nrabs++;
+					if (el >= -max_rec_e) nrabs++; // Absorbed only if ray it receiver element
 				}
 				ray0 = 0;
 				st0 = 0;
 			}
 			else if( el == 0 ){ //Element map is 0 - a ray missed the receiver
-				nrspill++;
+				nrspill++; // This is not used
 
 				ray0 = 0;
 				st0 = 0;
@@ -2199,6 +2302,32 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 				st0 = st;
 				ray0 = ray;
 			}
+		}
+
+		// Go through the rays again for updating intercept efficiency because we now know the heliostat associated with each ray
+		std::vector<double> rec_hit_rays(helios.size(), 0.0);
+		std::vector<double> ref_rays(helios.size(), 1.e-7);
+		ray0 = 0;
+		for (int i = 0; i < ntot; i++) { //for each ray hit
+			st = smap[i];	//Stage
+			ray = rnum[i];	//Ray number
+			el = emap[i];	//Element
+
+			//Check if ray hits target on first intersection
+			if (st == 2 && ray != ray0) { // Recevier stage and new ray
+				h_ind = ray_helios[ray];
+				ref_rays[h_ind] += 1.;
+				if (std::abs(el) <= max_rec_e && el != 0) { // if ray hits receiver element
+					rec_hit_rays[h_ind] += 1.;
+				}
+			}
+			ray0 = ray;
+		}
+
+		// Using ray data to update heliostat intercept efficiency
+		for (int i = 0; i < num_heliostats_used; i++) {
+			helios.at(i)->setTotFlux(ref_rays[i]);
+			helios.at(i)->setFluxHitRec(rec_hit_rays[i]);
 		}
 
 		int nsunrays = (int)boxinfo[4];

@@ -536,6 +536,7 @@ ST_System::ST_System()
 	sim_raymax=100000;
 	sim_errors_sunshape=true;
 	sim_errors_optical=true;
+	aperture_virtual_stage = false;
 }
 
 ST_System::~ST_System()
@@ -576,13 +577,6 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 	SolTrace simulation object.
 	*/
 
-
-	//Resize the stage list. There will be 2 stages -- the heliostat field and the reciever
-	if(StageList.size() != 0) ClearAll();
-	for(int i=0; i<2; i++){
-		StageList.push_back( new ST_Stage() );
-	}
-	
     var_map *V = SF.getVarMap();
 
 	/*--- Configure sun shape ---*/
@@ -806,8 +800,10 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 
 	this contains all heliostats regardless of differeing geometry or optical properties
 	*/
+	if (StageList.size() != 0) ClearAll(); //Clear the stage list.
+	StageList.push_back(new ST_Stage());
 
-	ST_Stage *h_stage = StageList.at(0);
+	ST_Stage* h_stage = StageList.back();
 	//global origin
 	h_stage->Origin[0] = 0.;
 	h_stage->Origin[1] = 0.;
@@ -995,9 +991,11 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			}
 		}
 	}
-		
+	/*--- Create a virtual stage ---*/
+
 	/*--- Set the receiever stages ---*/
-	ST_Stage *r_stage = StageList.at(1);
+	StageList.push_back(new ST_Stage());
+	ST_Stage *r_stage = StageList.back();
 	//Global origin
 	r_stage->Origin[0] = 0.;
 	r_stage->Origin[1] = 0.;
@@ -1227,33 +1225,92 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		{
+			sp_point rec_offset;
+			rec_offset.Set(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
+
+			//Creating a virtual stage for the aperture
+			aperture_virtual_stage = true;
+			r_stage->ZRot = rv->rec_azimuth.val;
+			r_stage->Name = "Aperture";
+			r_stage->Virtual = true;
+			r_stage->TraceThrough = true;
+
+			ST_Element* element;
+			r_stage->ElementList.push_back(new ST_Element());
+			element = r_stage->ElementList.back();
+			element->Enabled = true;
+
+			double element_height, element_width;
+			element->Origin[0] = rec_offset.x;
+			if (!rv->is_snout.val) {// No snout aperture window
+				element_height = rv->rec_height.val;
+				element_width = rv->rec_width.val;
+
+				element->Origin[1] = rec_offset.y;
+				element->Origin[2] = rec_offset.z;
+			}
+			else {// Snout window
+				element_height = rv->rec_height.val + rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
+				element_width = rv->rec_width.val + 2 * rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
+
+				element->Origin[1] = rv->snout_depth.val + rec_offset.y;
+				element->Origin[2] = rv->rec_height.val/2. - element_height/2. + rec_offset.z;
+			}
+			element->AimPoint[0] = element->Origin[0];
+			element->AimPoint[1] = element->Origin[1] + 1;
+			element->AimPoint[2] = element->Origin[2];
+			element->ZRot = 0.;
+
+			element->ShapeIndex = 'r';
+			element->Ap_A = element_width;
+			element->Ap_B = element_height;
+
+			element->SurfaceIndex = 'f';
+			//element->InteractionType = 1;	 // ignored by SolTrace
+			//element->OpticName = "aperture"; // ignored by SolTrace
+			//element->Optics = copt;			 // ignored by SolTrace
+			element->Comment = "Aperture";
+
+			/*--- Re-adding receiver stage ---*/
+			StageList.push_back(new ST_Stage());
+			ST_Stage* r_stage = StageList.back();
+			//Global origin
+			r_stage->Origin[0] = 0.;
+			r_stage->Origin[1] = 0.;
+			r_stage->Origin[2] = 0.;
+			//Aim point
+			r_stage->AimPoint[0] = 0.;
+			r_stage->AimPoint[1] = 0.;
+			r_stage->AimPoint[2] = 1.;
 			// Accounting for azimuth angle in stage z rotation
-			r_stage->ZRot = rv->rec_azimuth.val; // TODO: make sure this works in post processing...
+			r_stage->ZRot = rv->rec_azimuth.val;
+			//{virtual stage, multiple hits per ray, trace through} UI checkboxes
+			r_stage->Virtual = false;
+			r_stage->MultiHitsPerRay = true;
+			r_stage->TraceThrough = false;
+			//Name
+			r_stage->Name = "Receiver";
 
 			//**** Add optics stage *****//
 			copt->Name = (rv->rec_name.val).c_str();
 			//set the optical properties. This should be a diffuse surface, make it a pillbox distribution w/ equal angular reflection probability.
-			copt->Front.DistributionType = 'g';
+			copt->Front.DistributionType = 'd';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
-			copt->Front.Reflectivity = 1. - rv->absorptance.val;
-			copt->Front.Transmissivity = 0.4; // TODO: Update this to change properties as a function of curtain height
-			copt->Front.RMSSlopeError = 100.;
-			copt->Front.RMSSpecError = 100.;
+			//copt->Front.Reflectivity = 1. - rv->absorptance.val;
+			copt->Front.Transmissivity = 0.; // TODO: Update this to change properties as a function of curtain height
+			copt->Front.RMSSlopeError = 0.00001;
+			copt->Front.RMSSpecError = 10000.;
 			//back
-			copt->Back.DistributionType = 'g';
+			copt->Back.DistributionType = 'd';
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
-			copt->Front.Transmissivity = 0.4; // TODO: Update value based on some equation as a function of height
-			copt->Back.Reflectivity = 1. - rv->absorptance.val;
-			copt->Back.RMSSlopeError = 100.;
-			copt->Back.RMSSpecError = 100.;
-
-			sp_point rec_offset;
-			rec_offset.Set(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
+			copt->Front.Transmissivity = 0.;
+			//copt->Back.Reflectivity = 1. - rv->absorptance.val;
+			copt->Back.RMSSlopeError = 0.00001;
+			copt->Back.RMSSpecError = 10000.;
 
 			sp_point* pos;
-			ST_Element* element;
 			//**** Add particle curtain *****//
 			FluxSurfaces* fs = rec->getFluxSurfaces();
 			for (int s = 1; s < fs->size(); s++) {
@@ -1294,7 +1351,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 					element->Su_A = 1. / surface.getSurfaceRadius();
 				}
 
-				element->InteractionType = 2;
+				element->InteractionType = 1; // Refraction surface for transmissivity
 				element->OpticName = (rv->rec_name.val).c_str();
 				element->Optics = copt;
 				element->Comment = "Particle Curtain " + std::to_string(s);
@@ -1308,20 +1365,20 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt = OpticsList.back();
 			copt->Name = cavity_opt_name;
 			//set the optical properties. (Front)
-			copt->Front.DistributionType = 'g';
+			copt->Front.DistributionType = 'd';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
 			copt->Front.Reflectivity = 0.9; // Assuming white paint
 			copt->Front.Transmissivity = 0.;
-			copt->Front.RMSSlopeError = 1000.;
+			copt->Front.RMSSlopeError = 0.00001;
 			copt->Front.RMSSpecError = 1000.;
 			//back surface optics
-			copt->Back.DistributionType = 'g';
+			copt->Back.DistributionType = 'd';
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
 			copt->Front.Transmissivity = 0.; 
 			copt->Back.Reflectivity = 0.9; // Assuming white paint
-			copt->Back.RMSSlopeError = 1000.;
+			copt->Back.RMSSlopeError = 0.00001;
 			copt->Back.RMSSpecError = 1000.;
 
 			//Bottom

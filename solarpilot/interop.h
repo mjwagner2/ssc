@@ -290,7 +290,7 @@ public:
 
 	void process_analytical_simulation(SolarField &SF, sim_params &P, int nsim_type, double sun_az_zen[2], Hvector* helios=0, Rvector* recs=0);
 
-	void process_raytrace_simulation(SolarField &SF, sim_params &P, int nsim_type, double sun_az_zen[2], Hvector &helios, double qray, int *emap, int *smap, int *rnum, int ntot, double *boxinfo);
+	void process_raytrace_simulation(SolarField& SF, sim_params& P, int nsim_type, double sun_az_zen[2], Hvector& helios, ST_System* STsim);
 
 	void process_flux(SolarField *SF, bool normalize);
 	

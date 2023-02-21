@@ -1169,7 +1169,7 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		sim_params P;
 		P.dni = dni;
 		double azzen[2] = { az, PI / 2. - el };
-		results.back().process_raytrace_simulation(SF, P, 2, azzen, helios, SimC._STSim->IntData.q_ray, SimC._STSim->IntData.emap, SimC._STSim->IntData.smap, SimC._STSim->IntData.rnum, nint, bounds);
+		results.back().process_raytrace_simulation(SF, P, 2, azzen, helios, SimC._STSim);
 	
 		// Correct Intercept efficiency based on Ray tracing
 		for (int i = 0; i < (int)helios.size(); i++) {
@@ -1252,6 +1252,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 {
 	//Collect all of the rays that hit the receiver(s) into the flux profile
 	int rstage1 = 2;
+	if (SimC._STSim->aperture_virtual_stage) rstage1 = 3;
 
 	for (int r = 0; r < (int)SF.getReceivers()->size(); r++)
 	{
@@ -2215,14 +2216,13 @@ void sim_result::process_analytical_simulation(SolarField &SF, sim_params &P, in
 
 }
 
-void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int nsim_type, double sun_az_zen[2], Hvector &helios, double qray, int *emap, int *smap, int *rnum, int ntot, double *boxinfo)
+void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int nsim_type, double sun_az_zen[2], Hvector& helios, ST_System* STsim)
 {
 	is_soltrace = true;
 	/* sim_type: 2=flux simulation, 3=parametric */
 	initialize();
 	sim_type = nsim_type;
 	if(sim_type == 2){
-
 		num_heliostats_used = (int)helios.size();
 		for(int i=0; i<num_heliostats_used; i++){
 			total_heliostat_area += helios.at(i)->getArea();
@@ -2232,11 +2232,12 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 		
 		// vector of heliostat values with the ray as the index
 		var_receiver* RV = SF.getReceivers()->at(0)->getVarMap();
-		int max_rec_e = 1; //Maximum Receiver element number, it is assumed that absorbing elements are between zero and this value
-		if (RV->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) {
-			max_rec_e = RV->n_panels.val;
-		}
-		int max_rays = *std::max_element(rnum, rnum + ntot);
+		int max_rec_e = 1; //Maximum Receiver element number, it is assumed that heat absorbing elements are between zero and this value
+		if (RV->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) max_rec_e = RV->n_panels.val;
+		int rstage = 2; // Receiver stage
+		if (STsim->aperture_virtual_stage) rstage = 3; // Aperature is virtual stage (stage=2)
+
+		int max_rays = *std::max_element(STsim->IntData.rnum, STsim->IntData.rnum + STsim->IntData.nint);
 		std::vector<int> ray_helios(max_rays+1, -1); // Rays start at 1
 		var_heliostat* Hv = helios.front()->getVarMap();
 		int npanels = 1;
@@ -2246,75 +2247,49 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 
 		//Process the ray data
 		int st, st0=0, ray, ray0=0, el;
-		int nhin=0, nhout=0, nhblock=0, nhabs=0, nrin=0, nrspill=0, nrabs=0;
+		int nhin=0, nhout=0, nhblock=0, nhabs=0, nrin=0, nrabs=0;
 		int h_ind;
+		for(int i=0; i<STsim->IntData.nint; i++){ //for each ray hit
+			st = STsim->IntData.smap[i];	//Stage
+			ray = STsim->IntData.rnum[i];	//Ray number
+			el = STsim->IntData.emap[i];	//Element
 
-		for(int i=0; i<ntot; i++){ //for each ray hit
-			st = smap[i];	//Stage
-			ray = rnum[i];	//Ray number
-			el = emap[i];	//Element
+			if (st == 1) { // Heliostat stage
+				//Determine the heliostat from the element number in stage 1, first intersection only
+				if (ray_helios[ray] == -1) ray_helios[ray] = (std::abs(el) - 1) / npanels;
 
-			//Determine the heliostat from the element number in stage 1
-			if (st == 1) { //Heliostat stage
-				if (ray_helios[ray] == -1) { // first intersection only
-					ray_helios[ray] = (std::abs(el) - 1) / npanels;
-				}
-			}
-			
-			//Check first to see if the ray number has changed without logging data
-			if((ray != ray0) && (ray0 != 0)){
-				if( st0 == 1){ //Heliostat stage
-					//Ray was successfully reflected out of the field
-					nhin++;
-					nhout++;
-				}
-				else{ //Receiver stage
-					//Ray was lost through reflection from the receiver
-					nrin++;
-				}
-				ray0 = 0;
-				st0 = 0;
-			}
-
-			if(el < 0){
-				//Ray was absorbed 
-				if(st == 1){ //Heliostat
-					nhin++;
-					if( ray == ray0 ) //Multiple intersections within heliostat field, meaning blocking occurred
-						nhblock++;
-					else
+				if (el > 0 && ray != ray0) nhin++; // Reflected, no second reflection allowed
+				else if (el < 0) { // Absorbed
+					if (ray == ray0) nhblock++;    //Multiple intersections within heliostat field, meaning blocking occurred
+					else {
 						nhabs++; //Single intersection -- reflectivity loss
+						nhin++;
+					}
 				}
-				else{  //Receiver
-					nrin++;
-					if (el >= -max_rec_e) nrabs++; // Absorbed only if ray it receiver element
-				}
-				ray0 = 0;
-				st0 = 0;
 			}
-			else if( el == 0 ){ //Element map is 0 - a ray missed the receiver
-				nrspill++; // This is not used
-
-				ray0 = 0;
-				st0 = 0;
+			else if (STsim->aperture_virtual_stage && st == rstage - 1) { // Aperture stage
+				if (el > 0) nrin++; // Aperture hit
 			}
-			else{
-				st0 = st;
-				ray0 = ray;
+			else if (st == rstage) { // Receiver stage
+				if (!STsim->aperture_virtual_stage && el != 0) nrin++; // Reflected or Absorbed
+				
+				if (el < 0 && el >= -max_rec_e) nrabs++; // Absorbed only if ray hits heat absorbing receiver elements
 			}
+			ray0 = ray; // previous ray
 		}
+		nhout = nhin - nhabs - nhblock; // rays in field less absorbed and blocked
 
 		// Go through the rays again for updating intercept efficiency because we now know the heliostat associated with each ray
 		std::vector<double> rec_hit_rays(helios.size(), 0.0);
 		std::vector<double> ref_rays(helios.size(), 1.e-7);
 		ray0 = 0;
-		for (int i = 0; i < ntot; i++) { //for each ray hit
-			st = smap[i];	//Stage
-			ray = rnum[i];	//Ray number
-			el = emap[i];	//Element
+		for (int i = 0; i < STsim->IntData.nint; i++) { //for each ray hit
+			st = STsim->IntData.smap[i];	//Stage
+			ray = STsim->IntData.rnum[i];	//Ray number
+			el = STsim->IntData.emap[i];	//Element
 
 			//Check if ray hits target on first intersection
-			if (st == 2 && ray != ray0) { // Recevier stage and new ray
+			if (st == 2 && ray != ray0) { // Aperture or recevier stage and new ray
 				h_ind = ray_helios[ray];
 				ref_rays[h_ind] += 1.;
 				if (std::abs(el) <= max_rec_e && el != 0) { // if ray hits receiver element
@@ -2323,22 +2298,21 @@ void sim_result::process_raytrace_simulation(SolarField &SF, sim_params &P, int 
 			}
 			ray0 = ray;
 		}
-
 		// Using ray data to update heliostat intercept efficiency
 		for (int i = 0; i < num_heliostats_used; i++) {
 			helios.at(i)->setTotFlux(ref_rays[i]);
 			helios.at(i)->setFluxHitRec(rec_hit_rays[i]);
 		}
 
-		int nsunrays = (int)boxinfo[4];
-		double Abox = (boxinfo[0] - boxinfo[1])*(boxinfo[2] - boxinfo[3]);
+		int nsunrays = (int)STsim->IntData.bounds[4];
+		double Abox = (STsim->IntData.bounds[0] - STsim->IntData.bounds[1])*(STsim->IntData.bounds[2] - STsim->IntData.bounds[3]);
 
         num_ray_traced = nsunrays;
         num_ray_heliostat = nhin;
         num_ray_receiver = nrin;
 
 		power_on_field = total_heliostat_area *dni;	//[kW]
-		power_absorbed = qray * nrabs;
+		power_absorbed = STsim->IntData.q_ray * nrabs;
         power_thermal_loss = SF.getReceiverTotalHeatLoss();
         power_piping_loss = SF.getReceiverPipingHeatLoss();
         power_to_htf = power_absorbed - (power_thermal_loss + power_piping_loss);

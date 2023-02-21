@@ -3354,9 +3354,11 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 		SimulateHeliostatEfficiency(this, Sun, _heliostats.at(i), P);
 		
 		// Correct Intercept efficiency for image size priority but not if SolTrace
-		if (method == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY && flux_model != var_fluxsim::FLUX_MODEL::SOLTRACE) {
-			_heliostats.at(i)->setInterceptCorrection(_heliostats.at(i)->getFluxHitRec() / _heliostats.at(i)->getTotflux());
-			_heliostats.at(i)->correctInterceptEfficiency();
+		if (!P.is_layout) {
+			if (method == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY && flux_model != var_fluxsim::FLUX_MODEL::SOLTRACE) {
+				_heliostats.at(i)->setInterceptCorrection(_heliostats.at(i)->getFluxHitRec() / _heliostats.at(i)->getTotflux());
+				_heliostats.at(i)->correctInterceptEfficiency();
+			}
 		}
 	}
 

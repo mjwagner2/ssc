@@ -258,12 +258,14 @@ struct ST_System
 	std::vector<ST_OpticalPropertySet*> OpticsList;
 	std::vector<ST_Stage*> StageList;
 
-
 	// system simulation context data
 	int sim_raycount;
 	int sim_raymax;
 	bool sim_errors_sunshape;
 	bool sim_errors_optical;
+
+	// simulation flags
+	bool aperture_virtual_stage; // Is there a virtual stage at receiver aperture?
 
 	// simulation outputs
 	ST_RayData AllRayData;

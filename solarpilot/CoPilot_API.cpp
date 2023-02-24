@@ -1695,7 +1695,7 @@ SPEXPORT const char* sp_detail_results_header(sp_data_t p_data, bool get_corners
     return nullptr;
 }
 
-SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id = 0, int flux_surf = 0)
+SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, int rec_id = -1, int flux_surf = -1)
 {
     /*
 	Retrieve the receiver fluxmap, optionally specifying the receiver ID and/or flux surface to retrieve.
@@ -1709,9 +1709,9 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
 
     // Get receiver
     Receiver *rec;
-    if (rec_id != 0)
+    if (rec_id != -1)
     {
-        if (rec_id > SF->getReceivers()->size() - 1)
+        if (rec_id > SF->getReceivers()->size() - 1 || rec_id < 0)
             return nullptr;
 
         rec = SF->getReceivers()->at(rec_id);
@@ -1723,9 +1723,9 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
 
     // Get flux surface
     FluxGrid* fg;
-    if (flux_surf != 0)
+    if (flux_surf != -1)
     {
-        if (flux_surf > rec->getFluxSurfaces()->size() - 1)
+        if (flux_surf > rec->getFluxSurfaces()->size() - 1 || flux_surf < 0)
             return nullptr;
 
         fg = rec->getFluxSurfaces()->at(flux_surf).getFluxMap();

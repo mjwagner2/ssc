@@ -62,7 +62,9 @@ class Heliostat : public mod_base
 		_mu_G,		//Moments of the error distribution
 		_mu_M,		//Moments of the mirror shape
 		_mu_F,		//Flux moments distrubution - result
-		_hcoef;		//Hermite coefficients
+		_hcoef,		//Hermite coefficients
+		_hc_tht; 		//Hermite coefs depending on tower height - equiv. to mu_F, reused in optimization calcs
+
 	bool
 		_in_layout, // Is the heliostat included in the final layout?
 		_is_user_canted,	//Are the panels canted according to user-specified values?

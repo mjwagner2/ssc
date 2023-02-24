@@ -82,7 +82,6 @@ matrix_t<double> *Heliostat::getSunShapeCoefObject(){return &_mu_S;}
 matrix_t<double> *Heliostat::getErrorDistCoefObject(){return &_mu_G;}
 matrix_t<double> *Heliostat::getFluxMomentsObject(){return &_mu_F;}
 matrix_t<double> *Heliostat::getHermiteCoefObject(){return &_hcoef;}
-matrix_t<double> *Heliostat::getHermiteNormCoefObject(){return &_hc_tht;}
 double *Heliostat::getImageSize(){return _image_size_xy;}
 void Heliostat::getImageSize(double &sigx_n, double &sigy_n){ sigx_n = _image_size_xy[0]; sigy_n = _image_size_xy[1];}
 string *Heliostat::getHeliostatName(){return &_helio_name;}
@@ -775,7 +774,6 @@ void Heliostat::CopyImageData(const Heliostat *Hsrc){
 		_mu_M,		//Moments of the mirror shape
 		_mu_F,		//Flux moments distrubution - result
 		_hcoef,		//Hermite coefficients
-		_hc_tht; 		//Hermite coefs depending on tower height - equiv. to mu_F, reused in optimization calcs
 	*/
 	int nr, nc;
 
@@ -819,11 +817,4 @@ void Heliostat::CopyImageData(const Heliostat *Hsrc){
 	_hcoef.resize(nc);
 	for(int j=0; j<nc; j++)
 		_hcoef.at(j) = Hsrc->_hcoef.at(j);
-	//_hc_tht
-	nr = (int)Hsrc->_hc_tht.nrows();
-	nc = (int)Hsrc->_hc_tht.ncols();
-	_hc_tht.resize(nr,nc);
-	for(int i=0; i<nr; i++)
-		for(int j=0; j<nc; j++)
-			_hc_tht.at(i,j) = Hsrc->_hc_tht.at(i,j);
 }

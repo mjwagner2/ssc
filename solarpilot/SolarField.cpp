@@ -3327,15 +3327,13 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 		for(int i=0; i<(int)_layout_groups.size(); i++){
 			
 			Hvector *hg = &_layout_groups.at(i);
-
 			int ngroup = (int)hg->size();
-
 			if(ngroup == 0) continue;
 
 			Heliostat *helios = hg->front(); // just use the first one
 			double eta_int = _flux->imagePlaneIntercept(*_var_map, *helios, helios->getWhichReceiver(), &Sun);
 			if( eta_int > 1.) eta_int = 1.;
-			helios->setEfficiencyIntercept( fmin(eta_int, 1.) );
+			helios->setEfficiencyIntercept( eta_int );
 
 			for(int k=1; k<ngroup; k++){
 				hg->at(k)->setEfficiencyIntercept( eta_int );

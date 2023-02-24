@@ -1031,7 +1031,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		
 		//append an optics set, required for the receiver
 		OpticsList.push_back( new ST_OpticalPropertySet() );
-		ST_OpticalPropertySet *copt = OpticsList.at(OpticsList.size()-1);
+		ST_OpticalPropertySet *copt = OpticsList.back();
 
 		switch (recgeom)
 		{
@@ -1225,49 +1225,216 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		{
+			aperture_virtual_stage = true;
+
 			sp_point rec_offset;
 			rec_offset.Set(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
 
-			//Creating a virtual stage for the aperture
-			aperture_virtual_stage = true;
-			r_stage->ZRot = rv->rec_azimuth.val;
-			r_stage->Name = "Aperture";
-			r_stage->Virtual = true;
-			r_stage->TraceThrough = true;
-
 			ST_Element* element;
-			r_stage->ElementList.push_back(new ST_Element());
-			element = r_stage->ElementList.back();
-			element->Enabled = true;
+			// Creating a stage for the SNOUT -> This must occur before the virtual aperture stage
+			if (rv->is_snout.val) {
+				// Modifying last stage added
+				ST_Stage* snout_stage = StageList.back(); //Renaming r_stage
+				snout_stage->ZRot = rv->rec_azimuth.val;
+				snout_stage->Name = "SNOUT";
+				snout_stage->Virtual = false;
+				snout_stage->MultiHitsPerRay = true;
+				snout_stage->TraceThrough = true;
 
-			double element_height, element_width;
-			element->Origin[0] = rec_offset.x;
-			if (!rv->is_snout.val) {// No snout aperture window
-				element_height = rv->rec_height.val;
-				element_width = rv->rec_width.val;
+				//**** SNOUT Surfaces *****//
+				// Create a diffuse-like optic surface 
+				std::string snout_opt_name = "SNOUT Surface";
+				copt->Name = snout_opt_name;
+				//set the optical properties. (Front)
+				copt->Front.DistributionType = 'f'; // diffuse
+				copt->Front.OpticSurfNumber = 0;
+				copt->Front.ApertureStopOrGratingType = 0;
+				copt->Front.Reflectivity = 0.9; // Assuming white paint
+				copt->Front.Transmissivity = 0.;
+				copt->Front.RMSSlopeError = 0.00001;
+				copt->Front.RMSSpecError = 1000.;
+				//back surface optics
+				copt->Back.DistributionType = 'f';
+				copt->Back.OpticSurfNumber = 0;
+				copt->Back.ApertureStopOrGratingType = 0;
+				copt->Front.Transmissivity = 0.;
+				copt->Back.Reflectivity = 0.9; // Assuming white paint
+				copt->Back.RMSSlopeError = 0.00001;
+				copt->Back.RMSSpecError = 1000.;
 
+				//SNOUT Top Panel
+				snout_stage->ElementList.push_back(new ST_Element());
+				element = snout_stage->ElementList.back();
+				element->Enabled = true;
+
+				element->Origin[0] = rec_offset.x;
+				element->Origin[1] = rec_offset.y;
+				element->Origin[2] = rv->rec_height.val / 2. + rec_offset.z;
+
+				element->AimPoint[0] = element->Origin[0];
+				element->AimPoint[1] = element->Origin[1];
+				element->AimPoint[2] = element->Origin[2] - 1.;
+				element->ZRot = 0.0;
+
+				element->ShapeIndex = 'q';
+				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_B = rv->snout_depth.val;
+				element->Ap_C = -rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_D = rv->snout_depth.val;
+				element->Ap_E = -rv->rec_width.val / 2.;
+				element->Ap_F = 0.;
+				element->Ap_G = rv->rec_width.val / 2.;
+				element->Ap_H = 0.;
+
+				element->SurfaceIndex = 'f';
+				element->InteractionType = 2;
+				element->OpticName = snout_opt_name;
+				element->Optics = copt;
+				element->Comment = "SNOUT Top Panel";
+
+				//SNOUT Bottom Panel
+				snout_stage->ElementList.push_back(new ST_Element());
+				element = snout_stage->ElementList.back();
+				element->Enabled = true;
+
+				element->Origin[0] = rec_offset.x;
+				element->Origin[1] = rec_offset.y;
+				element->Origin[2] = -rv->rec_height.val / 2. + rec_offset.z;
+
+				element->AimPoint[0] = element->Origin[0];
+				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_vert_angle.val * D2R);
+				element->AimPoint[2] = element->Origin[2] + cos(rv->snout_vert_angle.val * D2R);
+				element->ZRot = 0.0;
+
+				element->ShapeIndex = 'q';
+				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_B = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
+				element->Ap_C = -rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_D = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
+				element->Ap_E = -rv->rec_width.val / 2.;
+				element->Ap_F = 0.;
+				element->Ap_G = rv->rec_width.val / 2.;
+				element->Ap_H = 0.;
+
+				element->SurfaceIndex = 'f';
+				element->InteractionType = 2;
+				element->OpticName = snout_opt_name;
+				element->Optics = copt;
+				element->Comment = "SNOUT Bottom Panel";
+
+				//SNOUT East Panel
+				snout_stage->ElementList.push_back(new ST_Element());
+				element = snout_stage->ElementList.back();
+				element->Enabled = true;
+
+				element->Origin[0] = rv->rec_width.val / 2. + rec_offset.x;
 				element->Origin[1] = rec_offset.y;
 				element->Origin[2] = rec_offset.z;
-			}
-			else {// Snout window
-				element_height = rv->rec_height.val + rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
-				element_width = rv->rec_width.val + 2 * rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
 
-				element->Origin[1] = rv->snout_depth.val + rec_offset.y;
-				element->Origin[2] = rv->rec_height.val/2. - element_height/2. + rec_offset.z;
+				element->AimPoint[0] = element->Origin[0] - cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
+				element->AimPoint[2] = element->Origin[2];
+				element->ZRot = 90.;
+
+				element->ShapeIndex = 'q';
+				element->Ap_A = 0.;
+				element->Ap_B = rv->rec_height.val / 2.;
+				element->Ap_C = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_D = rv->rec_height.val / 2.;
+				element->Ap_E = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_F = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
+				element->Ap_G = 0.;
+				element->Ap_H = -rv->rec_height.val / 2.;
+
+				element->SurfaceIndex = 'f';
+				element->InteractionType = 2;
+				element->OpticName = snout_opt_name;
+				element->Optics = copt;
+				element->Comment = "SNOUT East Panel";
+
+				//SNOUT West Panel
+				snout_stage->ElementList.push_back(new ST_Element());
+				element = snout_stage->ElementList.back();
+				element->Enabled = true;
+
+				element->Origin[0] = -rv->rec_width.val / 2. + rec_offset.x;
+				element->Origin[1] = 0. + rec_offset.y;
+				element->Origin[2] = 0. + rec_offset.z;
+
+				element->AimPoint[0] = element->Origin[0] + cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
+				element->AimPoint[2] = element->Origin[2];
+				element->ZRot = -90.;
+
+				element->ShapeIndex = 'q';
+				element->Ap_A = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_B = rv->rec_height.val / 2.;
+				element->Ap_C = 0.;
+				element->Ap_D = rv->rec_height.val / 2.;
+				element->Ap_E = 0.;
+				element->Ap_F = -rv->rec_height.val / 2.;
+				element->Ap_G = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
+				element->Ap_H = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
+
+				element->SurfaceIndex = 'f';
+				element->InteractionType = 2;
+				element->OpticName = snout_opt_name;
+				element->Optics = copt;
+				element->Comment = "SNOUT West Panel";
+
+				/*--- Re-adding receiver stage ---*/
+				StageList.push_back(new ST_Stage());
+				ST_Stage* r_stage = StageList.back();
+				//Global origin
+				r_stage->Origin[0] = 0.;
+				r_stage->Origin[1] = 0.;
+				r_stage->Origin[2] = 0.;
+				//Aim point
+				r_stage->AimPoint[0] = 0.;
+				r_stage->AimPoint[1] = 0.;
+				r_stage->AimPoint[2] = 1.;
+				// Accounting for azimuth angle in stage z rotation
+				r_stage->ZRot = rv->rec_azimuth.val;
+				//{virtual stage, multiple hits per ray, trace through} UI checkboxes
+				r_stage->Virtual = false;
+				r_stage->MultiHitsPerRay = true;
+				r_stage->TraceThrough = false;
+				//Name
+				r_stage->Name = "Receiver";
+
+				//append an optics set, required for the receiver
+				OpticsList.push_back(new ST_OpticalPropertySet());
+				copt = OpticsList.back();
 			}
+
+			// Creating a virtual stage for the aperture
+			// Modifying the last stage added
+			ST_Stage* ap_stage = StageList.back(); //Renaming r_stage
+			ap_stage->ZRot = rv->rec_azimuth.val;
+			ap_stage->Name = "Aperture";
+			ap_stage->Virtual = true;
+			ap_stage->TraceThrough = false;
+
+			ap_stage->ElementList.push_back(new ST_Element());
+			element = ap_stage->ElementList.back();
+			element->Enabled = true;
+
+			element->Origin[0] = rec_offset.x;
+			element->Origin[1] = rec_offset.y;
+			element->Origin[2] = rec_offset.z;
+
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1] + 1;
 			element->AimPoint[2] = element->Origin[2];
 			element->ZRot = 0.;
 
 			element->ShapeIndex = 'r';
-			element->Ap_A = element_width;
-			element->Ap_B = element_height;
+			element->Ap_A = rv->rec_width.val;
+			element->Ap_B = rv->rec_height.val;
 
 			element->SurfaceIndex = 'f';
-			//element->InteractionType = 1;	 // ignored by SolTrace
-			//element->OpticName = "aperture"; // ignored by SolTrace
+			//element->InteractionType = 1;		 // ignored by SolTrace
+			//element->OpticName = "aperture";	 // ignored by SolTrace
 			//element->Optics = copt;			 // ignored by SolTrace
 			element->Comment = "Aperture";
 
@@ -1294,18 +1461,18 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			//**** Add optics stage *****//
 			copt->Name = (rv->rec_name.val).c_str();
 			//set the optical properties. This should be a diffuse surface, make it a pillbox distribution w/ equal angular reflection probability.
-			copt->Front.DistributionType = 'd';
+			copt->Front.DistributionType = 'f';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
 			//copt->Front.Reflectivity = 1. - rv->absorptance.val;
-			copt->Front.Transmissivity = 0.; // TODO: Update this to change properties as a function of curtain height
+			copt->Front.Transmissivity = 0.3; // TODO: Update this to change properties as a function of curtain height
 			copt->Front.RMSSlopeError = 0.00001;
 			copt->Front.RMSSpecError = 10000.;
 			//back
-			copt->Back.DistributionType = 'd';
+			copt->Back.DistributionType = 'f';
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
-			copt->Front.Transmissivity = 0.;
+			copt->Front.Transmissivity = 0.3;
 			//copt->Back.Reflectivity = 1. - rv->absorptance.val;
 			copt->Back.RMSSlopeError = 0.00001;
 			copt->Back.RMSSpecError = 10000.;
@@ -1365,7 +1532,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt = OpticsList.back();
 			copt->Name = cavity_opt_name;
 			//set the optical properties. (Front)
-			copt->Front.DistributionType = 'd';
+			copt->Front.DistributionType = 'f';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
 			copt->Front.Reflectivity = 0.9; // Assuming white paint
@@ -1373,7 +1540,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt->Front.RMSSlopeError = 0.00001;
 			copt->Front.RMSSpecError = 1000.;
 			//back surface optics
-			copt->Back.DistributionType = 'd';
+			copt->Back.DistributionType = 'f';
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
 			copt->Front.Transmissivity = 0.; 
@@ -1577,128 +1744,6 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element->OpticName = cavity_opt_name;
 			element->Optics = copt;
 			element->Comment = "Cavity Front West";
-
-			if (rv->is_snout.val) {
-				//SNOUT Top Panel
-				r_stage->ElementList.push_back(new ST_Element());
-				element = r_stage->ElementList.back();
-				element->Enabled = true;
-
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = rv->rec_height.val/2. + rec_offset.z;
-
-				element->AimPoint[0] = element->Origin[0];
-				element->AimPoint[1] = element->Origin[1];
-				element->AimPoint[2] = element->Origin[2] - 1.;
-				element->ZRot = 0.0;
-
-				element->ShapeIndex = 'q';
-				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->snout_depth.val;
-				element->Ap_C = -rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->snout_depth.val;
-				element->Ap_E = -rv->rec_width.val / 2.;
-				element->Ap_F = 0.;
-				element->Ap_G = rv->rec_width.val / 2.;
-				element->Ap_H = 0.;
-
-				element->SurfaceIndex = 'f';
-				element->InteractionType = 2;
-				element->OpticName = cavity_opt_name;
-				element->Optics = copt;
-				element->Comment = "SNOUT Top Panel";
-
-				//SNOUT Bottom Panel
-				r_stage->ElementList.push_back(new ST_Element());
-				element = r_stage->ElementList.back();
-				element->Enabled = true;
-
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = -rv->rec_height.val / 2. + rec_offset.z;
-
-				element->AimPoint[0] = element->Origin[0];
-				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_vert_angle.val * D2R);
-				element->AimPoint[2] = element->Origin[2] + cos(rv->snout_vert_angle.val * D2R);
-				element->ZRot = 0.0;
-
-				element->ShapeIndex = 'q';
-				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
-				element->Ap_C = - rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
-				element->Ap_E = -rv->rec_width.val / 2.;
-				element->Ap_F = 0.;
-				element->Ap_G = rv->rec_width.val / 2.;
-				element->Ap_H = 0.;
-
-				element->SurfaceIndex = 'f';
-				element->InteractionType = 2;
-				element->OpticName = cavity_opt_name;
-				element->Optics = copt;
-				element->Comment = "SNOUT Bottom Panel";
-
-				//SNOUT East Panel
-				r_stage->ElementList.push_back(new ST_Element());
-				element = r_stage->ElementList.back();
-				element->Enabled = true;
-
-				element->Origin[0] = rv->rec_width.val / 2. + rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = rec_offset.z;
-
-				element->AimPoint[0] = element->Origin[0] - cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
-				element->AimPoint[2] = element->Origin[2];
-				element->ZRot = 90.;
-
-				element->ShapeIndex = 'q';
-				element->Ap_A = 0.;
-				element->Ap_B = rv->rec_height.val / 2.;
-				element->Ap_C = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->rec_height.val / 2.;
-				element->Ap_E = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_F = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
-				element->Ap_G = 0.;
-				element->Ap_H = -rv->rec_height.val / 2.;
-
-				element->SurfaceIndex = 'f';
-				element->InteractionType = 2;
-				element->OpticName = cavity_opt_name;
-				element->Optics = copt;
-				element->Comment = "SNOUT East Panel";
-
-				//SNOUT West Panel
-				r_stage->ElementList.push_back(new ST_Element());
-				element = r_stage->ElementList.back();
-				element->Enabled = true;
-
-				element->Origin[0] = -rv->rec_width.val / 2. + rec_offset.x;
-				element->Origin[1] = 0. + rec_offset.y;
-				element->Origin[2] = 0. + rec_offset.z;
-
-				element->AimPoint[0] = element->Origin[0] + cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
-				element->AimPoint[2] = element->Origin[2];
-				element->ZRot = -90.;
-
-				element->ShapeIndex = 'q';
-				element->Ap_A = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->rec_height.val / 2.;
-				element->Ap_C = 0.;
-				element->Ap_D = rv->rec_height.val / 2.;
-				element->Ap_E = 0.;
-				element->Ap_F = -rv->rec_height.val / 2.;
-				element->Ap_G = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_H = -rv->rec_height.val/ 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
-
-				element->SurfaceIndex = 'f';
-				element->InteractionType = 2;
-				element->OpticName = cavity_opt_name;
-				element->Optics = copt;
-				element->Comment = "SNOUT West Panel";
-			}
 			break;
 		}
 		case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:

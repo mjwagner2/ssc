@@ -1251,8 +1251,7 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 {
 	//Collect all of the rays that hit the receiver(s) into the flux profile
-	int rstage1 = 2;
-	if (SimC._STSim->aperture_virtual_stage) rstage1 = 3;
+	int rstage1 = SimC._STSim->StageList.size();
 
 	for (int r = 0; r < (int)SF.getReceivers()->size(); r++)
 	{
@@ -1381,21 +1380,57 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 		case Receiver::REC_GEOM_TYPE::FALL_FLAT:
 		case Receiver::REC_GEOM_TYPE::FALL_CURVE:
 		{
-			// Aperture window - Cannot be determined without modifing ST set-up
+			// Aperture window
+			int apstage = SimC._STSim->StageList.size() - 1; // Aperture is the penultimate stage
 			fs = &Rec->getFluxSurfaces()->at(0);
 			fs->ClearFluxGrid();
+			fg = fs->getFluxMap();
+
+			rel = RV->rec_elevation.val * D2R;
+			raz = RV->rec_azimuth.val * D2R;
+			rh = RV->rec_height.val;
+			rw = RV->rec_width.val;
+
+			sp_point offset(RV->rec_offset_x_global.Val(), RV->rec_offset_y_global.Val(), RV->optical_height.Val());   //optical height includes z offset
 
 			//The number of points in the flux grid 
 			//(x-axis receiver width, y axis is receiver height)
 			nfx = fs->getFluxNX();
 			nfy = fs->getFluxNY();
 
-			int n_panels = RV->n_panels.val;
+			Arec = rh*rw;
+			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy);
 
+			for (int j = 0; j < SimC._STSim->IntData.nint; j++)
+			{    //loop through each intersection
+
+				if (SimC._STSim->IntData.smap[j] != apstage || abs(SimC._STSim->IntData.emap[j]) != 1) continue;    //only consider rays that interact with this element
+
+				//Where did the ray hit relative to the location of the receiver?
+				rayhit.Set(SimC._STSim->IntData.hitx[j] - offset.x, SimC._STSim->IntData.hity[j] - offset.y, SimC._STSim->IntData.hitz[j] - offset.z);
+
+				//Do any required transform to get the ray intersection into receiver coordinates
+				Toolbox::rotation(PI - raz, 2, rayhit);
+				Toolbox::rotation(-rel, 0, rayhit);
+
+				//Calculate the point location in relative cylindrical coorinates
+				pw = 0.5 + rayhit.i / rw;    //0 at "starboard" side, increase towards "port"
+				ph = 0.5 + rayhit.k / rh;    //0 for flux grid at bottom of the panel, 1 at top
+
+				//Calculate which bin to add this ray to in the flux grid
+				ibin = int(floor(pw * nfx));
+				jbin = int(floor(ph * nfy));
+
+				//Add the magnitude of the flux to the correct bin
+				fg->at(ibin).at(jbin).flux += dqspec;
+			}
+
+			// Get curtain surface flux
+			int n_panels = RV->n_panels.val;
 			Arec = Rec->getAbsorberArea();
 			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy * n_panels);
 
-			// Get curtain surface flux
+			// Loop through curtain surfaces
 			for (int i = 1; i <= n_panels; i++) {
 				fs = &Rec->getFluxSurfaces()->at(i);
 				fs->ClearFluxGrid();
@@ -2234,8 +2269,7 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 		var_receiver* RV = SF.getReceivers()->at(0)->getVarMap();
 		int max_rec_e = 1; //Maximum Receiver element number, it is assumed that heat absorbing elements are between zero and this value
 		if (RV->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) max_rec_e = RV->n_panels.val;
-		int rstage = 2; // Receiver stage
-		if (STsim->aperture_virtual_stage) rstage = 3; // Aperature is virtual stage (stage=2)
+		int rstage = STsim->StageList.size(); // Receiver stage
 
 		int max_rays = *std::max_element(STsim->IntData.rnum, STsim->IntData.rnum + STsim->IntData.nint);
 		std::vector<int> ray_helios(max_rays+1, -1); // Rays start at 1
@@ -2283,13 +2317,15 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 		std::vector<double> rec_hit_rays(helios.size(), 0.0);
 		std::vector<double> ref_rays(helios.size(), 1.e-7);
 		ray0 = 0;
+		int intercept_stage = 2;
+		if (STsim->aperture_virtual_stage) intercept_stage = STsim->StageList.size() - 1;
 		for (int i = 0; i < STsim->IntData.nint; i++) { //for each ray hit
 			st = STsim->IntData.smap[i];	//Stage
 			ray = STsim->IntData.rnum[i];	//Ray number
 			el = STsim->IntData.emap[i];	//Element
 
 			//Check if ray hits target on first intersection
-			if (st == 2 && ray != ray0) { // Aperture or recevier stage and new ray
+			if (st == intercept_stage && ray != ray0) { // Aperture or recevier stage and new ray
 				h_ind = ray_helios[ray];
 				ref_rays[h_ind] += 1.;
 				if (std::abs(el) <= max_rec_e && el != 0) { // if ray hits receiver element

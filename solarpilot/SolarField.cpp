@@ -4310,10 +4310,12 @@ void SolarField::CalcDimensionalFluxProfiles(Hvector &helios)
     {
 		FluxSurfaces *surfaces = (*rec)->getFluxSurfaces();
 
-        double Arec = (*rec)->getAbsorberArea();
-
 		for(unsigned int i=0; i<surfaces->size(); i++)
         {
+			double Arec = (*rec)->getAbsorberArea();
+			if ((*rec)->getVarMap()->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE && i == 0)
+				Arec = (*rec)->getVarMap()->rec_width.val * (*rec)->getVarMap()->rec_height.val;	// Receiver Aperture Area
+
 			FluxSurface *fs = &surfaces->at(i);
 					
 			//Take the normalized flux values and multiply to get flux density [kW/m2]

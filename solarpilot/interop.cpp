@@ -1398,7 +1398,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			nfx = fs->getFluxNX();
 			nfy = fs->getFluxNY();
 
-			Arec = rh*rw;
+			Arec = rh*rw; // aperture area
 			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy);
 
 			for (int j = 0; j < SimC._STSim->IntData.nint; j++)

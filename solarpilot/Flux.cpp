@@ -1353,7 +1353,12 @@ double Flux::imagePlaneIntercept(var_map &V, Heliostat &H, Receiver *Rec, Vect *
 	//DELSOL3 8412-8450
 	matrix_t<double>* mu_F = H.getFluxMomentsObject();
 	mu_F->resize_fill(_n_terms, _n_terms, 0.0);
+	/*int nrf=0;
+	for(i=1;i<_n_terms+1;i++){ for(j=JMN(i-1); j<JMX(i-1)+1; j+=2){nrf++;} }
+	matrix_t<double>* hc_tht = H.getHermiteNormCoefObject();
+	hc_tht->resize_fill(nrf,4,0.0);	//Hermite coef. dependence on tower height*/
 
+	//double tsave[7];
 	double binom_temp0, binom_temp1, ugs;
 	int ipak=0, nmin, nmax, lmin, mk, ki, kp1, km1;
 	double comb_ord = mu_S->at(0,0) * mu_G->at(0,0) * mu_M->at(0,0);	//combined moments at the ordinate
@@ -1401,6 +1406,10 @@ double Flux::imagePlaneIntercept(var_map &V, Heliostat &H, Receiver *Rec, Vect *
 			}
 			//normalize for unit flux
 			mu_F->at(m-1,n-1) = temp_res*comb_ord_inv;
+			/*hc_tht->at(ipak-1, 0) = tsave[0];
+			hc_tht->at(ipak-1, 1) = tsave[2];
+			hc_tht->at(ipak-1, 2) = tsave[4];
+			hc_tht->at(ipak-1, 3) = tsave[6];*/	//save these coefficients for use in other optimization runs
 		}
 	}
 	
@@ -1415,8 +1424,6 @@ double Flux::imagePlaneIntercept(var_map &V, Heliostat &H, Receiver *Rec, Vect *
         return 0.0;
     else
         return heval;
-
-	// here is after image size has been determine -> here is where I can adjust intercept factor based on integral approach
 
 	// ** probably here is where we should call the flux density calculation. The flux will depend on 
 	// information calculated in the hermiteIntEval method. _hcoef array.
@@ -1445,6 +1452,7 @@ double Flux::hermiteIntEval(Heliostat &H, Receiver *Rec)
 
 	*/
 	matrix_t<double> *mu_F = H.getFluxMomentsObject();
+	//matrix_t<double> *hc_tht = H.getHermiteNormCoefObject();  //this structure isn't actually used here
 
     int nrf=0;
 	for(int i=1;i<_n_terms+1;i++)
@@ -1463,11 +1471,11 @@ double Flux::hermiteIntEval(Heliostat &H, Receiver *Rec)
 	//Set the standard deviation of the image (scaled by tower height) for the heliostat
 	H.setImageSize(sig_x2, sig_y2);
 
-	int npak = nrf*4;
+	int npak = nrf*4; //(int)hc_tht->ncells();
 
 	//for optimization runs, don't do spillage calculations
 	matrix_t<double> h_spill, axi, ayi;
-	h_spill.resize_fill(1, nrf, 0.0);
+	h_spill.resize_fill(1, nrf, 0.0); // hc_tht->nrows(), 0.0);
 	axi.resize_fill(1, _n_terms, 0.0);
 	ayi.resize_fill(1, _n_terms, 0.0);
 

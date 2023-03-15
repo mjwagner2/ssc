@@ -620,6 +620,7 @@ public:
 	
 	PointVect(const PointVect &v);
 	PointVect& operator= (const PointVect &v);
+	PointVect(sp_point &p, Vect &v);
 	PointVect(double px=0.0, double py=0.0, double pz=0.0, double vi=0.0, double vj=0.0, double vk=1.0);
 
 	sp_point *point();
@@ -772,8 +773,10 @@ namespace Toolbox
 	bool pointInPolygon( const std::vector<sp_point> &poly, const sp_point &pt);
 	int polywind(const std::vector< sp_point> &vt, const sp_point &pt);
 	std::vector<sp_point> projectPolygon(std::vector<sp_point> &poly, PointVect &plane) ; 
-    std::vector<sp_point> clipPolygon(std::vector<sp_point> &A, std::vector<sp_point> &B); //construct a polygon that is the intersection of two polygons A and B
-    void poly_from_svg(std::string &svg, std::vector< sp_point > &polygon, bool clear_poly=true);     //construct a polygon from an SVG path
+	//construct a polygon that is the intersection of two polygons A and B
+    std::vector<sp_point> clipPolygon(std::vector<sp_point> &A, std::vector<sp_point> &B);
+	//construct a polygon from an SVG path
+    void poly_from_svg(std::string &svg, std::vector< sp_point > &polygon, bool clear_poly=true);
     void BezierQ(sp_point &start, sp_point &control, sp_point &end, double t, sp_point &result);
     void BezierC(sp_point &start, sp_point &control1, sp_point &control2, sp_point &end, double t, sp_point &result);
 

@@ -1631,6 +1631,16 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 		double hloc_az = atan2(hloc->x, hloc->y);	//Azimuth angle of the heliostat location, receiver is abscissa
 		double rxn = Rv->rec_width.val/tht/2.;		//Normalized half-width of the aperture
 		double ryn = Rv->rec_height.val/tht/2.;		//Normalized half-height of the aperture
+		if (Rv->is_snout.val) {
+			double width, height;
+			if (calculateProjectedSnoutApertureIntersection(H, Rec, &width, &height)) {
+				if (width == 0.0 && height == 0.0) return; // No intersection
+				else {
+					rxn = width / tht / 2.;
+					ryn = height / tht / 2.;
+				}
+			}
+		}
 		double rec_az = Rv->rec_azimuth.val*D2R+pi;			//In DELSOL; user input for RAZM is 180=N; but later adjusted to 0=N
 		double rec_zen = pi/2. - Rv->rec_elevation.val*D2R;		//Receiver zenith angle {90 = horizontal; >90 downward facing
 		if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_zen = pi/2.; // elevation is 0.0
@@ -2402,7 +2412,153 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 	return true;
 }
 
+bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* Rec, double* width, double* height) {
+	/* Calculates width and height of the heliostat's view of aperture through the SNOUT. This is done by projecting the aperture and SNOUT windows
+	on to the heliostat image plane, determining the intersection of these two projections, and projecting the intersection back onto the receiver plane.
+	Once the windows are projected onto the heliostat image plane, there are three cases that can occur:
+		1. The aperture window is completely within SNOUT window -> SNOUT has no impact on heliostat image
+				Returns: Original aperture width and height
+		2. The aperture window does not intersect with the SNOUT window -> Heliostat's view is completely blocked by the SNOUT
+				Returns: A zero width and height
+		3. The aperture window partial intersects the SNOUT window -> The SNOUT partially blocks the Heliostat's view of the aperture
+				Returns: Width and Height of the aperture viewable by the heliostat
 
+		// TODO: Move this method somewhere else -> heliostat? or receiver?
+	*/
+	var_receiver* Rv = Rec->getVarMap();
+	sp_point rec_offset(Rv->rec_offset_x_global.Val(), Rv->rec_offset_y_global.Val(), Rv->optical_height.Val());
+
+	// Heliostat image plane
+	Vect* T = H.getTowerVector();	// Does this include rec_offset? yes
+	sp_point* hloc = H.getLocation();
+
+	sp_point rec_origin(0.0, 0.0, Rv->optical_height.Val());
+	PointVect helio_img_plane(rec_origin, *T);
+
+	// Determine aperture window corner points -> assumes vertical
+	double azi = Rv->rec_azimuth.val;
+	double ap_w = Rv->rec_width.val;
+	double ap_h = Rv->rec_height.val;
+
+	double ap_hw_cos_azi = (ap_w / 2.) * cos(azi * D2R); // aperture half-width cos azimuth
+	double ap_hw_sin_azi = (ap_w / 2.) * sin(azi * D2R); // aperture half-width sin azimuth
+
+	vector<sp_point> ap_win;
+	ap_win.resize(4);
+	ap_win.at(0).Set(ap_hw_cos_azi, -ap_hw_sin_azi, ap_h / 2.);  //upper right (east on a north facing receiver)
+	ap_win.at(1).Set(-ap_hw_cos_azi, ap_hw_sin_azi, ap_h / 2.);  //upper left 
+	ap_win.at(2).Set(-ap_hw_cos_azi, ap_hw_sin_azi, -ap_h / 2.); //lower left
+	ap_win.at(3).Set(ap_hw_cos_azi, -ap_hw_sin_azi, -ap_h / 2.); //lower right
+
+	for (int i = 0; i < ap_win.size(); i++) {
+		ap_win.at(i).Add(rec_offset); // Translate to true receiver location
+	}
+	// Project aperture onto heliostat image plane
+	vector<sp_point> ap_win_proj = Toolbox::projectPolygon(ap_win, helio_img_plane);
+
+	// Determine tower-to-helio vector zenith and azimuth
+	double t2h_zenith = pi/2. + std::atan2(T->k, std::sqrt(std::pow(T->i, 2) + std::pow(T->j, 2)));
+	double t2h_azimuth = std::atan2(-T->i, -T->j);
+
+	// Transform the projection points on to a x-y plane
+	for (int i = 0; i < ap_win_proj.size(); i++) {
+		ap_win_proj.at(i).Subtract(rec_origin); // Translate to origin
+		Toolbox::rotation(-t2h_azimuth, 2, ap_win_proj.at(i));
+		Toolbox::rotation(pi-t2h_zenith, 0, ap_win_proj.at(i));
+	}
+	// Determine snout window corner points -> assumes vertical
+	double s_depth = Rv->snout_depth.val;
+	double s_horiz_angle = Rv->snout_horiz_angle.val;
+	double s_vert_angle = Rv->snout_vert_angle.val;
+
+	double s_width = ap_w + 2. * s_depth * tan(s_horiz_angle / 2. * D2R); // Snout window width
+	double s_hw_cos_azi = (s_width / 2.) * cos(azi * D2R); // snout window half-width cos azimuth
+	double s_hw_sin_azi = (s_width / 2.) * sin(azi * D2R); // snout window half-width sin azimuth
+	double s_low_drop = s_depth * tan(s_vert_angle * D2R); // snout window lower edge drop from aperture
+
+	sp_point s_depth_offset(s_depth * sin(azi * D2R), s_depth * cos(azi * D2R), 0.0); //Snout window offset from aperture
+
+	vector<sp_point> snout_win;
+	snout_win.resize(4);
+	snout_win.at(0).Set(s_hw_cos_azi, -s_hw_sin_azi, ap_h / 2.);				//upper right (east on a north facing receiver)
+	snout_win.at(1).Set(-s_hw_cos_azi, s_hw_sin_azi, ap_h / 2.);				//upper left
+	snout_win.at(2).Set(-s_hw_cos_azi, s_hw_sin_azi, -ap_h / 2. - s_low_drop);	//lower left
+	snout_win.at(3).Set(s_hw_cos_azi, -s_hw_sin_azi, -ap_h / 2. - s_low_drop);	//lower right
+	// Translate to global coordinates
+	for (int i = 0; i < snout_win.size(); i++) {
+		snout_win.at(i).Add(s_depth_offset);
+		snout_win.at(i).Add(rec_offset);
+	}
+
+	// Project snout onto heliostat image plane
+	vector<sp_point> s_win_proj = Toolbox::projectPolygon(snout_win, helio_img_plane);
+	// Transform the projection points on to a x-y plane
+	for (int i = 0; i < s_win_proj.size(); i++) {
+		s_win_proj.at(i).Subtract(rec_origin); // Translate to origin
+		Toolbox::rotation(-t2h_azimuth, 2, s_win_proj.at(i));
+		Toolbox::rotation(pi-t2h_zenith, 0, s_win_proj.at(i));
+	}
+
+	// Determine special cases where clipping is not required
+	bool is_ap_within_snout = true;			// Is aperture window within snout?
+	bool is_projections_overlap = false;	// Do the two projections overlap?
+	for (int i = 0; i < ap_win_proj.size(); i++) {
+		if (Toolbox::pointInPolygon(s_win_proj, ap_win_proj.at(i))) { // point is within Polygon
+			is_projections_overlap = true;	// only one point needs to be within projection
+		}
+		else { // point is outside of Polygon
+			is_ap_within_snout = false;		// only one point need to be outside
+			// TODO: add a tolerance to remove cases where the aperture falls on (or very close to) the snout projection.
+		}
+	}
+
+	if (is_ap_within_snout) { // Snout doesn't impact image, return aperture width and height
+		*width = Rv->rec_width.val;
+		*height = Rv->rec_height.val;
+		return true;
+	}
+	else if (!is_projections_overlap) { // Projections do not overlap
+		*width = 0.0;
+		*height = 0.0;
+		return true;
+	}
+	else if (is_projections_overlap && !is_ap_within_snout) { // Projections overlap
+		// Determine intersection of the two projections using Sutherland-Hodgeman Algorithm 
+		vector<sp_point> intsection_proj = Toolbox::clipPolygon(ap_win_proj, s_win_proj);
+
+		// Transform the to global coordinates
+		for (int i = 0; i < intsection_proj.size(); i++) {
+			Toolbox::rotation(-(pi - t2h_zenith), 0, intsection_proj.at(i));
+			Toolbox::rotation(t2h_azimuth, 2, intsection_proj.at(i));
+		}
+		// Get receiver plane (aperture)
+		PointVect rec_norm_plane;
+		Rec->CalculateNormalVector(rec_norm_plane);
+
+		// Determine intersection on the receiver plane and Transform the points on to a x-y plane
+		for (int i = 0; i < intsection_proj.size(); i++) {
+			Toolbox::plane_intersect(*rec_norm_plane.point(), *rec_norm_plane.vect(), intsection_proj.at(i), *T, intsection_proj.at(i));
+			Toolbox::rotation(-Rv->rec_azimuth.val, 2, intsection_proj.at(i));
+			Toolbox::rotation(pi / 2. - Rv->rec_elevation.val, 0, intsection_proj.at(i));
+		}
+
+		double area = std::abs(Toolbox::area_polygon(intsection_proj));
+		// Calculate envelope width
+		double max_x = intsection_proj.at(0).x,
+			min_x = intsection_proj.at(0).x;
+		for (int i = 1; i < intsection_proj.size(); i++) {
+			max_x = std::max(max_x, intsection_proj.at(i).x);
+			min_x = std::min(min_x, intsection_proj.at(i).x);
+		}
+		*width = max_x - min_x;
+		*height = area / *width; // Determine height preserving area
+		return true;
+	}
+	else {
+		throw spexception("Unexpected error in calculateProjectedSnoutApertureIntersection(). Contact user support.");
+		return false;
+	}
+}
 
 double Flux::hermiteFluxEval(Heliostat *H, double xs, double ys){
 	/* 

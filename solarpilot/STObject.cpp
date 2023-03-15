@@ -1227,9 +1227,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		{
 			aperture_virtual_stage = true;
 
-			sp_point rec_offset;
-			rec_offset.Set(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
-
+			sp_point rec_offset(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
 			ST_Element* element;
 			// Creating a stage for the SNOUT -> This must occur before the virtual aperture stage
 			if (rv->is_snout.val) {

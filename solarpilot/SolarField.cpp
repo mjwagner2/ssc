@@ -3355,7 +3355,7 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 		if (!P.is_layout) {
 			if (method == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY && flux_model != var_fluxsim::FLUX_MODEL::SOLTRACE) {
 				_heliostats.at(i)->setInterceptCorrection(_heliostats.at(i)->getFluxHitRec() / _heliostats.at(i)->getTotflux());
-				_heliostats.at(i)->correctInterceptEfficiency();
+				//_heliostats.at(i)->correctInterceptEfficiency();
 			}
 		}
 	}
@@ -4277,7 +4277,7 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 	
 	for (int i = 0; i < (int)helios.size(); i++) {
 		helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
-		helios.at(i)->correctInterceptEfficiency();
+		//helios.at(i)->correctInterceptEfficiency();
 	}
 }
 

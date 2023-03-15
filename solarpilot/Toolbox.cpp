@@ -173,6 +173,10 @@ PointVect& PointVect::operator= (const PointVect &v) {
 	i = v.i; j=v.j; k=v.k;
 	return *this;
 }
+PointVect::PointVect(sp_point &p, Vect &v) {
+	x = p.x; y = p.y; z = p.z;
+	i = v.i; j = v.j; k = v.k;
+}
 PointVect::PointVect(double px, double py, double pz, double vi, double vj, double vk) 
 {
 	x=px; y=py; z=pz; i=vi; j=vj; k=vk;
@@ -1175,8 +1179,6 @@ void Toolbox::convex_hull(std::vector<sp_point> &points, std::vector<sp_point> &
 		while (k >= t && crossprod(H.at(k-2), H.at(k-1), pointscpy.at(i)) <= 0) k--;
 		H.at(k++) = pointscpy[i];
 	}
- 
-	
 
 	H.resize(k);
 	hull = H;
@@ -1221,7 +1223,7 @@ double Toolbox::area_polygon(std::vector<sp_point> &points){
 
 }
 
-typedef vector<sp_point> Poly;  //Local definitino of polygon, used only in polyclip
+typedef vector<sp_point> Poly;  //Local definition of polygon, used only in polyclip
 class polyclip  
 {
     /*
@@ -1236,64 +1238,63 @@ public:
     Poly clip(Poly &subjectPolygon, Poly &clipPolygon)
     {
         /* 
-        
         http://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
-    
         */        
 
         outputList = subjectPolygon;
-        cp1 = clipPolygon.back();
+        clipEdgeStart = clipPolygon.back();
     
+		// Loop through clipping edges
         for(int i=0; i<(int)clipPolygon.size(); i++)
         {
-            cp2 = clipPolygon.at(i);
-            inputList = outputList;
+            clipEdgeEnd = clipPolygon.at(i);
+			inputList = outputList;
             outputList.clear();
-
-            s = inputList.back();
+			if (inputList.size() == 0.0) break; // polygons do not overlap
+            start = inputList.back();
 
             for(int j=0; j<(int)inputList.size(); j++)
             {
-                e = inputList.at(j);
+                end = inputList.at(j);
+				//start = inputList.at((j - 1) % inputList.size());
 
-                if(inside(&e) ){
-                    if(! inside(&s) )
-                        outputList.push_back( computeIntersection() );
-                    outputList.push_back(e);
+                if(inside(&end) ){ // end point inside clipping edge
+                    if(! inside(&start) ) // start point is not inside clipping edge
+                        outputList.push_back( computeIntersection() ); // out->in case: save intersection and end point
+                    outputList.push_back(end);	// out->in case and in->in case: save end point
                 }
-                else if( inside(&s) ){
-                    outputList.push_back( computeIntersection() );
+                else if( inside(&start) ){
+                    outputList.push_back( computeIntersection() ); // in->out case: save intersection point
                 }
-
-                s = e;
+				// out->out case: save nothing
+                start = end; 
             }
-
-            cp1 = cp2;
-
+            clipEdgeStart = clipEdgeEnd;
         }
 
         return outputList;
     }
 
 private:
-    sp_point cp1, cp2;
+    sp_point clipEdgeStart, clipEdgeEnd;
     Poly outputList, inputList;
-    sp_point s, e;
+    sp_point start, end;   // Start and end points of the edge the subject polygon
 
     bool inside(sp_point *P){
-        return (cp2.x - cp1.x)*(P->y - cp1.y) > (cp2.y - cp1.y)*(P->x - cp1.x);
+		// Is point P left of clipping Edge?
+        return (clipEdgeEnd.x - clipEdgeStart.x)*(P->y - clipEdgeStart.y) > (clipEdgeEnd.y - clipEdgeStart.y)*(P->x - clipEdgeStart.x);
     };
 
     sp_point computeIntersection()
     {
-        sp_point dc = cp1;
-        dc.Subtract(cp2);
+        sp_point dc = clipEdgeStart;
+        dc.Subtract(clipEdgeEnd);
 
-        sp_point dp = s;
-        dp.Subtract(e);
+        sp_point dp = start;
+        dp.Subtract(end);
 
-        double n1 = cp1.x * cp2.y - cp1.y * cp2.x;
-        double n2 = s.x * e.y - s.y * e.x;
+        double n1 = clipEdgeStart.x * clipEdgeEnd.y - clipEdgeStart.y * clipEdgeEnd.x;
+        double n2 = start.x * end.y - start.y * end.x;
         double n3 = 1./ (dc.x * dp.y - dc.y * dp.x);
 
         sp_point ret;
@@ -1308,6 +1309,8 @@ vector<sp_point> Toolbox::clipPolygon(std::vector<sp_point> &A, std::vector<sp_p
     /* 
     Compute the polygon that forms the intersection of two polygons subjectPolygon 
     and clipPolygon. (clipPolygon clips subjectPolygon).
+
+	clipPolygon and subjectPolygon points must be in a counter-clockwise order.
 
     This only considers 2D polygons -- vertices X and Y in "sp_point" structure!
     */

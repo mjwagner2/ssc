@@ -1173,6 +1173,7 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 	
 		// Correct Intercept efficiency based on Ray tracing
 		for (int i = 0; i < (int)helios.size(); i++) {
+			helios.at(i)->setEfficiencyIntercept(1.0); // Reset to 100 %
 			helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
 			helios.at(i)->correctInterceptEfficiency();
 		}

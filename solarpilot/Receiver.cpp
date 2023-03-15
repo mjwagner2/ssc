@@ -992,11 +992,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		FluxSurface* S = &_surfaces.at(0);
 		S->setParent(this);
 		S->setSurfaceGeometry(_var_receiver->rec_height.val, _var_receiver->rec_width.val, 0.);
-		sp_point loc;
-		loc.x = _var_receiver->rec_offset_x_global.Val();
-		loc.y = _var_receiver->rec_offset_y_global.Val();
-		loc.z = _var_receiver->rec_offset_z_global.Val();
-		//loc.Set(0., 0., 0.); // Should the aperture be offset from the curtain? or the Curtain be offset to the aperture;
+		sp_point loc(_var_receiver->rec_offset_x_global.Val(), _var_receiver->rec_offset_y_global.Val(), _var_receiver->rec_offset_z_global.Val());
 		S->setSurfaceOffset(loc);
 
 		// Aperture surface normal

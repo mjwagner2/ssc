@@ -3117,8 +3117,8 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		stretch_factor = Toolbox::dotprod(r_to_h, *NV.vect());
 
 		//Stretch the major vertical axis of the ellipse
-		imsizey = sigy*args[1]/stretch_factor;	
-		imsizex = sigx*args[0];
+		imsizey = sigy*args[0]/stretch_factor;
+		imsizex = sigx*args[1];
 
 		/* 
 		Calculate the reduced aiming window based on the image size. The window defines the range of nodes that are 

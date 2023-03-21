@@ -1632,14 +1632,11 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 		double rxn = Rv->rec_width.val/tht/2.;		//Normalized half-width of the aperture
 		double ryn = Rv->rec_height.val/tht/2.;		//Normalized half-height of the aperture
 		if (Rv->is_snout.val) {
-			double width, height;
-			if (calculateProjectedSnoutApertureIntersection(H, Rec, &width, &height)) {
-				if (width == 0.0 && height == 0.0) return; // No intersection
-				else {
-					rxn = width / tht / 2.;
-					ryn = height / tht / 2.;
-				}
-			}
+			double viewable_aperture[4];
+			calculateProjectedSnoutApertureIntersection(H, Rec, viewable_aperture);
+			rxn = (viewable_aperture[1] - viewable_aperture[0]) / tht / 2.;
+			ryn = (viewable_aperture[3] - viewable_aperture[2]) / tht / 2.;
+ 			if (rxn <= 0.0 && ryn <= 0.0) return; // No intersection
 		}
 		double rec_az = Rv->rec_azimuth.val*D2R+pi;			//In DELSOL; user input for RAZM is 180=N; but later adjusted to 0=N
 		double rec_zen = pi/2. - Rv->rec_elevation.val*D2R;		//Receiver zenith angle {90 = horizontal; >90 downward facing
@@ -2412,18 +2409,24 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 	return true;
 }
 
-bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* Rec, double* width, double* height) {
-	/* Calculates width and height of the heliostat's view of aperture through the SNOUT. This is done by projecting the aperture and SNOUT windows
+bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* Rec, double viewable_aperture[4]) {
+	/* Calculates viewable aperature bounds of the heliostat's view of aperture through the SNOUT. This is done by projecting the aperture and SNOUT windows
 	on to the heliostat image plane, determining the intersection of these two projections, and projecting the intersection back onto the receiver plane.
 	Once the windows are projected onto the heliostat image plane, there are three cases that can occur:
 		1. The aperture window is completely within SNOUT window -> SNOUT has no impact on heliostat image
-				Returns: Original aperture width and height
+				Returns: False, aperture bounds centered on origin
 		2. The aperture window does not intersect with the SNOUT window -> Heliostat's view is completely blocked by the SNOUT
-				Returns: A zero width and height
+				Returns: True, aperture bounds are zero
 		3. The aperture window partial intersects the SNOUT window -> The SNOUT partially blocks the Heliostat's view of the aperture
-				Returns: Width and Height of the aperture viewable by the heliostat
-
-		// TODO: Move this method somewhere else -> heliostat? or receiver?
+				Returns: True, aperture bounds viewable by the heliostat
+		
+		Returns:
+			Boolean: if the SNOUT interferes with the heliostat's view of the aperture
+			viewable_aperture[4]: the bounds of the aperature viewable by the heliostat in the following order: minimum X, maximum X, minimum Y, and maximum Y
+		
+		NOTE: viewable_aperature assumes the aperture center is at the origin.
+		
+		TODO: Move this method somewhere else -> heliostat? or receiver?
 	*/
 	var_receiver* Rv = Rec->getVarMap();
 	sp_point rec_offset(Rv->rec_offset_x_global.Val(), Rv->rec_offset_y_global.Val(), Rv->optical_height.Val());
@@ -2513,13 +2516,17 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	}
 
 	if (is_ap_within_snout) { // Snout doesn't impact image, return aperture width and height
-		*width = Rv->rec_width.val;
-		*height = Rv->rec_height.val;
-		return true;
+		viewable_aperture[0] = -Rv->rec_width.val / 2.;
+		viewable_aperture[1] = Rv->rec_width.val / 2.;
+		viewable_aperture[2] = -Rv->rec_height.val / 2.;
+		viewable_aperture[3] = Rv->rec_height.val / 2.;
+		return false;
 	}
 	else if (!is_projections_overlap) { // Projections do not overlap
-		*width = 0.0;
-		*height = 0.0;
+		viewable_aperture[0] = 0.;
+		viewable_aperture[1] = 0.;
+		viewable_aperture[2] = 0.;
+		viewable_aperture[3] = 0.;
 		return true;
 	}
 	else if (is_projections_overlap && !is_ap_within_snout) { // Projections overlap
@@ -2538,20 +2545,26 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		// Determine intersection on the receiver plane and Transform the points on to a x-y plane
 		for (int i = 0; i < intsection_proj.size(); i++) {
 			Toolbox::plane_intersect(*rec_norm_plane.point(), *rec_norm_plane.vect(), intsection_proj.at(i), *T, intsection_proj.at(i));
-			Toolbox::rotation(-Rv->rec_azimuth.val, 2, intsection_proj.at(i));
+			Toolbox::rotation(pi-Rv->rec_azimuth.val, 2, intsection_proj.at(i));
 			Toolbox::rotation(pi / 2. - Rv->rec_elevation.val, 0, intsection_proj.at(i));
 		}
 
 		double area = std::abs(Toolbox::area_polygon(intsection_proj));
 		// Calculate envelope width
-		double max_x = intsection_proj.at(0).x,
-			min_x = intsection_proj.at(0).x;
+		double min_x = intsection_proj.at(0).x,
+			max_x = intsection_proj.at(0).x,
+			min_y = intsection_proj.at(0).y,
+			max_y = intsection_proj.at(0).y;
 		for (int i = 1; i < intsection_proj.size(); i++) {
-			max_x = std::max(max_x, intsection_proj.at(i).x);
 			min_x = std::min(min_x, intsection_proj.at(i).x);
+			max_x = std::max(max_x, intsection_proj.at(i).x);
+			min_y = std::min(min_y, intsection_proj.at(i).y);
+			max_y = std::max(max_y, intsection_proj.at(i).y);
 		}
-		*width = max_x - min_x;
-		*height = area / *width; // Determine height preserving area
+		viewable_aperture[0] = min_x;	// min x
+		viewable_aperture[1] = max_x;	// max x
+		viewable_aperture[2] = min_y;	// min y
+		viewable_aperture[3] = max_y;	// max y
 		return true;
 	}
 	else {
@@ -2932,7 +2945,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	int isave;
 	Vect r_to_h;
 
-	calcBestReceiverTarget(&H, Recs, tht, isave, &r_to_h);
+	calcBestReceiverTarget(&H, Recs, tht, isave, &r_to_h);	// TODO: Modify this to account for the SNOUT
 
 	//For the selected receiver, determine the aim point
 	Receiver *rec = Recs->at(isave);
@@ -2941,7 +2954,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 	
 	//Associate the receiver with the heliostat
 	H.setWhichReceiver(rec);
-	H.resetInterceptCorrection();
+	H.resetInterceptCorrection();  // TODO: Remove
     
     var_receiver *Rv = rec->getVarMap();
 	double opt_height = Rv->optical_height.Val(); // + rec->getOffsetZ(),       << optical height already includes Z offset
@@ -3126,33 +3139,75 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		of the aperture.
 		*/
 		Toolbox::ellipse_bounding_box(imsizex, imsizey, theta_img, e_bound_box);
-
-
-		if(nfy > 1){
-			//jstart = (int)ceil(imsizey/dy);
-			jstart = (int)ceil(e_bound_box[3]/dy);
+		
+		double viewable_aperture[4];
+		bool is_snout_interfering = false;
+		if (Rv->is_snout.val) {
+			// TODO: update the below function only return viewable aperture for both uses 
+			is_snout_interfering = Flux::calculateProjectedSnoutApertureIntersection(H, rec, viewable_aperture);
+			if (is_snout_interfering) {// shift viewable bounds so the origin occurs at the original lower left by adding the half width and height
+				viewable_aperture[0] += Receiver::getReceiverWidth(*Rv) / 2.;	// left
+				viewable_aperture[1] += Receiver::getReceiverWidth(*Rv) / 2.;	// right
+				viewable_aperture[2] += Rv->rec_height.val / 2.;				// bottom
+				viewable_aperture[3] += Rv->rec_height.val / 2.;				// top
+				for (int i = 0; i < 4; i++) { // if negative it's due to precision
+					if (viewable_aperture[i] < 0.) viewable_aperture[i] = 0.;
+				}
+			}
+		}
+		// Determining flux surface indexing bounds based on minimum image offset from edge
+		if(nfy > 1) { //bottom-top flux surface
+			jstart = (int)ceil(e_bound_box[3]/dy); // starting index is half the bounding box from the edge
 			jend = nfy - jstart;
-			if(jstart > jend-1){
-				jstart = nfy/2-1;
+			if (is_snout_interfering) {
+				if (viewable_aperture[3] - viewable_aperture[2] < sigy) { // image is too big
+					jstart = (int)floor((viewable_aperture[3] + viewable_aperture[2]) / 2. / dy);
+					jend = jstart + 1;
+				}
+				else {
+					jstart += (int)floor(viewable_aperture[2] / dy);
+					jend = (int)floor(viewable_aperture[3] / dy) - (nfy - jend); //subtract original jstart from bound_box
+				}
+			}
+			if(jstart > jend-1) {	// image is too big
+				jstart = nfy/2 + (nfy%2) - 1;	// center point
+				if (is_snout_interfering) {
+					jstart = (int)ceil((viewable_aperture[3] - viewable_aperture[2]) / dy) / 2
+						+ (int)ceil((viewable_aperture[3] - viewable_aperture[2]) / dy) % 2 
+						+ (int)floor(viewable_aperture[2] / dy) - 1;
+				}
 				jend = jstart + 1;
 			}
 		}
-		else{
+		else { // no discretization 
 			jstart = 0;
 			jend = 1;
 		}
-		//istart = (int)ceil(imsizex/dx);
-		istart = (int)ceil(e_bound_box[1]/dx);
-		iend = nfx - istart;
-		if(nfx > 1){
-			isave = istart;
-			jsave = jstart;
-			if(istart > iend-1){
-				istart = nfx/2-1;
+		
+		if(nfx > 1) { //left-right flux surface
+			istart = (int)ceil(e_bound_box[1] / dx); // starting index is half the bounding box from the edge
+			iend = nfx - istart;
+			if (is_snout_interfering) {
+				if (viewable_aperture[1] - viewable_aperture[0] < sigx) { // image is too big
+					istart = (int)floor((viewable_aperture[1] + viewable_aperture[0]) / 2. / dx);
+					iend = istart + 1;
+				}
+				else {
+					istart += (int)floor(viewable_aperture[0] / dx);
+					iend = (int)floor(viewable_aperture[1] / dx) - (nfx - iend); //subtract original jstart from bound_box
+				}
+			}
+			if(istart > iend-1){	// image is too big
+				istart = nfx / 2 + (nfx % 2) - 1;   // center point
+				if (is_snout_interfering) {
+					istart = (int)ceil((viewable_aperture[1] - viewable_aperture[0]) / dx) / 2
+						+ (int)ceil((viewable_aperture[1] - viewable_aperture[0]) / dx) % 2
+						+ (int)floor(viewable_aperture[0] / dx) - 1;
+				}
 				iend = istart+1;
 			}
 		}
-		else{
+		else { // no discretization 
 			istart = 0;
 			iend = 1;
 		}
@@ -3165,24 +3220,21 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
         bool is_user_flux_profile = rec->getVarMap()->flux_profile_type.mapval() == var_receiver::FLUX_PROFILE_TYPE::USER;
 
 		fsave = 9.e9;
-		for(int i=istart; i<iend; i++) // determine node with lowest flux
-        {
+		// Determine flux node with lowest flux
+		for(int i=istart; i<iend; i++) { // left to right
             int iuserflux = (int)(i*iuserflux_s);
 
-			for(int j=jstart; j<jend; j++)
-            {
+			for(int j=jstart; j<jend; j++) { // bottom to top
                 int juserflux = nuserflux_y - (int)(j*juserflux_s) - 1;
 
                 double fdiff = FG->at(i).at(j).flux;
-                if (is_user_flux_profile)
-                {
+                if (is_user_flux_profile) {
                     double fdiff_denom = totflux * ufp->at(juserflux, iuserflux);
                     if (fdiff_denom > 0.)
                         fdiff /= fdiff_denom;
                 }
 
-				if(fdiff < fsave)
-                {
+				if(fdiff < fsave) { // Save index of minimum flux point
 					fsave = fdiff;
 					isave = i; 
 					jsave = j;
@@ -3194,12 +3246,11 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		
 		//-- now calculate the aim point position in the flux plane
 		//vector to aim point in globals
-		aimpos.Set
-        (
+		aimpos.Set(
             Fp->location.x + (Rv->rec_offset_x_global.Val() + FS->getSurfaceOffset()->x), 
 			Fp->location.y + (Rv->rec_offset_y_global.Val() + FS->getSurfaceOffset()->y),
 			Fp->location.z + tht + (Rv->rec_offset_z_global.Val() + FS->getSurfaceOffset()->z)
-        );
+		);
 
         //Heliostat aims at the calculated coordinate
 		haim->Set(aimpos);
@@ -3210,7 +3261,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		//The flux grid needs to be updated after each heliostat
 		HV.clear();
 		HV.push_back(&H);
-		if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux();
+		if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux(); // clear and reset if first heliostat
 		// If a plane rectangle receiver, then update heliostat intercept factors
 		fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, recgeom == Receiver::REC_GEOM_TYPE::PLANE_RECT);
 		if (islast) FS->Normalize();
@@ -3220,26 +3271,21 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 		
 		// calculate the flux for each cavity surface, leaving the flux in dimensional terms
 		FluxSurfaces* fs = rec->getFluxSurfaces();
-		int nSurfs = fs->size() - 1;
 		double flux_all_surfs = 0.;	//keep track of the total accumulated flux on all panels
-        for (int i = 1; i <= nSurfs; i++) { //Update flux grid of each actual receiver panel
+        for (int i = 1; i < fs->size(); i++) { //Update flux grid of each actual receiver panel
             FS = &rec->getFluxSurfaces()->at(i);
-			if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux();
+			if (args[2] == 1.) FS->ClearFluxGridResetMaxFlux(); // clear and reset if first heliostat
 			fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, true);
 			if (islast) flux_all_surfs += FS->getTotalFlux();
         }
 
 		//if this is the last call, now normalize the flux according to the total accumulated flux
-		if (islast)
-		{
-			for (int i = 1; i <= nSurfs; i++)
-			{
+		if (islast) {
+			for (int i = 1; i < fs->size(); i++) {
 				FluxGrid *FG = rec->getFluxSurfaces()->at(i).getFluxMap();
-				for (size_t j = 0; j < FG->size(); j++)
-				{
-					for (size_t k = 0; k < FG->front().size(); k++)
-					{
-						FG->at(j).at(k).flux *= (double)(Rv->n_panels.val) / flux_all_surfs; // (double)(nSurfs) / flux_all_surfs;
+				for (size_t j = 0; j < FG->size(); j++) {
+					for (size_t k = 0; k < FG->front().size(); k++) {
+						FG->at(j).at(k).flux *= (double)(Rv->n_panels.val) / flux_all_surfs; 
 					}
 				}
 			}

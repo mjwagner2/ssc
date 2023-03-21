@@ -4319,22 +4319,13 @@ void SolarField::CalcDimensionalFluxProfiles(Hvector &helios)
 			//Take the normalized flux values and multiply to get flux density [kW/m2]
 			FluxGrid *grid = fs->getFluxMap();
 			double fmax=0.;
-            double maxbin=0.;
-            double ftot=0.;
-            double ftot2 = 0.;
 			int nfy = fs->getFluxNY(), nfx = fs->getFluxNX();
 			double nfynfx = (double)(nfy*nfx);
             double anode = Arec / nfynfx;
 			for(int j=0; j<nfy; j++){
 				for(int k=0; k<nfx; k++){
 					double *pt = &grid->at(k).at(j).flux;
-                    ftot += *pt;
-                    if(*pt > maxbin)
-                        maxbin = *pt;
                     *pt *= q_to_rec[*rec] / anode;
-
-					//*pt *= q_rec_spec*nfynfx;
-                    ftot2 += *pt;
 					if(*pt > fmax)
 						fmax = *pt;	
 				}

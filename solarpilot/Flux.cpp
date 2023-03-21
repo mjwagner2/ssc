@@ -1640,13 +1640,13 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 		}
 		double rec_az = Rv->rec_azimuth.val*D2R+pi;			//In DELSOL; user input for RAZM is 180=N; but later adjusted to 0=N
 		double rec_zen = pi/2. - Rv->rec_elevation.val*D2R;		//Receiver zenith angle {90 = horizontal; >90 downward facing
-		if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_zen = pi/2.; // elevation is 0.0
+		if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) rec_zen = pi/2.; // elevation is assumed 0.0
 		double hloc_az_i = cos(hloc_az);		//Cosine of the heliostat position azimuth angle
 		double hloc_az_j = sin(hloc_az);		//Sine ""
-		double rec_az_i = cos(rec_az);		//Cosine receiver aperture azimuth angle
-		double rec_az_j = sin(rec_az);		//Sine ""
-		double rec_zen_k = cos(rec_zen);	//Cosine receiver aperture zenith angle
-		double rec_zen_j = sin(rec_zen);
+		double rec_az_i = cos(rec_az);			//Cosine receiver aperture azimuth angle
+		double rec_az_j = sin(rec_az);			//Sine ""
+		double rec_zen_k = cos(rec_zen);		//Cosine receiver aperture zenith angle
+		double rec_zen_j = sin(rec_zen);		//Sine ""
 		double cos_view_az = hloc_az_i*rec_az_i + hloc_az_j*rec_az_j;		//cosine of angle between rec. azimuth and helio position azimuth
 		double sin_view_az = hloc_az_i*rec_az_j - hloc_az_j*rec_az_i;		//sine of angle between rec. azimuth and helio position azimuth - sign maintained
 		
@@ -1712,8 +1712,6 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 			if(r11 < 0.) rxn_temp = -rxn;
 			if(r12 < 0.) ryn_temp = -ryn;
             
-
-
             /* 
 		    The DELSOL Hermite integral is inaccurate for heliostat images that are significantly smaller than
 		    the receiver. Perform the integral over a subsection of the receiver if the image is much smaller than 
@@ -1868,12 +1866,10 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
                 aimx_adj = aim->x/tht;
             }
 
-        
             //Set aimpoints
             TA[0] = aimx_adj*r11 + r12 * aimy_adj;
             TA[1] = aimx_adj*r21 + r22 * aimy_adj;
             
-
 			//finish setting up arrays
             G[2] = G[3] = G[4] = 0.;
 			F[2] = F[3] = F[4] = 0.;

@@ -529,6 +529,7 @@ void Receiver::updateCalculatedParameters(var_receiver &V, double tht)
 		    }
 		    else{
 			    _rec_geom = ( Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE );			/* 4 | Planar ellipse		*/
+				// TODO: Can Plane_Ellipse be removed?
 		    }
             break;
 	    }

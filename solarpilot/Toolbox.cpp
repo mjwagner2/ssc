@@ -1109,7 +1109,7 @@ void Toolbox::ellipse_bounding_box(double &A, double &B, double &phi, double sid
 	
 	Governing equations are:
 	x = cx + A*cos(t)*cos(phi) - b*sin(t)*sin(phi)
-	y = cy + b*sin(t)*cos(phi) - a*cos(t)*sin(phi)
+	y = cy + b*sin(t)*cos(phi) + a*cos(t)*sin(phi)
 	
 	where 't' is an eigenvalue with repeating solutions of dy/dt=0
 	
@@ -1121,30 +1121,28 @@ void Toolbox::ellipse_bounding_box(double &A, double &B, double &phi, double sid
 	for Y values:
 	0 = dy/dt = B*cos(t)*cos(phi) - A*sin(t)*sin(phi)
 	--> tan(t) = B*cot(phi)/A
-	--> t = aan( B*cot(phi)/A )
+	--> t = atan( B*cot(phi)/A )
 	
 	*/
 	//double pi = PI;
 
 	//X first
-	//double tx = atan( -B*tan(phi)/A );
-	double tx = atan2( -B*tan(phi), A);
+	double tx = atan2(-B * tan(phi), A);
 	//plug back into the gov. equation
-	double txx = A*cos(tx)*cos(phi) - B*sin(tx)*sin(phi);
+	double txx = A * cos(tx) * cos(phi) - B * sin(tx) * sin(phi);
 	sides[0] = cx + txx/2.;
 	sides[1] = cx - txx/2.;
 	//enforce orderedness
 	if(sides[1] < sides[0]) swap(&sides[0], &sides[1]);
 
 	//Y next
-	double ty = atan2( -B, tan(phi)*A );
-	double tyy = B*sin(ty)*cos(phi) - A*cos(ty)*sin(phi);
+	double ty = atan2(B, tan(phi) * A);
+	//plug back into the gov. equation
+	double tyy = B * sin(ty) * cos(phi) + A * cos(ty) * sin(phi);
 	sides[2] = cy + tyy/2.;
 	sides[3] = cy - tyy/2.;
+	//enforce orderedness
 	if(sides[3] < sides[2]) swap(&sides[3], &sides[2]);
-	
-
-
 }
 
 void Toolbox::convex_hull(std::vector<sp_point> &points, std::vector<sp_point> &hull)

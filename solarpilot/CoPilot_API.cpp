@@ -1424,9 +1424,25 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
         }
         ret.append("Shadowing and Cosine loss, " + std::to_string(Qin - Qwf) + "\n");
 
-        double eta_r = res_map.at("Reflection efficiency") / 100.;
-        ret.append("Reflection loss, " + std::to_string(Qwf * (1. - eta_r)) + "\n");
-        Qwf *= eta_r;
+        double Q_before_ref_att = Qwf;
+        if (is_soltrace) { // SolTrace Reflection and Attenuation Efficiency is grouped
+            double eta_ra = res_map.at("Reflection and Attenuation efficiency") / 100.;
+            Qwf *= eta_ra;
+        }
+        else { // Hermite
+            double eta_ra = res_map.at("Reflection efficiency") * res_map.at("Attenuation efficiency") / 100.;
+            ret.append("Reflection and Attenuation efficiency, " + std::to_string(eta_ra) + "\n");
+
+            double eta_r = res_map.at("Reflection efficiency") / 100.;
+            ret.append("Reflection loss, " + std::to_string(Qwf * (1. - eta_r)) + "\n");
+            Qwf *= eta_r;
+
+            double eta_a = res_map.at("Attenuation efficiency") / 100.;
+            ret.append("Attenuation loss, " + std::to_string(Qwf * (1. - eta_a)) + "\n");
+            Qwf *= eta_a;
+        }
+        ret.append("Reflection and Attenuation loss, " + std::to_string(Q_before_ref_att - Qwf) + "\n");
+
         double eta_b = res_map.at("Blocking efficiency") / 100.;
         ret.append("Blocking loss, " + std::to_string(Qwf*(1. - eta_b)) + "\n");
         Qwf *= eta_b;

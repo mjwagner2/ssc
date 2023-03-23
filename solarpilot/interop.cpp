@@ -1760,7 +1760,7 @@ void interop::CreateResultsTable(sim_result& result, grid_emulator_base& table)
 				100. * result.eff_total_sf.max,
 				100. * result.eff_total_sf.stdev);
 			table.AddRow(id++, "Annualized heliostat efficiency", "%",
-				100. * result.eff_annual.wtmean, 2,
+				100. * result.eff_annual.ave, 2,
 				nan,
 				100. * result.eff_annual.min,
 				100. * result.eff_annual.max,

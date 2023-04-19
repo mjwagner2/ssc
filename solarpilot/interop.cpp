@@ -41,6 +41,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace std;
 
+// Used to get intercept efficiency for each heliostat (For central receviers, requires a lot of rays to be traced)
+#define HELIO_INTERCEPT false;  
 
 //-------------------  arraystring ----------------
 
@@ -1170,13 +1172,6 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		P.dni = dni;
 		double azzen[2] = { az, PI / 2. - el };
 		results.back().process_raytrace_simulation(SF, P, 2, azzen, helios, SimC._STSim);
-	
-		// Correct Intercept efficiency based on Ray tracing
-		for (int i = 0; i < (int)helios.size(); i++) {
-			helios.at(i)->setEfficiencyIntercept(1.0); // Reset to 100 %
-			helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
-			helios.at(i)->correctInterceptEfficiency();
-		}
 	}
 
 	//If the user wants to save stage0 ray data, do so here
@@ -2262,8 +2257,8 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 		num_heliostats_used = (int)helios.size();
 		for(int i=0; i<num_heliostats_used; i++){
 			total_heliostat_area += helios.at(i)->getArea();
-			helios.at(i)->resetInterceptCorrection();
 		}
+		var_heliostat* Hv = helios.front()->getVarMap();
         double dni = P.dni; //W/m2
 		
 		// vector of heliostat values with the ray as the index
@@ -2273,12 +2268,13 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 		int rstage = STsim->StageList.size(); // Receiver stage
 
 		int max_rays = *std::max_element(STsim->IntData.rnum, STsim->IntData.rnum + STsim->IntData.nint);
+#if HELIO_INTERCEPT
 		std::vector<int> ray_helios(max_rays+1, -1); // Rays start at 1
-		var_heliostat* Hv = helios.front()->getVarMap();
 		int npanels = 1;
 		if (Hv->is_faceted.val) {
 			npanels = Hv->n_cant_x.val * Hv->n_cant_y.val;
 		}
+#endif
 
 		//Process the ray data
 		int st, st0=0, ray, ray0=0, el;
@@ -2290,8 +2286,10 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 			el = STsim->IntData.emap[i];	//Element
 
 			if (st == 1) { // Heliostat stage
+#if HELIO_INTERCEPT
 				//Determine the heliostat from the element number in stage 1, first intersection only
-				if (ray_helios[ray] == -1) ray_helios[ray] = (std::abs(el) - 1) / npanels;
+				//if (ray_helios[ray] == -1) ray_helios[ray] = (std::abs(el) - 1) / npanels;
+#endif
 
 				if (el > 0 && ray != ray0) nhin++; // Reflected, no second reflection allowed
 				else if (el < 0) { // Absorbed
@@ -2312,9 +2310,9 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 			}
 			ray0 = ray; // previous ray
 		}
-		nhout = nhin - nhabs - nhblock; // rays in field less absorbed and blocked
-
-		// Go through the rays again for updating intercept efficiency because we now know the heliostat associated with each ray
+#if HELIO_INTERCEPT
+		// Go through the rays again for updating intercept efficiency because 
+		// we now know the heliostat associated with each ray
 		std::vector<double> rec_hit_rays(helios.size(), 0.0);
 		std::vector<double> ref_rays(helios.size(), 1.e-7);
 		ray0 = 0;
@@ -2324,22 +2322,31 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 			st = STsim->IntData.smap[i];	//Stage
 			ray = STsim->IntData.rnum[i];	//Ray number
 			el = STsim->IntData.emap[i];	//Element
+			h_ind = ray_helios[ray];	// Heliostat index
 
-			//Check if ray hits target on first intersection
-			if (st == intercept_stage && ray != ray0) { // Aperture or recevier stage and new ray
-				h_ind = ray_helios[ray];
-				ref_rays[h_ind] += 1.;
-				if (std::abs(el) <= max_rec_e && el != 0) { // if ray hits receiver element
-					rec_hit_rays[h_ind] += 1.;
+			// Repeated algorithm from above
+			if (st == 1) { // Heliostat stage
+				if (el > 0 && ray != ray0) ref_rays[h_ind] += 1.; // Reflected, no second reflection allowed
+				else if (el < 0) { // Absorbed
+					if (ray == ray0) ref_rays[h_ind] -= 1.;    //Multiple intersections within heliostat field, meaning blocking occurred
+					else {
+						ref_rays[h_ind] -= 1.; //Single intersection -- reflectivity loss
+						ref_rays[h_ind] += 1.;
+					}
 				}
 			}
-			ray0 = ray;
+			//Check if ray hits target on first intersection
+			if (st == intercept_stage && ray != ray0 && el != 0) { // Aperture or recevier stage and new ray
+				rec_hit_rays[h_ind] += 1.;
+			}
+			ray0 = ray;  // previous ray
 		}
-		// Using ray data to update heliostat intercept efficiency
+		// Using ray data to update heliostat intercept efficiency -> TODO: Fix this
 		for (int i = 0; i < num_heliostats_used; i++) {
-			helios.at(i)->setTotFlux(ref_rays[i]);
-			helios.at(i)->setFluxHitRec(rec_hit_rays[i]);
+			helios.at(i)->setEfficiencyIntercept(rec_hit_rays[i] / ref_rays[i]);
+			helios.at(i)->calcPowerEnergy(P);
 		}
+#endif
 
 		int nsunrays = (int)STsim->IntData.bounds[4];
 		double Abox = (STsim->IntData.bounds[0] - STsim->IntData.bounds[1])*(STsim->IntData.bounds[2] - STsim->IntData.bounds[3]);
@@ -2348,17 +2355,25 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
         num_ray_heliostat = nhin;
         num_ray_receiver = nrin;
 
+		// Adjust ray counts based on the heliostat reflective surface radio -> assumes constant precent of rays are lost
+		nhin *= Hv->reflect_ratio.val;
+		nhabs *= Hv->reflect_ratio.val;
+		nhblock *= Hv->reflect_ratio.val;
+		nrin *= Hv->reflect_ratio.val;
+		nrabs *= Hv->reflect_ratio.val;
+		nhout = nhin - nhabs - nhblock; // rays in field less absorbed and blocked
+
 		power_on_field = total_heliostat_area *dni;	//[kW]
 		power_absorbed = STsim->IntData.q_ray * nrabs;
         power_thermal_loss = SF.getReceiverTotalHeatLoss();
         power_piping_loss = SF.getReceiverPipingHeatLoss();
         power_to_htf = power_absorbed - (power_thermal_loss + power_piping_loss);
-
+		
         eff_total_sf.set(0,0, 0, 0, 0., power_absorbed / power_on_field);
         eff_cosine.set(0.,0., 0., 0., 0., (double)nhin / (double)nsunrays*Abox / total_heliostat_area);
-        eff_shading.set(1., 1., 1., 0., 1., 1.);        //shading is accounted for in the blocking calculation
+        eff_shading.set(1., 1., 1., 0., 1., 1.);        //shading is accounted for in the cosine calculation
 		eff_blocking.set(0.,0., 0., 0., 0., 1. - (double)nhblock / (double)(nhin - nhabs));
-		eff_attenuation.set(0., 0., 0., 0., 0., 1.);	//Not currently accounted for
+		eff_attenuation.set(0., 0., 0., 0., 0., 1.);	// Accounted for within reflection efficiency
 		eff_reflect.set(0., 0., 0., 0., 0., (double)(nhin - nhabs) / (double)nhin);
 		eff_intercept.set(0., 0., 0., 0., 0., (double)nrin / (double)nhout);
 		eff_absorption.set(0., 0., 0., 0., 0., (double)nrabs / (double)nrin);
@@ -2380,11 +2395,10 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 
 		SF.getFinancialObject()->calcPlantCapitalCost(*SF.getVarMap());	//Always update the plant cost
 
-		total_installed_cost = SF.getVarMap()->fin.total_installed_cost.Val(); //SF.getFinancialObject()->getTotalInstalledCost();
+		total_installed_cost = SF.getVarMap()->fin.total_installed_cost.Val();
 		coe_metric = total_installed_cost/power_absorbed;
 
 		process_flux_stats(SF.getReceivers());
-
 	}
 	else{
 

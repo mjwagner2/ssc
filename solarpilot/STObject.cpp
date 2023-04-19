@@ -709,8 +709,6 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 		//we input the actual heliostat dimensions into soltrace, apply this derate on the reflectivity.
 		var_heliostat *Hv = H->getVarMap();
 
-        refl *= Hv->reflect_ratio.val; //->getReflectiveAreaDerate();
-
         double errang[2], errsurf[2], errrefl[2];
 
         errang[0] = Hv->err_azimuth.val;
@@ -1230,7 +1228,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			sp_point rec_offset(rv->rec_offset_x_global.Val(), rv->rec_offset_y_global.Val(), rv->optical_height.Val()); //optical height includes z offset
 			ST_Element* element;
 			// Creating a stage for the SNOUT -> This must occur before the virtual aperture stage
-			if (rv->is_snout.val) {
+			if (rv->is_snout.val && rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) {
 				// Modifying last stage added
 				ST_Stage* snout_stage = StageList.back(); //Renaming r_stage
 				snout_stage->ZRot = rv->rec_azimuth.val;

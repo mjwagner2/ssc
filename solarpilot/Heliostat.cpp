@@ -34,8 +34,6 @@ using namespace std;
 
 //Accessors
 double Heliostat::calcTotalEfficiency(){ return eff_data.calcTotalEfficiency(); }
-void Heliostat::correctInterceptEfficiency() { eff_data.correctInterceptEfficiency(); }
-void Heliostat::resetInterceptCorrection() { eff_data.resetInterceptCorrection(); }
 int Heliostat::getId(){return _id;}
 int *Heliostat::getGroupId(){return _group;}		//(row,col) nodes
 double Heliostat::getFocalX(){return _xfocal;}
@@ -66,9 +64,6 @@ double Heliostat::getRankingMetricValue(){return eff_data.rank_metric;}
 double Heliostat::getEnergyValue() { return eff_data.energy_value; }
 double Heliostat::getAnnualEnergy() { return eff_data.energy_annual; }
 double Heliostat::getAnnualEfficiency() { return eff_data.eta_annual; }
-double Heliostat::getInterceptCorrection() { return eff_data.intercept_correction; }
-double Heliostat::getTotflux() { return eff_data.tot_flux;  }
-double Heliostat::getFluxHitRec() { return eff_data.flux_hit_rec;  }
 double Heliostat::getAzimuthTrack(){return _azimuth;}
 double Heliostat::getZenithTrack(){return _zenith;}
 double Heliostat::getCollisionRadius(){return _r_collision;}
@@ -112,9 +107,6 @@ void Heliostat::setRankingMetricValue(double rval){eff_data.rank_metric = rval;}
 void Heliostat::setEnergyValue(double rval) { eff_data.energy_value = rval; }
 void Heliostat::setAnnualEnergy(double p_annual) { eff_data.energy_annual = p_annual; }
 void Heliostat::setAnnualEfficiency(double rval) { eff_data.eta_annual = rval; }
-void Heliostat::setInterceptCorrection(double int_corr) { eff_data.intercept_correction = int_corr; }
-void Heliostat::setTotFlux(double tot_flux) { eff_data.tot_flux = tot_flux;  }
-void Heliostat::setFluxHitRec(double flux_hit_rec) { eff_data.flux_hit_rec = flux_hit_rec; }
 void Heliostat::setAimPointFluxPlane(sp_point &Aim){_aim_fluxplane.Set( Aim.x, Aim.y, Aim.z );}
 void Heliostat::setAimPointFluxPlane(double x, double y, double z){ _aim_fluxplane.Set(x, y, z); }
 void Heliostat::setTrackVector(Vect &tr){ _track = tr; }	//Set the tracking vector

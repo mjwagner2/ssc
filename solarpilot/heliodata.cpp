@@ -158,49 +158,9 @@ void helio_perf_data::resetMetrics(){
     energy_value = 0.;
     energy_annual = 0.;
     eta_annual = 0.;
-	intercept_correction = 1.;
-	tot_flux = 0.;
-	flux_hit_rec = 0.;
-	has_int_eff_corrected = false;
 }
 
 double helio_perf_data::calcTotalEfficiency(){
 	eta_tot = eta_cos * eta_att * eta_int * eta_block * eta_shadow *reflectivity *soiling *eta_cloud; 
 	return eta_tot;
-}
-
-void helio_perf_data::resetInterceptCorrection() {
-	intercept_correction = 1.;
-	tot_flux = 1.e-6;
-	flux_hit_rec = 1.e-6;
-	has_int_eff_corrected = false;
-}
-
-void helio_perf_data::correctInterceptEfficiency() {
-	if (!has_int_eff_corrected) {
-
-		if (intercept_correction > 1)
-			throw spexception("Intercept correction was incorrectly calculated.");
-
-		if (intercept_correction != 0) {
-			double origin_tot_eff = eta_tot;
-			eta_int *= intercept_correction;
-			calcTotalEfficiency();
-			double tot_eff_ratio = eta_tot / origin_tot_eff;
-			power_to_rec *= tot_eff_ratio;
-			power_value *= tot_eff_ratio;
-			energy_value *= tot_eff_ratio;
-		}
-		else {
-			eta_int = 0.;
-			eta_tot = 0.;
-			power_to_rec = 0.;
-			power_value = 0.;
-			energy_value = 0.;
-		}
-		has_int_eff_corrected = true;
-	}
-	else
-		throw spexception("correctInterceptEfficiency was called but intercept efficiency has already been corrected.");
-	
 }

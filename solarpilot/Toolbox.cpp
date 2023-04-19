@@ -79,6 +79,13 @@ void sp_point::Subtract( sp_point &P )
 	this->z += -P.z;
 }
 
+void sp_point::Subtract(double _x, double _y, double _z)
+{
+	this->x += -_x;
+	this->y += -_y;
+	this->z += -_z;
+}
+
 double& sp_point::operator [](const int &index){
 
     switch (index)

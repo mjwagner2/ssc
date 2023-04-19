@@ -581,6 +581,8 @@ struct sp_point {
 
     void Subtract( sp_point &P );
 
+	void Subtract(double _x, double _y, double _z);
+
     double& operator [](const int &index);
 
     bool operator <(const sp_point &p) const;

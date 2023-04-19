@@ -4201,7 +4201,7 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 			for (unsigned int i = 0; i < surfaces->size(); i++)
 			{
 				surfaces->at(i).ClearFluxGridResetMaxFlux();
-				_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, i > 0,  true);
+				_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true);
 				if (i > 0)	//0th surface in multi-panel receiver is aperture virtual surface
 					total_flux += surfaces->at(i).getTotalFlux();
 				else
@@ -4226,7 +4226,7 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 		else
 		{
 			surfaces->at(0).ClearFluxGridResetMaxFlux();
-			_flux->fluxDensity(&_sim_info, surfaces->at(0), helios, _var_map->sf.tht.val, true, true);
+			_flux->fluxDensity(&_sim_info, surfaces->at(0), helios, _var_map->sf.tht.val, true);
 			surfaces->at(0).Normalize();
 		}
 	}

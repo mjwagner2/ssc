@@ -3318,7 +3318,6 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 	
     //For each heliostat, assess the losses
 	//for layout calculations, we can speed things up by only calculating the intercept factor for representative heliostats. (similar to DELSOL).
-	int nh = (int)_heliostats.size();
 	if(P.is_layout && _var_map->sf.is_opt_zoning.val && (getActiveReceiverCount()==1 || P.force_receiver))
     {
 		//The intercept factor is the most time consuming calculation. Simulate just a single heliostat in the 
@@ -3339,39 +3338,26 @@ void SolarField::Simulate(double azimuth, double zenith, sim_params &P)
 				hg->at(k)->setEfficiencyIntercept( eta_int );
 				hg->at(k)->CopyImageData( helios );
 			}
-
-			
 		}
 	}
-
-	int method = _var_map->flux.aim_method.mapval();
-	int flux_model = _var_map->flux.flux_model.mapval();
 
 	//Simulate efficiency for all heliostats
-	for (int i = 0; i < nh; i++) {
-		SimulateHeliostatEfficiency(this, Sun, _heliostats.at(i), P);
-		
-		// Correct Intercept efficiency for image size priority but not if SolTrace
-		if (!P.is_layout) {
-			if (method == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY && flux_model != var_fluxsim::FLUX_MODEL::SOLTRACE) {
-				_heliostats.at(i)->setInterceptCorrection(_heliostats.at(i)->getFluxHitRec() / _heliostats.at(i)->getTotflux());
-				//_heliostats.at(i)->correctInterceptEfficiency();
-			}
-		}
+	for (int i = 0; i < (int)_heliostats.size(); i++) {
+		SimulateHeliostatEfficiency(Sun, _heliostats.at(i), P);
 	}
-
 }
 
-void SolarField::SimulateHeliostatEfficiency(SolarField *SF, Vect &Sun, Heliostat *helios, sim_params &P)
+void SolarField::SimulateHeliostatEfficiency(Vect &Sun, Heliostat *helios, sim_params &P)
 {
 	/*
 	Simulate the heliostats in the specified range
 	*/
 	
     Receiver *Rec = helios->getWhichReceiver();
+	var_map* V = getVarMap();
 
     if( ! helios->IsEnabled()   //if a heliostat has been disabled, handle here and return
-        || !CheckReceiverAcceptance(Rec, helios->getLocation(), SF->getVarMap()->sf.tht.val) //if a heliostat is not within the receivers acceptance window, zero performance
+        || !CheckReceiverAcceptance(Rec, helios->getLocation(), V->sf.tht.val) //if a heliostat is not within the receivers acceptance window, zero performance
       )
     {
         helios->setEfficiencyCosine( 0. );
@@ -3389,16 +3375,14 @@ void SolarField::SimulateHeliostatEfficiency(SolarField *SF, Vect &Sun, Heliosta
 	//Cosine loss
 	helios->setEfficiencyCosine( Toolbox::dotprod(Sun, *helios->getTrackVector()) );
 	
-    var_map *V = SF->getVarMap();
-
 	//Attenuation loss
 	double slant = helios->getSlantRange(),
 	att = Ambient::calcAttenuation(*V, slant );
 	helios->setEfficiencyAtmAtten( att );
 
 	//Intercept
-	if(! (P.is_layout && V->sf.is_opt_zoning.val && SF->getActiveReceiverCount() == 1) ){	//For layout simulations, the simulation method that calls this method handles image intercept
-		double eta_int = SF->getFluxObject()->imagePlaneIntercept(*V, *helios, Rec, &Sun);
+	if(! (P.is_layout && V->sf.is_opt_zoning.val && getActiveReceiverCount() == 1) ){	//For layout simulations, the simulation method that calls this method handles image intercept
+		double eta_int = getFluxObject()->imagePlaneIntercept(*V, *helios, Rec, &Sun);
         if(eta_int != eta_int)
             throw spexception("An error occurred when calculating heliostat intercept factor. Please contact support for help resolving this issue.");
 		if(eta_int>1.) eta_int = 1.;
@@ -3416,9 +3400,9 @@ void SolarField::SimulateHeliostatEfficiency(SolarField *SF, Vect &Sun, Heliosta
 	for(int j=0; j<nn; j++){
 		if(helios == neibs->at(j) ) continue;	//Don't calculate blocking or shading for the same heliostat
 		
-        if(!P.is_layout) shad_tot += -SF->calcShadowBlock(helios, neibs->at(j), 0, Sun, interaction_limit);	//Don't calculate shadowing for layout simulations. Cascaded shadowing effects can skew the layout.
+        if(!P.is_layout) shad_tot += -calcShadowBlock(helios, neibs->at(j), 0, Sun, interaction_limit);	//Don't calculate shadowing for layout simulations. Cascaded shadowing effects can skew the layout.
 		
-        block_tot += -SF->calcShadowBlock(helios, neibs->at(j), 1, Sun, interaction_limit);
+        block_tot += -calcShadowBlock(helios, neibs->at(j), 1, Sun, interaction_limit);
 	}
 		
 	if(shad_tot < 0.) shad_tot = 0.;
@@ -3428,32 +3412,10 @@ void SolarField::SimulateHeliostatEfficiency(SolarField *SF, Vect &Sun, Heliosta
 	if(block_tot < 0.) block_tot = 0.;
 	if(block_tot > 1.) block_tot = 1.;
 	helios->setEfficiencyBlocking(block_tot);
+
+	helios->calcPowerEnergy(P);
 	
-	//Soiling, reflectivity, and receiver absorptance factors are included in the total calculation
-	double eta_rec_abs = Rec->getVarMap()->absorptance.val; // * eta_rec_acc,
-	double eta_total = helios->calcTotalEfficiency();
-	double power = eta_total * P.dni * helios->getArea() * eta_rec_abs;
-	helios->setPowerToReceiver( power );
-    double power_value = power * P.Simweight*P.TOUweight * Rec->getThermalEfficiency();
-	helios->setPowerValue( power_value );
-    helios->setEnergyValue(power * P.Simweight * Rec->getThermalEfficiency()); //W-hr -- P.Simweight has units [hr] here
-
-    //if (P.is_layout && SF->getActiveReceiverCount() > 1)
-    //{
-    //    try
-    //    {
-    //        helios->getReceiverPowerAlloc().at(helios->getWhichReceiver()) += power_value;  //must use at() to catch exception
-    //    }
-    //    catch (std::out_of_range &oor)
-    //    {
-    //        //no key, so initialize
-    //        helios->getReceiverPowerAlloc()[helios->getWhichReceiver()] = 0.;
-    //    }
-
-    //}
-
 	return;
-	
 }
 
 double SolarField::calcShadowBlock(Heliostat *H, Heliostat *HI, int mode, Vect &Sun, double interaction_limit)
@@ -3830,7 +3792,7 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
                 for (std::vector<Heliostat>::iterator h = _helio_objects.begin(); h != _helio_objects.end(); h++)
                 {
                     //get an estimate of performance
-                    SimulateHeliostatEfficiency(this, Sun, &*h, P);
+                    SimulateHeliostatEfficiency(Sun, &*h, P);
 
                     //update the power for this receiver
                     h->getReceiverPowerAlloc()[*rec] = h->getPowerToReceiver();
@@ -3907,7 +3869,7 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
 		for(int i=0; i<nh; i++)
         {
             //update heliostat efficiency and optical coefficients
-            SimulateHeliostatEfficiency(this, Sun, _heliostats.at(i), P);
+            SimulateHeliostatEfficiency(Sun, _heliostats.at(i), P);
 
             hsort.push_back(_heliostats.at(i));
 			ysize.push_back(_heliostats.at(i)->getImageSize()[1]);
@@ -4174,7 +4136,6 @@ int SolarField::calcNumRequiredSimulations(){
 	else{
 		if(des_sim_detail == var_solarfield::DES_SIM_DETAIL::SUBSET_OF_DAYSHOURS){	//Subset of days, all sunlight hours in the selected days
 			//Calculate which hours from the days are needed
-			//TODO
 			throw spexception("Subset hours: Method not currently supported");
 		}
 		//else if(des_sim_detail == var_solarfield::DES_SIM_DETAIL::ANNUAL_SIMULATION){
@@ -4227,11 +4188,6 @@ void SolarField::HermiteFluxSimulation(Hvector &helios, bool keep_existing_profi
 
 void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 {
-	//Reset all heliostats intercept correction
-	for (int i = 0; i < (int)helios.size(); i++) {
-		helios.at(i)->resetInterceptCorrection();
-	}
-
 	//Simulate each receiver flux profile (non-dimensional)
 	int nrec = (int)_receivers.size();
 	for(int n=0; n<nrec; n++){
@@ -4273,11 +4229,6 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 			_flux->fluxDensity(&_sim_info, surfaces->at(0), helios, _var_map->sf.tht.val, true, true);
 			surfaces->at(0).Normalize();
 		}
-	}
-	
-	for (int i = 0; i < (int)helios.size(); i++) {
-		helios.at(i)->setInterceptCorrection(helios.at(i)->getFluxHitRec() / helios.at(i)->getTotflux());
-		//helios.at(i)->correctInterceptEfficiency();
 	}
 }
 

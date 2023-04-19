@@ -191,8 +191,7 @@ void Heliostat::updateCalculatedParameters(var_map &Vm, int htnum)
 		_area =
             V->width.val * V->height.val * V->reflect_ratio.val              //width * height * structural density is the base area
             - V->x_gap.val * V->height.val * (V->n_cant_x.val - 1) - V->y_gap.val * V->width.val * (V->n_cant_y.val - 1)     //subtract off gap areas
-            + (V->n_cant_y.val - 1)*(V->n_cant_x.val - 1)* V->x_gap.val * V->y_gap.val 
-            ;        //but don't double-count the little squares in both gaps
+            + (V->n_cant_y.val - 1)*(V->n_cant_x.val - 1)* V->x_gap.val * V->y_gap.val;        //but don't double-count the little squares in both gaps
 	}
 
     V->area.Setval( _area );
@@ -336,6 +335,23 @@ void Heliostat::updateCalculatedParameters(var_map &Vm, int htnum)
 
 }
 
+void Heliostat::calcPowerEnergy(sim_params &P) {
+	/*
+	Calculates heliostat power to receiver, total power, and energy. This calls calcTotalEfficiency()
+	
+	Must be called if any of the heliostat efficiencies is modified.
+	*/
+	Receiver* Rec = getWhichReceiver();
+	//Soiling, reflectivity, and receiver absorptance factors are included in the total calculation
+	double eta_rec_abs = Rec->getVarMap()->absorptance.val; // * eta_rec_acc,
+	double eta_total = calcTotalEfficiency();
+	double power = eta_total * P.dni * getArea() * eta_rec_abs;
+	setPowerToReceiver(power);
+	double power_value = power * P.Simweight * P.TOUweight * Rec->getThermalEfficiency();
+	setPowerValue(power_value);
+	setEnergyValue(power * P.Simweight * Rec->getThermalEfficiency()); //W-hr -- P.Simweight has units [hr] here
+}
+
 void Heliostat::getSummaryResults( vector<double> &results){
 	/* 
 	Fill the vector "results" with performance metrics of interest
@@ -368,21 +384,6 @@ void Heliostat::installPanels() {
 	rather than as part of the flux algorithm, so it is placed here instead.
 	*/
     var_heliostat *V = _var_helio;
-
- //   //Calculate the collision radius
-	//if(V->is_round.val){
-	//	_r_collision =  V->diameter.val/2. ;
-	//	_area =  PI*pow(V->diameter.val/2.,2)*V->reflect_ratio.val ;
-	//}
-	//else{
- //       _r_collision =
- //           sqrt( V->height.val * V->height.val / 4. + V->width.val * V->width.val /4. );
-	//	_area =
- //           V->width.val * V->height.val * V->reflect_ratio.val              //width * height * structural density is the base area
- //           - V->x_gap.val * V->height.val * (V->n_cant_x.val - 1) - V->y_gap.val * V->width.val * (V->n_cant_y.val - 1)     //subtract off gap areas
- //           + (V->n_cant_y.val - 1)*(V->n_cant_x.val - 1)* V->x_gap.val * V->y_gap.val 
- //           ;        //but don't double-count the little squares in both gaps
-	//}
 
 	//Initialize the image plane image size for this heliostat to zero until it's calculated in the Flux methods
 	setImageSize(0.,0.);

@@ -34,6 +34,7 @@ class Reflector;
 class SolarField;
 class Receiver;
 class Ambient;
+struct sim_params;
 
 class Heliostat : public mod_base
  {
@@ -104,6 +105,7 @@ public:
 	double calcTotalEfficiency();
 	void correctInterceptEfficiency();
 	void resetInterceptCorrection();
+	void calcPowerEnergy(sim_params &P);
     static void calcAndSetAimPointFluxPlane(sp_point &aimpos_abs, Receiver &Rec, Heliostat &H);
 	void resetMetrics();
 	void CopyImageData(const Heliostat *Hsrc);

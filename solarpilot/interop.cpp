@@ -1255,6 +1255,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 		if (!Rec->isReceiverEnabled())
 			continue;
 		var_receiver* RV = Rec->getVarMap();
+		var_heliostat* Hv = SF.getHeliostats()->front()->getVarMap();
 
 		//.. for each receiver, 
 		int recgeom = Rec->getGeometryType();
@@ -1291,7 +1292,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			nfy = fs->getFluxNY();
 
 			Arec = Rec->getAbsorberArea();
-			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy);
+			dqspec = SimC._STSim->IntData.q_ray * Hv->reflect_ratio.val / Arec * (float)(nfx * nfy);
 
 			for (int j = 0; j < SimC._STSim->IntData.nint; j++)
 			{    //loop through each intersection
@@ -1344,7 +1345,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			nfy = fs->getFluxNY();
 
 			Arec = Rec->getAbsorberArea();
-			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy);
+			dqspec = SimC._STSim->IntData.q_ray * Hv->reflect_ratio.val / Arec * (float)(nfx * nfy);
 
 
 			for (int j = 0; j < SimC._STSim->IntData.nint; j++)
@@ -1395,7 +1396,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			nfy = fs->getFluxNY();
 
 			Arec = rh*rw; // aperture area
-			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy);
+			dqspec = SimC._STSim->IntData.q_ray * Hv->reflect_ratio.val / Arec * (float)(nfx * nfy);
 
 			for (int j = 0; j < SimC._STSim->IntData.nint; j++)
 			{    //loop through each intersection
@@ -1424,7 +1425,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			// Get curtain surface flux
 			int n_panels = RV->n_panels.val;
 			Arec = Rec->getAbsorberArea();
-			dqspec = SimC._STSim->IntData.q_ray / Arec * (float)(nfx * nfy * n_panels);
+			dqspec = SimC._STSim->IntData.q_ray * Hv->reflect_ratio.val / Arec * (float)(nfx * nfy * n_panels);
 
 			// Loop through curtain surfaces
 			for (int i = 1; i <= n_panels; i++) {
@@ -2266,16 +2267,14 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 		int max_rec_e = 1; //Maximum Receiver element number, it is assumed that heat absorbing elements are between zero and this value
 		if (RV->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) max_rec_e = RV->n_panels.val;
 		int rstage = STsim->StageList.size(); // Receiver stage
-
-		int max_rays = *std::max_element(STsim->IntData.rnum, STsim->IntData.rnum + STsim->IntData.nint);
 #if HELIO_INTERCEPT
+		int max_rays = *std::max_element(STsim->IntData.rnum, STsim->IntData.rnum + STsim->IntData.nint);
 		std::vector<int> ray_helios(max_rays+1, -1); // Rays start at 1
 		int npanels = 1;
 		if (Hv->is_faceted.val) {
 			npanels = Hv->n_cant_x.val * Hv->n_cant_y.val;
 		}
 #endif
-
 		//Process the ray data
 		int st, st0=0, ray, ray0=0, el;
 		int nhin=0, nhout=0, nhblock=0, nhabs=0, nrin=0, nrabs=0;
@@ -2288,9 +2287,8 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 			if (st == 1) { // Heliostat stage
 #if HELIO_INTERCEPT
 				//Determine the heliostat from the element number in stage 1, first intersection only
-				//if (ray_helios[ray] == -1) ray_helios[ray] = (std::abs(el) - 1) / npanels;
+				if (ray_helios[ray] == -1) ray_helios[ray] = (std::abs(el) - 1) / npanels;
 #endif
-
 				if (el > 0 && ray != ray0) nhin++; // Reflected, no second reflection allowed
 				else if (el < 0) { // Absorbed
 					if (ray == ray0) nhblock++;    //Multiple intersections within heliostat field, meaning blocking occurred

@@ -2362,13 +2362,14 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 			throw spexception("SNOUT horizontal angle must be between 0 and 180 degrees.");
 
 		// Calculate snout vertical offset
-		double snout_vert_offset = rec_var_map->snout_depth.val * tan(rec_var_map->snout_vert_angle.val * D2R);
+		double snout_vert_top_offset = rec_var_map->snout_depth.val * tan(rec_var_map->snout_vert_top_angle.val * D2R);
+		double snout_vert_bot_offset = rec_var_map->snout_depth.val * tan(rec_var_map->snout_vert_bot_angle.val * D2R);
 		// Test if point is within the snout aperture
 		if (std::abs(snout_ip.x) > snout_width / 2)
 			return false;
-		if (snout_ip.y < 0 && snout_ip.y < -(rec_height / 2 + snout_vert_offset)) // Too low
+		if (snout_ip.y < -(rec_height / 2 + snout_vert_bot_offset)) // Too low
 			return false;
-		else if (snout_ip.y > 0 && snout_ip.y > rec_height / 2) // Too high
+		else if (snout_ip.y > (rec_height / 2 - snout_vert_top_offset)) // Too high
 			return false;
 	}
 
@@ -2439,19 +2440,22 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	// Determine snout window corner points -> assumes vertical
 	double s_depth = Rv->snout_depth.val;
 	double s_horiz_angle = Rv->snout_horiz_angle.val;
-	double s_vert_angle = Rv->snout_vert_angle.val;
+	double s_vert_top_angle = Rv->snout_vert_top_angle.val;
+	double s_vert_bot_angle = Rv->snout_vert_bot_angle.val;
 
 	double s_width = ap_w + 2. * s_depth * tan(s_horiz_angle / 2. * D2R); // Snout window width
 	double s_hw_cos_azi = (s_width / 2.) * cos(azi * D2R); // snout window half-width cos azimuth
 	double s_hw_sin_azi = (s_width / 2.) * sin(azi * D2R); // snout window half-width sin azimuth
-	double s_low_drop = s_depth * tan(s_vert_angle * D2R); // snout window lower edge drop from aperture
+	double s_high_drop = s_depth * tan(s_vert_top_angle * D2R); // snout window top edge drop from aperture
+	double s_low_drop = s_depth * tan(s_vert_bot_angle * D2R); // snout window lower edge drop from aperture
 
 	sp_point s_depth_offset(s_depth * sin(azi * D2R), s_depth * cos(azi * D2R), 0.0); //Snout window offset from aperture
 
+	int h_id = H.getId();
 	vector<sp_point> snout_win;
 	snout_win.resize(4);
-	snout_win.at(0).Set(s_hw_cos_azi, -s_hw_sin_azi, ap_h / 2.);				//upper right (east on a north facing receiver)
-	snout_win.at(1).Set(-s_hw_cos_azi, s_hw_sin_azi, ap_h / 2.);				//upper left
+	snout_win.at(0).Set(s_hw_cos_azi, -s_hw_sin_azi, ap_h / 2. - s_high_drop);	//upper right (east on a north facing receiver)
+	snout_win.at(1).Set(-s_hw_cos_azi, s_hw_sin_azi, ap_h / 2. - s_high_drop);	//upper left
 	snout_win.at(2).Set(-s_hw_cos_azi, s_hw_sin_azi, -ap_h / 2. - s_low_drop);	//lower left
 	snout_win.at(3).Set(s_hw_cos_azi, -s_hw_sin_azi, -ap_h / 2. - s_low_drop);	//lower right
 	// Translate to global coordinates
@@ -2478,12 +2482,8 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 
 	// Determine special cases where clipping is not required
 	bool is_ap_within_snout = true;			// Is aperture window within snout?
-	bool is_projections_overlap = false;	// Do the two projections overlap?
 	for (int i = 0; i < ap_win_proj.size(); i++) {
-		if (Toolbox::pointInPolygon(s_win_proj, ap_win_proj.at(i))) { // point is within Polygon
-			is_projections_overlap = true;	// only one point needs to be within projection
-		}
-		else { // point is outside of Polygon
+		if (!Toolbox::pointInPolygon(s_win_proj, ap_win_proj.at(i))) { // point is outside Polygon
 			is_ap_within_snout = false;		// only one point need to be outside
 		}
 	}
@@ -2495,16 +2495,17 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		viewable_aperture[3] = Rv->rec_height.val / 2.;
 		return false;
 	}
-	else if (!is_projections_overlap) { // Projections do not overlap
-		viewable_aperture[0] = 0.;
-		viewable_aperture[1] = 0.;
-		viewable_aperture[2] = 0.;
-		viewable_aperture[3] = 0.;
-		return true;
-	}
-	else if (is_projections_overlap && !is_ap_within_snout) { // Projections overlap
+	else {
 		// Determine intersection of the two projections using Sutherland-Hodgeman Algorithm 
 		vector<sp_point> intsection_proj = Toolbox::clipPolygon(ap_win_proj, s_win_proj);
+
+		if (intsection_proj.size() == 0) { // Projections do not overlap
+			viewable_aperture[0] = 0.;
+			viewable_aperture[1] = 0.;
+			viewable_aperture[2] = 0.;
+			viewable_aperture[3] = 0.;
+			return true;
+		}
 
 		// Transform the to global coordinates
 		for (int i = 0; i < intsection_proj.size(); i++) {
@@ -2539,10 +2540,6 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		viewable_aperture[2] = min_y;	// min y
 		viewable_aperture[3] = max_y;	// max y
 		return true;
-	}
-	else {
-		throw spexception("Unexpected error in calculateProjectedSnoutApertureIntersection(). Contact user support.");
-		return false;
 	}
 }
 

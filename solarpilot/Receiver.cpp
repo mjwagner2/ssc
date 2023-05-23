@@ -1077,8 +1077,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			//Calculate the centroid of the curtain in global XYZ coords
 			sp_point pc;
 			double depth_offset = last_trough_depth * max_depth;
-			if (is_curtain_curved)
-				depth_offset -= curtain_radius; // Offset must account for radius of curtain
+			if (is_curtain_curved) depth_offset -= curtain_radius; // Offset must account for radius of curtain
 			pc.x = -nv.i * depth_offset + _var_receiver->rec_offset_x_global.Val();
 			pc.y = -nv.j * depth_offset + _var_receiver->rec_offset_y_global.Val();
 			pc.z = last_trough_height * max_height - curtain_height / 2.0

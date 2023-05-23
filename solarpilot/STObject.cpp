@@ -1245,7 +1245,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				copt->Front.DistributionType = 'f'; // diffuse
 				copt->Front.OpticSurfNumber = 0;
 				copt->Front.ApertureStopOrGratingType = 0;
-				copt->Front.Reflectivity = 0.9; // Assuming white paint
+				copt->Front.Reflectivity = 0.0; // Assuming white paint -> 0.9
 				copt->Front.Transmissivity = 0.;
 				copt->Front.RMSSlopeError = 0.00001;
 				copt->Front.RMSSpecError = 1000.;
@@ -1253,8 +1253,8 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				copt->Back.DistributionType = 'f';
 				copt->Back.OpticSurfNumber = 0;
 				copt->Back.ApertureStopOrGratingType = 0;
-				copt->Front.Transmissivity = 0.;
-				copt->Back.Reflectivity = 0.9; // Assuming white paint
+				copt->Back.Reflectivity = 0.0; // Assuming white paint  -> 0.9
+				copt->Back.Transmissivity = 0.;
 				copt->Back.RMSSlopeError = 0.00001;
 				copt->Back.RMSSpecError = 1000.;
 
@@ -1268,15 +1268,15 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element->Origin[2] = rv->rec_height.val / 2. + rec_offset.z;
 
 				element->AimPoint[0] = element->Origin[0];
-				element->AimPoint[1] = element->Origin[1];
-				element->AimPoint[2] = element->Origin[2] - 1.;
+				element->AimPoint[1] = element->Origin[1] - sin(rv->snout_vert_top_angle.val * D2R);
+				element->AimPoint[2] = element->Origin[2] - cos(rv->snout_vert_top_angle.val * D2R);
 				element->ZRot = 0.0;
 
 				element->ShapeIndex = 'q';
 				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->snout_depth.val;
+				element->Ap_B = rv->snout_depth.val / cos(rv->snout_vert_top_angle.val * D2R);
 				element->Ap_C = -rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->snout_depth.val;
+				element->Ap_D = rv->snout_depth.val / cos(rv->snout_vert_top_angle.val * D2R);
 				element->Ap_E = -rv->rec_width.val / 2.;
 				element->Ap_F = 0.;
 				element->Ap_G = rv->rec_width.val / 2.;
@@ -1298,15 +1298,15 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element->Origin[2] = -rv->rec_height.val / 2. + rec_offset.z;
 
 				element->AimPoint[0] = element->Origin[0];
-				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_vert_angle.val * D2R);
-				element->AimPoint[2] = element->Origin[2] + cos(rv->snout_vert_angle.val * D2R);
+				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_vert_bot_angle.val * D2R);
+				element->AimPoint[2] = element->Origin[2] + cos(rv->snout_vert_bot_angle.val * D2R);
 				element->ZRot = 0.0;
 
 				element->ShapeIndex = 'q';
 				element->Ap_A = rv->rec_width.val / 2. + rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
+				element->Ap_B = rv->snout_depth.val / cos(rv->snout_vert_bot_angle.val * D2R);
 				element->Ap_C = -rv->rec_width.val / 2. - rv->snout_depth.val * tan(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->snout_depth.val / cos(rv->snout_vert_angle.val * D2R);
+				element->Ap_D = rv->snout_depth.val / cos(rv->snout_vert_bot_angle.val * D2R);
 				element->Ap_E = -rv->rec_width.val / 2.;
 				element->Ap_F = 0.;
 				element->Ap_G = rv->rec_width.val / 2.;
@@ -1336,9 +1336,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element->Ap_A = 0.;
 				element->Ap_B = rv->rec_height.val / 2.;
 				element->Ap_C = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_D = rv->rec_height.val / 2.;
+				element->Ap_D = rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_top_angle.val * D2R);
 				element->Ap_E = -rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_F = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
+				element->Ap_F = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_bot_angle.val * D2R);
 				element->Ap_G = 0.;
 				element->Ap_H = -rv->rec_height.val / 2.;
 
@@ -1364,13 +1364,13 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 
 				element->ShapeIndex = 'q';
 				element->Ap_A = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_B = rv->rec_height.val / 2.;
+				element->Ap_B = rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_top_angle.val * D2R);
 				element->Ap_C = 0.;
 				element->Ap_D = rv->rec_height.val / 2.;
 				element->Ap_E = 0.;
 				element->Ap_F = -rv->rec_height.val / 2.;
 				element->Ap_G = rv->snout_depth.val / cos(rv->snout_horiz_angle.val / 2. * D2R);
-				element->Ap_H = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_angle.val * D2R);
+				element->Ap_H = -rv->rec_height.val / 2. - rv->snout_depth.val * tan(rv->snout_vert_bot_angle.val * D2R);
 
 				element->SurfaceIndex = 'f';
 				element->InteractionType = 2;
@@ -1457,21 +1457,21 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			//**** Add optics stage *****//
 			copt->Name = (rv->rec_name.val).c_str();
 			//set the optical properties. This should be a diffuse surface, make it a pillbox distribution w/ equal angular reflection probability.
-			copt->Front.DistributionType = 'f';
+			copt->Front.DistributionType = 'g'; // 'f';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
-			//copt->Front.Reflectivity = 1. - rv->absorptance.val;
-			copt->Front.Transmissivity = 0.3; // TODO: Update this to change properties as a function of curtain height
-			copt->Front.RMSSlopeError = 0.00001;
-			copt->Front.RMSSpecError = 10000.;
+			copt->Front.Reflectivity = 1. - rv->absorptance.val;
+			//copt->Front.Transmissivity = 0.3; // TODO: Update this to change properties as a function of curtain height
+			copt->Front.RMSSlopeError = PI / 4.; // 0.00001;
+			copt->Front.RMSSpecError = PI / 4.; // 10000.;
 			//back
-			copt->Back.DistributionType = 'f';
+			copt->Back.DistributionType = 'g'; // 'f';
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
-			copt->Front.Transmissivity = 0.3;
-			//copt->Back.Reflectivity = 1. - rv->absorptance.val;
-			copt->Back.RMSSlopeError = 0.00001;
-			copt->Back.RMSSpecError = 10000.;
+			copt->Back.Reflectivity = 1. - rv->absorptance.val;
+			//copt->Front.Transmissivity = 0.3;
+			copt->Back.RMSSlopeError = PI / 4.; // 0.00001;
+			copt->Back.RMSSpecError = PI / 4.; // 10000.;
 
 			sp_point* pos;
 			//**** Add particle curtain *****//
@@ -1514,7 +1514,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 					element->Su_A = 1. / surface.getSurfaceRadius();
 				}
 
-				element->InteractionType = 1; // Refraction surface for transmissivity
+				element->InteractionType = 2; // 1; // Refraction surface for transmissivity
 				element->OpticName = (rv->rec_name.val).c_str();
 				element->Optics = copt;
 				element->Comment = "Particle Curtain " + std::to_string(s);
@@ -1531,7 +1531,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt->Front.DistributionType = 'f';
 			copt->Front.OpticSurfNumber = 0;
 			copt->Front.ApertureStopOrGratingType = 0;
-			copt->Front.Reflectivity = 0.9; // Assuming white paint
+			copt->Front.Reflectivity = rv->absorptance.val; // 0.9; // Assuming white paint -> we could assume absorptance
 			copt->Front.Transmissivity = 0.;
 			copt->Front.RMSSlopeError = 0.00001;
 			copt->Front.RMSSpecError = 1000.;
@@ -1540,7 +1540,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt->Back.OpticSurfNumber = 0;
 			copt->Back.ApertureStopOrGratingType = 0;
 			copt->Front.Transmissivity = 0.; 
-			copt->Back.Reflectivity = 0.9; // Assuming white paint
+			copt->Back.Reflectivity = rv->absorptance.val; // 0.9; // Assuming white paint
 			copt->Back.RMSSlopeError = 0.00001;
 			copt->Back.RMSSpecError = 1000.;
 

@@ -265,6 +265,7 @@ struct ST_System
 	bool sim_errors_optical;
 
 	// simulation flags
+	bool sim_dynamic_group;		// Run dynamic grouping for heliostat stage
 	bool aperture_virtual_stage; // Is there a virtual stage at receiver aperture?
 
 	// simulation outputs

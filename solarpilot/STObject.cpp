@@ -534,8 +534,9 @@ ST_System::ST_System()
 	SunRayCount = 0;
 	sim_raycount=1000;
 	sim_raymax=100000;
-	sim_errors_sunshape=true;
-	sim_errors_optical=true;
+	sim_errors_sunshape = true;
+	sim_errors_optical = true;
+	sim_dynamic_group = true;
 	aperture_virtual_stage = false;
 }
 
@@ -1758,7 +1759,8 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
     int maxrays = V->flux.max_rays.val;
     int seed = V->flux.seed.val;
     sim_errors_sunshape = V->flux.is_sunshape_err.val && ( V->amb.sun_type.mapval() != var_ambient::SUN_TYPE::POINT_SUN );
-	sim_errors_optical = V->flux.is_optical_err.val; 
+	sim_errors_optical = V->flux.is_optical_err.val;
+	sim_dynamic_group = V->flux.is_dynamic_group.val;
 	
 	sim_raycount = minrays;
 	sim_raymax = maxrays;

@@ -659,18 +659,18 @@ bool interop::SolTraceFluxSimulation_ST(st_context_t cxt, int seed, ST_System &S
 
 	Passes an optional pointer to a callback function that updates the GUI.
 	*/	
-	int minrays = ST.sim_raycount;
-	int maxrays = ST.sim_raymax;
+	//int minrays = ST.sim_raycount;
+	//int maxrays = ST.sim_raymax;
 	
 	//simulate, setting the UI callback and a pointer to the UI class
 	
-	st_sim_params( cxt, minrays, maxrays );
+	st_sim_params( cxt, ST.sim_raycount, ST.sim_raymax, ST.sim_dynamic_group);
     //if(load_stage_data)
         //return st_sim_run_data(cxt, seed, st0data, st1data, false, callback, par) != -1;
     //else if(save_stage_data)
         //return st_sim_run_data(cxt, seed, st0data, st1data, true, callback, par) != -1;
     //else
-	    return st_sim_run(cxt, seed, true, callback, par) != -1;
+	    return st_sim_run(cxt, seed, callback, par) != -1;
 }
 
 
@@ -982,7 +982,7 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 			rays_alloc += rays_this_thread;
 			rays_alloc1 += rays_this_thread1;
 
-			st_sim_params(pcxt, rays_this_thread, SimC._STSim->sim_raymax / SimC._n_threads);
+			st_sim_params(pcxt, rays_this_thread, SimC._STSim->sim_raymax / SimC._n_threads, SimC._STSim->sim_dynamic_group);
 		}
 
 		for (int i = 0; i < SimC._n_threads; i++)
@@ -1061,9 +1061,9 @@ bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, Sol
 		int maxrays = SimC._STSim->sim_raymax;
 
 		//simulate, setting the UI callback and a pointer to the UI class
-		st_sim_params(cxt, minrays, maxrays);
+		st_sim_params(cxt, SimC._STSim->sim_raycount, SimC._STSim->sim_raymax, SimC._STSim->sim_dynamic_group);
 
-		bool sim_result = st_sim_run(cxt, seed, true, SimC.soltrace_callback, SimC.soltrace_callback_data) != -1;
+		bool sim_result = st_sim_run(cxt, seed, SimC.soltrace_callback, SimC.soltrace_callback_data) != -1;
 		if(sim_result)
 			contexts.push_back(cxt);
 		else

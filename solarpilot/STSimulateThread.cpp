@@ -181,7 +181,7 @@ void STSimThread::StartThread()
     //else if(SaveStage0Data)
         //ResultCode = st_sim_run_data(ContextId, (unsigned int)SeedVal, &raydata_st0, &raydata_st1, true, STCallback_MT, (void*) this);
     //else
-	    ResultCode = st_sim_run( ContextId, (unsigned int)SeedVal, true, STCallback_thread_update, (void*) this );
+	    ResultCode = st_sim_run( ContextId, (unsigned int)SeedVal, STCallback_thread_update, (void*) this );
 
 	FinishedLock.lock();
 	Finished = true;

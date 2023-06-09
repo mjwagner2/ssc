@@ -44,6 +44,7 @@ set(SOLARPILOT_SRC
 	Receiver.cpp               Receiver.h
 	SolarField.cpp             SolarField.h
 	solpos.cpp                 solpos00.h
+	sort_method.h
 	STObject.cpp               STObject.h
 	string_util.cpp            string_util.h
 	STSimulateThread.cpp       STSimulateThread.h

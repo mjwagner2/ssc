@@ -83,7 +83,6 @@ protected:
 
 
 	void PrepareFluxSimulation(sp_flux_table &fluxtab, int flux_res_x, int flux_res_y, bool is_normalized);
-	void PostProcessLayout(sp_layout &layout);
 	void PostProcessFlux(sim_result &result, sp_flux_map &fluxmap, int flux_layer = 0);
 	
 
@@ -105,6 +104,7 @@ public:
 	void PreSimCallbackUpdate();
 	void SetExternalSFObject(SolarField *SF);
 	bool Setup(var_map &V, bool for_optimize = false);
+	void PostProcessLayout(sp_layout& layout);
 	//generate weather data
 	void GenerateDesignPointSimulations(var_map &V, std::vector<std::string> &hourly_weather_data);
 	//Simulation methods

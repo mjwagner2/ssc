@@ -43,7 +43,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mod_base.h"
 #include "heliodata.h"
 #include "definitions.h"
+#ifdef SP_USE_THREADS
 #include "stapi.h"
+#endif
 
 class SolarField;
 class Heliostat;
@@ -202,11 +204,13 @@ public:
 	SimControl();
 	~SimControl();
 
+#ifdef SP_USE_THREADS
 	void SetThreadCount(int nthreads);
 	int (*soltrace_callback)(st_uint_t, st_uint_t, st_uint_t, st_uint_t, st_uint_t, void*);
 	void* soltrace_callback_data;
+#endif
 
-	int (*message_callback)(const char*, void*);  // TODO: How can these callbacks pass exceptions?
+	int (*message_callback)(const char*, void*);
 	void* message_callback_data;
 
 	int (*layout_log_callback)(double progress, const char*, void*);

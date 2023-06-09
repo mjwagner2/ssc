@@ -783,6 +783,7 @@ bool interop::HermiteFluxSimulationHandler(sim_results& results, SolarField& SF,
 	return true;
 }
 
+#ifdef SP_USE_THREADS
 bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, SolarField& SF, var_map& vset, Hvector& helios)
 {
 	/*
@@ -1495,6 +1496,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 	}
 	return true;
 }
+#endif
 
 bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, LayoutSimThread* simthread)
 {
@@ -1519,6 +1521,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 	//Is it possible to run a multithreaded simulation?
 	int nsim_req = SF.calcNumRequiredSimulations();
 	std::string msg;
+#ifdef SP_USE_THREADS
 	if (SimC._n_threads > 1 && nsim_req > 1)
 	{
 		//More than 1 thread and more than 1 simulation to run
@@ -1652,6 +1655,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 		}
 	}
 	else
+#endif
 	{
 		SimC._n_threads_active = 1;
 		SimC._is_mt_simulation = false;

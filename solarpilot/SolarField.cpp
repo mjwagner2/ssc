@@ -48,7 +48,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "heliodata.h"
 
 #include "OpticalMesh.h"
+#ifdef SP_MULTI_REC
 #include "MultiRecOptimize.h"
+#endif
 
 using namespace std;
 
@@ -1803,6 +1805,7 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
 
     //--- get lists of all heliostats pointing at each receiver
     unordered_map<Receiver*, Hvector > aim_list;
+#ifdef SP_MULTI_REC
     if (getActiveReceiverCount() > 1)
     {
         
@@ -1876,6 +1879,7 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
         }
     }
     else
+#endif
     {
         _q_to_rec = 0.;
         for (int i = 0; i < (int)_heliostats.size(); i++)
@@ -3758,6 +3762,7 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
 
 	int nh = (int)_heliostats.size();
     int method = _var_map->flux.aim_method.mapval();
+#ifdef SP_MULTI_REC
 
     /*
     Multiple receiver aiming method ------------------------------------------
@@ -3831,6 +3836,7 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
         }
     }
     // ---------------------------- end of multiple reciever method
+#endif
 
     if(P.is_layout && method != var_fluxsim::AIM_METHOD::KEEP_EXISTING)
         method = var_fluxsim::AIM_METHOD::SIMPLE_AIM_POINTS;

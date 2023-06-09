@@ -204,8 +204,9 @@ public:
 	SimControl();
 	~SimControl();
 
-#ifdef SP_USE_THREADS
 	void SetThreadCount(int nthreads);
+
+#ifdef SP_USE_SOLTRACE
 	int (*soltrace_callback)(st_uint_t, st_uint_t, st_uint_t, st_uint_t, st_uint_t, void*);
 	void* soltrace_callback_data;
 #endif

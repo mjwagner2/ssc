@@ -783,7 +783,7 @@ bool interop::HermiteFluxSimulationHandler(sim_results& results, SolarField& SF,
 	return true;
 }
 
-#ifdef SP_USE_THREADS
+#ifdef SP_USE_SOLTRACE
 bool interop::SolTraceFluxSimulation(SimControl& SimC, sim_results& results, SolarField& SF, var_map& vset, Hvector& helios)
 {
 	/*
@@ -2262,6 +2262,7 @@ void sim_result::process_analytical_simulation(SolarField &SF, sim_params &P, in
 
 }
 
+#ifdef SP_USE_SOLTRACE
 void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int nsim_type, double sun_az_zen[2], Hvector& helios, ST_System* STsim)
 {
 	is_soltrace = true;
@@ -2418,6 +2419,7 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 
 
 }
+#endif
 
 void sim_result::process_flux(SolarField *SF, bool normalize){
 	flux_surfaces.clear();

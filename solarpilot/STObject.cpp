@@ -586,6 +586,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 	/* 
 	Take the geometry specified in the SolarField SF and the heliostats listed in helios and create a 
 	SolTrace simulation object.
+
+	NOTE: If this function is modified for any reason, 
+	please update load_soltrace_structure() within copylot.py in the api directory of SolarPILOT deploy.
 	*/
 
     var_map *V = SF.getVarMap();
@@ -1243,6 +1246,14 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				// Modifying last stage added
 				ST_Stage* snout_stage = StageList.back(); //Renaming r_stage
 				snout_stage->ZRot = rv->rec_azimuth.val;
+				snout_stage->Origin[0] = rec_offset.x;		// Accounting for offsets (this is different than other receiver types)
+				snout_stage->Origin[1] = rec_offset.y;
+				snout_stage->Origin[2] = rec_offset.z;
+
+				snout_stage->AimPoint[0] = snout_stage->Origin[0];
+				snout_stage->AimPoint[1] = snout_stage->Origin[1];
+				snout_stage->AimPoint[2] = snout_stage->Origin[2] + 1.0;
+
 				snout_stage->Name = "SNOUT";
 				snout_stage->Virtual = false;
 				snout_stage->MultiHitsPerRay = true;
@@ -1274,9 +1285,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element = snout_stage->ElementList.back();
 				element->Enabled = true;
 
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = rv->rec_height.val / 2. + rec_offset.z;
+				element->Origin[0] = 0.0;
+				element->Origin[1] = 0.0;
+				element->Origin[2] = rv->rec_height.val / 2.;
 
 				element->AimPoint[0] = element->Origin[0];
 				element->AimPoint[1] = element->Origin[1] - sin(rv->snout_vert_top_angle.val * D2R);
@@ -1304,9 +1315,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element = snout_stage->ElementList.back();
 				element->Enabled = true;
 
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = -rv->rec_height.val / 2. + rec_offset.z;
+				element->Origin[0] = 0.0;
+				element->Origin[1] = 0.0;
+				element->Origin[2] = -rv->rec_height.val / 2.;
 
 				element->AimPoint[0] = element->Origin[0];
 				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_vert_bot_angle.val * D2R);
@@ -1334,9 +1345,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element = snout_stage->ElementList.back();
 				element->Enabled = true;
 
-				element->Origin[0] = rv->rec_width.val / 2. + rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = rec_offset.z;
+				element->Origin[0] = rv->rec_width.val / 2.;
+				element->Origin[1] = 0.0;
+				element->Origin[2] = 0.0;
 
 				element->AimPoint[0] = element->Origin[0] - cos(rv->snout_horiz_angle.val / 2. * D2R);
 				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
@@ -1364,9 +1375,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element = snout_stage->ElementList.back();
 				element->Enabled = true;
 
-				element->Origin[0] = -rv->rec_width.val / 2. + rec_offset.x;
-				element->Origin[1] = 0. + rec_offset.y;
-				element->Origin[2] = 0. + rec_offset.z;
+				element->Origin[0] = -rv->rec_width.val / 2.;
+				element->Origin[1] = 0.0;
+				element->Origin[2] = 0.0;
 
 				element->AimPoint[0] = element->Origin[0] + cos(rv->snout_horiz_angle.val / 2. * D2R);
 				element->AimPoint[1] = element->Origin[1] + sin(rv->snout_horiz_angle.val / 2. * D2R);
@@ -1393,13 +1404,13 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				StageList.push_back(new ST_Stage());
 				ST_Stage* r_stage = StageList.back();
 				//Global origin
-				r_stage->Origin[0] = 0.;
-				r_stage->Origin[1] = 0.;
-				r_stage->Origin[2] = 0.;
+				r_stage->Origin[0] = rec_offset.x;		// making stage origin account for offsets
+				r_stage->Origin[1] = rec_offset.y;
+				r_stage->Origin[2] = rec_offset.z;
 				//Aim point
-				r_stage->AimPoint[0] = 0.;
-				r_stage->AimPoint[1] = 0.;
-				r_stage->AimPoint[2] = 1.;
+				r_stage->AimPoint[0] = r_stage->Origin[0];
+				r_stage->AimPoint[1] = r_stage->Origin[1];
+				r_stage->AimPoint[2] = r_stage->Origin[2] + 1.;
 				// Accounting for azimuth angle in stage z rotation
 				r_stage->ZRot = rv->rec_azimuth.val;
 				//{virtual stage, multiple hits per ray, trace through} UI checkboxes
@@ -1426,9 +1437,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = ap_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = rec_offset.x;
-			element->Origin[1] = rec_offset.y;
-			element->Origin[2] = rec_offset.z;
+			element->Origin[0] = 0.0;
+			element->Origin[1] = 0.0;
+			element->Origin[2] = 0.0;
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1] + 1;
@@ -1449,13 +1460,13 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			StageList.push_back(new ST_Stage());
 			ST_Stage* r_stage = StageList.back();
 			//Global origin
-			r_stage->Origin[0] = 0.;
-			r_stage->Origin[1] = 0.;
-			r_stage->Origin[2] = 0.;
+			r_stage->Origin[0] = rec_offset.x;	// making stage origin account for offsets
+			r_stage->Origin[1] = rec_offset.y;
+			r_stage->Origin[2] = rec_offset.z;
 			//Aim point
-			r_stage->AimPoint[0] = 0.;
-			r_stage->AimPoint[1] = 0.;
-			r_stage->AimPoint[2] = 1.;
+			r_stage->AimPoint[0] = r_stage->Origin[0];
+			r_stage->AimPoint[1] = r_stage->Origin[1];
+			r_stage->AimPoint[2] = r_stage->Origin[2] + 1.;
 			// Accounting for azimuth angle in stage z rotation
 			r_stage->ZRot = rv->rec_azimuth.val;
 			//{virtual stage, multiple hits per ray, trace through} UI checkboxes
@@ -1501,14 +1512,14 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 					curtain_depth = surface.getSurfaceRadius() - curtain_depth;
 				}
 
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = -curtain_depth + rec_offset.y;
-				element->Origin[2] = pos->z + rec_offset.z;
+				element->Origin[0] = 0.0;
+				element->Origin[1] = -curtain_depth;
+				element->Origin[2] = pos->z;
 
 				element->AimPoint[0] = element->Origin[0];
 				element->AimPoint[1] = element->Origin[1] + 1.;
 				element->AimPoint[2] = element->Origin[2];
-				element->ZRot = 180.0;
+				element->ZRot = 180.0; // *(2 % (s + 1)); // TODO: Should this be zero?
 
 				if (recgeom == Receiver::REC_GEOM_TYPE::FALL_FLAT) {
 					element->ShapeIndex = 'r';
@@ -1556,15 +1567,16 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			copt->Back.RMSSpecError = 1000.;
 
 			//Bottom
-			double back_cavity_offset = 0.5;   // [m] assumed distance between curtain and back of cavity
+			double back_cavity_offset = 0.5;   // [m] assumed distance between curtain and back of cavity 
+			// TODO (BILL): This should be normalized or set by user
 
 			r_stage->ElementList.push_back(new ST_Element());
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = rec_offset.x;
-			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2. + rec_offset.y;
-			element->Origin[2] = - rv->rec_height.val/2. + rec_offset.z;
+			element->Origin[0] = 0.0;
+			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2.;
+			element->Origin[2] = -rv->rec_height.val / 2.;
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1];
@@ -1586,9 +1598,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = rec_offset.x; 
-			element->Origin[1] = -rv->max_curtain_depth.val - back_cavity_offset + rec_offset.y;
-			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2. + rec_offset.z;
+			element->Origin[0] = 0.0;
+			element->Origin[1] = -rv->max_curtain_depth.val - back_cavity_offset;
+			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2.;
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1] + 1;
@@ -1610,9 +1622,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = rec_offset.x;
-			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2. + rec_offset.y;
-			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() + rec_offset.z;
+			element->Origin[0] = 0.0;
+			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2.;
+			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val();
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1];
@@ -1634,10 +1646,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			//sp_point el_orig;
-			element->Origin[0] = rv->max_curtain_width.Val() / 2. + rec_offset.x;
-			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2. + rec_offset.y;
-			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2. + rec_offset.z;
+			element->Origin[0] = rv->max_curtain_width.Val() / 2.;
+			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2.;
+			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2.;
 
 			element->AimPoint[0] = element->Origin[0] - 1;
 			element->AimPoint[1] = element->Origin[1];
@@ -1659,9 +1670,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = -rv->max_curtain_width.Val() / 2. + rec_offset.x;
-			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2. + rec_offset.y;
-			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2. + rec_offset.z;
+			element->Origin[0] = -rv->max_curtain_width.Val() / 2.;
+			element->Origin[1] = -(rv->max_curtain_depth.val + back_cavity_offset) / 2.;
+			element->Origin[2] = -rv->rec_height.val / 2. + rv->curtain_total_height.Val() / 2.;
 
 			element->AimPoint[0] = element->Origin[0] + 1;
 			element->AimPoint[1] = element->Origin[1];
@@ -1684,9 +1695,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element = r_stage->ElementList.back();
 				element->Enabled = true;
 
-				element->Origin[0] = rec_offset.x;
-				element->Origin[1] = rec_offset.y;
-				element->Origin[2] = rv->rec_height.val / 2. + (rv->curtain_total_height.Val() - rv->rec_height.val) / 2. + rec_offset.z;
+				element->Origin[0] = 0.0;
+				element->Origin[1] = 0.0;
+				element->Origin[2] = rv->rec_height.val / 2. + (rv->curtain_total_height.Val() - rv->rec_height.val) / 2.;
 
 				element->AimPoint[0] = element->Origin[0];
 				element->AimPoint[1] = element->Origin[1] - 1;
@@ -1709,9 +1720,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = rv->max_curtain_width.Val() / 2. - (rv->max_curtain_width.Val() - rv->rec_width.val) / 4. + rec_offset.x;
-			element->Origin[1] = rec_offset.y;
-			element->Origin[2] = rec_offset.z;
+			element->Origin[0] = rv->max_curtain_width.Val() / 2. - (rv->max_curtain_width.Val() - rv->rec_width.val) / 4.;
+			element->Origin[1] = 0.0;
+			element->Origin[2] = 0.0;
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1] - 1;
@@ -1733,9 +1744,9 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			element = r_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = -rv->max_curtain_width.Val() / 2. + (rv->max_curtain_width.Val() - rv->rec_width.val) / 4. + rec_offset.x;
-			element->Origin[1] = rec_offset.y;
-			element->Origin[2] = rec_offset.z;
+			element->Origin[0] = -rv->max_curtain_width.Val() / 2. + (rv->max_curtain_width.Val() - rv->rec_width.val) / 4.;
+			element->Origin[1] = 0.0;
+			element->Origin[2] = 0.0;
 
 			element->AimPoint[0] = element->Origin[0];
 			element->AimPoint[1] = element->Origin[1] - 1.;

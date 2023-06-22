@@ -2615,7 +2615,7 @@ void Flux::simpleAimPoint(sp_point *Aim, sp_point *AimF, Heliostat &H, SolarFiel
 	Total flux limitations are NOT considered here. For detailed flux mapping, use the calculateAimPoints() method.
 
 	This call returns the relevant information within "Aim" and does not set the local value of the aimpoint for "H"
-	This call also returns relevant information for "AimF" - the aim point in flux plan coordinates
+	This call also returns relevant information for "AimF" - the aim point in flux plane coordinates
 
 	*/
 

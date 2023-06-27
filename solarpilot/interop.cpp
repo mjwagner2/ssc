@@ -1434,6 +1434,9 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 			for (int i = 1; i <= n_panels; i++) {
 				fs = &Rec->getFluxSurfaces()->at(i);
 
+				nfx = fs->getFluxNX();
+				nfy = fs->getFluxNY();
+
 				Arec = fs->getSurfaceArea();
 				dqspec = SimC._STSim->IntData.q_ray * Hv->reflect_ratio.val / Arec * (float)(nfx * nfy);
 
@@ -1453,7 +1456,7 @@ bool interop::SolTraceFluxBinning(SimControl& SimC, SolarField& SF)
 
 				for (int j = 0; j < SimC._STSim->IntData.nint; j++) // TODO: Looping through interactions multiple times is inefficient
 				{    //loop through each intersection
-					// TODO (Bill): Do we only care about absorbed rays?
+					// Flux map is incident flux not absorbed
 					if (SimC._STSim->IntData.smap[j] != rstage1 || abs(SimC._STSim->IntData.emap[j]) != e_ind) continue;    //only consider rays that interact with this element
 
 					//Where did the ray hit relative to the location of the receiver?

@@ -1513,7 +1513,7 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 				element->AimPoint[0] = element->Origin[0];
 				element->AimPoint[1] = element->Origin[1] + 1.;
 				element->AimPoint[2] = element->Origin[2];
-				element->ZRot = 180.0; // *(2 % (s + 1)); // TODO: Should this be zero?
+				element->ZRot = 180.0;
 
 				if (recgeom == Receiver::REC_GEOM_TYPE::FALL_FLAT) {
 					element->ShapeIndex = 'r';

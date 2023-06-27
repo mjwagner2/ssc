@@ -1033,6 +1033,8 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 		double last_trough_height = 1.0;	// Normalized height of previous trough 
 		double last_trough_depth = 1.0;		// Normalized depth of the previous trough
 
+		int y_flux_res;
+		int nflux_y_remaining = nflux_y;
 		// Generate all particle curtains - Starting at the top of the curtain and working down
 		for (int i = 1; i <= n_troughs + 1; i++) {
 			S = &_surfaces.at(i);
@@ -1057,6 +1059,12 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 					throw spexception("Troughs depths must be greater than zero.");
 				else if (depth_norm >= 1.0)
 					throw spexception("Troughs depths must be less than one.");
+
+				y_flux_res = (int)std::round((last_trough_height - height_norm) * nflux_y);
+				nflux_y_remaining -= y_flux_res;
+			}
+			else {
+				y_flux_res = nflux_y_remaining;
 			}
 
 			curtain_height = (last_trough_height - height_norm) * max_height;
@@ -1097,7 +1105,7 @@ void Receiver::DefineReceiverGeometry(int nflux_x, int nflux_y)
 			S->setSurfaceOffset(pc);
 
 			//5) Define the precision of the flux map.
-			S->setFluxPrecision(nflux_x, nflux_y);
+			S->setFluxPrecision(nflux_x, y_flux_res);
 			//6) Define the maximum flux for each panel.
 			S->setMaxFlux(_var_receiver->peak_flux.val);
 			//7) Call the method to set up the flux hit test grid.

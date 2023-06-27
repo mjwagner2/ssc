@@ -1402,23 +1402,6 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 
 				/*--- Re-adding receiver stage ---*/
 				StageList.push_back(new ST_Stage());
-				ST_Stage* r_stage = StageList.back();
-				//Global origin
-				r_stage->Origin[0] = rec_offset.x;		// making stage origin account for offsets
-				r_stage->Origin[1] = rec_offset.y;
-				r_stage->Origin[2] = rec_offset.z;
-				//Aim point
-				r_stage->AimPoint[0] = r_stage->Origin[0];
-				r_stage->AimPoint[1] = r_stage->Origin[1];
-				r_stage->AimPoint[2] = r_stage->Origin[2] + 1.;
-				// Accounting for azimuth angle in stage z rotation
-				r_stage->ZRot = rv->rec_azimuth.val;
-				//{virtual stage, multiple hits per ray, trace through} UI checkboxes
-				r_stage->Virtual = false;
-				r_stage->MultiHitsPerRay = true;
-				r_stage->TraceThrough = false;
-				//Name
-				r_stage->Name = "Receiver";
 
 				//append an optics set, required for the receiver
 				OpticsList.push_back(new ST_OpticalPropertySet());
@@ -1433,11 +1416,22 @@ bool ST_System::CreateSTSystem(SolarField &SF, Hvector &helios, Vect &sunvect){
 			ap_stage->Virtual = true;
 			ap_stage->TraceThrough = false;
 
+			//Global origin - making stage origin account for offsets
+			ap_stage->Origin[0] = rec_offset.x;
+			ap_stage->Origin[1] = rec_offset.y;
+			ap_stage->Origin[2] = rec_offset.z;
+			//Aim point
+			ap_stage->AimPoint[0] = ap_stage->Origin[0];
+			ap_stage->AimPoint[1] = ap_stage->Origin[1];
+			ap_stage->AimPoint[2] = ap_stage->Origin[2] + 1.;
+			// Accounting for azimuth angle in stage z rotation
+			ap_stage->ZRot = rv->rec_azimuth.val;
+
 			ap_stage->ElementList.push_back(new ST_Element());
 			element = ap_stage->ElementList.back();
 			element->Enabled = true;
 
-			element->Origin[0] = 0.0;
+			element->Origin[0] = 0.0;		
 			element->Origin[1] = 0.0;
 			element->Origin[2] = 0.0;
 

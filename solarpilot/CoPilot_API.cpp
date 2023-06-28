@@ -1423,9 +1423,17 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
             Qwf *= eta_c;
         }
         ret.append("Shadowing and Cosine loss, " + std::to_string(Qin - Qwf) + "\n");
-
-        double eta_r = res_map.at("Reflection efficiency") / 100.;
-        ret.append("Reflection loss, " + std::to_string(Qwf * (1. - eta_r)) + "\n");
+        double eta_r;
+        if (is_soltrace)
+        {
+            eta_r = res_map.at("Reflection and Attenuation efficiency") / 100.;
+            ret.append("Reflection and attenuation loss, " + std::to_string(Qwf * (1. - eta_r)) + "\n");
+        }
+        else
+        {
+            eta_r = res_map.at("Reflection efficiency") / 100.;
+            ret.append("Reflection loss, " + std::to_string(Qwf * (1. - eta_r)) + "\n");
+        }
         Qwf *= eta_r;
         double eta_b = res_map.at("Blocking efficiency") / 100.;
         ret.append("Blocking loss, " + std::to_string(Qwf*(1. - eta_b)) + "\n");

@@ -1385,7 +1385,7 @@ bool SolarField::PrepareFieldLayout(SolarField &SF, WeatherData *wdata, bool ref
         hptr->installPanels();
 
 		//Assign a unique ID to the heliostat
-		hptr->setId(i);
+		hptr->setId(i);	// TODO: ID values change from their original values here...
 
 		//Update progress
 		//_sim_info.setSimulationProgress(double(i)/double(Npos));

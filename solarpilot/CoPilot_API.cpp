@@ -2592,7 +2592,7 @@ SPEXPORT bool sp_modify_heliostats(sp_data_t p_data, sp_number_t* helio_data, in
 
     SF->PrepareFieldLayout(*SF, 0, true);
 
-    //not sure if this is needed...
+    // Post layout modifications
     Hvector* updated_helios = SF->getHeliostats();
 
     std::vector<std::string> post_layout_cols = { "soiling", "reflectivity" };

@@ -1788,12 +1788,11 @@ SPEXPORT sp_number_t* sp_get_fluxmap(sp_data_t p_data, int* nrows, int* ncols, i
     sp_number_t* fluxmap = new sp_number_t[(*nrows) * (*ncols)];
 
     //rows
-    for (size_t i = 0; i < fg->front().size(); i++)
-    {
+    for (size_t i = 0; i < fg->front().size(); i++) {
+        int n_rows = fg->front().size();
         //cols
-        for (size_t j = 0; j < fg->size(); j++)
-        {
-            fluxmap[i * (*ncols) + j] = fg->at(fg->size()-1-j).at(i).flux;
+        for (size_t j = 0; j < fg->size(); j++) {
+            fluxmap[i * (*ncols) + j] = fg->at(j).at(n_rows - 1 - i).flux;
         }
     }
     return fluxmap;

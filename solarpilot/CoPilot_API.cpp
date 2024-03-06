@@ -1459,6 +1459,7 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
         double Q_before_ref_att = Qwf;
         if (is_soltrace) { // SolTrace Reflection and Attenuation Efficiency is grouped
             double eta_ra = res_map.at("Reflection and Attenuation efficiency") / 100.;
+            ret.append("Reflection and Attenuation efficiency, " + std::to_string(eta_ra * 100.) + "\n");
             Qwf *= eta_ra;
         }
         else { // Hermite

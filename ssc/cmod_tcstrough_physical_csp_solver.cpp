@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 // Trough CSP - physical model
@@ -33,14 +43,15 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "csp_solver_two_tank_tes.h"
 #include "csp_solver_tou_block_schedules.h"
 #include "csp_solver_core.h"
+#include "csp_dispatch.h"
 
 static var_info _cm_vtab_trough_physical_csp_solver[] = {
 //   weather reader inputs
 //   VARTYPE            DATATYPE          NAME                        LABEL                                                                               UNITS           META            GROUP             REQUIRED_IF                CONSTRAINTS              UI_HINTS
-    { SSC_INPUT,        SSC_STRING,      "file_name",                 "Local weather file with path",                                                     "none",         "",             "Weather",        "*",                       "LOCAL_FILE",            "" },
-    { SSC_INPUT,        SSC_NUMBER,      "track_mode",                "Tracking mode",                                                                    "none",         "",             "Weather",        "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "tilt",                      "Tilt angle of surface/axis",                                                       "none",         "",             "Weather",        "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "azimuth",                   "Azimuth angle of surface/axis",                                                    "none",         "",             "Weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_STRING,      "file_name",                 "Local weather file with path",                                                     "none",         "",             "weather",        "*",                       "LOCAL_FILE",            "" },
+    { SSC_INPUT,        SSC_NUMBER,      "track_mode",                "Tracking mode",                                                                    "none",         "",             "weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_NUMBER,      "tilt",                      "Tilt angle of surface/axis",                                                       "none",         "",             "weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_NUMBER,      "azimuth",                   "Azimuth angle of surface/axis",                                                    "none",         "",             "weather",        "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "system_capacity",           "Nameplate capacity",                                                               "kW",           "",             "trough",         "*",                       "",                      "" },
 
 	{ SSC_INPUT, SSC_NUMBER, "ppa_multiplier_model", "PPA multiplier model", "0/1", "0=diurnal,1=timestep", "Time of Delivery", "?=0", "INTEGER,MIN=0", "" },
@@ -205,7 +216,7 @@ static var_info _cm_vtab_trough_physical_csp_solver[] = {
 	// Steam Rankine cycle
     { SSC_INPUT,        SSC_NUMBER,      "dT_cw_ref",         "Reference condenser cooling water inlet/outlet T diff",                     "C",            "",                             "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "T_amb_des",         "Reference ambient temperature at design point",                             "C",            "",                             "powerblock",     "pc_config=0",             "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "P_boil",            "Boiler operating pressure",                                                 "bar",          "",                             "powerblock",     "pc_config=0",             "",                      "" },
+    //{ SSC_INPUT,        SSC_NUMBER,      "P_boil",            "Boiler operating pressure",                                                 "bar",          "",                             "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "CT",                "Flag for using dry cooling or wet cooling system",                          "none",         "",                             "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "T_approach",        "Cooling tower approach temperature",                                        "C",            "",                             "powerblock",     "pc_config=0",             "",                      "" },
     { SSC_INPUT,        SSC_NUMBER,      "T_ITD_des",         "ITD at design for dry system",                                              "C",            "",                             "powerblock",     "pc_config=0",             "",                      "" },
@@ -309,7 +320,9 @@ static var_info _cm_vtab_trough_physical_csp_solver[] = {
 	{ SSC_OUTPUT,       SSC_ARRAY,       "m_dot_balance",        "Relative mass flow balance error",                             "",             "",            "Controller",    "",                       "",           "" },
 	{ SSC_OUTPUT,       SSC_ARRAY,       "q_balance",            "Relative energy balance error",                                "",             "",            "Controller",    "",                       "",           "" },
 
+    { SSC_OUTPUT,       SSC_ARRAY,       "disp_rel_mip_gap",     "Dispatch relative MIP gap",                                    "",             "",            "tou",            "",                      "",            "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "disp_solve_state",     "Dispatch solver state",                                        "",             "",            "tou",            ""                       "",            "" }, 
+    { SSC_OUTPUT,       SSC_ARRAY,       "disp_subopt_flag",     "Dispatch suboptimal solution flag",                            "",             "",            "tou",            "",                      "",            "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "disp_solve_iter",      "Dispatch iterations count",                                    "",             "",            "tou",            ""                       "",            "" }, 
     { SSC_OUTPUT,       SSC_ARRAY,       "disp_objective",       "Dispatch objective function value",                            "",             "",            "tou",            ""                       "",            "" }, 
     { SSC_OUTPUT,       SSC_ARRAY,       "disp_obj_relax",       "Dispatch objective function - relaxed max",                    "",             "",            "tou",            ""                       "",            "" }, 
@@ -710,7 +723,7 @@ public:
 		{
 			pc->m_dT_cw_ref = as_double("dT_cw_ref");			//[C]
 			pc->m_T_amb_des = as_double("T_amb_des");			//[C]
-			pc->m_P_boil = as_double("P_boil");					//[bar]
+            pc->m_P_boil_des = 100.0;           //[bar]
 			pc->m_CT = as_integer("CT");						//[-]
 			pc->m_tech_type = as_integer("tech_type");			//[-]					
 			pc->m_T_approach = as_double("T_approach");			//[C/K]
@@ -740,18 +753,18 @@ public:
 			pc->m_m_dot_water_des = as_double("ud_m_dot_water_cool_des");		//[kg/s]
 
 			// Also need lower and upper levels for the 3 independent variables...
-			pc->m_T_htf_low = as_double("ud_T_htf_low");			//[C]
-			pc->m_T_htf_high = as_double("ud_T_htf_high");			//[C]
-			pc->m_T_amb_low = as_double("ud_T_amb_low");			//[C]
-			pc->m_T_amb_high = as_double("ud_T_amb_high");			//[C]
-			pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");	//[-]
-			pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");	//[-]
+			//pc->m_T_htf_low = as_double("ud_T_htf_low");			//[C]
+			//pc->m_T_htf_high = as_double("ud_T_htf_high");			//[C]
+			//pc->m_T_amb_low = as_double("ud_T_amb_low");			//[C]
+			//pc->m_T_amb_high = as_double("ud_T_amb_high");			//[C]
+			//pc->m_m_dot_htf_low = as_double("ud_m_dot_htf_low");	//[-]
+			//pc->m_m_dot_htf_high = as_double("ud_m_dot_htf_high");	//[-]
 
-			// User-Defined Cycle Off-Design Tables 
-			pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
-			pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
-			pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
-            pc->mc_m_dot_htf_ind = as_matrix("ud_ind_od");
+			//// User-Defined Cycle Off-Design Tables 
+			//pc->mc_T_htf_ind = as_matrix("ud_T_htf_ind_od");
+			//pc->mc_T_amb_ind = as_matrix("ud_T_amb_ind_od");
+			//pc->mc_m_dot_htf_ind = as_matrix("ud_m_dot_htf_ind_od");
+            pc->mc_combined_ind = as_matrix("ud_ind_od");
 		}
 
 		// ********************************
@@ -759,36 +772,31 @@ public:
 		// Now add the storage class
 		// ********************************
 		// ********************************
-		C_csp_two_tank_tes storage;
-		C_csp_two_tank_tes::S_params *tes = &storage.ms_params;
-		tes->m_field_fl = as_integer("Fluid");
-		tes->m_field_fl_props = as_matrix("field_fl_props");
-		tes->m_tes_fl = as_integer("Fluid");
-		tes->m_tes_fl_props = as_matrix("field_fl_props");
-		tes->m_is_hx = false;									//[-] Assuming direct storage here
-		tes->m_W_dot_pc_design = as_double("W_pb_design");		//[MWe]
-		tes->m_eta_pc = as_double("eta_ref");					//[-]
-		tes->m_solarm = as_double("solar_mult");				//[-]
-		tes->m_ts_hours = as_double("tshours");					//[hr]
-
-		// Hardcode NO TES for now
-		tes->m_ts_hours = 0.0;		//[hr]
-
-		tes->m_h_tank = as_double("h_tank");					//[m]
-		tes->m_u_tank = as_double("u_tank");					//[W/m^2-K]
-		tes->m_tank_pairs = as_integer("tank_pairs");			//[-]
-		tes->m_hot_tank_Thtr = as_double("hot_tank_Thtr");		//[C]
-		tes->m_hot_tank_max_heat = as_double("tank_max_heat");	//[MW]
-		tes->m_cold_tank_Thtr = as_double("cold_tank_Thtr");	//[C]
-		tes->m_cold_tank_max_heat = as_double("tank_max_heat");	//[MW]
-		tes->m_dt_hot = 0.0;									//[-] Assuming direct storage here
-		tes->m_T_field_in_des = as_double("T_loop_in_des");		//[C]
-		tes->m_T_field_out_des = as_double("T_loop_out");		//[C]
-		tes->m_T_tank_hot_ini = as_double("T_loop_in_des");		//[C]
-		tes->m_T_tank_cold_ini = as_double("T_loop_out");		//[C]
-		tes->m_h_tank_min = as_double("h_tank_min");			//[m]
-		tes->m_f_V_hot_ini = as_double("V_tank_hot_ini");		//[-]
-		tes->m_htf_pump_coef = as_double("pb_pump_coef");		//[kW/kg/s]
+        C_csp_two_tank_tes storage(
+            as_integer("Fluid"),
+            as_matrix("field_fl_props"),
+            as_integer("Fluid"),
+            as_matrix("field_fl_props"),
+            as_double("W_pb_design") / as_double("eta_ref"),  //[MWt]
+            as_double("solar_mult"),                          //[-]
+            0.0,		                                      //[MWht]
+            as_double("h_tank"),					          //[m]
+            as_double("u_tank"),					          //[W/m^2-K]
+            as_integer("tank_pairs"),			              //[-]
+            as_double("hot_tank_Thtr"),		                  //[C]
+            as_double("tank_max_heat"),	                      //[MW]
+            as_double("cold_tank_Thtr"),	                  //[C]
+            as_double("tank_max_heat"),	                      //[MW]
+            0.0,									          //[-] Assuming direct storage here
+            as_double("T_loop_in_des"),		                  //[C]
+            as_double("T_loop_out"),		                  //[C]
+            as_double("T_loop_in_des"),		                  //[C]
+            as_double("T_loop_out"),		                  //[C]
+            as_double("h_tank_min"),			              //[m]
+            as_double("V_tank_hot_ini"),		              //[-]
+            as_double("pb_pump_coef"),		                  //[kW/kg/s]
+            true
+        );
 
 		// ********************************
 		// ********************************
@@ -801,24 +809,7 @@ public:
 		tou_params->mc_csp_ops.mc_weekends = as_matrix("weekend_schedule");
 		tou_params->mc_pricing.mc_weekdays = as_matrix("dispatch_sched_weekday");
 		tou_params->mc_pricing.mc_weekends = as_matrix("dispatch_sched_weekend");
-		tou.mc_dispatch_params.m_dispatch_optimize = false;
-		tou.mc_dispatch_params.m_is_write_ampl_dat = false;
-		tou.mc_dispatch_params.m_is_ampl_engine = false;
-		tou.mc_dispatch_params.m_ampl_data_dir = "";
-		tou.mc_dispatch_params.m_ampl_exec_call = "";
-		if( tou.mc_dispatch_params.m_dispatch_optimize )
-		{
-			tou.mc_dispatch_params.m_optimize_frequency = as_integer("disp_frequency");
-			tou.mc_dispatch_params.m_optimize_horizon = as_integer("disp_horizon");
-			tou.mc_dispatch_params.m_max_iterations = as_integer("disp_max_iter");
-			tou.mc_dispatch_params.m_solver_timeout = as_double("disp_timeout");
-			tou.mc_dispatch_params.m_mip_gap = as_double("disp_mip_gap");
-			tou.mc_dispatch_params.m_presolve_type = as_integer("disp_spec_presolve");
-			tou.mc_dispatch_params.m_bb_type = as_integer("disp_spec_bb");
-			tou.mc_dispatch_params.m_disp_reporting = as_integer("disp_reporting");
-			tou.mc_dispatch_params.m_scaling_type = as_integer("disp_spec_scaling");
-		}
-		tou.mc_dispatch_params.m_is_block_dispatch = !tou.mc_dispatch_params.m_dispatch_optimize;      //mw
+		tou.mc_dispatch_params.m_is_block_dispatch = !false;      //mw
 		tou.mc_dispatch_params.m_use_rule_1 = true;
 		tou.mc_dispatch_params.m_standby_off_buffer = 2.0;
 		tou.mc_dispatch_params.m_use_rule_2 = false;
@@ -845,6 +836,16 @@ public:
 		}
 		else // standard diuranal input
 		{
+
+            auto dispatch_tod_factors = as_vector_double("dispatch_tod_factors");
+            if (dispatch_tod_factors.size() != 9)
+                throw exec_error("trough_physical_csp_solcer", util::format("\n\nDispatch TOD factors has %d periods instead of the expected 9.\n", (int)dispatch_tod_factors.size()));
+
+            tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE].resize(9, 0.0);
+            for (size_t i = 0; i < 9; i++)
+                tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][i] = dispatch_tod_factors[i];
+
+            /*
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE].resize(9, 0.0);
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][0] = as_double("dispatch_factor1");
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][1] = as_double("dispatch_factor2");
@@ -855,6 +856,7 @@ public:
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][6] = as_double("dispatch_factor7");
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][7] = as_double("dispatch_factor8");
 			tou_params->mc_pricing.mvv_tou_arrays[C_block_schedule_pricing::MULT_PRICE][8] = as_double("dispatch_factor9");
+            */
 		}
 
 
@@ -878,8 +880,34 @@ public:
 		int n_steps_fixed = steps_per_hour*8760;	//[-]
 		sim_setup.m_report_step = 3600.0 / (double)steps_per_hour;	//[s]
 
+        // *****************************************************
+        // System dispatch
+        csp_dispatch_opt dispatch;
+
+        // Get first year base ppa price
+        size_t count_ppa_price_input;
+        ssc_number_t* ppa_price_input_array = as_array("ppa_price_input", &count_ppa_price_input);
+        double ppa_price_year1 = (double)ppa_price_input_array[0];  // [$/kWh]
+
+        dispatch.solver_params.set_user_inputs(false, as_integer("disp_steps_per_hour"), as_integer("disp_frequency"), as_integer("disp_horizon"),
+            as_integer("disp_max_iter"), as_double("disp_mip_gap"), as_double("disp_timeout"),
+            as_integer("disp_spec_presolve"), as_integer("disp_spec_bb"), as_integer("disp_spec_scaling"), as_integer("disp_reporting"),
+            as_boolean("is_write_ampl_dat"), as_boolean("is_ampl_engine"), as_string("ampl_data_dir"), as_string("ampl_exec_call"));
+
+        dispatch.params.set_user_params(as_boolean("can_cycle_use_standby"), as_double("disp_time_weighting"),
+            as_double("disp_rsu_cost"), 0.0, as_double("disp_csu_cost"), as_double("disp_pen_delta_w"),
+            as_double("disp_inventory_incentive"), as_double("q_rec_standby"), as_double("q_rec_heattrace"), ppa_price_year1);
+
 		// Instantiate Solver
-		C_csp_solver csp_solver(weather_reader, c_trough, power_cycle, storage, tou, system);
+		C_csp_solver csp_solver(weather_reader,
+            c_trough,
+            power_cycle,
+            storage,
+            tou,
+            dispatch,
+            system,
+            NULL,
+            nullptr);
 
 		// Set solver reporting outputs
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TIME_FINAL, allocate("time_hr", n_steps_fixed), n_steps_fixed);
@@ -909,7 +937,9 @@ public:
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CTRL_OP_MODE_SEQ_B, allocate("operating_modes_b", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CTRL_OP_MODE_SEQ_C, allocate("operating_modes_c", n_steps_fixed), n_steps_fixed);
 
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_REL_MIP_GAP, allocate("disp_rel_mip_gap", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_SOLVE_STATE, allocate("disp_solve_state", n_steps_fixed), n_steps_fixed);
+        csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_SUBOPT_FLAG, allocate("disp_subopt_flag", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_SOLVE_ITER, allocate("disp_solve_iter", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_SOLVE_OBJ, allocate("disp_objective", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::DISPATCH_SOLVE_OBJ_RELAX, allocate("disp_obj_relax", n_steps_fixed), n_steps_fixed);
@@ -934,20 +964,20 @@ public:
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::RH, allocate("RH", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CR_DEFOCUS, allocate("defocus", n_steps_fixed), n_steps_fixed);
 
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_Q_DOT_LOSS, allocate("tank_losses", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_W_DOT_HEATER, allocate("q_heater", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_T_HOT, allocate("T_tes_hot", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_T_COLD, allocate("T_tes_cold", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_Q_DOT_LOSS, allocate("tank_losses", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_W_DOT_HEATER, allocate("q_heater", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_T_HOT, allocate("T_tes_hot", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_T_COLD, allocate("T_tes_cold", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_Q_DOT_DC, allocate("q_dc_tes", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_Q_DOT_CH, allocate("q_ch_tes", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_E_CH_STATE, allocate("e_ch_tes", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_M_DOT_DC, allocate("m_dot_tes_dc", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_M_DOT_CH, allocate("m_dot_tes_ch", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_M_DOT_DC, allocate("m_dot_tes_dc", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::TES_M_DOT_CH, allocate("m_dot_tes_ch", n_steps_fixed), n_steps_fixed);
 
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::COL_W_DOT_TRACK, allocate("pparasi", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CR_W_DOT_PUMP, allocate("P_tower_pump", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::SYS_W_DOT_PUMP, allocate("htf_pump_power", n_steps_fixed), n_steps_fixed);
-		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::PC_W_DOT_COOLING, allocate("P_cooling_tower_tot", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::COL_W_DOT_TRACK, allocate("pparasi", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::CR_W_DOT_PUMP, allocate("P_tower_pump", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::SYS_W_DOT_PUMP, allocate("htf_pump_power", n_steps_fixed), n_steps_fixed);
+		//csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::PC_W_DOT_COOLING, allocate("P_cooling_tower_tot", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::SYS_W_DOT_FIXED, allocate("P_fixed", n_steps_fixed), n_steps_fixed);
 		csp_solver.mc_reported_outputs.assign(C_csp_solver::C_solver_outputs::SYS_W_DOT_BOP, allocate("P_plant_balance_tot", n_steps_fixed), n_steps_fixed);
 

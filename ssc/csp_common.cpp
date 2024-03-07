@@ -1,56 +1,41 @@
-/*******************************************************************************************************
-*  Copyright 2017 Alliance for Sustainable Energy, LLC
-*
-*  NOTICE: This software was developed at least in part by Alliance for Sustainable Energy, LLC
-*  (“Alliance”) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
-*  The Government retains for itself and others acting on its behalf a nonexclusive, paid-up,
-*  irrevocable worldwide license in the software to reproduce, prepare derivative works, distribute
-*  copies to the public, perform publicly and display publicly, and to permit others to do so.
-*
-*  Redistribution and use in source and binary forms, with or without modification, are permitted
-*  provided that the following conditions are met:
-*
-*  1. Redistributions of source code must retain the above copyright notice, the above government
-*  rights notice, this list of conditions and the following disclaimer.
-*
-*  2. Redistributions in binary form must reproduce the above copyright notice, the above government
-*  rights notice, this list of conditions and the following disclaimer in the documentation and/or
-*  other materials provided with the distribution.
-*
-*  3. The entire corresponding source code of any redistribution, with or without modification, by a
-*  research entity, including but not limited to any contracting manager/operator of a United States
-*  National Laboratory, any institution of higher learning, and any non-profit organization, must be
-*  made publicly available under this license for as long as the redistribution is made available by
-*  the research entity.
-*
-*  4. Redistribution of this software, without modification, must refer to the software by the same
-*  designation. Redistribution of a modified version of this software (i) may not refer to the modified
-*  version by the same designation, or by any confusingly similar designation, and (ii) must refer to
-*  the underlying software originally provided by Alliance as �System Advisor Model� or �SAM�. Except
-*  to comply with the foregoing, the terms �System Advisor Model�, �SAM�, or any confusingly similar
-*  designation may not be used to refer to any modified version of this software or any modified
-*  version of the underlying software originally provided by Alliance without the prior written consent
-*  of Alliance.
-*
-*  5. The name of the copyright holder, contributors, the United States Government, the United States
-*  Department of Energy, or any of their employees may not be used to endorse or promote products
-*  derived from this software without specific prior written permission.
-*
-*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
-*  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
-*  FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER,
-*  CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES DEPARTMENT OF ENERGY, NOR ANY OF THEIR
-*  EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-*  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-*  IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
-*  THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*******************************************************************************************************/
+/*
+BSD 3-Clause License
+
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 
 #include "csp_common.h"
 #include "core.h"
 #include "lib_weatherfile.h"
 #include "lib_util.h"
+#include "sam_csp_util.h"
 #include <sstream>
 
 #include "common.h"
@@ -59,6 +44,9 @@
 #include "AutoPilot_API.h"
 #include "SolarField.h"
 #include "IOUtil.h"
+
+// cavity receiver geometry
+#include "csp_solver_cavity_receiver.h"
 
 #ifdef _MSC_VER
 #define mysnprintf _snprintf
@@ -117,7 +105,7 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
         opt.flux_penalty.val = m_cmod->as_double("opt_flux_penalty");
     }
 
-	recs.front().peak_flux.val = m_cmod->as_double("flux_max");
+	recs.front().peak_flux.val = m_cmod->as_double("flux_max");     //[kW/m2]
 
     var_heliostat *hf = &hels.front();
     //need to set up the template combo
@@ -137,18 +125,16 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 	hf->n_cant_x.val = m_cmod->as_integer("n_facet_x");
 	hf->n_cant_y.val = m_cmod->as_integer("n_facet_y");
 
-    string cant_choices[] = {"No canting","On-axis at slant","On-axis, user-defined","Off-axis, day and hour","User-defined vector"};
-
+    // Cant map between SAM UI choices and SolarPILOT cant methods 
 	int cmap[5];
-    cmap[0] = var_heliostat::CANT_METHOD::NO_CANTING;
-    cmap[1] = var_heliostat::CANT_METHOD::ONAXIS_AT_SLANT;
-    cmap[2] = cmap[3] = cmap[4] = var_heliostat::CANT_METHOD::OFFAXIS_DAY_AND_HOUR;
+    cmap[AutoPilot::API_CANT_TYPE::NONE] = var_heliostat::CANT_METHOD::NO_CANTING;
+    cmap[AutoPilot::API_CANT_TYPE::ON_AXIS] = var_heliostat::CANT_METHOD::ONAXIS_AT_SLANT;
+    cmap[AutoPilot::API_CANT_TYPE::EQUINOX] = var_heliostat::CANT_METHOD::OFFAXIS_DAY_AND_HOUR;
+    cmap[AutoPilot::API_CANT_TYPE::SOLSTICE_SUMMER] = var_heliostat::CANT_METHOD::OFFAXIS_DAY_AND_HOUR;
+    cmap[AutoPilot::API_CANT_TYPE::SOLSTICE_WINTER] = var_heliostat::CANT_METHOD::OFFAXIS_DAY_AND_HOUR;
 
 	int cant_type = m_cmod->as_integer("cant_type");
-
-	//hf->cant_method.val = cmap[ cant_type ];       //Convert to the Heliostat::CANT_METHOD list
-    //hf->cant_method.combo_select( cant_choices[cmap[cant_type]] );
-    hf->cant_method.combo_select( cant_choices[cant_type] );
+    hf->cant_method.combo_select_by_mapval(cmap[cant_type]);
     switch (cant_type)
 {
     case AutoPilot::API_CANT_TYPE::NONE:
@@ -183,18 +169,100 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 
     var_receiver *rf = &recs.front();
 
-	rf->absorptance.val = m_cmod->as_double("rec_absorptance");
-	rf->rec_height.val = m_cmod->as_double("rec_height");
-	rf->rec_width.val = rf->rec_diameter.val = rf->rec_height.val/m_cmod->as_double("rec_aspect"); 
+    int rec_type = m_cmod->as_integer("receiver_type");
+    if (rec_type == 0) {
+        rf->rec_type.val = "External cylindrical";
+        rf->rec_height.val = m_cmod->as_double("rec_height");
+        rf->rec_width.val = rf->rec_diameter.val = rf->rec_height.val / m_cmod->as_double("rec_aspect");
+        rf->absorptance.val = m_cmod->as_double("rec_absorptance");
+    }
+    else if (rec_type == 1) {
+        rf->rec_type.val = "Cavity";
+
+        double cav_rec_height = m_cmod->as_double("cav_rec_height");   //[m]
+        rf->rec_height.val = cav_rec_height;        //[m]
+
+        double cav_rec_width = m_cmod->as_double("cav_rec_width");     //[m] 
+        rf->rec_width.val = cav_rec_width;      //[m]
+
+        double cav_rec_span = m_cmod->as_double("cav_rec_span")*PI/180.0;   //[rad] convert from cmod unit of [deg]
+
+        size_t n_panels = m_cmod->as_integer("n_cav_rec_panels"); //[-]
+        rf->n_panels.val = n_panels;
+
+        double theta0, panelSpan, panel_width, rec_area, radius, offset;
+        theta0 = panelSpan = panel_width = rec_area = radius = offset = std::numeric_limits<double>::quiet_NaN();
+        cavity_receiver_helpers::calc_receiver_macro_geometry(cav_rec_height, cav_rec_width, cav_rec_span, n_panels,
+            theta0, panelSpan, panel_width, rec_area, radius, offset);
+
+        rf->rec_cav_cdepth.val = offset/radius;
+        rf->rec_cav_rad.val = radius;
+
+        rf->absorptance.val = 1.0;      // don't apply absorptivity in solarpilot for cavity receivers - performance model will do this
+    }
+    else if (rec_type == 3) {
+        rf->rec_type.val = "Falling particle";
+        rf->rec_height.val = m_cmod->as_double("rec_height");
+        rf->rec_width.val = m_cmod->as_double("rec_width");
+        rf->absorptance.val = 1.0;
+
+        // Curtain dimensions
+        rf->norm_curtain_height.val = m_cmod->as_double("norm_curtain_height");  // [-]
+        rf->norm_curtain_width.val = m_cmod->as_double("norm_curtain_width");    // [-]
+        rf->max_curtain_depth.val = m_cmod->as_double("max_curtain_depth");      // [m]
+        // Reading in normalized curtain heights and depths
+        util::matrix_t<double> norm_heights_depths = m_cmod->as_matrix("norm_heights_depths");  // [-]  
+        std::string format = "%f,%f;";
+        std::string nhd_input;
+        char row[200];
+        for (size_t i = 0; i < norm_heights_depths.nrows(); i++) {
+            sprintf(row, format.c_str(), norm_heights_depths.at(i, 0), norm_heights_depths.at(i, 1));
+            nhd_input.append(row);
+        }
+        rf->norm_heights_depths.set_from_string(nhd_input.c_str());
+
+
+        // TODO (Bill): Do I need a helper function here to pre-calculate values like curtain height and width?
+        rf->curtain_total_height.Setval(rf->norm_curtain_height.val * rf->rec_height.val);
+        rf->max_curtain_width.Setval(rf->norm_curtain_width.val * rf->rec_width.val);
+
+        int curtain_type = m_cmod->as_integer("curtain_type");
+        if (curtain_type == 0) {
+            rf->curtain_type.val = "Flat";
+        }
+        else if (curtain_type == 1) {
+            rf->curtain_type.val = "Curved";
+            rf->curtain_radius.val = m_cmod->as_double("curtain_radius");    // [m]
+        }
+        else {
+            throw exec_error("solarpilot cmod", "curtain type must be 0 (flat) or 1 (curved)");
+        }
+
+        rf->is_snout.val = m_cmod->as_boolean("is_snout");
+        if (rf->is_snout.val) {
+            rf->snout_depth.val = m_cmod->as_double("snout_depth");                     // [m]
+            rf->snout_horiz_angle.val = m_cmod->as_double("snout_horiz_angle");         // [deg]
+            rf->snout_vert_bot_angle.val = m_cmod->as_double("snout_vert_bot_angle");   // [deg]
+            rf->snout_vert_top_angle.val = m_cmod->as_double("snout_vert_top_angle");   // [deg]
+        }
+
+        rf->absorptance.val = 1.0;      // don't apply absorptivity in solarpilot for falling particle receivers - performance model will do this
+    }
+    else {
+        throw exec_error("solarpilot cmod", "receiver type must be 0 (external), 1 (cavity), or 3 (falling particle)");
+    }
+
 	rf->therm_loss_base.val = m_cmod->as_double("rec_hl_perm2");
 		
-    sf.q_des.val = m_cmod->as_double("q_design");
+    sf.q_des.val = m_cmod->as_double("q_design");       //[MWt]
 	sf.dni_des.val = m_cmod->as_double("dni_des");
     land.is_bounds_scaled.val = true;
     land.is_bounds_fixed.val = false;
     land.is_bounds_array.val = false;
 	land.max_scaled_rad.val = m_cmod->as_double("land_max");
 	land.min_scaled_rad.val = m_cmod->as_double("land_min");
+    land.land_mult.val = m_cmod->as_double("csp.pt.sf.land_overhead_factor");
+    land.land_const.val = m_cmod->as_double("csp.pt.sf.fixed_land_area");
 	sf.tht.val = m_cmod->as_double("h_tower");
 		
 	fin.tower_fixed_cost.val = m_cmod->as_double("tower_fixed_cost");
@@ -231,7 +299,19 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 
 	weather_header hdr;
 	wdata->header(&hdr);
-		
+
+    // If cavity in southern hemisphere, then receiver faces south
+    if (rec_type == 1 || rec_type == 3) {
+        sf.is_opt_zoning.val = true;   // Turning off optical zoning for flat receivers
+        if (hdr.lat < 0) {
+            rf->rec_azimuth.val = 180;
+        }
+        else {
+            sf.accept_max.val = 90.0;
+            sf.accept_min.val = -90.0;
+        }
+    }
+
     amb.latitude.val = hdr.lat;
 	amb.longitude.val = hdr.lon;
 	amb.time_zone.val = hdr.tz;
@@ -271,28 +351,119 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
             
             //set up optimization variables
             {
-                int nv = 3;
-                vector<double*> optvars(nv);
-                vector<double> upper(nv, HUGE_VAL);
-                vector<double> lower(nv, -HUGE_VAL);
-                vector<double> stepsize(nv);
-                vector<string> names(nv);
+                if (rec_type == 0) {
 
-                //pointers
-                optvars.at(0) = &sf.tht.val;
-                optvars.at(1) = &recs.front().rec_height.val;
-                optvars.at(2) = &recs.front().rec_diameter.val;
-                //names
-                names.at(0) = (split(sf.tht.name, ".")).back();
-                names.at(1) = (split(recs.front().rec_height.name, ".")).back();
-                names.at(2) = (split(recs.front().rec_diameter.name, ".")).back();
-                //step size
-                stepsize.at(0) = sf.tht.val*opt.max_step.val;
-                stepsize.at(1) = recs.front().rec_height.val*opt.max_step.val;
-                stepsize.at(2) = recs.front().rec_diameter.val*opt.max_step.val;
+                    int nv = 3;
+                    vector<double*> optvars(nv);
+                    vector<double> upper(nv, HUGE_VAL);
+                    vector<double> lower(nv, -HUGE_VAL);
+                    vector<double> stepsize(nv);
+                    vector<string> names(nv);
+                
+                    //pointers
+                    optvars.at(0) = &sf.tht.val;
+                    optvars.at(1) = &recs.front().rec_height.val;
+                    optvars.at(2) = &recs.front().rec_diameter.val;
+                    //names
+                    names.at(0) = (split(sf.tht.name, ".")).back();
+                    names.at(1) = (split(recs.front().rec_height.name, ".")).back();
+                    names.at(2) = (split(recs.front().rec_diameter.name, ".")).back();
+                    //step size
+                    stepsize.at(0) = sf.tht.val * opt.max_step.val;
+                    stepsize.at(1) = recs.front().rec_height.val * opt.max_step.val;
+                    stepsize.at(2) = recs.front().rec_diameter.val * opt.max_step.val;
 
-                if(! m_sapi->Optimize(opt.algorithm.mapval(), optvars, upper, lower, stepsize, &names) )
-                    return false;
+                    if (!m_sapi->Optimize(/*opt.algorithm.mapval(),*/ optvars, upper, lower, stepsize, &names))
+                        return false;
+                }
+                else if (rec_type == 1) {
+
+                    int nv = 3;
+                    vector<double*> optvars(nv);
+                    vector<double> upper(nv, HUGE_VAL);
+                    vector<double> lower(nv, -HUGE_VAL);
+                    vector<double> stepsize(nv);
+                    vector<string> names(nv);
+
+                    //// Set initial values for optimized parameters
+                    //double q_dot_rec_des = m_cmod->as_double("q_design")*1.E3;       //[kWt]
+                    //double A_rec_min = (q_dot_rec_des) / m_cmod->as_double("flux_max");    //[m2]
+                    //recs.front().rec_height.val = sqrt(A_rec_min);
+                    //recs.front().rec_width.val = recs.front().rec_height.val;     //[m] 
+
+                    //// Set up parameters for cavity geometry calc
+                    //double cav_rec_span = m_cmod->as_double("cav_rec_span") * PI / 180.0;   //[rad] convert from cmod unit of [deg]
+
+                    //size_t n_panels = cavity_receiver_helpers::get_default_number_of_panels();
+                    //recs.front().n_panels.val = n_panels;
+
+                    //double theta0, panelSpan, panel_width, rec_area, radius, offset;
+                    //theta0 = panelSpan = panel_width = rec_area = radius = offset = std::numeric_limits<double>::quiet_NaN();
+                    //cavity_receiver_helpers::calc_receiver_macro_geometry(recs.front().rec_height.val, recs.front().rec_width.val, cav_rec_span, n_panels,
+                    //    theta0, panelSpan, panel_width, rec_area, radius, offset);
+
+                    //recs.front().rec_cav_cdepth.val = offset / radius;
+                    //recs.front().rec_cav_rad.val = radius;
+
+                    //double eta_active = m_cmod->as_double("helio_active_fraction");     //[-]
+                    //double eta_profile = m_cmod->as_double("dens_mirror");              //[-]
+                    //double eta_refl = m_cmod->as_double("helio_reflectance");           //[-]
+                    //double eta_cos_guess = 0.85;        //[-]
+                    //double eta_dens_guess = 0.25;       //[-]
+                    //double dni_des = m_cmod->as_double("dni_des")*1.E-3;          //[kW/m2]
+
+                    //double q_dot_rec_heatloss = m_cmod->as_double("rec_hl_perm2")*A_rec_min;  //[kW]
+                    //double A_sf_est = (q_dot_rec_des - q_dot_rec_heatloss) / (dni_des * eta_dens_guess * eta_cos_guess * eta_refl * eta_profile * eta_active);
+
+                    //double f_land_max = m_cmod->as_double("land_max");
+                    //double f_land_min = m_cmod->as_double("land_min");
+
+                    //double h_tower_est = sqrt((A_sf_est*2.0)/(PI*(f_land_max*f_land_max - f_land_min*f_land_min)));     //[m]
+
+                    //sf.tht.val = h_tower_est;
+
+                    //pointers
+                    optvars.at(0) = &sf.tht.val;
+                    optvars.at(1) = &recs.front().rec_height.val;
+                    optvars.at(2) = &recs.front().rec_cav_rad.val;
+                    //names
+                    names.at(0) = (split(sf.tht.name, ".")).back();
+                    names.at(1) = (split(recs.front().rec_height.name, ".")).back();
+                    names.at(2) = (split(recs.front().rec_cav_rad.name, ".")).back();
+                    //step size
+                    stepsize.at(0) = sf.tht.val * opt.max_step.val;
+                    stepsize.at(1) = recs.front().rec_height.val * opt.max_step.val;
+                    stepsize.at(2) = recs.front().rec_cav_rad.val * opt.max_step.val;
+
+                    if (!m_sapi->Optimize(/*opt.algorithm.mapval(),*/ optvars, upper, lower, stepsize, &names))
+                        return false;
+
+                }
+                else if (rec_type == 3){
+
+                    int nv = 3;
+                    vector<double*> optvars(nv);
+                    vector<double> upper(nv, HUGE_VAL);
+                    vector<double> lower(nv, -HUGE_VAL);
+                    vector<double> stepsize(nv);
+                    vector<string> names(nv);
+
+                    //pointers
+                    optvars.at(0) = &sf.tht.val;
+                    optvars.at(1) = &recs.front().rec_height.val;   // TODO (Bill): Set-up receiver cost to use aperture area
+                    optvars.at(2) = &recs.front().rec_width.val;
+                    //names
+                    names.at(0) = (split(sf.tht.name, ".")).back();
+                    names.at(1) = (split(recs.front().rec_height.name, ".")).back();
+                    names.at(2) = (split(recs.front().rec_width.name, ".")).back();
+                    //step size
+                    stepsize.at(0) = sf.tht.val * opt.max_step.val;
+                    stepsize.at(1) = recs.front().rec_height.val * opt.max_step.val;
+                    stepsize.at(2) = recs.front().rec_width.val * opt.max_step.val;
+
+                    if (!m_sapi->Optimize(/*opt.algorithm.mapval(),*/ optvars, upper, lower, stepsize, &names))
+                        return false;
+                }
             }
 
 			m_sapi->Setup(*this);
@@ -328,6 +499,7 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 		}
 
 		m_sapi->Setup(*this);
+        m_sapi->PostProcessLayout(layout);
     }
     
     //check if flux map calculations are desired
@@ -348,11 +520,14 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 
 		int nflux_x = m_cmod->as_integer("n_flux_x");
 		int nflux_y = m_cmod->as_integer("n_flux_y");
-		//int nflux_x = 12, nflux_y = 1;
-		if(! m_sapi->CalculateFluxMaps(fluxtab, nflux_x, nflux_y, true) )
+
+        if (nflux_x < 1 || nflux_y < 1)
+            throw exec_error("solarpilot", "flux map resolution must be a positive integer");
+
+    	if(! m_sapi->CalculateFluxMaps(fluxtab, nflux_x, nflux_y, true) )
         {
             flux.aim_method.combo_select( aim_method_save );
-            return false;  //simulation failed or was cancelled.
+            return false;  //simulation failed or was canceled.
         }
         flux.aim_method.combo_select( aim_method_save );
 
@@ -387,7 +562,7 @@ bool solarpilot_invoke::run(std::shared_ptr<weather_data_provider> wdata)
 
 		
 		if(! m_sapi->CalculateFluxMaps(flux_temp, 20, 15, false) )
-            return false;  //simulation failed or was cancelled.
+            return false;  //simulation failed or was canceled.
             
         
 		block_t<double> *flux_data = &flux_temp.flux_surfaces.front().flux_data;  //there should be only one flux stack for SAM
@@ -432,7 +607,7 @@ bool solarpilot_invoke::postsim_calcs(compute_module *cm)
         ssc_hl[i*2+1] = (ssc_number_t)layout.heliostat_positions.at(i).location.y;
     }
 
-    double A_sf = cm->as_double("helio_height") * cm->as_double("helio_width") * cm->as_double("dens_mirror") * (double)nr;
+    double A_sf = CalcSolarFieldArea(nr);
 
     //update piping length for parasitic calculation
     double piping_length = THT * cm->as_double("csp.pt.par.piping_length_mult") + cm->as_double("csp.pt.par.piping_length_const");
@@ -529,6 +704,135 @@ bool solarpilot_invoke::postsim_calcs(compute_module *cm)
 
 }
 
+void solarpilot_invoke::getHeliostatFieldEfficiency(util::matrix_t<double> &eta_map) {
+    /*
+    Populates heliostat field efficiency matrix
+    */
+
+    if (fluxtab.zeniths.size() > 0 && fluxtab.azimuths.size() > 0
+        && fluxtab.efficiency.size() > 0) {
+        size_t nvals = fluxtab.efficiency.size();
+        eta_map.resize(nvals, 3);
+
+        for (size_t i = 0; i < nvals; i++) {
+            eta_map(i, 0) = fluxtab.azimuths[i] * 180. / CSP::pi;      //Convention is usually S=0, E<0, W>0 
+            eta_map(i, 1) = fluxtab.zeniths[i] * 180. / CSP::pi;       //Provide zenith angle
+            eta_map(i, 2) = fluxtab.efficiency[i];
+        }
+    }
+    else
+        throw exec_error("solarpilot", "failed to calculate a correct optical efficiency table");
+}
+
+void solarpilot_invoke::getReceiverFluxMaps(util::matrix_t<double>& flux_maps) {
+    //   - SolarPILOT provides flux_data in a 3D matrix (y, x, sun position) per flux surface
+    //   - The Heliostat Field interpolation method needs flux_data for the receiver in a 2D matrix of size (y * sun position, x)
+    //   - Here we collect the flux data and transform it to desired format
+    
+    block_t<double>* flux_data = &fluxtab.flux_surfaces.front().flux_data;
+    if (flux_data->ncols() > 0 && flux_data->nlayers() > 0) {
+        switch (recs.front().rec_type.mapval()) {
+            case var_receiver::REC_TYPE::EXTERNAL_CYLINDRICAL:
+            {
+                int nflux_y = (int)flux_data->nrows();
+                int nflux_x = (int)flux_data->ncols();
+
+                flux_maps.resize(nflux_y * flux_data->nlayers(), nflux_x);
+
+                int cur_row = 0;
+
+                for (size_t i = 0; i < flux_data->nlayers(); i++)
+                {
+                    for (int j = 0; j < nflux_y; j++)
+                    {
+                        for (int k = 0; k < nflux_x; k++)
+                        {
+                            flux_maps(cur_row, k) = flux_data->at(j, k, i);
+                            //fluxdata[cur_row * nflux_x + k] = (float)flux_data->at(j, k, i);
+                        }
+                        cur_row++;
+                    }
+                }
+                break;
+            }
+            case var_receiver::REC_TYPE::CAVITY:
+            {
+                int nflux_y = (int)flux_data->nrows();
+                int nflux_x = (int)flux_data->ncols();
+
+                int n_sp_surfaces = fluxtab.flux_surfaces.size();
+                int n_panels_cav_sp = n_sp_surfaces - 1;
+
+                if (nflux_y > 1) {
+                    throw exec_error("solarpilot", "cavity flux maps currently only work for nflux_y = 1");
+                }
+
+                flux_maps.resize(nflux_y * flux_data->nlayers(), n_panels_cav_sp);
+
+                int cur_row = 0;
+
+                // nlayers is number of solar positions (i.e. flux maps)
+                for (size_t i = 0; i < flux_data->nlayers(); i++) {
+
+                    int j = 0;
+
+                    double flux_receiver = 0.0;
+
+                    // Start at k=1 because the first surface in flux_surfaces is the aperture, which we don't want
+                    for (int k = 1; k <= n_panels_cav_sp; k++) {
+
+                        block_t<double>* flux_data = &fluxtab.flux_surfaces[k].flux_data; //.front().flux_data;  //there should be only one flux stack for SAM
+
+                        double flux_local = 0.0;
+                        for (int l = 0; l < nflux_x; l++) {
+                            flux_local += flux_data->at(j, l, i);
+                        }
+
+                        // Adjust k to start flux maps with first receiver surface
+                        flux_maps(cur_row, k - 1) = flux_local;
+                        flux_receiver += flux_local;
+                    }
+
+                    cur_row++;
+                }
+                break;
+            }
+            case var_receiver::REC_TYPE::FALLING_PARTICLE:
+            {
+                // Front flux surface is the aperture and is the same discretization as all curtains combined
+                int nflux_y = (int)flux_data->nrows();
+                int nflux_x = (int)flux_data->ncols();
+                flux_maps.resize(nflux_y * flux_data->nlayers(), nflux_x);
+
+                // nlayers is number of solar positions (i.e. flux maps)
+                for (size_t sp = 0; sp < flux_data->nlayers(); sp++) {
+                    int n_surfs = fluxtab.flux_surfaces.size();
+                    int y_pos_basis = 0;
+                    double flux_receiver = 0.0; // for debugging?
+                    // Start at k=1 because the first surface in flux_surfaces is the aperture, which we don't want
+                    for (int k = 1; k < n_surfs; k++) { // for each curtain surface
+                        flux_data = &fluxtab.flux_surfaces[k].flux_data;
+                        int surf_nflux_y = flux_data->nrows(); // Get flux surface y-discretization size
+
+                        for (int y = 0; y < surf_nflux_y; y++) {
+                            for (int x = 0; x < nflux_x; x++) {
+                                // collect flux data on curtain
+                                flux_maps(sp * nflux_y + y_pos_basis + y, x) = flux_data->at(y, x, sp);
+                                flux_receiver += flux_maps(sp * nflux_y + y_pos_basis + y, x);
+                            }
+                        }
+                        y_pos_basis += surf_nflux_y;
+                    }
+                    if (y_pos_basis != nflux_y)
+                        throw exec_error("solarpilot", "Collecting receiver flux map has failed contact support");
+                }
+                break;
+            }
+        }
+    }
+    else
+        throw exec_error("solarpilot", "failed to calculate a correct flux map table");
+}
 
 void solarpilot_invoke::getOptimizationSimulationHistory(vector<vector<double> > &sim_points, vector<double> &obj_values, vector<double> &flux_values)
 {
@@ -548,6 +852,63 @@ void solarpilot_invoke::setOptimizationSimulationHistory(vector<vector<double> >
 	_optimization_fluxes = flux_values;
 }
 
+double solarpilot_invoke::CalcAveAttenuation()
+{
+    double tht2 = std::pow(sf.tht.val, 2);        //[m]
+    std::size_t n_hel = layout.heliostat_positions.size();
+
+    double tot_att = 0.0;
+    std::size_t ncoefs = amb.atm_coefs.val.ncols();
+    std::size_t atm_sel = amb.atm_model.combo_get_current_index();
+
+    for (std::size_t i = 0; i < n_hel; i++) {
+
+        double x = layout.heliostat_positions[i].location.x;
+        double y = layout.heliostat_positions[i].location.y;
+        double r = std::sqrt(x * x + y * y);
+        double r2 = r * r;
+
+        double s = std::sqrt(tht2 + r2) * 0.001;    // [km]
+        //double s2 = s * s;
+        //double s3 = s2 * s;
+
+        for (int i = 0; i < ncoefs; i++) {
+            tot_att += amb.atm_coefs.val.at(atm_sel, i) * pow(s, i);
+        }
+    }
+
+    return 100.0 * tot_att / n_hel;     //[%]  
+}
+
+double solarpilot_invoke::CalcSolarFieldArea(int N_hel)
+{
+    /*
+    Calculate solar field area using ratio of reflective area to heliostat profile
+
+    N_hel: Number of heliostats in the solar field
+    */
+    return m_cmod->as_double("helio_height") * m_cmod->as_double("helio_width") * m_cmod->as_double("dens_mirror") * (double)N_hel;
+}
+
+double solarpilot_invoke::CalcHeliostatArea()
+{
+    /*
+    Calculate reflective area of single heliostat
+    */
+    return m_cmod->as_double("helio_height") * m_cmod->as_double("helio_width") * m_cmod->as_double("dens_mirror");
+}
+
+double solarpilot_invoke::GetTotalLandArea()
+{
+    // Total land area [acres]
+    return land.land_area.Val();
+}
+
+double solarpilot_invoke::GetBaseLandArea()
+{
+    // Base land area occupied by heliostats [acres]
+    return land.bound_area.Val();  // [acres] Land area occupied by heliostats
+}
 
 bool ssc_cmod_solarpilot_callback( simulation_info *siminfo, void *data )
 {
@@ -573,16 +934,16 @@ static bool optimize_callback( simulation_info *siminfo, void *data )
 
 bool are_values_sig_different(double v1, double v2, double tol)
 {
-    if (fabs(v1) < tol || fabs(v2) < tol)
+    if (std::abs(v1) < tol || std::abs(v2) < tol)
     {
-        if (fabs(v1 - v2) > tol)
+        if (std::abs(v1 - v2) > tol)
         {
             return true;
         }
     }
     else
     {
-        if (fabs(v1 - v2) / std::min(fabs(v1), fabs(v2)) > tol)
+        if (std::abs(v1 - v2) / std::min(std::abs(v1), std::abs(v2)) > tol)
         {
             return true;
         }
@@ -618,7 +979,9 @@ var_info vtab_sco2_design[] = {
     { SSC_INPUT,  SSC_NUMBER,  "LT_recup_eff_max",     "Maximum allowable effectiveness in LTR",                 "-",          "Low temperature recuperator",    "Heat Exchanger Design",      "?=1.0", "",       "" },
     { SSC_INPUT,  SSC_NUMBER,  "LTR_LP_deltaP_des_in", "LTR low pressure side pressure drop as fraction of inlet pressure","-", "Low temperature recuperator",   "Heat Exchanger Design",      "",      "",       "" },
     { SSC_INPUT,  SSC_NUMBER,  "LTR_HP_deltaP_des_in", "LTR high pressure side pressure drop as fraction of inlet pressure","-", "Low temperature recuperator",  "Heat Exchanger Design",      "",      "",       "" },
-            // High temperature recuperator parameters
+    { SSC_INPUT,  SSC_NUMBER,  "LTR_n_sub_hx",         "LTR number of model subsections",                        "-",          "Low temperature recuperator",    "Heat Exchanger Design",      "?=10",  "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "LTR_od_model",         "0: mass flow scale, 1: conductance ratio model",         "-",          "Low temperature recuperator",    "Heat Exchanger Design",      "?=1",   "",       "" },
+        // High temperature recuperator parameters
     { SSC_INPUT,  SSC_NUMBER,  "HTR_design_code",      "1 = UA, 2 = min dT, 3 = effectiveness",                  "-",          "High temperature recuperator",    "Heat Exchanger Design",      "design_method=3", "", "" },
 	{ SSC_INPUT,  SSC_NUMBER,  "HTR_UA_des_in",        "Design HTR conductance",                                 "kW/K",       "High temperature recuperator",    "Heat Exchanger Design",      "design_method=3", "", "" },
 	{ SSC_INPUT,  SSC_NUMBER,  "HTR_min_dT_des_in",    "Design minimum allowable temperature difference in HTR", "C",          "High temperature recuperator",    "Heat Exchanger Design",      "design_method=3", "", "" },
@@ -626,6 +989,8 @@ var_info vtab_sco2_design[] = {
     { SSC_INPUT,  SSC_NUMBER,  "HT_recup_eff_max",     "Maximum allowable effectiveness in HTR",                 "-",          "High temperature recuperator",    "Heat Exchanger Design",      "?=1.0", "",       "" },
     { SSC_INPUT,  SSC_NUMBER,  "HTR_LP_deltaP_des_in", "HTR low pressure side pressure drop as fraction of inlet pressure","-", "High temperature recuperator",   "Heat Exchanger Design",      "",      "",       "" },
     { SSC_INPUT,  SSC_NUMBER,  "HTR_HP_deltaP_des_in", "HTR high pressure side pressure drop as fraction of inlet pressure","-", "High temperature recuperator",  "Heat Exchanger Design",      "",      "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "HTR_n_sub_hx",         "HTR number of model subsections",                        "-",          "High temperature recuperator",    "Heat Exchanger Design",      "?=10",  "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "HTR_od_model",         "0: mass flow scale, 1: conductance ratio model",         "-",          "High temperature recuperator",    "Heat Exchanger Design",      "?=1",   "",       "" },
 
     { SSC_INPUT,  SSC_NUMBER,  "cycle_config",         "1 = recompression, 2 = partial cooling",                 "",           "High temperature recuperator",    "Heat Exchanger Design",      "?=1",   "",       "" },
 	{ SSC_INPUT,  SSC_NUMBER,  "is_recomp_ok",         "1 = Yes, 0 = simple cycle only, < 0 = fix f_recomp to abs(input)","",  "High temperature recuperator",    "Heat Exchanger Design",      "?=1",   "",       "" },
@@ -637,31 +1002,40 @@ var_info vtab_sco2_design[] = {
 	{ SSC_INPUT,  SSC_NUMBER,  "min_phx_deltaT",       "Minimum design temperature difference across PHX",       "C",          "High temperature recuperator",    "Heat Exchanger Design",      "?=0",   "",       "" },
 	{ SSC_INPUT,  SSC_NUMBER,  "rel_tol",              "Baseline solver and optimization relative tolerance exponent (10^-rel_tol)", "-", "High temperature recuperator", "Heat Exchanger Design", "?=3","",       "" },
 		// Cycle Design
-	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_mc",          "Design main compressor isentropic efficiency",           "-",          "",    "Cycle Design",      "*",     "",       "" },
-	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_rc",          "Design re-compressor isentropic efficiency",             "-",          "",    "Cycle Design",      "*",     "",       "" },
-	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_pc",          "Design precompressor isentropic efficiency",             "-",          "",    "Cycle Design",      "cycle_config=2",     "",       "" },
-	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_t",           "Design turbine isentropic efficiency",                   "-",          "",    "Cycle Design",      "*",     "",       "" },
-	{ SSC_INPUT,  SSC_NUMBER,  "PHX_co2_deltaP_des_in","PHX co2 side pressure drop as fraction of inlet pressure","-",         "",    "Cycle Design",      "",      "",       "" },
-    { SSC_INPUT,  SSC_NUMBER,  "deltaP_counterHX_frac","Fraction of CO2 inlet pressure that is design point counterflow HX (recups & PHX) pressure drop", "-", "", "Cycle Design", "?=0", "", ""},
-	{ SSC_INPUT,  SSC_NUMBER,  "P_high_limit",         "High pressure limit in cycle",                           "MPa",        "",    "Cycle Design",      "*",     "",       "" },
+	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_mc",          "Design main compressor isentropic efficiency",           "-",          "",    "",      "*",     "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "mc_comp_type",         "Main compressor compressor type 1: SNL 2: CompA",        "-",          "",    "",      "?=1",   "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "eta_isen_rc",          "Design re-compressor isentropic efficiency",             "-",          "",    "",      "*",     "",       "" },
+	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_pc",          "Design precompressor isentropic efficiency",             "-",          "",    "",      "cycle_config=2",     "",       "" },
+	{ SSC_INPUT,  SSC_NUMBER,  "eta_isen_t",           "Design turbine isentropic efficiency",                   "-",          "",    "",      "*",     "",       "" },
+	{ SSC_INPUT,  SSC_NUMBER,  "PHX_co2_deltaP_des_in","PHX co2 side pressure drop as fraction of inlet pressure","-",         "",    "",      "",      "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "deltaP_counterHX_frac","Fraction of CO2 inlet pressure that is design point counterflow HX (recups & PHX) pressure drop", "-", "", "", "?=0", "", ""},
+	{ SSC_INPUT,  SSC_NUMBER,  "P_high_limit",         "High pressure limit in cycle",                           "MPa",        "",    "",      "*",     "",       "" },
+
 		// PHX Design
 	{ SSC_INPUT,  SSC_NUMBER,  "dT_PHX_cold_approach", "Temp diff btw cold HTF and cold CO2",                    "C",          "",    "PHX Design",      "*",     "",       "" },
-		// Air Cooler Design
+    { SSC_INPUT,  SSC_NUMBER,  "PHX_n_sub_hx",         "Number of subsections in PHX model",                     "-",          "",    "PHX Design",      "?=10",  "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "PHX_od_model",         "0: mass flow scale, 1: conductance ratio model",         "-",          "",    "PHX Design",      "?=1",   "",       "" },
+
+        // Air Cooler Design
 	{ SSC_INPUT,  SSC_NUMBER,  "is_design_air_cooler", "Defaults to True. False will skip air cooler calcs",     "",           "",    "Air Cooler Design",      "?=1.0", "",       "" },
 	{ SSC_INPUT,  SSC_NUMBER,  "fan_power_frac",       "Fraction of net cycle power consumed by air cooler fan", "",           "",    "Air Cooler Design",      "*",     "",       "" },
-	{ SSC_INPUT,  SSC_NUMBER,  "deltaP_cooler_frac",   "Fraction of CO2 inlet pressure that is design point cooler CO2 pressure drop", "", "", "Air Cooler Design", "*","",       "" },
+	{ SSC_INPUT,  SSC_NUMBER,  "deltaP_cooler_frac",   "Fraction of CO2 inlet pressure that is design point cooler CO2 pressure drop", "", "", "Air Cooler Design", "*", "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "eta_air_cooler_fan",   "Air cooler fan isentropic efficiency",                   "",           "",    "Air Cooler Design",      "?=0.5", "",       "" },
+    { SSC_INPUT,  SSC_NUMBER,  "N_nodes_air_cooler_pass", "Number of nodes in single air cooler pass",           "",           "",    "Air Cooler Design",      "?=10",  "",       "" },
 
 	// ** Design OUTPUTS **
 		// System Design Solution
 	{ SSC_OUTPUT, SSC_NUMBER,  "T_htf_cold_des",       "HTF design cold temperature (PHX outlet)",               "C",          "System Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "m_dot_htf_des",        "HTF mass flow rate",                                     "kg/s",       "System Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "eta_thermal_calc",     "Calculated cycle thermal efficiency",                    "-",          "System Design Solution",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "m_dot_co2_full",       "CO2 mass flow rate through HTR, PHX, turbine",           "kg/s",       "System Design Solution",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "m_dot_co2_full",       "CO2 mass flow rate through HTR, PHX, turbine",           "kg/s",       "System Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "recomp_frac",          "Recompression fraction",                                 "-",          "System Design Solution",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "cycle_cost",           "Cycle cost",                                             "M$",         "System Design Solution",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "cycle_spec_cost",      "Cycle specific cost",                                    "$/kWe",      "System Design Solution",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "cycle_spec_cost_thermal", "Cycle specific cost - thermal",                       "$/kWt",      "System Design Solution",    "",      "*",     "",       "" },
-		// Compressor
+	{ SSC_OUTPUT, SSC_NUMBER,  "cycle_cost",           "Cycle cost bare erected",                                "M$",         "System Design Solution",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "cycle_spec_cost",      "Cycle specific cost bare erected",                       "$/kWe",      "System Design Solution",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "cycle_spec_cost_thermal", "Cycle specific (thermal) cost bare erected",          "$/kWt",      "System Design Solution",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "W_dot_net_less_cooling", "System power output subtracting cooling parastics",    "MWe,"        "System Design Solution",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "eta_thermal_net_less_cooling_des","Calculated cycle thermal efficiency using W_dot_net_less_cooling", "-", "System Design Solution","",  "*", "",       "" },
+    // Compressor
 	{ SSC_OUTPUT, SSC_NUMBER,  "T_comp_in",            "Compressor inlet temperature",                           "C",          "Compressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "P_comp_in",            "Compressor inlet pressure",                              "MPa",        "Compressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "P_comp_out",           "Compressor outlet pressure",                             "MPa",        "Compressor",    "",      "*",     "",       "" },
@@ -679,7 +1053,8 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "mc_phi_surge",         "Compressor flow coefficient where surge occurs",         "",           "Compressor",    "",      "*",     "",       "" },
     { SSC_OUTPUT, SSC_NUMBER,  "mc_psi_max_at_N_des",  "Compressor max ideal head coefficient at design shaft speed", "",      "Compressor",    "",      "*",     "",       "" },
     { SSC_OUTPUT, SSC_ARRAY,   "mc_eta_stages_des",    "Compressor design stage isentropic efficiencies",        "",           "Compressor",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cost",              "Compressor cost",                                        "M$",         "Compressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "mc_cost_equipment",    "Compressor cost equipment",                              "M$",         "Compressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "mc_cost_bare_erected", "Compressor cost equipment plus install",                 "M$",         "Compressor",    "",      "*",     "",       "" },
 		// Recompressor
 	{ SSC_OUTPUT, SSC_NUMBER,  "rc_T_in_des",          "Recompressor inlet temperature",                         "C",          "Recompressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "rc_P_in_des",          "Recompressor inlet pressure",                            "MPa",        "Recompressor",    "",      "*",     "",       "" },
@@ -696,7 +1071,8 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "rc_phi_surge",         "Recompressor flow coefficient where surge occurs",       "",           "Recompressor",    "",      "*",     "",       "" },
     { SSC_OUTPUT, SSC_NUMBER,  "rc_psi_max_at_N_des",  "Recompressor max ideal head coefficient at design shaft speed", "",    "Recompressor",    "",      "*",     "",       "" },
     { SSC_OUTPUT, SSC_ARRAY,   "rc_eta_stages_des",    "Recompressor design stage isenstropic efficiencies",     "",           "Recompressor",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "rc_cost",              "Recompressor cost",                                      "M$",         "Recompressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "rc_cost_equipment",    "Recompressor cost equipment",                            "M$",         "Recompressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "rc_cost_bare_erected", "Recompressor cost equipment plus install",               "M$",         "Recompressor",    "",      "*",     "",       "" },
 		// Precompressor	
 	{ SSC_OUTPUT, SSC_NUMBER,  "pc_T_in_des",          "Precompressor inlet temperature",                        "C",          "Precompressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "pc_P_in_des",          "Precompressor inlet pressure",                           "MPa",        "Precompressor",    "",      "*",     "",       "" },
@@ -711,9 +1087,10 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_ARRAY,   "pc_D",                 "Precompressor stage diameters",                          "m",          "Precompressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "pc_phi_surge",         "Precompressor flow coefficient where surge occurs",      "",           "Precompressor",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_ARRAY,   "pc_eta_stages_des",    "Precompressor design stage isenstropic efficiencies",    "",           "Precompressor",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cost",              "Precompressor cost",                                     "M$",         "Precompressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "pc_cost_equipment",    "Precompressor cost equipment",                           "M$",         "Precompressor",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "pc_cost_bare_erected", "Precompressor cost equipment plus install",              "M$",         "Precompressor",    "",      "*",     "",       "" },
 		// Compressor Totals	
-	{ SSC_OUTPUT, SSC_NUMBER,   "c_tot_cost",          "Compressor total cost",                                  "M$",         "Compressor Totals",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,   "c_tot_cost_equip",    "Compressor total cost",                                  "M$",         "Compressor Totals",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,   "c_tot_W_dot",         "Compressor total summed power",                          "MWe",        "Compressor Totals",    "",      "*",     "",       "" },
 		// Turbine
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_W_dot",              "Turbine power",                                          "MWe",        "Turbine",    "",      "*",     "",       "" },
@@ -722,15 +1099,19 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_P_in_des",           "Turbine design inlet pressure",                          "MPa",        "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_T_out_des",          "Turbine outlet temperature",                             "C",          "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_P_out_des",          "Turbine design outlet pressure",                         "MPa",        "Turbine",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "t_delta_h_isen_des",   "Turbine isentropic specific work",                       "kJ/kg",      "Turbine",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "t_rho_in_des",         "Turbine inlet density",                                  "kg/m3",      "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_nu_des",             "Turbine design velocity ratio",                          "",           "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_tip_ratio_des",	   "Turbine design tip speed ratio",                         "",           "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_N_des",			   "Turbine design shaft speed",	                         "rpm",        "Turbine",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "t_D",                  "Turbine diameter",                                       "m",          "Turbine",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "t_cost",               "Tubine cost",                                            "M$",         "Turbine",    "",      "*",     "",       "" },
-		// Recuperators																				 
+	{ SSC_OUTPUT, SSC_NUMBER,  "t_cost_equipment",     "Tubine cost - equipment",                                "M$",         "Turbine",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "t_cost_bare_erected",  "Tubine cost - equipment plus install",                   "M$",         "Turbine",    "",      "*",     "",       "" },
+        // Recuperators																				 
 	{ SSC_OUTPUT, SSC_NUMBER,  "recup_total_UA_assigned", "Total recuperator UA assigned to design routine",     "MW/K",       "Recuperators",    "",      "*",     "",       "" },
     { SSC_OUTPUT, SSC_NUMBER,  "recup_total_UA_calculated", "Total recuperator UA calculated considering max eff and/or min temp diff parameter", "MW/K",       "Recuperators",    "",      "*",     "",       "" },
-    { SSC_OUTPUT, SSC_NUMBER,  "recup_total_cost",     "Total recuperator cost",                                 "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "recup_total_cost_equipment","Total recuperator cost equipment",                  "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "recup_total_cost_bare_erected","Total recuperator cost bare erected",            "M$",         "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "recup_LTR_UA_frac",    "Fraction of total conductance to LTR",                   "",           "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_HP_T_out_des",     "Low temp recuperator HP outlet temperature",             "C",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_UA_assigned",      "Low temp recuperator UA assigned from total",            "MW/K",       "Recuperators",    "",      "*",     "",       "" },
@@ -741,7 +1122,8 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_LP_deltaP_des",    "Low temp recuperator low pressure design pressure drop", "-",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_HP_deltaP_des",    "Low temp recuperator high pressure design pressure drop","-",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_min_dT",           "Low temp recuperator min temperature difference",        "C",          "Recuperators",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LTR_cost",             "Low temp recuperator cost",                              "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "LTR_cost_equipment",   "Low temp recuperator cost equipment",                    "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "LTR_cost_bare_erected","Low temp recuperator cost equipment and install",        "M$",         "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_LP_T_out_des",     "High temp recuperator LP outlet temperature",            "C",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_HP_T_in_des",      "High temp recuperator HP inlet temperature",             "C",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_UA_assigned",      "High temp recuperator UA assigned from total",           "MW/K",       "Recuperators",    "",      "*",     "",       "" },
@@ -752,7 +1134,8 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_LP_deltaP_des",    "High temp recuperator low pressure design pressure drop","-",          "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_HP_deltaP_des",    "High temp recuperator high pressure design pressure drop","-",         "Recuperators",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_min_dT",           "High temp recuperator min temperature difference",       "C",          "Recuperators",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "HTR_cost",             "High temp recuperator cost",                             "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "HTR_cost_equipment",   "High temp recuperator cost equipment",                   "M$",         "Recuperators",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "HTR_cost_bare_erected","High temp recuperator cost equipment and install",       "M$",         "Recuperators",    "",      "*",     "",       "" },
 		// PHX Design Solution
 	{ SSC_OUTPUT, SSC_NUMBER,  "UA_PHX",               "PHX Conductance",                                        "MW/K",       "PHX Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "eff_PHX",              "PHX effectiveness",                                      "",           "PHX Design Solution",    "",      "*",     "",       "" },
@@ -762,30 +1145,37 @@ var_info vtab_sco2_design[] = {
 	{ SSC_OUTPUT, SSC_NUMBER,  "deltaT_HTF_PHX",       "HTF temp difference across PHX",                         "C",          "PHX Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "q_dot_PHX",            "PHX heat transfer",                                      "MWt",        "PHX Design Solution",    "",      "*",     "",       "" },
 	{ SSC_OUTPUT, SSC_NUMBER,  "PHX_co2_deltaP_des",   "PHX co2 side design pressure drop",                      "-",          "PHX Design Solution",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "PHX_cost",             "PHX cost",                                               "M$",         "PHX Design Solution",    "",      "*",     "",       "" },
-		// Low Pressure Cooler
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_T_in",       "Low pressure cross flow cooler inlet temperature",       "C",          "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_P_in",       "Low pressure cross flow cooler inlet pressure",          "MPa",        "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_rho_in",     "Low pressure cross flow cooler inlet density",           "kg/m3",      "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_in_isen_deltah_to_P_mc_out", "Low pressure cross flow cooler inlet isen enthalpy rise to mc outlet pressure", "kJ/kg", "Low Pressure Cooler", "", "*", "", "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_m_dot_co2",  "Low pressure cross flow cooler CO2 mass flow rate",      "kg/s",       "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_UA",         "Low pressure cross flow cooler conductance",             "MW/K",       "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_q_dot",      "Low pressure cooler heat transfer",                      "MWt",        "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_co2_deltaP_des","Low pressure cooler co2 side design pressure drop",   "-",          "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_W_dot_fan",  "Low pressure cooler fan power",                          "MWe",        "Low Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "LP_cooler_cost",       "Low pressure cooler cost",                               "M$",         "Low Pressure Cooler",    "",      "*",     "",       "" },
-		// Intermediate Pressure Cooler
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_T_in",       "Intermediate pressure cross flow cooler inlet temperature",       "C",          "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_P_in",       "Intermediate pressure cross flow cooler inlet pressure",          "MPa",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_m_dot_co2",  "Intermediate pressure cross flow cooler CO2 mass flow rate",      "kg/s",       "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_UA",         "Intermediate pressure cross flow cooler conductance",             "MW/K",       "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_q_dot",      "Intermediate pressure cooler heat transfer",                      "MWt",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_W_dot_fan",  "Intermediate pressure cooler fan power",                          "MWe",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "IP_cooler_cost",       "Intermediate pressure cooler cost",                               "M$",         "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
-		// Cooler Totals
-	{ SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_cost",      "Total cooler cost",                  "M$",        "Cooler Totals",   "",   "*",   "",   "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_UA",        "Total cooler conductance",           "MW/K",      "Cooler Totals",   "",   "*",   "",   "" },
-	{ SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_W_dot_fan", "Total cooler fan power",             "MWe",       "Cooler Totals",   "",   "*",   "",   "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "PHX_cost_equipment",   "PHX cost equipment",                                     "M$",         "PHX Design Solution",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "PHX_cost_bare_erected","PHX cost equipment and install",                         "M$",         "PHX Design Solution",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "PHX_min_dT",           "PHX min temperature difference",                         "C",          "PHX Design Solution",    "",      "*",     "",       "" },
+		// main compressor cooler
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_T_in",       "Low pressure cross flow cooler inlet temperature",       "C",          "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_P_in",       "Low pressure cross flow cooler inlet pressure",          "MPa",        "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_rho_in",     "Low pressure cross flow cooler inlet density",           "kg/m3",      "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_in_isen_deltah_to_P_mc_out", "Low pressure cross flow cooler inlet isen enthalpy rise to mc outlet pressure", "kJ/kg", "Low Pressure Cooler", "", "*", "", "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_m_dot_co2",  "Low pressure cross flow cooler CO2 mass flow rate",      "kg/s",       "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_UA",         "Low pressure cross flow cooler conductance",             "MW/K",       "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_q_dot",      "Low pressure cooler heat transfer",                      "MWt",        "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_co2_deltaP_des","Low pressure cooler co2 side design pressure drop",   "-",          "Low Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_W_dot_fan",  "Low pressure cooler fan power",                          "MWe",        "Low Pressure Cooler",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_cost_equipment","Low pressure cooler cost equipment",                  "M$",         "Low Pressure Cooler",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "mc_cooler_cost_bare_erected","Low pressure cooler cost equipment and install",   "M$",         "Low Pressure Cooler",    "",      "*",     "",       "" },
+		// pre compressor cooler
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_T_in",       "Intermediate pressure cross flow cooler inlet temperature",       "C",          "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_P_in",       "Intermediate pressure cross flow cooler inlet pressure",          "MPa",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_m_dot_co2",  "Intermediate pressure cross flow cooler CO2 mass flow rate",      "kg/s",       "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_UA",         "Intermediate pressure cross flow cooler conductance",             "MW/K",       "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_q_dot",      "Intermediate pressure cooler heat transfer",                      "MWt",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_W_dot_fan",  "Intermediate pressure cooler fan power",                          "MWe",        "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_cost_equipment","Intermediate pressure cooler cost equipment",                  "M$",         "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "pc_cooler_cost_bare_erected","Intermediate pressure cooler cost equipment and install",   "M$",         "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+        // piping_inventory_etc_cost
+    { SSC_OUTPUT, SSC_NUMBER,  "piping_inventory_etc_cost","Cost of remaining cycle equipment on BEC basis",   "M$",         "Intermediate Pressure Cooler",    "",      "*",     "",       "" },
+        // Cooler Totals
+	{ SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_cost_equipment",   "Total cooler cost equipment",              "M$",        "Cooler Totals",   "",   "*",   "",   "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_cost_bare_erected","Total cooler cost equipment and install",  "M$",        "Cooler Totals",   "",   "*",   "",   "" },
+    { SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_UA",            "Total cooler conductance",                    "MW/K",      "Cooler Totals",   "",   "*",   "",   "" },
+	{ SSC_OUTPUT, SSC_NUMBER,  "cooler_tot_W_dot_fan",     "Total cooler fan power",                      "MWe",       "Cooler Totals",   "",   "*",   "",   "" },
 		// State Points
 	{ SSC_OUTPUT, SSC_ARRAY,  "T_state_points",       "Cycle temperature state points",      "C",	      "State Points",   "",   "*",   "",   "" },
 	{ SSC_OUTPUT, SSC_ARRAY,  "P_state_points",       "Cycle pressure state points",         "MPa",       "State Points",   "",   "*",   "",   "" },
@@ -833,6 +1223,8 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 
     s_sco2_des_par.m_cycle_config = cm->as_integer("cycle_config");			//[-] 1 = recompression, 2 = partial cooling
 
+    s_sco2_des_par.m_LTR_od_UA_target_type = static_cast<NS_HX_counterflow_eqs::E_UA_target_type>(cm->as_integer("LTR_od_model"));   // E_calc_UA;
+    s_sco2_des_par.m_HTR_od_UA_target_type = static_cast<NS_HX_counterflow_eqs::E_UA_target_type>(cm->as_integer("HTR_od_model"));   // E_calc_UA;
     s_sco2_des_par.m_design_method = cm->as_integer("design_method");			//[-] 1 = Specify efficiency, 2 = Specify total recup UA, 3 = Specify each recup design
 	if (s_sco2_des_par.m_design_method == 1)
 	{
@@ -916,7 +1308,7 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
         {
             s_sco2_des_par.m_fixed_f_PR_HP_to_IP = true;
             double P_LP_in_local = s_sco2_des_par.m_P_high_limit / s_sco2_des_par.m_PR_HP_to_LP_guess;    //[kPa]
-            double P_IP_in_local = fabs(PR_HP_to_IP_in)*1.E3;      //[kPa]
+            double P_IP_in_local = std::abs(PR_HP_to_IP_in)*1.E3;      //[kPa]
             if (PR_HP_to_IP_in > 0.0)
             {
                 P_IP_in_local = s_sco2_des_par.m_P_high_limit / PR_HP_to_IP_in;  //[-]
@@ -992,25 +1384,36 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 	s_sco2_des_par.m_DP_HT = DP_HT;
 	s_sco2_des_par.m_DP_PC = DP_PC;
 	s_sco2_des_par.m_DP_PHX = DP_PHX;
-	s_sco2_des_par.m_N_sub_hxrs = 10;
 
-	// 1.30.17 twn: try 30k
-	//sco2_rc_des_par.m_N_turbine = 3600.0;
+	// Choose shaft speed similar to design from Steve Wright's sco2 symposium presentation on test loop turbomachinery
     s_sco2_des_par.m_N_turbine = 30000.0;
 
 	//sco2_rc_des_par.m_tol = 1.E-3;
 	//sco2_rc_des_par.m_opt_tol = 1.E-3;
-	s_sco2_des_par.m_tol = pow(10, -cm->as_double("rel_tol"));
-	s_sco2_des_par.m_opt_tol = pow(10, -cm->as_double("rel_tol"));
+	s_sco2_des_par.m_des_tol = pow(10, -cm->as_double("rel_tol"));
+	s_sco2_des_par.m_des_opt_tol = pow(10, -cm->as_double("rel_tol"));
 
 	// Remaining cycle design parameters
         // LTR
+    s_sco2_des_par.m_LTR_N_sub_hxrs = cm->as_integer("LTR_n_sub_hx");           //[-] 10;
     s_sco2_des_par.m_LTR_eff_max = cm->as_double("LT_recup_eff_max");  //[-]
 	    // HTR
+    s_sco2_des_par.m_HTR_N_sub_hxrs = cm->as_integer("HTR_n_sub_hx");           //[-] 10;
     s_sco2_des_par.m_HTR_eff_max = cm->as_double("HT_recup_eff_max");  //[-]
         // Turbomachinery
 	s_sco2_des_par.m_eta_mc = cm->as_double("eta_isen_mc");		   //[-]
-	s_sco2_des_par.m_eta_rc = cm->as_double("eta_isen_rc");		   //[-]
+
+    int mc_comp_type = cm->as_integer("mc_comp_type"); //[-]
+    if (mc_comp_type == 2)
+    {
+		throw exec_error("sco2_csp_system", "main compressor type 2 not available in this code base");
+    }
+    else
+    {
+        s_sco2_des_par.m_mc_comp_type = C_comp__psi_eta_vs_phi::E_snl_radial_via_Dyreby;
+    }
+    
+    s_sco2_des_par.m_eta_rc = cm->as_double("eta_isen_rc");		   //[-]
 	if (s_sco2_des_par.m_cycle_config == 2)
         s_sco2_des_par.m_eta_pc = cm->as_double("eta_isen_pc");		   //[-]
 	else
@@ -1021,11 +1424,15 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 	s_sco2_des_par.m_des_objective_type = cm->as_integer("des_objective");		//[-] 
 	s_sco2_des_par.m_min_phx_deltaT = cm->as_double("min_phx_deltaT");			//[C]
 	s_sco2_des_par.m_phx_dt_cold_approach = cm->as_double("dT_PHX_cold_approach");  //[C]
+    s_sco2_des_par.m_phx_N_sub_hx = cm->as_integer("PHX_n_sub_hx");              //[-]
+    s_sco2_des_par.m_phx_od_UA_target_type = static_cast<NS_HX_counterflow_eqs::E_UA_target_type>(cm->as_integer("PHX_od_model"));   // E_calc_UA;
 
 	// Air cooler parameters
 	s_sco2_des_par.m_is_des_air_cooler = cm->as_boolean("is_design_air_cooler");
 	s_sco2_des_par.m_frac_fan_power = cm->as_double("fan_power_frac");         //[-]
 	s_sco2_des_par.m_deltaP_cooler_frac = cm->as_double("deltaP_cooler_frac");	//[-]
+    s_sco2_des_par.m_eta_fan = cm->as_double("eta_air_cooler_fan");     // 0.5;
+    s_sco2_des_par.m_N_nodes_pass = cm->as_integer("N_nodes_air_cooler_pass");     // 10;
 
 	// For try/catch below
 	int out_type = -1;
@@ -1050,6 +1457,7 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 
 		throw exec_error("sco2_csp_system", csp_exception.m_error_message);
 	}
+
 	// If all calls were successful, log to SSC any messages from sco2_recomp_csp
 	while (c_sco2_cycle.mc_messages.get_message(&out_type, &out_msg))
 	{
@@ -1220,8 +1628,10 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 
 	// Set SSC design outputs
 	// System
-	double cost_sum = 0.0;		 //[M$]
-	double comp_cost_sum = 0.0;	 //[M$]
+	double cost_equip_sum = 0.0;        //[M$]
+    double cost_bare_erected_sum = 0.0; //[M$]
+	double comp_cost_equip_sum = 0.0;	//[M$]
+    double comp_cost_bare_erected_sum = 0.0;    //[M$]
 	double comp_power_sum = 0.0; //[MWe]
 	double m_dot_htf_design = c_sco2_cycle.get_phx_des_par()->m_m_dot_hot_des;	//[kg/s]
 	double T_htf_cold_calc = c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_T_h_out;		//[K]
@@ -1262,9 +1672,12 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 	}
 
 	cm->assign("mc_phi_surge", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_phi_surge);	//[-]
-	cm->assign("mc_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost);		//[M$]
-	cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost;		//[M$]
-	comp_cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost;	//[M$]
+	cm->assign("mc_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_equipment);		//[M$]
+    cm->assign("mc_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_bare_erected);	//[M$]
+    cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_equipment;		//[M$]
+    cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_bare_erected;	//[M$]
+	comp_cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_equipment;	        //[M$]
+    comp_cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_ms_des_solved.m_cost_bare_erected;	//[M$]
 	comp_power_sum += -c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_W_dot_mc*1.E-3;			//[MWe]
 
 	// Recompressor
@@ -1298,9 +1711,12 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 			p_rc_eta_stages_des[i] = (ssc_number_t)v_rc_eta_stages_des[i];	//[-]
 		}
 		cm->assign("rc_phi_surge", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_phi_surge);//[-]
-		cm->assign("rc_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost);	//[M$]
-		cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost;	//[M$]
-		comp_cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost;	//[M$]
+		cm->assign("rc_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_equipment);	//[M$]
+        cm->assign("rc_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_bare_erected);	//[M$]
+        cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_equipment;	//[M$]
+        cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_bare_erected;	//[M$]
+		comp_cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_equipment;	//[M$]
+        comp_cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_rc_ms_des_solved.m_cost_bare_erected;	//[M$]
 		comp_power_sum += -c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_W_dot_rc*1.E-3;		//[MWe]
 	}
 	else
@@ -1322,7 +1738,8 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		ssc_number_t *p_rc_eta_stages_des = cm->allocate("rc_eta_stages_des", 1);
 		p_rc_eta_stages_des[0] = ssc_nan;
 		cm->assign("rc_phi_surge", ssc_nan);
-		cm->assign("rc_cost", ssc_nan);
+		cm->assign("rc_cost_equipment", ssc_nan);
+        cm->assign("rc_cost_bare_erected", ssc_nan);
 	}
 
 	// Precompressor		
@@ -1354,9 +1771,12 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 			p_pc_eta_stages_des[i] = (ssc_number_t)v_pc_eta_stages_des[i];		//[-]
 		}
 		cm->assign("pc_phi_surge", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_phi_surge);	//[-]
-		cm->assign("pc_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost);	//[M$]
-		cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost;	//[M$]
-		comp_cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost;	//[M$]
+		cm->assign("pc_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_equipment);	//[M$]
+        cm->assign("pc_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_bare_erected);	//[M$]
+        cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_equipment;	//[M$]
+        cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_bare_erected;	//[M$]
+		comp_cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_equipment;	//[M$]
+        comp_cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_ms_des_solved.m_cost_bare_erected;	//[M$]
 		comp_power_sum += -c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_W_dot_pc*1.E-3;		//[MWe]
 	}
 	else
@@ -1378,10 +1798,11 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		p_pc_eta_stages_des[0] = ssc_nan;
 
 		cm->assign("pc_phi_surge", ssc_nan);
-		cm->assign("pc_cost", ssc_nan);
+		cm->assign("pc_cost_equipment", ssc_nan);
+        cm->assign("pc_cost_bare_erected", ssc_nan);
 	}
 	// Compressor Totals
-	cm->assign("c_tot_cost", comp_cost_sum);		//[M$]
+	cm->assign("c_tot_cost_equip", comp_cost_equip_sum);		//[M$]
 	cm->assign("c_tot_W_dot", comp_power_sum);		//[MWe]
 	// Turbine
 	cm->assign("t_W_dot", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_W_dot_t*1.E-3));	//[MWe] convert from kWe
@@ -1390,16 +1811,21 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 	cm->assign("t_P_in_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::TURB_IN] * 1.E-3));	//[MPa] Turbine inlet pressure, convert from kPa
 	cm->assign("t_T_out_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_temp[C_sco2_cycle_core::TURB_OUT] - 273.15)); //[C] Turbine outlet temp, convert from K
 	cm->assign("t_P_out_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::TURB_OUT] * 1.E-3));	//[MPa] Turbine outlet pressure, convert from kPa
+	cm->assign("t_delta_h_isen_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_delta_h_isen));	//[kJ/kg]
+	cm->assign("t_rho_in_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_rho_in));	//[kg/m3]
 	cm->assign("t_nu_des", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_nu_design);           //[-]
 	cm->assign("t_tip_ratio_des", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_w_tip_ratio);  //[-]
 	cm->assign("t_N_des", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_N_design);			   //[rpm]
 	cm->assign("t_D", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_D_rotor);                  //[m]
-	cm->assign("t_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_cost);			//[M$]
-	cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_cost;			//[M$]
+	cm->assign("t_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_equipment_cost);			//[M$]
+	cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_equipment_cost;			//[M$]
+    cm->assign("t_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_bare_erected_cost);		//[M$]
+    cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_t_des_solved.m_bare_erected_cost;
 		// Recuperator
 	double recup_total_UA_assigned = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_UA_allocated*1.E-3;	//[MW/K] convert from kW/K
     double recup_total_UA_calculated = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_UA_calc_at_eff_max*1.E-3;	//[MW/K] convert from kW/K
-    double recup_total_cost = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost;					//[M$]
+    double recup_total_cost_equip = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_equipment;					//[M$]
+    double recup_total_cost_bare_erected = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_bare_erected;  //[M$]
 			// Low-temp
 	cm->assign("LTR_HP_T_out_des", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_temp[C_sco2_cycle_core::LTR_HP_OUT] - 273.15));	//[C] LTR HP stream outlet temp, convert from K
 	cm->assign("LTR_UA_assigned", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_UA_allocated*1.E-3));	//[MW/K] convert from kW/K
@@ -1414,8 +1840,10 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::MC_OUT];   //[-] Fractional pressure drop through HP side of LTR
 	cm->assign("LTR_HP_deltaP_des", (ssc_number_t)LTR_HP_deltaP_frac);		//[-]
 	cm->assign("LTR_min_dT", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_min_DT_design);	//[C/K]
-	cm->assign("LTR_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost);			//[M$]
-	cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost;		//[M$]
+	cm->assign("LTR_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_equipment);			//[M$]
+    cm->assign("LTR_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_bare_erected);		//[M$]
+    cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_equipment;		//[M$]
+    cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_cost_bare_erected;		//[M$]
 			// High-temp
 	if (is_rc)
 	{
@@ -1429,10 +1857,13 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		cm->assign("NTU_HTR", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_NTU_design);		//[-]
 		cm->assign("q_dot_HTR", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_Q_dot_design*1.E-3));	//[MWt] convert from kWt
 		cm->assign("HTR_min_dT", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_min_DT_design);	//[C/K]
-		cm->assign("HTR_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost);			//[M$]
-		cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost;			//[M$]
-		recup_total_cost += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost;			//[M$]
-		cm->assign("recup_LTR_UA_frac", (ssc_number_t((c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_UA_allocated*1.E-3) / recup_total_UA_assigned)));	//[-]
+		cm->assign("HTR_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_equipment);			//[M$]
+        cm->assign("HTR_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_bare_erected);			//[M$]
+        cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_equipment;			//[M$]
+        cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_bare_erected;
+		recup_total_cost_equip += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_equipment;			//[M$]
+        recup_total_cost_bare_erected += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_HTR_des_solved.m_cost_bare_erected;    //[M$]
+        cm->assign("recup_LTR_UA_frac", (ssc_number_t((c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LTR_des_solved.m_UA_allocated*1.E-3) / recup_total_UA_assigned)));	//[-]
 
 		double HTR_LP_deltaP_frac = 1.0 - c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::HTR_LP_OUT] /
 			c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::TURB_OUT];   //[-] Fractional pressure drop through LP side of HTR
@@ -1452,14 +1883,16 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		cm->assign("NTU_HTR", ssc_nan);		//[-]
 		cm->assign("q_dot_HTR", ssc_nan);	//[MWt] convert from kWt
 		cm->assign("HTR_min_dT", ssc_nan);	//[C/K]
-		cm->assign("HTR_cost", ssc_nan);	//[M$]
-		cm->assign("recup_LTR_UA_frac", ssc_nan);	//[-]
+		cm->assign("HTR_cost_equipment", ssc_nan);	    //[M$]
+        cm->assign("HTR_cost_bare_erected", ssc_nan);	//[M$]
+        cm->assign("recup_LTR_UA_frac", ssc_nan);	//[-]
 		cm->assign("HTR_LP_deltaP_des", ssc_nan);   //[-]
 		cm->assign("HTR_HP_deltaP_des", ssc_nan);   //[-]
 	}
 	cm->assign("recup_total_UA_assigned", (ssc_number_t)(recup_total_UA_assigned));		//[MW/K]
     cm->assign("recup_total_UA_calculated", (ssc_number_t)(recup_total_UA_calculated));	//[MW/K]
-    cm->assign("recup_total_cost", (ssc_number_t)(recup_total_cost));	//[MW/K]
+    cm->assign("recup_total_cost_equipment", (ssc_number_t)(recup_total_cost_equip));	//[MW/K]
+    cm->assign("recup_total_cost_bare_erected", (ssc_number_t)(recup_total_cost_bare_erected));
 		// PHX
 	cm->assign("UA_PHX", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_UA_design*1.E-3));	//[MW/K] convert from kW/K
 	cm->assign("eff_PHX", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_eff_design);				//[-]
@@ -1468,61 +1901,84 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 	cm->assign("P_co2_PHX_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::HTR_HP_OUT] * 1.E-3));		//[MPa] convert from kPa
 	cm->assign("deltaT_HTF_PHX", (ssc_number_t)s_sco2_des_par.m_T_htf_hot_in - T_htf_cold_calc);		//[K]
 	cm->assign("q_dot_PHX", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_Q_dot_design*1.E-3));	//[MWt] convert from kWt
+    cm->assign("PHX_min_dT", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_min_DT_design));	//[C/K]
 	double PHX_deltaP_frac = 1.0 - c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::TURB_IN] /
 		c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::HTR_HP_OUT];   //[-] Fractional pressure drop through co2 side of PHX
 	cm->assign("PHX_co2_deltaP_des", (ssc_number_t)PHX_deltaP_frac);
-	cm->assign("PHX_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost);	//[M$]
-	cost_sum += c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost;	//[M$]
+	cm->assign("PHX_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost_equipment);	//[M$]
+    cm->assign("PHX_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost_bare_erected);	//[M$]
+	cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost_equipment;	//[M$]
+    cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_cost_bare_erected;	//[M$];
 		// Low Pressure Cooler
-	cm->assign("LP_cooler_T_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_T_in_co2 - 273.15));	//[C]
-	cm->assign("LP_cooler_P_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_P_in_co2 / 1.E3));		//[MPa]
-	cm->assign("LP_cooler_rho_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_dens[C_sco2_cycle_core::LTR_LP_OUT]));	//[kg/m3]
-	cm->assign("LP_cooler_m_dot_co2", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_m_dot_co2);		//[kg/s]
-	cm->assign("LP_cooler_UA", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_UA_total*1.E-6));		//[MW/K] convert from W/K
-	cm->assign("LP_cooler_q_dot", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_q_dot*1.E-6));		//[MWt] convert from W
+	cm->assign("mc_cooler_T_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_T_in_co2 - 273.15));	//[C]
+	cm->assign("mc_cooler_P_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_P_in_co2 / 1.E3));		//[MPa]
+	cm->assign("mc_cooler_rho_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_dens[C_sco2_cycle_core::LTR_LP_OUT]));	//[kg/m3]
+	cm->assign("mc_cooler_m_dot_co2", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_m_dot_co2);		//[kg/s]
+	cm->assign("mc_cooler_UA", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_UA_total*1.E-6));		//[MW/K] convert from W/K
+	cm->assign("mc_cooler_q_dot", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_q_dot*1.E-6));		//[MWt] convert from W
 	double LP_cooler_deltaP_frac = 1.0 - c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::MC_IN] /
 		c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_pres[C_sco2_cycle_core::LTR_LP_OUT];   //[-] Fractional pressure drop through co2 side of PHX
-	cm->assign("LP_cooler_co2_deltaP_des", (ssc_number_t)LP_cooler_deltaP_frac);
-	cm->assign("LP_cooler_W_dot_fan", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_W_dot_fan));	//[MWe]
-	cm->assign("LP_cooler_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_cost);					//[M$]
-	cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_cost;					//[M$]
-	double cooler_tot_cost = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_cost;		//[M$]
-	double cooler_tot_UA = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_UA_total*1.E-6;	//[MW/K]
-	double cooler_tot_W_dot_fan = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_LP_air_cooler.m_W_dot_fan;	//[MWe]
+	cm->assign("mc_cooler_co2_deltaP_des", (ssc_number_t)LP_cooler_deltaP_frac);
+	cm->assign("mc_cooler_W_dot_fan", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_W_dot_fan));	//[MWe]
+	cm->assign("mc_cooler_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_equipment);					//[M$]
+    cm->assign("mc_cooler_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_bare_erected);
+    cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_equipment;					//[M$]
+    cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_bare_erected;         //[M$]
+	double cooler_tot_cost_equip = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_equipment;		//[M$]
+    double cooler_tot_cost_bare_erected = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_cost_bare_erected;    //[M$]
+	double cooler_tot_UA = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_UA_total*1.E-6;	//[MW/K]
+	double cooler_tot_W_dot_fan = c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_mc_air_cooler.m_W_dot_fan;	//[MWe]
 		// Intermediate Pressure Cooler
 	if (s_sco2_des_par.m_cycle_config == 2)
 	{
-		cm->assign("IP_cooler_T_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_T_in_co2 - 273.15));	//[C]
-		cm->assign("IP_cooler_P_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_P_in_co2 / 1.E3));		//[MPa]
-		cm->assign("IP_cooler_m_dot_co2", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_m_dot_co2);		//[kg/s]
-		cm->assign("IP_cooler_UA", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_UA_total*1.E-6));		//[MW/K] convert from W/K
-		cm->assign("IP_cooler_q_dot", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_q_dot*1.E-6));		//[MWt] convert from W
-		cm->assign("IP_cooler_W_dot_fan", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_W_dot_fan));	//[MWe]
-		cm->assign("IP_cooler_cost", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_cost);					//[M$]
-		cost_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_cost;					//[M$]
-		cooler_tot_cost += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_cost;			//[M$]
-		cooler_tot_UA += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_UA_total*1.E-6;	//[MW/K]
-		cooler_tot_W_dot_fan += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_IP_air_cooler.m_W_dot_fan;	//[MWe]
+		cm->assign("pc_cooler_T_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_T_in_co2 - 273.15));	//[C]
+		cm->assign("pc_cooler_P_in", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_P_in_co2 / 1.E3));		//[MPa]
+		cm->assign("pc_cooler_m_dot_co2", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_m_dot_co2);		//[kg/s]
+		cm->assign("pc_cooler_UA", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_UA_total*1.E-6));		//[MW/K] convert from W/K
+		cm->assign("pc_cooler_q_dot", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_q_dot*1.E-6));		//[MWt] convert from W
+		cm->assign("pc_cooler_W_dot_fan", (ssc_number_t)(c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_W_dot_fan));	//[MWe]
+		cm->assign("pc_cooler_cost_equipment", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_equipment);					//[M$]
+        cm->assign("pc_cooler_cost_bare_erected", (ssc_number_t)c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_bare_erected);
+		cost_equip_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_equipment;					//[M$]
+        cost_bare_erected_sum += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_bare_erected;
+		cooler_tot_cost_equip += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_equipment;			//[M$]
+        cooler_tot_cost_bare_erected += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_cost_bare_erected;  //[M$]
+		cooler_tot_UA += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_UA_total*1.E-6;	//[MW/K]
+		cooler_tot_W_dot_fan += c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.ms_pc_air_cooler.m_W_dot_fan;	//[MWe]
 	}
 	else
 	{
 		double ssc_nan = std::numeric_limits<ssc_number_t>::quiet_NaN();
-		cm->assign("IP_cooler_T_in", ssc_nan);		//[C]
-		cm->assign("IP_cooler_P_in", ssc_nan);		//[MPa]
-		cm->assign("IP_cooler_m_dot_co2", ssc_nan);	//[kg/s]
-		cm->assign("IP_cooler_UA", ssc_nan);		//[MW/K] convert from W/K
-		cm->assign("IP_cooler_q_dot", ssc_nan);		//[MWt] convert from W
-		cm->assign("IP_cooler_W_dot_fan", ssc_nan);	//[MWe]
-		cm->assign("IP_cooler_cost", ssc_nan);		//[M$]
+		cm->assign("pc_cooler_T_in", ssc_nan);		//[C]
+		cm->assign("pc_cooler_P_in", ssc_nan);		//[MPa]
+		cm->assign("pc_cooler_m_dot_co2", ssc_nan);	//[kg/s]
+		cm->assign("pc_cooler_UA", ssc_nan);		//[MW/K] convert from W/K
+		cm->assign("pc_cooler_q_dot", ssc_nan);		//[MWt] convert from W
+		cm->assign("pc_cooler_W_dot_fan", ssc_nan);	//[MWe]
+		cm->assign("pc_cooler_cost_equipment", ssc_nan);		//[M$]
+        cm->assign("pc_cooler_cost_bare_erected", ssc_nan);     //[M$]
 	}
-	cm->assign("cooler_tot_cost", (ssc_number_t)cooler_tot_cost);	//[M$]
+	cm->assign("cooler_tot_cost_equipment", (ssc_number_t)cooler_tot_cost_equip);	        //[M$]
+    cm->assign("cooler_tot_cost_bare_erected", (ssc_number_t)cooler_tot_cost_bare_erected); //[M$]
 	cm->assign("cooler_tot_UA", (ssc_number_t)cooler_tot_UA);		//[MW/K]
 	cm->assign("cooler_tot_W_dot_fan", (ssc_number_t)cooler_tot_W_dot_fan);	//[MWe]
 
-	cm->assign("cycle_cost", (ssc_number_t)cost_sum);		//[M$]
-	cm->assign("cycle_spec_cost", (ssc_number_t)(cost_sum*1.E6 / s_sco2_des_par.m_W_dot_net));	//[$/kWe]
-	cm->assign("cycle_spec_cost_thermal", (ssc_number_t)(cost_sum*1.E6 / (s_sco2_des_par.m_W_dot_net / c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_eta_thermal)));	//[$/kWt]
 
+    // Add cost for piping, inventory control, etc.
+    double piping_inventory_etc_rate = 0.2;     //[-]
+    double piping_inventory_etc_cost = piping_inventory_etc_rate * cost_bare_erected_sum;   //[M$]
+    cm->assign("piping_inventory_etc_cost", (ssc_number_t)piping_inventory_etc_cost);       //[M$]
+
+    // Add piping, inventory control, etc cost back to BEC
+    cost_bare_erected_sum += piping_inventory_etc_cost;     //[M$]
+
+    // Report total cycle cost metrics as BEC basis
+	cm->assign("cycle_cost", (ssc_number_t)cost_bare_erected_sum);		    //[M$]
+	cm->assign("cycle_spec_cost", (ssc_number_t)(cost_bare_erected_sum*1.E6 / s_sco2_des_par.m_W_dot_net));	//[$/kWe]
+	cm->assign("cycle_spec_cost_thermal", (ssc_number_t)(cost_bare_erected_sum*1.E6 / (s_sco2_des_par.m_W_dot_net / c_sco2_cycle.get_design_solved()->ms_rc_cycle_solved.m_eta_thermal)));	//[$/kWt]
+    double W_dot_net_less_cooling = (1.0 - s_sco2_des_par.m_frac_fan_power) * s_sco2_des_par.m_W_dot_net * 1.E-3;   //[MWe]
+    cm->assign("W_dot_net_less_cooling", (ssc_number_t)W_dot_net_less_cooling);     //[MWe]
+    cm->assign("eta_thermal_net_less_cooling_des", (ssc_number_t)(W_dot_net_less_cooling/(c_sco2_cycle.get_design_solved()->ms_phx_des_solved.m_Q_dot_design*1.E-3)));  //[-]
 		// State Points
 	ssc_number_t *p_T_state_points = cm->allocate("T_state_points", C_sco2_cycle_core::END_SCO2_STATES);
 	ssc_number_t *p_P_state_points = cm->allocate("P_state_points", C_sco2_cycle_core::END_SCO2_STATES);
@@ -1554,7 +2010,8 @@ int sco2_design_cmod_common(compute_module *cm, C_sco2_phx_air_cooler & c_sco2_c
 		h_cooler_in, s_cooler_in, rho_cooler_in, T_isen_out,
 		h_isen_out, s_isen_out, rho_isen_out, deltah_isen);
 
-	cm->assign("LP_cooler_in_isen_deltah_to_P_mc_out", (ssc_number_t)-deltah_isen);
+	cm->assign("mc_cooler_in_isen_deltah_to_P_mc_out", (ssc_number_t)-deltah_isen);
 
 	return 0;
 }
+

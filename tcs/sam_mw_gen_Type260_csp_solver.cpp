@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #define _TCSTYPEINTERFACE_
@@ -835,34 +845,37 @@ public:
 				// 3.) Solar field energy exceeds maximum TES charging rate
 				//------------------------------------------------------------
 				double EtesA = max(0.0, etes0 - dispatch.at(touperiod));
-				if ((q_sf + EtesA >= qdisp[touperiod]) || (q_sf > ptsmax)){
+                if (EtesA >= m_q_startup / dt && q_sf + max(EtesA - m_q_startup / dt, 0.0) >= qdisp[touperiod]) {
 
-					// Assumes Operator started plant during previous time period
-					// But TRNSYS cannot do this, so start-up energy is deducted during current timestep.     
-					pbmode = 1;
-					q_startup = m_q_startup / dt;
+                    // Assumes Operator started plant during previous time period
+                    // But TRNSYS cannot do this, so start-up energy is deducted during current timestep.     
+                    pbmode = 1;
+                    q_startup = m_q_startup / dt;
 
-					q_to_pb = qdisp[touperiod];       // set the energy to powerblock equal to the load for this TOU period
+                    q_to_pb = qdisp[touperiod];       // set the energy to powerblock equal to the load for this TOU period
 
-					if (q_sf>q_to_pb){             // if solar field output is greater than what the necessary load ?
-						q_to_tes = q_sf - q_to_pb;           // the extra goes to thermal storage
-						q_from_tes = q_startup;               // Use the energy from thermal storage to startup the power cycle
-						if (q_to_tes>ptsmax){       // if q to thermal storage exceeds thermal storage max rate Added 9-10-02
-							q_dump_teschg = q_to_tes - ptsmax;   // then dump the excess for this period Added 9-10-02
-							q_to_tes = ptsmax;
-						}                     
-					}
-					else{ // q_sf less than the powerblock requirement
-						q_to_tes = 0.0;
-						q_from_tes = q_startup + (1 - q_sf / q_to_pb) * min(pfsmax, m_q_des);
-						if (q_from_tes>pfsmax) q_from_tes = pfsmax;
-						q_to_pb = q_sf + (1 - q_sf / q_to_pb) * min(pfsmax, m_q_des);
-					}
-                
-					m_e_in_tes = etes0 - q_startup + (q_sf - q_to_pb) * dt;   // thermal storage energy is initial + what was left 
-					pbmode = 2;   // powerblock is now running
-					pbstartf = 1; // the powerblock turns on during this timeperiod.
-				}
+                    double q_to_cycle_total = q_startup + q_to_pb;
+
+                    if (q_sf > q_to_pb) {             // if solar field output is greater than what the necessary load ?
+                        q_to_tes = q_sf - q_to_pb;           // the extra goes to thermal storage
+                        q_from_tes = q_startup;               // Use the energy from thermal storage to startup the power cycle
+                        if (q_to_tes > ptsmax) {       // if q to thermal storage exceeds thermal storage max rate Added 9-10-02
+                            q_dump_teschg = q_to_tes - ptsmax;   // then dump the excess for this period Added 9-10-02
+                            q_to_tes = ptsmax;
+                        }
+                    }
+                    else { // q_sf less than the powerblock requirement
+                        q_to_tes = 0.0;
+                        q_from_tes = q_startup + (1 - q_sf / q_to_pb) * min(pfsmax, m_q_des);
+                        if (q_from_tes > pfsmax) q_from_tes = pfsmax;
+                        q_to_pb = q_sf + (1 - q_sf / q_to_pb) * min(pfsmax, m_q_des);
+                    }
+
+                    m_e_in_tes = etes0 - q_startup + (q_sf - q_to_pb) * dt;   // thermal storage energy is initial + what was left 
+                    pbmode = 2;   // powerblock is now running
+                    pbstartf = 1; // the powerblock turns on during this timeperiod.
+
+                }
 				else{ //Store energy not enough stored to start plant
 					q_to_tes = q_sf; // everything goes to thermal storage
 					q_from_tes = 0;   // nothing from thermal storage

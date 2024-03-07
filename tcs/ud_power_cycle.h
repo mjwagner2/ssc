@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __UD_POWER_CYCLE_
@@ -37,6 +47,17 @@ public:
         i_Q_dot_HTF,
         i_W_dot_cooling,
         i_m_dot_water
+    };
+
+    enum
+    {
+        E_COL_T_HTF,
+        E_COL_M_DOT,
+        E_COL_T_AMB,
+        E_COL_W_CYL,
+        E_COL_Q_CYL,
+        E_COL_W_COOL,
+        E_COL_M_H2O
     };
 
 private:
@@ -68,6 +89,12 @@ private:
 	// member string for exception messages
 	std::string m_error_msg;
 
+    // does udpc represent sco2 and require regression model?
+    bool m_is_sco2_regr;
+    bool m_is_sco2_design_set;
+    double m_T_htf_cold_des_sco2_regr;
+    double m_deltaT_HTF_des;
+
 	double get_interpolated_ND_output(int i_ME /*M.E. table index*/, double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
 
 	double m_T_htf_ref;		//[C] Reference (design) HTF inlet temperature
@@ -83,7 +110,9 @@ private:
 	double m_T_amb_high;	//[C] High level ambient temperature (in m_dot_htf parametric)
 
 	// Can also save main effects of each independent variable at its upper and lower levels
-	std::vector<double> m_ME_T_htf_low;		//[-]
+    std::vector<double> m_Y_at_ref;     //[-]
+
+    std::vector<double> m_ME_T_htf_low;		//[-]
 	std::vector<double> m_ME_T_htf_high;	//[-]
 
 	std::vector<double> m_ME_T_amb_low;		//[-]
@@ -92,23 +121,59 @@ private:
 	std::vector<double> m_ME_m_dot_htf_low;		//[-]
 	std::vector<double> m_ME_m_dot_htf_high;	//[-]
 
+    // Save vectors of independent variable parametric value (also stored in Linear_Interp objects)
+    std::vector<double> mv_T_htf_unique;
+    std::vector<double> mv_m_dot_unique;
+    std::vector<double> mv_T_amb_unique;    
+
+    double get_W_dot_gross_ND_interp(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    double get_Q_dot_HTF_ND_interp(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    double get_W_dot_cooling_ND_interp(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    double get_m_dot_water_ND_interp(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+
+    void get_sco2_regr_max_ND_q_dot(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_max_ND /*-*/,
+        double& delta_T_HTF_OD /*C*/, double& m_dot_htf_ND_max /*-*/, double& q_dot_htf_ND_max /*-*/);
+
 public:
 
-	C_ud_power_cycle(){};
+    C_ud_power_cycle();
 
 	~C_ud_power_cycle(){};
 
-	void init(const util::matrix_t<double> & T_htf_ind, double T_htf_ref /*C*/, double T_htf_low /*C*/, double T_htf_high /*C*/,
-		const util::matrix_t<double> & T_amb_ind, double T_amb_ref /*C*/, double T_amb_low /*C*/, double T_amb_high /*C*/,
-		const util::matrix_t<double> & m_dot_htf_ind, double m_dot_htf_ref /*-*/, double m_dot_htf_low /*-*/, double m_dot_htf_high /*-*/);
+    void init(bool is_sco2_regr, const util::matrix_t<double>& udpc_table,
+        int& n_T_htf_pars, int& n_T_amb_pars, int& n_m_dot_pars,
+        double& T_htf_ref_calc /*C*/, double& T_htf_low_calc /*C*/, double& T_htf_high_calc /*C*/,
+        double& T_amb_ref_calc /*C*/, double& T_amb_low_calc /*C*/, double& T_amb_high_calc /*C*/,
+        double& m_dot_htf_ND_ref_calc, double& m_dot_htf_ND_low_calc /*-*/, double& m_dot_htf_ND_high_calc /*-*/,
+        std::vector<double>& Y_at_T_htf_ref, std::vector<double>& Y_at_T_amb_ref,
+        std::vector<double>& Y_at_m_dot_htf_ND_ref, std::vector<double>& Y_avg_at_refs);
 
-	double get_W_dot_gross_ND( double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+    void set_is_sco2_regr(bool is_sco2_regr);
 
-	double get_Q_dot_HTF_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+    void set_sco2_design_for_sco2_regr(double T_htf_hot_des /*C*/, double T_htf_cold_des /*C*/);
 
-	double get_W_dot_cooling_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);
+    double get_W_dot_gross_nd(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/, double max_frac /*-*/);
 
-	double get_m_dot_water_ND(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/);	
+    double get_Q_dot_HTF_nd(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/, double max_frac /*-*/);
+
+    double get_W_dot_cooling_nd(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/, double max_frac /*-*/);
+
+    double get_m_dot_water_nd(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/, double max_frac /*-*/);
+
+    void get_max_m_dot_and_W_dot_ND(double T_htf_hot /*C*/, double T_amb /*C*/,
+                    double max_frac /*-*/, double cutoff_frac /*-*/,
+                    double& m_dot_HTF_ND_max, double& W_dot_gross_ND_max);
+
+    void udpc_sco2_regr_off_design(double T_htf_hot /*C*/, double T_amb /*C*/, double m_dot_htf_ND /*-*/,
+        double m_dot_max_ND,
+        double& W_dot_gross_ND, double& q_dot_ND, double& W_dot_cooling_ND, double& m_dot_water_ND);
+
+    void get_ind_var_params(std::vector<double>& v_T_htf_unique, std::vector<double>& v_m_dot_unique,
+        std::vector<double>& v_T_amb_unique);
+
 };
 
 class C_od_pc_function
@@ -182,10 +247,37 @@ public:
 		double m_dot_htf_ND_ref /*-*/, double m_dot_htf_ND_low /*-*/, double m_dot_htf_ND_high /*-*/, int n_m_dot_htf_ND,
 		util::matrix_t<double> & T_htf_ind, util::matrix_t<double> & T_amb_ind, util::matrix_t<double> & m_dot_htf_ind);
 
-	// Callback funtion
+	// Callback function
 	bool(*mf_callback)(std::string &log_msg, std::string &progress_msg, void *data, double progress, int out_type);
 	void *mp_mf_active;
 
+};
+
+namespace N_udpc_common
+{
+    void get_var_setup(const std::vector<double>& vec_unique, const std::vector<double>& var_vec,
+        double& var_des, double& var_low, double& var_high);
+
+    bool is_level_in_par(const std::vector<std::vector<double>> test_combs,
+        const std::vector<std::vector<double>> full_table);
+
+    int split_ind_tbl(const util::matrix_t<double>& combined, util::matrix_t<double>& T_htf_ind,
+        util::matrix_t<double>& m_dot_ind, util::matrix_t<double>& T_amb_ind);
+
+    int split_ind_tbl(const util::matrix_t<double>& combined, util::matrix_t<double>& T_htf_ind,
+        util::matrix_t<double>& m_dot_ind, util::matrix_t<double>& T_amb_ind,
+        std::vector<double>& v_T_htf_unique, std::vector<double>& v_m_dot_unique,
+        std::vector<double>& v_T_amb_unique,
+        int& n_T_htf_pars, int& n_T_amb_pars, int& n_m_dot_pars,
+        double& m_dot_low, double& m_dot_des, double& m_dot_high,
+        double& T_htf_low, double& T_htf_des, double& T_htf_high,
+        double& T_amb_low, double& T_amb_des, double& T_amb_high);
+
+    int combine_ind_tbl(util::matrix_t<double>& combined, const util::matrix_t<double>& T_htf_ind,
+        const util::matrix_t<double>& m_dot_ind, const util::matrix_t<double>& T_amb_ind,
+        double m_dot_low, double m_dot_des, double m_dot_high,
+        double T_htf_low, double T_htf_des, double T_htf_high,
+        double T_amb_low, double T_amb_des, double T_amb_high);
 };
 
 #endif

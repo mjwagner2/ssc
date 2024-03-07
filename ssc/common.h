@@ -1,24 +1,35 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #ifndef __common_h
 #define __common_h
@@ -53,10 +64,19 @@ extern var_info vtab_grid_curtailment[];
 extern var_info vtab_p50p90[];
 extern var_info vtab_forecast_price_signal[];
 extern var_info vtab_resilience_outputs[];
+extern var_info vtab_utility_rate_common[];
+
+// hybrids
+extern var_info vtab_hybrid_tech_om[];
+extern var_info vtab_hybrid_fin_om[];
 
 bool calculate_p50p90(compute_module *cm);
 
 void calculate_resilience_outputs(compute_module *cm, std::unique_ptr<resilience_runner> &resilience);
+
+ssc_number_t* gen_heatmap(compute_module* cm, double step_per_hour);
+
+void prepend_to_output(compute_module* cm, std::string var_name, size_t count, ssc_number_t value);
 
 class adjustment_factors
 {
@@ -66,8 +86,9 @@ class adjustment_factors
 	std::string m_prefix;
 public:
 	adjustment_factors(compute_module *cm, const std::string &prefix);
-	bool setup(int nsteps=8760);
+	bool setup(int nsteps=8760, int analysis_period=1);
 	ssc_number_t operator()(size_t time);
+    size_t size();
 	std::string error() { return m_error; }
 };
 
@@ -78,26 +99,11 @@ class forecast_price_signal
 	std::string m_error;
 public:
 	forecast_price_signal(var_table *vt);
-	bool setup(size_t nsteps = 8760);
+	bool setup(size_t step_per_hour);
 	std::vector<ssc_number_t> forecast_price() { return m_forecast_price; }
 	ssc_number_t operator()(size_t time);
 	std::string error() { return m_error; }
 };
-
-
-class sf_adjustment_factors
-{
-	compute_module *m_cm;
-	std::vector<ssc_number_t> m_factors;
-	std::string m_error;
-public:
-	sf_adjustment_factors(compute_module *cm);
-	bool setup(int nsteps=8760);
-    int size();
-	ssc_number_t operator()(size_t time);
-	std::string error() { return m_error; }
-};
-
 
 class shading_factor_calculator
 {
@@ -161,13 +167,25 @@ public:
 	If wet-bulb temperature or dew point are missing, calculate using tdry, pres & rhum or tdry & rhum, respectively.
 	Interpolates meteorological data if requested.*/
 	weatherdata(var_data *data_table);
-	virtual ~weatherdata();
+//    virtual ~weatherdata();
+    ~weatherdata() override;
 
 	void set_counter_to(size_t cur_index);
-	bool read(weather_record *r); // reads one more record
+	bool read(weather_record *r) override; // reads one more record
 	bool read_average(weather_record *r, std::vector<int> &cols, size_t &num_timesteps); // reads one more record
-	bool has_data_column(size_t id);
+	bool has_data_column(size_t id) override;
 	bool check_continuous_single_year(bool leapyear);
+};
+
+class scalefactors
+{
+public:
+    scalefactors(var_table* v);
+
+    std::vector<double> get_factors(const char* name);
+
+protected:
+    var_table* vt;
 };
 
 bool ssc_cmod_update(std::string &log_msg, std::string &progress_msg, void *data, double progress, int out_type);

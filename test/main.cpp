@@ -1,3 +1,41 @@
+/*
+BSD 3-Clause License
+
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+#if defined( _WINDOWS) && defined(_DEBUG)
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
 #include <stdlib.h>
 #include <iostream>
 #include <gtest/gtest.h>
@@ -7,38 +45,31 @@
 
 GTEST_API_ int main(int argc, char **argv) {
 
+#if defined( _WINDOWS) && defined(_DEBUG)
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
 
-	printf("Running main() from gtest_main.cc\n");
-	testing::InitGoogleTest(&argc, argv);
-//	  ::testing::GTEST_FLAG(filter) = "CMPvYieldTimo*";
-//	  ::testing::GTEST_FLAG(filter) = "splinterTests*";
-//	  ::testing::GTEST_FLAG(filter) = "SunsetCaseIrradProc*";
-//	  ::testing::GTEST_FLAG(filter) = "BatteryPowerFlowTest*";
-//	::testing::GTEST_FLAG(filter) = "CMGeneric*";
-//	::testing::GTEST_FLAG(filter) = "CMGeothermal*";
-//		::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration.NoFinancialModelShading";
-//	::testing::GTEST_FLAG(filter) = "CMPvwattsV5Integration.DifferentTechnologyInputs";
-//	::testing::GTEST_FLAG(filter) = "CMGeneric.SingleOwnerWithBattery_cmod_generic";
-//	::testing::GTEST_FLAG(filter) = "CM_MHK*";
-//	::testing::GTEST_FLAG(filter) = "CMSingleOwner*";
-//	::testing::GTEST_FLAG(filter) = "BifacialIrradTest*";
-//	::testing::GTEST_FLAG(filter) = "FuelCellTest*";
-//	::testing::GTEST_FLAG(filter) = "CMWindPowerIntegration*";
-//	::testing::GTEST_FLAG(filter) = "CMGrid*";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1.DefaultNoFinancialModel";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1.NoFinancialModelCustomWeatherFile";
-//	::testing::GTEST_FLAG(filter) = "URDBv7*";
-//	::testing::GTEST_FLAG(filter) = "UsingDataCaseWeatherReader.IntegrationTest_csp_solver_core";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1*";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1.DefaultLifetimeNoFinancialModel";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1.NoFinancialModelSkyDiffuseAndIrradModels";
-//	::testing::GTEST_FLAG(filter) = "CMPvsamv1PowerIntegration_cmod_pvsamv1.NoFinancialModelShading";
+    printf("Running main() from gtest_main.cc\n");
+    testing::InitGoogleTest(&argc, argv);
 
+    //    filter to include
+    //    ::testing::GTEST_FLAG(filter) = "CmodPVWatts*:CMPvwatts*";
+    //::testing::GTEST_FLAG(filter) = "CmodCashLoanTest.FuelCell*";
 
+    //   ::testing::GTEST_FLAG(filter) = "CmodCashLoanTest*:CmodSingleOwnerTest*";
+    //::testing::GTEST_FLAG(filter) = "csp_fresnel.PowerFresnelCmod*";
 
-	int status = RUN_ALL_TESTS();
+    //    filter to exclude
+    //    ::testing::GTEST_FLAG(filter) = "-PVSmoothing_lib_battery_dispatch*";
 
-	if (!status)
-		printf("Tests Pass!\n");
-	return status;
+    // run multiple test
+    //    ::testing::GTEST_FLAG(filter) = "CMPvwattsv8Integration_cmod_pvwattsv8.DefaultNoFinancialModel_cmod_pvwattsv8:CMPvwattsv8Integration_cmod_pvwattsv8.NonAnnual";
+
+    int status = RUN_ALL_TESTS();
+
+    //    sleep(10); //used for single test instruments leak detector on macOS
+
+    if (!status)
+        printf("Tests Pass!\n");
+    return status;
 }

@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "csp_solver_tou_block_schedules.h"
@@ -170,6 +180,8 @@ C_block_schedule_csp_ops::C_block_schedule_csp_ops()
 	mv_labels.resize(N_END);
 
 	mv_labels[0] = "Turbine Fraction";
+
+    mv_is_diurnal = true;
 }
 
 C_block_schedule_pricing::C_block_schedule_pricing()
@@ -210,9 +222,24 @@ void C_csp_tou_block_schedules::init()
 			throw(C_csp_exception(m_error_msg, "TOU block schedule initialization"));
 		}
 	}
+
+    if (ms_params.mc_csp_ops.mv_is_diurnal)
+    {
+        try
+        {
+            ms_params.mc_csp_ops.init(C_block_schedule_csp_ops::N_END, mc_dispatch_params.m_isleapyear);
+        }
+        catch (C_csp_exception& csp_exception)
+        {
+            m_error_msg = "The CSP ops " + csp_exception.m_error_message;
+            throw(C_csp_exception(m_error_msg, "TOU block schedule initialization"));
+        }
+    }
+
 	return;
 }
 
+// TODO: move this into dispatch some how
 void C_csp_tou_block_schedules::call(double time_s, C_csp_tou::S_csp_tou_outputs & tou_outputs)
 {
 	int i_hour = (int)(ceil(time_s/3600.0 - 1.e-6) - 1);
@@ -223,11 +250,14 @@ void C_csp_tou_block_schedules::call(double time_s, C_csp_tou::S_csp_tou_outputs
 		throw(C_csp_exception(m_error_msg, "TOU timestep call"));
 	}
 
-	size_t csp_op_tou = (size_t)ms_params.mc_csp_ops.m_hr_tou[i_hour];
-
-	tou_outputs.m_csp_op_tou = (int)csp_op_tou;
-	
-	tou_outputs.m_f_turbine = ms_params.mc_csp_ops.mvv_tou_arrays[C_block_schedule_csp_ops::TURB_FRAC][csp_op_tou-1];
+	size_t csp_op_tou = (size_t)ms_params.mc_csp_ops.m_hr_tou[i_hour];      // an 8760-size array of the 1-9 turbine output fraction for the timestep
+	tou_outputs.m_csp_op_tou = (int)csp_op_tou;	                            // needed for hybrid cooling regardless of turbine output fraction schedule type
+    if (ms_params.mc_csp_ops.mv_is_diurnal) {
+	    tou_outputs.m_f_turbine = ms_params.mc_csp_ops.mvv_tou_arrays[C_block_schedule_csp_ops::TURB_FRAC][csp_op_tou-1];       // an array of size 9 of the different turbine output fractions
+    }
+    else {
+        tou_outputs.m_f_turbine = ms_params.mc_csp_ops.timestep_load_fractions.at(i_hour);
+    }
 	
 	if (ms_params.mc_pricing.mv_is_diurnal)
 	{

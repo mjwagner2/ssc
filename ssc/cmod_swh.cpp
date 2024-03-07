@@ -1,24 +1,35 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #include <math.h>
 
@@ -69,6 +80,7 @@ static var_info _cm_vtab_swh[] = {
 	{ SSC_INPUT,        SSC_ARRAY,       "scaled_draw",           "Hot water draw",                      "kg/hr",   "",                                  "SWH",              "*",                      "LENGTH=8760",						 "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "system_capacity",       "Nameplate capacity",                  "kW",      "",                                  "SWH",              "*",                      "", "" },
 	{ SSC_INPUT,        SSC_ARRAY,       "load",                  "Electricity load (year 1)",           "kW",      "",                                  "SWH",              "",                       "", "" },
+    { SSC_INPUT,        SSC_ARRAY,       "load_escalation",       "Annual load escalation",              "%/year",  "",                                  "SWH",             "?=0",                    "",                              "" },
 
 
 	{ SSC_INPUT,        SSC_NUMBER,      "tilt",                  "Collector tilt",                      "deg",     "",                                  "SWH",              "*",                      "MIN=0,MAX=90",                       "" },
@@ -77,10 +89,17 @@ static var_info _cm_vtab_swh[] = {
 	{ SSC_INPUT,        SSC_NUMBER,      "irrad_mode",            "Irradiance input mode",               "0/1/2",   "Beam+Diff,Global+Beam,Global+Diff", "SWH",              "?=0",                    "INTEGER,MIN=0,MAX=2",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "sky_model",             "Tilted surface irradiance model",     "0/1/2",   "Isotropic,HDKR,Perez",  "SWH",      "?=1",                                        "INTEGER,MIN=0,MAX=2",                "" },
 
-	{ SSC_INPUT,        SSC_MATRIX,      "shading:timestep",      "Time step beam shading loss",          "%",      "",                                  "SWH",              "?",                       "",                                  "" },
-	{ SSC_INPUT,        SSC_MATRIX,      "shading:mxh",           "Month x Hour beam shading loss",       "%",      "",                                  "SWH",              "?",                       "",                                  "" },
-	{ SSC_INPUT,        SSC_MATRIX,      "shading:azal",          "Azimuth x altitude beam shading loss", "%",      "",                                  "SWH",              "?",                       "",                                  "" },
-	{ SSC_INPUT,        SSC_NUMBER,      "shading:diff",          "Diffuse shading loss",                 "%",      "",                                  "SWH",              "?",                       "",                                  "" },
+//    { SSC_INPUT,        SSC_TABLE,      "shading",               "Shading loss table",                 "",         "",                                             "SWH",      "?",                        "",                             "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_en_string_option",           "Enable shading string option",             "0/1",    "0=false,1=true",                    "Shading",                                               "?=0",                                  "BOOLEAN",                    "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_string_option",      "Shading string option",                   "",       "0=shadingdb,1=average,2=maximum,3=minimum",  "Shading",                                               "?=-1",                               "INTEGER,MIN=-1,MAX=4","" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_en_timestep",         "Enable timestep beam shading losses",          "0/1",    "0=false,1=true",                       "Shading",                                               "?=0",                                  "BOOLEAN",                    "" },
+        {SSC_INPUT, SSC_MATRIX,   "shading_timestep",           "Timestep beam shading losses",            "%",      "",                                           "Shading",                                               "?",                                  "",                    "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_en_mxh",               "Enable month x Hour beam shading losses",  "0/1",    "0=false,1=true",                          "Shading",                                               "?=0",                                  "BOOLEAN",                    "" },
+        {SSC_INPUT, SSC_MATRIX,   "shading_mxh",                "Month x Hour beam shading losses",        "%",      "",                                           "Shading",                                               "?",                                  "",                    "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_en_azal",               "Enable azimuth x altitude beam shading losses",          "0/1",    "0=false,1=true",           "Shading",                                               "?=0",                                  "BOOLEAN",                    "" },
+        {SSC_INPUT, SSC_MATRIX,   "shading_azal",               "Azimuth x altitude beam shading losses",  "%",      "",                                           "Shading",                                               "?",                                  "",                    "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_en_diff",               "Enable diffuse shading loss",          "0/1",    "0=false,1=true",                             "Shading",                                               "?=0",                                  "BOOLEAN",                    "" },
+        {SSC_INPUT, SSC_NUMBER,   "shading_diff",               "Diffuse shading loss",                    "%",      "",                                           "Shading",                                               "?",                                  "",                    "" },
 
 
 	{ SSC_INPUT,        SSC_NUMBER,      "mdot",                  "Total system mass flow rate",          "kg/s",   "",                                  "SWH",              "*",                       "POSITIVE",                          "" },
@@ -226,9 +245,7 @@ public:
 
 		assign( "ts_shift_hours", var_data( (ssc_number_t)ts_shift_hours ) );
 
-		adjustment_factors haf( this, "adjust" );
-		if ( !haf.setup() )
-			throw exec_error("swh", "failed to setup adjustment factors: " + haf.error() );
+		
 
 
 		shading_factor_calculator shad;
@@ -267,7 +284,7 @@ public:
 		double test_flow = as_double("test_flow"); // collector test flow rate (kg/s)
 
 		/* collector properties */
-		double mdot_total = as_double("mdot"); // total system mass flow rate (kg/s)
+        double mdot_total = as_double("test_flow") * as_integer("ncoll"); // total system mass flow rate (kg/s)
 		double area_total = as_double("area_coll") * as_integer("ncoll"); // total solar collector area (m2)
 		double area_coll = as_double("area_coll");
 
@@ -324,6 +341,10 @@ public:
 
 		double ts_hour = 1.0/step_per_hour;
 		double ts_sec = 3600.0/step_per_hour;
+
+        adjustment_factors haf( this, "adjust" );
+		if ( !haf.setup(nrec) )
+			throw exec_error("swh", "failed to setup adjustment factors: " + haf.error() );
 
 		ssc_number_t *Beam = allocate("beam", nrec);
 		ssc_number_t *Diffuse = allocate("diffuse", nrec);
@@ -398,10 +419,11 @@ public:
 				else if (irrad_mode == 2) tt.set_global_diffuse(wf.gh, wf.df);
 				else tt.set_global_beam(wf.gh, wf.dn);
 				tt.set_location(hdr.lat, hdr.lon, hdr.tz);
+                tt.set_optional(hdr.elev, wf.pres, wf.tdry);
 				tt.set_time(wf.year, wf.month, wf.day, wf.hour, wf.minute,
 					instantaneous ? IRRADPROC_NO_INTERPOLATE_SUNRISE_SUNSET : ts_hour );
 				tt.set_sky_model(sky_model /* isotropic=0, hdkr=1, perez=2 */, albedo );
-				tt.set_surface(0, tilt, azimuth, 0, 0, 0, false, 0.0);
+				tt.set_surface(0, tilt, azimuth, 0, 0, 0, 0, 0, false, 0.0);
 				tt.calc();
 
 				double poa[3];
@@ -657,7 +679,8 @@ public:
 						V_hot = V_hot_prev + ts_sec*mdot_total/rho_water;
 						V_cold = V_tank - V_hot;
 						T_hot = (T_hot_prev*V_hot_prev + ts_sec*(mdot_total/rho_water)*(T_cold_prev + dT_collector))/V_hot;
-						T_cold = (V_tank/V_cold)*T_tank - (V_hot/V_cold)*T_hot;
+                        T_cold = (V_tank/V_cold)*T_tank - (V_hot/V_cold)*T_hot;                                 // weighted average to enforce T_tank based on T_hot
+                        if (T_cold < std::min(T_mains_use, T_room)) T_cold = std::min(T_mains_use, T_room);     // above relation breaks-down at small V_cold causing unphysical T_cold
 						T_top = T_hot;
 						T_bot = T_cold;
 						T_deliv = T_top;
@@ -700,9 +723,11 @@ public:
 						V_hot = 0;
                     }
 
+                    double T_hot_drained = std::numeric_limits<double>::quiet_NaN();
 					if (V_hot == 0)	// cold water drawn into the bottom of the tank in previous timesteps has completely flushed hot water from the tank
 					{
-						T_hot = T_hot_prev;
+                        double time_to_drain_sec = V_hot_prev * rho_water / mdot_mix;
+                        T_hot_drained = (T_hot_prev * time_to_drain_sec + T_cold * (ts_sec - time_to_drain_sec)) / ts_sec;
 					}
 					else
 					{
@@ -711,7 +736,6 @@ public:
 						double m_hot = V_hot_prev*rho_water;
 						T_hot = ((T_hot_prev * Cp_water * m_hot) + (ts_sec*U_tank*A_hot * T_room))/((m_hot*Cp_water) + (ts_sec*U_tank*A_hot)); // IMPLICIT NON-STEADY (Euler)
 					}
-					hotLoss = U_tank * A_hot * (T_hot - T_room);
 
 					// Cold node calculations
 					V_cold = V_tank-V_hot;
@@ -727,20 +751,23 @@ public:
 						T_cold = ((T_cold_prev*m_cold*Cp_water) + (ts_sec*U_tank*A_cold*T_room) + (ts_sec*mdot_mix*Cp_water*T_mains_use))
 							/((m_cold*Cp_water) + (ts_sec*A_cold*U_tank) + (mdot_mix*ts_sec*Cp_water) ); // IMPLICIT NON-STEADY
 					}
-					coldLoss = U_tank*A_cold*(T_cold - T_room);
 
-					Q_tankloss = hotLoss + coldLoss;
+                    if (V_hot > 0) {
+                        T_deliv = T_hot;
+                    }
+                    else {
+                        T_deliv = T_hot_drained;
+                        T_hot = T_cold;     // hot water completely flushed from tank
+                    }
 					T_tank = (V_hot / V_tank) * T_hot + (V_cold / V_tank) * T_cold;
 					T_top = T_tank + 0.33*dT_collector;
 					T_bot = T_tank - 0.67*dT_collector;
 					// T_top = T_hot
 					// T_bot = T_cold
-                    if (V_hot > 0) {
-                        T_deliv = T_hot;
-                    }
-                    else {
-                        T_deliv = T_cold;
-                    }
+
+					hotLoss = U_tank * A_hot * (T_hot - T_room);
+					coldLoss = U_tank*A_cold*(T_cold - T_room);
+					Q_tankloss = hotLoss + coldLoss;
 				}
 
 				// calculate pumping losses (pump size is user entered) -
@@ -798,21 +825,26 @@ public:
 				Mode[idx] = (ssc_number_t)mode; // save mode for debugging
 
 				out_energy[idx] =  (ssc_number_t)( Q_saved * ts_hour * haf(hour) * watt_to_kw); // kWh energy, with adjustment factors applied
-
+                
 				// accumulate hourly and annual energy
 				annual_kwh += out_energy[idx];
 				idx++;
 			}
 		}
 
+        ssc_number_t* p_annual_energy_dist_time = gen_heatmap(this, 1);
+
 		// if an electric load exists, the amount of energy saved cannot exceed it, since can't export savings
 		if (is_assigned("load")) {
 			std::vector<ssc_number_t> load_year_one, load_lifetime;
 			load_year_one = as_vector_ssc_number_t("load");
+            size_t analysis_period = 1;
+            std::vector<double> scaleFactors(analysis_period, 1.0);
 			size_t n_rec_single_year = 0;
 			double dt_hour_gen = 0.0;
-			single_year_to_lifetime_interpolated<ssc_number_t>(false, (size_t)1, (size_t)wdprov->nrecords(),
-				load_year_one, load_lifetime, n_rec_single_year, dt_hour_gen);
+            double interpolation_factor = 1.0;
+			single_year_to_lifetime_interpolated<ssc_number_t>(false, analysis_period, (size_t)wdprov->nrecords(),
+				load_year_one, scaleFactors, interpolation_factor, load_lifetime, n_rec_single_year, dt_hour_gen);
 
 			for (size_t i = 0; i < load_lifetime.size(); i++) {
 				if (out_energy[i] > load_lifetime[i]) {

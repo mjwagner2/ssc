@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __common_financial_h
@@ -37,8 +47,17 @@ double Const_per_total(double const_per_interest /*$*/, double const_per_princip
 
 
 void save_cf(compute_module *cm, util::matrix_t<double>& mat, int cf_line, int nyears, const std::string &name);
+void save_cf(int cf_line, int nyears, const std::string& name, util::matrix_t<double> cf, compute_module* cm); //LCOS version
 
+extern var_info vtab_lcos_inputs[]; //LCOS var table
+extern var_info vtab_update_tech_outputs[];
 
+void lcos_calc(compute_module* cm, util::matrix_t<double> cf, int nyears, double nom_discount_rate, double inflation_rate, double lcoe_real, double total_cost, double real_discount_rate, int grid_charging_cost_version); //LCOS function
+
+// Prepend the 0 to relevant outputs
+void update_battery_outputs(compute_module* cm, size_t nyears);
+// Prepend the 0 to relevant outputs
+void update_fuelcell_outputs(compute_module* cm, size_t nyears);
 
 class dispatch_calculations
 {
@@ -49,12 +68,13 @@ private:
 	util::matrix_t<double> m_cf;
 	std::vector<double> m_degradation;
 	std::vector<double> m_hourly_energy;
+    std::vector<double> m_dispatch_tod_factors;
 	int m_nyears;
 	bool m_timestep;
-	ssc_number_t *m_gen;
-	ssc_number_t *m_multipliers;
-	size_t m_ngen;
-	size_t m_nmultipliers;
+	ssc_number_t *m_gen; // Time series power
+	ssc_number_t *m_multipliers; // Time series ppa multiplers
+	size_t m_ngen; // Number of records in gen
+	size_t m_nmultipliers; // Number of records in m_multipliers
 
 public:
 	dispatch_calculations() {};
@@ -83,17 +103,47 @@ class hourly_energy_calculation
 {
 private:
 	compute_module *m_cm;
-	std::vector<double> m_hourly_energy;
+	std::vector<double> m_hourly_energy; // Energy used in PPA calculations
+    std::vector<double> m_energy_sales; // Hourly gen values > 0
+    std::vector<double> m_energy_purchases; // Hourly gen values < 0
+    std::vector<double> m_energy_without_battery;
 	std::string m_error;
 	size_t m_nyears;
+    ssc_number_t m_ts_hour_gen;
+    size_t m_step_per_hour_gen;
 
 public:
 	bool calculate(compute_module *cm);
 	std::vector<double>& hourly_energy() {
 		return m_hourly_energy;
 	}
+    std::vector<double>& hourly_sales() {
+        return m_energy_sales;
+    }
+    std::vector<double>& hourly_purchases() {
+        return m_energy_purchases;
+    }
+    std::vector<double>& hourly_energy_without_battery() {
+        return m_energy_without_battery;
+    }
 	std::string error() { return m_error; }
+    void sum_ts_to_hourly(ssc_number_t* timestep_power, std::vector<double>& hourly);
 };
+
+
+class check_financial_metrics
+{
+private:
+    compute_module* m_cm;
+
+public:
+    void check_irr(compute_module* cm, ssc_number_t& irr);
+    void check_irr_flip(compute_module* cm, ssc_number_t& irr);
+    void check_npv(compute_module* cm, ssc_number_t& npv_metric);
+    void check_debt_percentage(compute_module* cm, ssc_number_t& debt_percentage);
+};
+
+
 
 
 

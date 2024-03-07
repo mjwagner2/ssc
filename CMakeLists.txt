@@ -35,7 +35,7 @@ if ( NOT APPLE)
     set(CURL_DIR build_resources/libcurl_ssl_x64)
 endif()
 
-if (NOT SP_STANDALONE)
+if (NOT (BUILD_SOLARPILOT OR BUILD_COPILOT_API))
     Project(sam_simulation_core VERSION 1.0.0)
 endif()
 
@@ -141,19 +141,20 @@ endfunction()
 #
 #####################################################################################################################
 
-if (SP_STANDALONE)
+if (BUILD_SOLARPILOT OR BUILD_COPILOT_API)
     Project(solarpilot_codelibs)
 endif()
 
-if(NOT COPILOT_API)
+if(NOT BUILD_COPILOT_API)
 	add_subdirectory(splinter)
 endif()
+
 add_subdirectory(shared)
 add_subdirectory(solarpilot)
 add_subdirectory(nlopt)
 add_subdirectory(lpsolve)
 
-if (NOT SP_STANDALONE)
+if (NOT (BUILD_SOLARPILOT OR BUILD_COPILOT_API))
     add_subdirectory(tcs)
     add_subdirectory(ssc)
 endif()

@@ -636,10 +636,12 @@ void AutoPilot::PostProcessLayout(sp_layout &layout)
 	/* 
 	Layout post-process.. collect the layout results and fill the data into the
 	layout structure for later use
+    Calculate all post layout parameters
 	*/
 
 	Hvector *hpos = _SF->getHeliostats();
 	layout.heliostat_positions.clear();
+    layout.heliostat_positions.reserve(hpos->size());
 	for(int i=0; i<(int)hpos->size(); i++){
 		sp_layout::h_position hp;
 		hp.location.x = hpos->at(i)->getLocation()->x;
@@ -668,13 +670,13 @@ void AutoPilot::PostProcessLayout(sp_layout &layout)
 void AutoPilot::PrepareFluxSimulation(sp_flux_table &fluxtab, int flux_res_x, int flux_res_y, bool /*is_normalized*/)
 {
 	var_map *V = _SF->getVarMap();
-    V->amb.sim_time_step.Setval(0.);    //sest the simulation time step for flux
+    V->amb.sim_time_step.Setval(0.);    //set the simulation time step for flux
 
     //simulate flux maps for all of the receivers
 	Rvector rec_to_sim = *_SF->getReceivers();
 	//Get flags and settings
 	
-	if(flux_res_y > 1)
+	if(flux_res_y > 1 && V->recs.front().rec_type.mapval() != var_receiver::REC_TYPE::FALLING_PARTICLE)
         V->flux.aim_method.combo_select_by_mapval( var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY );
 
 	//Shape the flux surface files to match

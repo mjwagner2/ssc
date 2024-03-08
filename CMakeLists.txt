@@ -37,6 +37,8 @@ endif()
 
 if (NOT (BUILD_SOLARPILOT OR BUILD_COPILOT_API))
     Project(sam_simulation_core VERSION 1.0.0)
+else()
+    Project(solarpilot_codelibs)
 endif()
 
 #####################################################################################################################
@@ -140,10 +142,6 @@ endfunction()
 # Project Settings
 #
 #####################################################################################################################
-
-if (BUILD_SOLARPILOT OR BUILD_COPILOT_API)
-    Project(solarpilot_codelibs)
-endif()
 
 if(NOT BUILD_COPILOT_API)
 	add_subdirectory(splinter)

@@ -165,9 +165,11 @@ extern "C" {
 
     SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname);
 
+#ifdef SP_USE_SOLTRACE
     SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname);
 
     SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt);
+#endif
 
     SPEXPORT void _sp_free_var(sp_number_t* m);
 
@@ -178,7 +180,9 @@ extern "C" {
 
 #endif  // _COPILOT_API_
 
-extern int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data);
+#ifdef SP_USE_SOLTRACE
+    extern int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data);
+#endif
 
 extern int MessageHandler(const char* message, void* data);
 

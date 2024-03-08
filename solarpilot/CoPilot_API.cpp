@@ -65,8 +65,10 @@ struct CopilotObject
         results.clear();
         simthread = 0;
         //solarfield.getSimInfoObject()->setCallbackFunction()
+#ifdef SP_USE_SOLTRACE
         sim_control.soltrace_callback = ST_APICallback;
         sim_control.soltrace_callback_data = (void*)this;
+#endif
         sim_control.message_callback = MessageHandler;
         sim_control.message_callback_data = (void*)this;
         sim_control.layout_log_callback = ProgressHandler;
@@ -3039,6 +3041,7 @@ SPEXPORT bool sp_dump_varmap(sp_data_t p_data, const char* sp_fname)
     return false;
 }
 
+#ifdef SP_USE_SOLTRACE
 SPEXPORT bool sp_export_soltrace(sp_data_t p_data, const char* sp_fname)
 {
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
@@ -3081,6 +3084,7 @@ SPEXPORT bool sp_load_soltrace_context(sp_data_t p_data, st_context_t* solt_cxt)
 
     return true;
 }
+#endif
 
 SPEXPORT void _sp_free_var(sp_number_t* m)
 {
@@ -3097,6 +3101,7 @@ SPEXPORT void _sp_free_var(sp_number_t* m)
 }
 
 
+#ifdef SP_USE_SOLTRACE
 int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace, st_uint_t curstage, st_uint_t nstages, void* data)
 {
     /* 
@@ -3118,6 +3123,7 @@ int ST_APICallback(st_uint_t ntracedtotal, st_uint_t ntraced, st_uint_t ntotrace
     }
     return 1;
 };
+#endif
 
 int MessageHandler(const char* message, void* data)
 {

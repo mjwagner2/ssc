@@ -577,7 +577,7 @@ bool interop::ticker_increment(int lengths[], int indices[], bool changed[], int
 
 //Simulation methods
 
-bool interop::PerformanceSimulationPrep(SolarField &SF, Hvector &helios, int /*sim_method*/){
+bool interop::PerformanceSimulationPrep(SolarField &SF, Hvector &helios){
 	/* 
 	Call this method when setting up a performance simulation (i.e. a flux simulation).
 

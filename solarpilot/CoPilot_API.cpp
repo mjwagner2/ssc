@@ -1339,7 +1339,7 @@ SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads = 1, bool update_aimpoi
     //Set up field, update aimpoints, and simulate at the performance sun position
     Hvector* helios = SF->getHeliostats();
 
-    if (!interop::PerformanceSimulationPrep(*SF, *helios, simtype)) return false;
+    if (!interop::PerformanceSimulationPrep(*SF, *helios)) return false;
 
     Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val())*D2R);
 
@@ -2688,7 +2688,7 @@ SPEXPORT bool sp_calculate_optical_efficiency_table(sp_data_t p_data, int ud_n_a
             V->flux.flux_time_type.combo_select_by_mapval(var_fluxsim::FLUX_TIME_TYPE::SUN_POSITION);
 
             //Set-up simulation
-            if (!interop::PerformanceSimulationPrep(*SF, *helios, simtype)) return false;
+            if (!interop::PerformanceSimulationPrep(*SF, *helios)) return false;
             Vect sun = Ambient::calcSunVectorFromAzZen(V->flux.flux_solar_az.Val() * D2R, (90. - V->flux.flux_solar_el.Val()) * D2R);
             SF->calcHeliostatShadows(sun);
             if (SF->ErrCheck()) return false;

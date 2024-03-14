@@ -848,9 +848,7 @@ SPEXPORT int sp_add_heliostat_template(sp_data_t p_data, const char* heliostat_n
     V->hels.back().helio_name.val = tname;
     //Re-create the solar field object
     mc->solarfield.Create(*V);
-    // F.GetSolarFieldObject()->Create(*V);
 
-    //cxt.result().assign((double)SPFrame::Instance().GetVariablesObject()->hels.back().id.val);
     return V->hels.back().id.val;
 }
 

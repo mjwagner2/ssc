@@ -2397,9 +2397,9 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		
 		Returns:
 			Boolean: if the SNOUT interferes with the heliostat's view of the aperture
-			viewable_aperture[4]: the bounds of the aperature viewable by the heliostat in the following order: minimum X, maximum X, minimum Y, and maximum Y
+			viewable_aperture[4]: the bounds of the aperture viewable by the heliostat in the following order: minimum X, maximum X, minimum Y, and maximum Y
 		
-		NOTE: viewable_aperature assumes the aperture center is at the origin.
+		NOTE: viewable_aperture assumes the aperture center is at the origin.
 		
 		TODO: Move this method somewhere else -> heliostat? or receiver?
 	*/
@@ -2410,7 +2410,7 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	Vect* T = H.getTowerVector();	// Does this include rec_offset? yes
 	sp_point* hloc = H.getLocation();
 
-	sp_point rec_origin(0.0, 0.0, Rv->optical_height.Val());
+	sp_point rec_origin(Rv->rec_offset_x_global.Val(), Rv->rec_offset_y_global.Val(), Rv->optical_height.Val());
 	PointVect helio_img_plane(rec_origin, *T);
 
 	// Determine aperture window corner points -> assumes vertical
@@ -2421,6 +2421,7 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	double ap_hw_cos_azi = (ap_w / 2.) * cos(azi * D2R); // aperture half-width cos azimuth
 	double ap_hw_sin_azi = (ap_w / 2.) * sin(azi * D2R); // aperture half-width sin azimuth
 
+	//Draw aperture window
 	vector<sp_point> ap_win;
 	ap_win.resize(4);
 	ap_win.at(0).Set(ap_hw_cos_azi, -ap_hw_sin_azi, ap_h / 2.);  //upper right (east on a north facing receiver)
@@ -2428,13 +2429,14 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	ap_win.at(2).Set(-ap_hw_cos_azi, ap_hw_sin_azi, -ap_h / 2.); //lower left
 	ap_win.at(3).Set(ap_hw_cos_azi, -ap_hw_sin_azi, -ap_h / 2.); //lower right
 
+	// Translate to true receiver location - TODO: Do I need this?
 	for (int i = 0; i < ap_win.size(); i++) {
-		ap_win.at(i).Add(rec_offset); // Translate to true receiver location
+		ap_win.at(i).Add(rec_offset); 
 	}
 	// Project aperture onto heliostat image plane
 	vector<sp_point> ap_win_proj = Toolbox::projectPolygon(ap_win, helio_img_plane);
 
-	// Determine tower-to-helio vector zenith and azimuth
+	// Determine tower-to-heliostat vector zenith and azimuth - TODO: Is this correct?
 	double t2h_zenith = pi/2. + std::atan2(T->k, std::sqrt(std::pow(T->i, 2) + std::pow(T->j, 2)));
 	double t2h_azimuth = std::atan2(-T->i, -T->j);
 
@@ -2450,13 +2452,13 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	double s_vert_top_angle = Rv->snout_vert_top_angle.val;
 	double s_vert_bot_angle = Rv->snout_vert_bot_angle.val;
 
-	double s_width = ap_w + 2. * s_depth * tan(s_horiz_angle / 2. * D2R); // Snout window width
-	double s_hw_cos_azi = (s_width / 2.) * cos(azi * D2R); // snout window half-width cos azimuth
-	double s_hw_sin_azi = (s_width / 2.) * sin(azi * D2R); // snout window half-width sin azimuth
-	double s_high_drop = s_depth * tan(s_vert_top_angle * D2R); // snout window top edge drop from aperture
-	double s_low_drop = s_depth * tan(s_vert_bot_angle * D2R); // snout window lower edge drop from aperture
+	double s_width = ap_w + 2. * s_depth * std::tan(s_horiz_angle / 2. * D2R); // Snout window width
+	double s_hw_cos_azi = (s_width / 2.) * std::cos(azi * D2R); // snout window half-width cos azimuth
+	double s_hw_sin_azi = (s_width / 2.) * std::sin(azi * D2R); // snout window half-width sin azimuth
+	double s_high_drop = s_depth * std::tan(s_vert_top_angle * D2R); // snout window top edge drop from aperture
+	double s_low_drop = s_depth * std::tan(s_vert_bot_angle * D2R); // snout window lower edge drop from aperture
 
-	sp_point s_depth_offset(s_depth * sin(azi * D2R), s_depth * cos(azi * D2R), 0.0); //Snout window offset from aperture
+	sp_point s_depth_offset(s_depth * std::sin(azi * D2R), s_depth * std::cos(azi * D2R), 0.0); //Snout window offset from aperture
 
 	int h_id = H.getId();
 	vector<sp_point> snout_win;
@@ -2518,6 +2520,7 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		for (int i = 0; i < intsection_proj.size(); i++) {
 			Toolbox::rotation(-(pi - t2h_zenith), 0, intsection_proj.at(i));
 			Toolbox::rotation(t2h_azimuth, 2, intsection_proj.at(i));
+			intsection_proj.at(i).Add(rec_origin);
 		}
 		// Get receiver plane (aperture)
 		PointVect rec_norm_plane;
@@ -2526,8 +2529,9 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		// Determine intersection on the receiver plane and Transform the points on to a x-y plane
 		for (int i = 0; i < intsection_proj.size(); i++) {
 			Toolbox::plane_intersect(*rec_norm_plane.point(), *rec_norm_plane.vect(), intsection_proj.at(i), *T, intsection_proj.at(i));
-			Toolbox::rotation(pi-Rv->rec_azimuth.val, 2, intsection_proj.at(i));
-			Toolbox::rotation(pi / 2. - Rv->rec_elevation.val, 0, intsection_proj.at(i));
+			intsection_proj.at(i).Subtract(rec_origin);
+			Toolbox::rotation((180. - Rv->rec_azimuth.val) * D2R, 2, intsection_proj.at(i));
+			Toolbox::rotation((90. - Rv->rec_elevation.val) * D2R, 0, intsection_proj.at(i));
 		}
 
 		double area = std::abs(Toolbox::area_polygon(intsection_proj));

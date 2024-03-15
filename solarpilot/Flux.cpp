@@ -2409,6 +2409,17 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 	sp_point origin(0., 0., 0.);				// Basing everything off the receiver origin (center of aperture)
 	PointVect helio_img_plane(origin, *h2t); 
 
+	//First check to make sure the heliostat can see the aperture plane. If not, don't bother.
+	PointVect rec_norm;
+	Rec->CalculateNormalVector(rec_norm);
+	if (Toolbox::dotprod(*rec_norm.vect(), *h2t) > 0.) {	// Heliostat can't see aperture
+		viewable_aperture[0] = 0.;
+		viewable_aperture[1] = 0.;
+		viewable_aperture[2] = 0.;
+		viewable_aperture[3] = 0.;
+		return true;
+	}
+
 	// Determine aperture window corner points -> assumes vertical
 	var_receiver* Rv = Rec->getVarMap();
 	double azi_rads = Rv->rec_azimuth.val * D2R;	// [deg]->[rads]
@@ -2510,7 +2521,7 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		// Determine intersection of the two projections using Sutherland-Hodgeman Algorithm 
 		vector<sp_point> intsection_proj = Toolbox::clipPolygon(ap_win_proj, s_win_proj);
 
-		if (intsection_proj.size() == 0) { // Projections do not overlap
+		if (intsection_proj.size() == 0) { // Heliostat is on the wrong side of receiver
 			throw spexception("Unexpected result when calculating aperture viewable area.");
 		}
 
@@ -2519,14 +2530,11 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 			Toolbox::rotation(-(pi - t2h_zenith), 0, intsection_proj.at(i));
 			Toolbox::rotation(t2h_azimuth, 2, intsection_proj.at(i));
 		}
-		// Get receiver plane (aperture)
-		PointVect rec_norm_plane;
-		Rec->CalculateNormalVector(rec_norm_plane);
 
 		// Determine intersection on the receiver plane and Transform the points on to a x-y plane
 		double el_rads = 0.0;	// Falling particles receivers are not allowed a elevation
 		for (int i = 0; i < intsection_proj.size(); i++) {
-			Toolbox::plane_intersect(origin, *rec_norm_plane.vect(), intsection_proj.at(i), *h2t, intsection_proj.at(i));
+			Toolbox::plane_intersect(origin, *rec_norm.vect(), intsection_proj.at(i), *h2t, intsection_proj.at(i));
 			Toolbox::rotation(pi - azi_rads, 2, intsection_proj.at(i));
 			Toolbox::rotation(pi/2. - el_rads, 0, intsection_proj.at(i));
 		}

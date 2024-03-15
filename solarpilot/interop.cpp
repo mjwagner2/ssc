@@ -748,11 +748,11 @@ void interop::UpdateMapLayoutData(var_map &V, Hvector *heliostats){
 bool interop::HermiteFluxSimulationHandler(sim_results& results, SolarField& SF, Hvector& helios)
 {
 	/*
-	Call the hermite flux evaluation algorithm and process.
+	Call the Hermite flux evaluation algorithm and process.
 	*/
 	SF.HermiteFluxSimulation(helios,
 		SF.getVarMap()->flux.aim_method.mapval() == var_fluxsim::AIM_METHOD::IMAGE_SIZE_PRIORITY    //to not re-simulate, aim strategy must be "IMAGE_SIZE"...
-		&& helios.size() == SF.getHeliostats()->size());                                        //and all heliostats must be included.
+		&& helios.size() == SF.getHeliostats()->size());											//and all heliostats must be included.
 
 	//Process the results
 	double azzen[2];

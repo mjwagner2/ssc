@@ -1406,11 +1406,13 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
     }
     
     // for multiple receivers
-    for (size_t i = 0; i < V->recs.size(); i++)
+    for (size_t i = 0; i < results->size(); i++)
     {
         interop::CreateResultsTable(results->at(i), table);
         
         unordered_map<std::string, double> res_map;
+
+        if (i > 0) ret.append("\n");    // For appending each receiver results
 
         for (int j = 0; j < table.GetNumberRows(); j++)
         {
@@ -1427,7 +1429,7 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
         if (is_soltrace)
         {
             /*
-            soltrace
+            solTrace
             for this option, the "Shadowing and Cosine efficiency" is already calculated by the
             program. Just make sure the Shading and Cosine efficiencies aren't double counted.
             */
@@ -1441,7 +1443,7 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
         }
         else
         {
-            //hermite
+            //Hermite
             double eta_sc = res_map.at("Shading efficiency") * res_map.at("Cosine efficiency") / 100.;
             ret.append("Shadowing and Cosine efficiency, " + std::to_string(eta_sc) + "\n");
 
@@ -1483,7 +1485,7 @@ SPEXPORT const char *sp_summary_results(sp_data_t p_data)
         double eta_a = res_map.at("Absorption efficiency") / 100.;
         ret.append("Absorption loss, " + std::to_string(Qwf*(1. - eta_a)) + "\n");
 
-        ret.append("Receiver name, " + (i == 0 ? "All receivers" : results->at(i).receiver_names.front() ) );
+        ret.append("Receiver name," + (i == 0 ? "All receivers" : results->at(i).receiver_names.front() ) );
     }
     mc->__str_data.clear();
     mc->__str_data = ret;

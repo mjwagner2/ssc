@@ -209,7 +209,7 @@ int multi_rec_opt_helper::run(SolarField *SF)
 
     --- 
 
-    This method poses and solves the linear optimization problem of assigning heliostats to recievers in such a 
+    This method poses and solves the linear optimization problem of assigning heliostats to receivers in such a 
     way that the optimal set of heliostats are chosen for design, and the maximum power output from the field is 
     achieved during optimization.
 
@@ -439,7 +439,7 @@ int multi_rec_opt_helper::run(SolarField *SF)
     set_outputfile(lp, "aimpoint_optimization_log.txt");
 #endif
 
-    set_verbose(lp, DETAILED); //http://web.mit.edu/lpsolve/doc/set_verbose.htm
+    set_verbose(lp, IMPORTANT); //DETAILED //http://web.mit.edu/lpsolve/doc/set_verbose.htm
     set_timeout(lp, timeout_sec);  //max solution time
     set_presolve(lp, PRESOLVE_NONE, get_presolveloops(lp));
     set_scaling(lp, SCALE_EXTREME | SCALE_FUTURE2);

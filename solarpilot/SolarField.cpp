@@ -1813,7 +1813,7 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
         
         /*
         iterate over all heliostats in order of best to worst (backwards) and add a sufficient number
-        to provide power for all recievers. 
+        to provide power for all receivers. 
         */
         int nhprev = (int)_heliostats.size();
 

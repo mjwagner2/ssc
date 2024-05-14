@@ -439,7 +439,7 @@ int multi_rec_opt_helper::run(SolarField *SF)
     set_outputfile(lp, "aimpoint_optimization_log.txt");
 #endif
 
-    set_verbose(lp, IMPORTANT); //DETAILED //http://web.mit.edu/lpsolve/doc/set_verbose.htm
+    set_verbose(lp, DETAILED); //DETAILED //http://web.mit.edu/lpsolve/doc/set_verbose.htm
     set_timeout(lp, timeout_sec);  //max solution time
     set_presolve(lp, PRESOLVE_NONE, get_presolveloops(lp));
     set_scaling(lp, SCALE_EXTREME | SCALE_FUTURE2);

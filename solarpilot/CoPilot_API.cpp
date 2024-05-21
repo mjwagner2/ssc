@@ -1131,6 +1131,10 @@ SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads = 0) //, bool sa
     SF->Create(*V);
     bool simok = interop::DoManagedLayout(*SC, *SF, *V, SThread);        //Returns TRUE if successful
 
+    // Print any simulation errors
+    std::string msg = *SF->getSimErrorObject()->getSimulationErrors();
+    SC->message_callback(msg.c_str(), SC->message_callback_data);
+
     return simok;
 }
 
@@ -1250,7 +1254,7 @@ SPEXPORT sp_number_t* sp_get_layout_info(sp_data_t p_data, int* nhelio, int* nco
 
         if ((i == 0) && (c != *ncol - 1))
         {
-            std::string msg = "Information was lost check sp_get_layout_info output formating.";
+            std::string msg = "Information was lost check sp_get_layout_info output formatting.";
             SC->message_callback(msg.c_str(), SC->message_callback_data);
             delete[] layoutinfo;
             return nullptr;
@@ -1372,6 +1376,10 @@ SPEXPORT bool sp_simulate(sp_data_t p_data, int nthreads = 1, bool update_aimpoi
     //End timer
     duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
     std::string msg = "Simulation total time:" + std::to_string(duration) + " seconds";
+    SC->message_callback(msg.c_str(), SC->message_callback_data);
+
+    // Print any simulation errors
+    msg = *SF->getSimErrorObject()->getSimulationErrors();
     SC->message_callback(msg.c_str(), SC->message_callback_data);
 
     SF->getSimInfoObject()->Reset();

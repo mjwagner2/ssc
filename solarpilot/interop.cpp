@@ -1530,7 +1530,7 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 
 			//Duplicate SF objects in memory
 
-			msg = "Preparing " + std::to_string(SimC._n_threads) + " threads for simulation";
+			msg = "Preparing " + std::to_string(nthreads) + " threads for simulation";
 			SimC.layout_log_callback(0., msg.c_str(), SimC.layout_log_callback_data);
 
 			SolarField **SFarr;
@@ -1600,19 +1600,19 @@ bool interop::DoManagedLayout(SimControl& SimC, SolarField& SF, var_map& V, Layo
 
 			//check to see whether simulation errored out
 			bool errored_out = false;
-			for (int i = 0; i < SimC._n_threads; i++)
+			for (int i = 0; i < nthreads; i++)
 			{
 				errored_out = errored_out || simthread[i].IsFinishedWithErrors();
 			}
 			if (errored_out)
 			{
 				//make sure each thread is cancelled
-				for (int i = 0; i < SimC._n_threads; i++)
+				for (int i = 0; i < nthreads; i++)
 					simthread[i].CancelSimulation();
 
 				//Get the error messages, if any
 				string errmsgs;
-				for (int i = 0; i < SimC._n_threads; i++)
+				for (int i = 0; i < nthreads; i++)
 				{
 					for (int j = 0; j < (int)simthread[i].GetSimMessages()->size(); j++)
 						errmsgs.append(simthread[i].GetSimMessages()->at(j) + "\n");

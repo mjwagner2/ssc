@@ -315,20 +315,21 @@ public:
         [POLY] separates entries
         [P] separates points within a polygon
         ',' separates x,y,z within a point
-
-        NOTE: Clearing values occurs before calling this function
         */
+
+        Vp.clear();
 
         if( SV.empty() ) return true;
 
         std::vector< std::string > polys = split(SV, "[POLY]");
 
-        std::vector<sp_point> new_poly;
+        Vp.resize(polys.size() );
+
         for(size_t i=0; i<polys.size(); i++)
         {
             std::vector< std::string > pts = split(polys.at(i), "[P]");
 
-            new_poly.resize( pts.size(), sp_point() );
+            Vp.at(i).resize( pts.size(), sp_point() );
 
             for( size_t j=0; j<pts.size(); j++ )
             {
@@ -338,11 +339,9 @@ public:
                 for( size_t k=0; k<vals.size(); k++ )
                 {
                     to_double(vals.at(k), &x);
-                    new_poly.at(j)[(int)k] = x;
+                    Vp.at(i).at(j)[(int)k] = x;
                 }
             }
-
-            Vp.push_back(new_poly);
         }
 
         return true;

@@ -337,6 +337,11 @@ struct AutoOptHelper
 
         m_all_points.push_back( current );
 
+        // Update falling-particle receiver dependent variables
+        var_map* V = m_variables;
+        if (V->recs.front().rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE)
+            update_fp_rec_dep_vars(x);
+
         double obj, cost;
         std::vector<double> flux;
         
@@ -356,6 +361,27 @@ struct AutoOptHelper
                 
         return obj;
     };
+
+    void update_fp_rec_dep_vars(const double* x)
+    {
+        // Update dependent variables based on current point
+        var_map* V = m_variables;
+        for (auto& rec : V->recs) {
+            rec.rec_height.val = x[1];
+            rec.rec_width.val = x[1];   // Assumes a square aspect ratio
+        }
+        // azimuth angle
+        if (V->recs.size() == 2 || V->recs.size() == 3) {
+            V->recs.front().rec_azimuth.val = x[2];   // "East"
+            V->recs.back().rec_azimuth.val = -x[2];   // "West"
+        }
+        if (V->recs.size() == 3) {
+            if (V->amb.latitude.val > 0.0)
+                V->recs.at(1).rec_azimuth.val = 0.0;     // "North"
+            else
+                V->recs.at(1).rec_azimuth.val = 180.0;   // "South"
+        }
+    }
 };
 
 double optimize_leastsq_eval(unsigned n, const double *x, double * /*grad*/, void *data)
@@ -427,7 +453,6 @@ double optimize_auto_eval(unsigned n, const double *x, double * /*grad*/, void *
 
     return D->Simulate(x, n);
 };
-
 
 void constraint_auto_eval(unsigned m, double *result, unsigned n, const double* x, double* /*gradient*/, void *data)
 {
@@ -608,11 +633,11 @@ void AutoPilot::GenerateDesignPointSimulations(var_map &V, vector<string> &wdata
 	day, hour, month,  dni, tdry, pres, wspd
 	1..,  0..,  1-12, W/m2,    C,  bar,  m/s
 	*/
-#ifdef _DEBUG
-    interop::GenerateSimulationWeatherData(V, var_solarfield::DES_SIM_DETAIL::SINGLE_SIMULATION_POINT, wdata);	// Reduces number of cases to run in debug
-#else
+//#ifdef _DEBUG
+//    interop::GenerateSimulationWeatherData(V, var_solarfield::DES_SIM_DETAIL::SINGLE_SIMULATION_POINT, wdata);	// Reduces number of cases to run in debug
+//#else
 	interop::GenerateSimulationWeatherData(V, -1, wdata);
-#endif
+//#endif
 }
 
 void AutoPilot::PreSimCallbackUpdate()
@@ -903,7 +928,8 @@ bool AutoPilot::Optimize(vector<double*> &optvars, vector<double> &upper_range, 
     AO.SetObjects( (void*)this,  *V, &nlobj);
     AO.m_opt_vars = optvars;
     //-------
-    nlobj.set_min_objective( optimize_auto_eval, &AO  );
+    nlobj.set_min_objective(optimize_auto_eval, &AO);
+    
     nlobj.set_xtol_rel(1.e-4);
     nlobj.set_ftol_rel(V->opt.converge_tol.val);
     nlobj.set_initial_step( stepsize );
@@ -998,15 +1024,31 @@ bool AutoPilot::Optimize(vector<double*> &optvars, vector<double> &upper_range, 
         _summary_siminfo->addSimulationNotice( ol.str() );
         
         //int iopt = 0;
-        int iopt = (int)AO.m_objective.size()-1;
+        int iopt = (int)AO.m_objective.size() - 1;
+        auto it = find(AO.m_objective.begin(), AO.m_objective.end(), fmin);
+        if (it != AO.m_objective.end()) {
+            iopt = it - AO.m_objective.begin();
+        }
 
         //write the optimal point found
         ostringstream oo;
         oo << "Algorithm converged:\n";
         for(int i=0; i<(int)optvars.size(); i++)
             oo << (names == 0 ? "" : names->at(i) + "=" ) << setw(8) << AO.m_all_points.at(iopt).at(i) << "   ";
-        oo << "\nObjective: " << AO.m_objective.back(); //objbest;
+        oo << "\nObjective: " << fmin;
         _summary_siminfo->addSimulationNotice(oo.str() );
+
+        //Set vars to optimal point
+        double* opt_x = new double[(int)optvars.size()];
+        for (int i = 0; i < (int)optvars.size(); i++) {
+            *optvars.at(i) = AO.m_all_points.at(iopt).at(i);
+            opt_x[i] = AO.m_all_points.at(iopt).at(i);
+        }
+        var_map* V = AO.m_variables;
+        if (V->recs.front().rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE)
+            AO.update_fp_rec_dep_vars(opt_x);
+        delete[] opt_x;
+
     }
     catch(const std::exception &e){
 		ostringstream oo;
@@ -1181,6 +1223,29 @@ bool AutoPilot_S::CalculateOpticalEfficiencyTable(sp_optical_table &opttab)
 		opttab.eff_data.push_back(row);
 	}
 	return true;
+}
+
+bool AutoPilot_S::SimulateAimPointsAtDesign()
+{
+    /*
+    Sets the aimpoints based on the design point conditions (for multi-receiver cases).
+    */
+    var_map* vars = _SF->getVarMap();
+
+    sim_result result;
+    double azzen[2];
+    _SF->CalcDesignPtSunPosition(vars->sf.sun_loc_des.mapval(), azzen[0], azzen[1]);
+
+    sim_params P;
+    P.dni = vars->sf.dni_des.val;
+    P.is_layout = false;
+
+    if (!_cancel_simulation)
+        _SF->Simulate(azzen[0] * D2R, azzen[1] * D2R, P);
+
+    //result.process_analytical_simulation(*_SF, P, 0, azzen);
+
+    return true;
 }
 
 bool AutoPilot_S::CalculateFluxMaps(sp_flux_table &fluxtab, int flux_res_x, int flux_res_y, bool is_normalized)

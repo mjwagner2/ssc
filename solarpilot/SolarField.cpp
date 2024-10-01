@@ -828,7 +828,7 @@ bool SolarField::UpdateLayoutGroups(double lims[4]){
 	if (Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) mesh_data.theta = 0.0;
 	//double width;
 	Receiver *rec = _receivers.front();
-	mesh_data.w_rec = Rv->rec_width.val; //sqrt(powf(_receivers.front()->getReceiverWidth(),2) + powf(_receivers.front()->getReceiverHeight(),2));
+    mesh_data.w_rec = Receiver::getReceiverWidth(*Rv); // Rv->rec_width.val; //sqrt(powf(_receivers.front()->getReceiverWidth(),2) + powf(_receivers.front()->getReceiverHeight(),2));
 	mesh_data.flat = rec->getGeometryType() != Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED
 					&& rec->getGeometryType() != Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN;
 	mesh_data.f_tol = Sv->zone_div_tol.val;
@@ -955,7 +955,7 @@ bool SolarField::FieldLayout(){
 
 		//For the map-to-annual case, run a simulation here
 		if(_var_map->sf.des_sim_detail.mapval() == var_solarfield::DES_SIM_DETAIL::EFFICIENCY_MAP__ANNUAL)
-			SolarField::AnnualEfficiencySimulation( _var_map->amb.weather_file.val, this, results); //, (double*)NULL, (double*)NULL, (double*)NULL);
+			SolarField::AnnualEfficiencySimulation( _var_map->amb.weather_file.val, this, results);
 
 
 		ProcessLayoutResults(&results, sim_last - sim_first);
@@ -1866,10 +1866,22 @@ void SolarField::ProcessLayoutResults( sim_results *results, int nsim_total){
         mroh.sim_info = &_sim_info;
         mroh.problem_name = " heliostat assignments for multiple receivers ";
         mroh.run(this);         //run the optimization
-        
-        if (mroh.result_status == multi_rec_opt_helper::RS_INFEASIBLE)
-            _sim_error.addSimulationError("The field can't provide enough power to meet receiver input power requirements.", true, false);
-        else if (mroh.result_status == multi_rec_opt_helper::RS_OPTIMAL || mroh.result_status == multi_rec_opt_helper::RS_SUBOPTIMAL)
+
+        // Recover bad design problem by assigning heliostats to receivers
+        if (mroh.result_status == multi_rec_opt_helper::RS_INFEASIBLE
+            || mroh.result_status == multi_rec_opt_helper::RS_TIMED_OUT
+            || mroh.result_status == multi_rec_opt_helper::RS_UNKNOWN_ERROR) {
+            _sim_error.addSimulationError("The field can't provide enough power to meet receiver input power requirements.", false, false);
+            // Re-run optimization with field "assigned"
+            mroh.is_performance = true;
+            mroh.is_field_assigned = true;
+            mroh.problem_name = " infeasible design problem, heliostat assignment - only ";
+            mroh.run(this);         //run the optimization
+            if (mroh.result_status == multi_rec_opt_helper::RS_INFEASIBLE)
+                _sim_error.addSimulationError("Infeasible heliostat assignment problem.", true, false);
+        }
+
+        if (mroh.result_status == multi_rec_opt_helper::RS_OPTIMAL || mroh.result_status == multi_rec_opt_helper::RS_SUBOPTIMAL)
             (void*)0;
         else
         {

@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "core.h"
@@ -70,7 +80,7 @@ public:
 
 		windfile wf( file );
 		if (!wf.ok())
-			throw exec_error("windfile", "failed to read local weather file: " + std::string(file) + " " + wf.error());
+			throw exec_error("windfile", "failed to read weather file: " + std::string(file) + " " + wf.error());
 
 		assign( "city", var_data( std::string( wf.city ) ) );
 		assign( "state", var_data( std::string( wf.state ) ) );
@@ -88,7 +98,7 @@ public:
 		double wind, dir, temp, pres, closest_speed_meas_ht=0, closest_dir_meas_ht=0;
 		if (bHeaderOnly) {
 			if (!wf.read(as_double("requested_ht"), &wind, &dir, &temp, &pres, &closest_speed_meas_ht, &closest_dir_meas_ht))
-				throw exec_error("windpower", util::format("error reading wind resource file at %d: ", 1) + wf.error());
+				throw exec_error("windpower", util::format("error reading weather file headers ") + wf.error());
 
 			assign("closest_speed_meas_ht", var_data((ssc_number_t)closest_speed_meas_ht));
 			assign("closest_dir_meas_ht", var_data((ssc_number_t)closest_dir_meas_ht));
@@ -109,7 +119,7 @@ public:
 		for (int i = 0; i<nsteps; i++)
 		{
 			if (!wf.read(as_double("requested_ht"), &wind, &dir, &temp, &pres, &closest_speed_meas_ht, &closest_dir_meas_ht, as_boolean("interpolate") ) )
-				throw exec_error("windpower", util::format("error reading wind resource file at %d: ", i) + wf.error());
+				throw exec_error("windpower", util::format("error reading weather file at time step %d of %d: ", i, nsteps) + wf.error());
 
 			p_speed[i] = (ssc_number_t)wind;
 			p_dir[i] = (ssc_number_t)dir;

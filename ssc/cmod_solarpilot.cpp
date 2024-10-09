@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "core.h"
@@ -32,6 +42,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "AutoPilot_API.h"  //solarpilot
 #include "definitions.h"    //solarpilot
+
+#include "csp_solver_cavity_receiver.h"
 
 #define pi 3.141592654
 
@@ -52,21 +64,31 @@ static var_info _cm_vtab_solarpilot[] = {
 
 	{ SSC_INPUT,        SSC_STRING,      "solar_resource_file",       "Solar weather data file",                    "",       "",         "SolarPILOT",   "?",                "LOCAL_FILE",      "" },
 
-	{ SSC_INPUT,        SSC_NUMBER,      "helio_width",               "Heliostat width",                            "m",      "",         "SolarPILOT",   "*",                "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "receiver_type",             "0: external (default), 1; cavity",           "",       "",         "SolarPILOT",   "?=0",              "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "rec_height",                "External receiver height",                   "m",      "",         "SolarPILOT",   "receiver_type=0",  "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "rec_aspect",                "External receiver aspect ratio (H/W)",       "frac",   "",         "SolarPILOT",   "receiver_type=0",  "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "cav_rec_height",            "Cavity receiver height",                     "m",      "",         "SolarPILOT",   "receiver_type=1",  "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "cav_rec_width",             "Cavity receiver width",                      "m",      "",         "SolarPILOT",   "receiver_type=1",  "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "n_cav_rec_panels",          "Cavity receiver number of panels",           "",       "",         "SolarPILOT",   "receiver_type=1",  "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "cav_rec_span",              "Cavity receiver span angle",                 "deg",    "",         "SolarPILOT",   "receiver_type=1",  "",                "" },
+
+
+    { SSC_INPUT,        SSC_NUMBER,      "helio_width",               "Heliostat width",                            "m",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "helio_height",              "Heliostat height",                           "m",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "helio_optical_error",       "Optical error",                              "rad",    "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "helio_active_fraction",     "Active fraction of reflective area",         "frac",   "",         "SolarPILOT",   "*",                "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "dens_mirror",               "Ratio of reflective area to profile",        "frac",   "",         "SolarPILOT",   "*",                "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "helio_reflectance",         "Mirror reflectance",                         "frac",   "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "rec_absorptance",           "Absorptance",                                "frac",   "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_INPUT,        SSC_NUMBER,      "rec_height",                "Receiver height",                            "m",      "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_INPUT,        SSC_NUMBER,      "rec_aspect",                "Receiver aspect ratio (H/W)",                "frac",   "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "rec_hl_perm2",              "Receiver design heat loss",                  "kW/m2",  "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "q_design",                  "Receiver thermal design power",              "MW",     "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "dni_des",                   "Design-point DNI",                           "W/m2",   "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "land_max",                  "Max heliostat-dist-to-tower-height ratio",   "",       "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "land_min",                  "Min heliostat-dist-to-tower-height ratio",   "",       "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_INPUT,        SSC_NUMBER,      "h_tower",                   "Tower height",                               "m",      "",         "SolarPILOT",   "*",                "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "csp.pt.sf.fixed_land_area",          "Fixed land area",                   "acre",   "",         "SolarPILOT",   "*",                "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "csp.pt.sf.land_overhead_factor",     "Land overhead factor",              "",       "",         "SolarPILOT",   "*",                "",                "" },
+
+    { SSC_INPUT,        SSC_NUMBER,      "h_tower",                   "Tower height",                               "m",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "c_atm_0",					  "Attenuation coefficient 0",                  "",       "",         "SolarPILOT",   "?=0.006789",       "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "c_atm_1",					  "Attenuation coefficient 1",                  "",       "",         "SolarPILOT",   "?=0.1046",         "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "c_atm_2",					  "Attenuation coefficient 2",                  "",       "",         "SolarPILOT",   "?=-0.0107",        "",                "" },
@@ -97,14 +119,14 @@ static var_info _cm_vtab_solarpilot[] = {
 	{ SSC_INPUT,        SSC_NUMBER,      "contingency_rate",          "Contingency for cost overrun",               "%",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "sales_tax_rate",            "Sales tax rate",                             "%",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "sales_tax_frac",            "Percent of cost to which sales tax applies", "%",      "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_INPUT,        SSC_NUMBER,      "cost_sf_fixed",             "Soalr field fixed cost",                     "$",      "",         "SolarPILOT",   "*",                "",                "" },
+	{ SSC_INPUT,        SSC_NUMBER,      "cost_sf_fixed",             "Solar field fixed cost",                     "$",      "",         "SolarPILOT",   "*",                "",                "" },
 
     { SSC_INPUT,        SSC_NUMBER,      "is_optimize",               "Do SolarPILOT optimization",                 "",       "",         "SolarPILOT",   "?=0",              "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "flux_max",                  "Maximum allowable flux",                     "",       "",         "SolarPILOT",   "?=1000",           "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "opt_init_step",             "Optimization initial step size",             "",       "",         "SolarPILOT",   "?=0.05",           "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "opt_max_iter",              "Max. number iteration steps",                "",       "",         "SolarPILOT",   "?=200",            "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "opt_conv_tol",              "Optimization convergence tol",               "",       "",         "SolarPILOT",   "?=0.001",          "",                "" },
-    { SSC_INPUT,        SSC_NUMBER,      "opt_algorithm",             "Optimization algorithm",                     "",       "",         "SolarPILOT",   "?=0",              "",                "" },
+    { SSC_INPUT,        SSC_NUMBER,      "opt_algorithm",             "Optimization algorithm",                     "",       "",         "SolarPILOT",   "?=1",              "",                "" },
     { SSC_INPUT,        SSC_NUMBER,      "opt_flux_penalty",          "Optimization flux overage penalty",          "",       "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_INPUT,        SSC_MATRIX,      "helio_positions_in",        "Heliostat position table",                   "",       "",         "SolarPILOT",   "",                "",                "" },
 
@@ -119,8 +141,9 @@ static var_info _cm_vtab_solarpilot[] = {
     { SSC_OUTPUT,       SSC_NUMBER,      "land_area",                 "Total land area",                            "acre",   "",         "SolarPILOT",   "*",                "",                "" }, 
 	{ SSC_OUTPUT,       SSC_NUMBER,      "h_tower_opt",               "Optimized tower height",                     "m",      "",         "SolarPILOT",   "*",                "",                "" },
 	{ SSC_OUTPUT,       SSC_NUMBER,      "rec_height_opt",            "Optimized receiver height",                  "m",      "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_OUTPUT,       SSC_NUMBER,      "rec_aspect_opt",            "Optimized receiver aspect ratio",            "-",      "",         "SolarPILOT",   "*",                "",                "" },
-	{ SSC_OUTPUT,       SSC_NUMBER,      "flux_max_observed",         "Maximum observed flux at design",            "kW/m2",  "",         "SolarPILOT",   "check_max_flux=1", "",                "" },
+	{ SSC_OUTPUT,       SSC_NUMBER,      "rec_aspect_opt",            "Optimized receiver aspect ratio",            "-",      "",         "SolarPILOT",   "receiver_type=0",  "",                "" },
+    { SSC_OUTPUT,       SSC_NUMBER,      "cav_rec_aper_width_opt",    "Optimized cavity receiver aperture width",   "-",      "",         "SolarPILOT",   "receiver_type=1",  "",                "" },
+    { SSC_OUTPUT,       SSC_NUMBER,      "flux_max_observed",         "Maximum observed flux at design",            "kW/m2",  "",         "SolarPILOT",   "check_max_flux=1", "",                "" },
 
     { SSC_OUTPUT,       SSC_NUMBER,      "cost_rec_tot",              "Total receiver cost",                        "$",      "",         "SolarPILOT",   "*",                "",                "" },
     { SSC_OUTPUT,       SSC_NUMBER,      "cost_sf_tot",               "Total heliostat field cost",                 "$",      "",         "SolarPILOT",   "*",                "",                "" },
@@ -154,9 +177,43 @@ public:
 		solarpilot_invoke spi( this );
 		spi.run(wdata);
 
+        int rec_type = as_integer("receiver_type");
+
+        // Post-process solarpilot outputs for receiver configs
+        // Set outputs unique to receiver configs
+        if (rec_type == 0) {
+
+            assign("rec_aspect_opt", (ssc_number_t)spi.recs.front().rec_aspect.Val());
+
+        }
+        else if (rec_type == 1) {
+
+            double cav_rec_height_spout, cav_radius_spout, f_offset_spout;
+            cav_rec_height_spout = cav_radius_spout = f_offset_spout = std::numeric_limits<double>::quiet_NaN();
+            int n_panels_spout = -1;
+
+            cav_rec_height_spout = spi.recs.front().rec_height.val;   //[m]
+            cav_radius_spout = spi.recs.front().rec_cav_rad.val;      //[m]
+            f_offset_spout = spi.recs.front().rec_cav_cdepth.val;       //[-]
+            n_panels_spout = spi.recs.front().n_panels.val;           //[-]
+
+            double theta0_calc, panelSpan_calc, panel_width_calc, rec_area_calc, rec_width_calc,
+                rec_span_calc, offset_calc;
+
+            cavity_receiver_helpers::calc_receiver_macro_geometry_sp_inputs(cav_rec_height_spout, cav_radius_spout,
+                        f_offset_spout, n_panels_spout,
+                        theta0_calc, panelSpan_calc, panel_width_calc,
+                        rec_area_calc, rec_width_calc, rec_span_calc, offset_calc);
+
+            // compare input rec_span w/ calculated rec_span
+            // should be same even after optimization, because optimization fixes offset/radius
+            //double rec_span_in = as_double("cav_rec_span")*PI/180.0;     //[rad] convert from deg
+
+            assign("cav_rec_aper_width_opt", (ssc_number_t)rec_width_calc);
+        }
+
 		assign("h_tower_opt", (ssc_number_t)spi.sf.tht.val);
-		assign("rec_height_opt", (ssc_number_t)spi.recs.front().rec_height.val);
-		assign("rec_aspect_opt", (ssc_number_t)spi.recs.front().rec_aspect.Val());
+        assign("rec_height_opt", (ssc_number_t)spi.recs.front().rec_height.val);
 		assign("cost_rec_tot", (ssc_number_t)spi.fin.rec_cost.Val());
 		assign("cost_sf_tot", (ssc_number_t)spi.fin.heliostat_cost.Val());
 		assign("cost_tower_tot", (ssc_number_t)spi.fin.tower_cost.Val());

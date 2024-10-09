@@ -1,24 +1,35 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #include "core.h"
 #include "lib_windfile.h"
@@ -40,8 +51,8 @@ static var_info _cm_vtab_windpower[] = {
 
 	{ SSC_INPUT  , SSC_NUMBER , "wind_resource_shear"                , "Shear exponent"                           , ""        ,""                                    , "Turbine"                              , "*"                                               , "MIN=0"                                           , "" } ,
 	{ SSC_INPUT  , SSC_NUMBER , "wind_turbine_rotor_diameter"        , "Rotor diameter"                           , "m"       ,""                                    , "Turbine"                              , "*"                                               , "POSITIVE"                                        , "" } ,
-	{ SSC_INOUT  , SSC_ARRAY  , "wind_turbine_powercurve_windspeeds" , "Power curve wind speed array"             , "m/s"     ,""                                    , "Turbine"                              , "*"                                               , ""                                                , "" } ,
-	{ SSC_INOUT  , SSC_ARRAY  , "wind_turbine_powercurve_powerout"   , "Power curve turbine output array"         , "kW"      ,""                                    , "Turbine"                              , "*"                                               , "LENGTH_EQUAL=wind_turbine_powercurve_windspeeds" , "" } ,
+	{ SSC_INOUT  , SSC_ARRAY  , "wind_turbine_powercurve_windspeeds" , "Power curve wind speed array"             , "m/s"     ,""                                    , "Turbine"                              , "*"                                               , ""                                                , "GROUP=WTPCD" } ,
+	{ SSC_INOUT  , SSC_ARRAY  , "wind_turbine_powercurve_powerout"   , "Power curve turbine output array"         , "kW"      ,""                                    , "Turbine"                              , "*"                                               , "LENGTH_EQUAL=wind_turbine_powercurve_windspeeds" , "GROUP=WTPCD" } ,
 	{ SSC_INPUT  , SSC_NUMBER , "wind_turbine_hub_ht"                , "Hub height"                               , "m"       ,""                                    , "Turbine"                              , "*"                                               , "POSITIVE"                                        , "" } ,
 	{ SSC_INPUT  , SSC_NUMBER , "wind_turbine_max_cp"                , "Max Coefficient of Power"                 , ""        ,""                                    , "Turbine"                              , "wind_resource_model_choice=1"                    , "MIN=0"                                           , "" } ,
 
@@ -50,6 +61,7 @@ static var_info _cm_vtab_windpower[] = {
 	{ SSC_INPUT  , SSC_NUMBER , "system_capacity"                    , "Nameplate capacity"                       , "kW"      ,""                                    , "Farm"                                 , "*"                                               , "MIN=0"                                           , "" } ,
 	{ SSC_INPUT  , SSC_ARRAY  , "wind_farm_xCoordinates"             , "Turbine X coordinates"                    , "m"       ,""                                    , "Farm"                                 , "*"                                               , ""                                                , "" } ,
 	{ SSC_INPUT  , SSC_ARRAY  , "wind_farm_yCoordinates"             , "Turbine Y coordinates"                    , "m"       ,""                                    , "Farm"                                 , "*"                                               , "LENGTH_EQUAL=wind_farm_xCoordinates"             , "" } ,
+    { SSC_INPUT  , SSC_NUMBER , "max_turbine_override"               , "Override the max number of turbines for wake modeling","numTurbines","set new max num turbines","Farm"                                , ""                                                , ""                                                , "" } ,
 
 	{ SSC_INPUT  , SSC_NUMBER , "en_low_temp_cutoff"                 , "Enable Low Temperature Cutoff"            , "0/1"     ,""                                    , "Losses"                               , "?=0"                                             , "INTEGER"                                         , "" } ,
 	{ SSC_INPUT  , SSC_NUMBER , "low_temp_cutoff"                    , "Low Temperature Cutoff"                   , "C"       ,""                                    , "Losses"                               , "en_low_temp_cutoff=1"                            , ""                                                , "" } ,
@@ -81,12 +93,18 @@ static var_info _cm_vtab_windpower[] = {
 
         // OUTPUTS ----------------------------------------------------------------------------annual_energy
 	{ SSC_OUTPUT , SSC_ARRAY  , "turbine_output_by_windspeed_bin"    , "Turbine output by wind speed bin"         , "kW"      ,""                                    , "Power Curve"                      ,"" , "LENGTH_EQUAL=wind_turbine_powercurve_windspeeds" , "" } ,
-	{ SSC_OUTPUT , SSC_ARRAY  , "wind_direction"                     , "Wind direction"                           , "deg"     ,""                                    , "Time Series"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
+	{ SSC_OUTPUT , SSC_ARRAY  , "wind_direction"                     , "Wind direction"                           , "degrees"     ,""                                    , "Time Series"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
     { SSC_OUTPUT , SSC_ARRAY  , "wind_speed"                         , "Wind speed"                               , "m/s"     ,""                                    , "Time Series"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
 	{ SSC_OUTPUT , SSC_ARRAY  , "temp"                               , "Air temperature"                          , "'C"      ,""                                    , "Time Series"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
 	{ SSC_OUTPUT , SSC_ARRAY  , "pressure"                           , "Pressure"                                 , "atm"     ,""                                    , "Time Series"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
 
-	{ SSC_OUTPUT , SSC_ARRAY  , "monthly_energy"                     , "Monthly Energy"                           , "kWh"     ,""                                    , "Monthly"                              , "*"                                               , "LENGTH=12"                                       , "" } ,
+    // pass through weather file header data to outputs
+    { SSC_OUTPUT , SSC_NUMBER  , "lat"                               , "Latitude"                                 , "degrees"     ,""                                     , "Location"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
+    { SSC_OUTPUT , SSC_NUMBER  , "lon"                               , "Longitude"                                , "degrees"      ,""                                    , "Location"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
+    { SSC_OUTPUT , SSC_NUMBER  , "elev"                              , "Site elevation"                           , "m"     ,""                                      , "Location"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
+    { SSC_OUTPUT , SSC_NUMBER  , "year"                              , "Year"                                     , ""     ,""                                       , "Location"                          , "wind_resource_model_choice=0"                    , ""                                                , "" } ,
+
+	{ SSC_OUTPUT , SSC_ARRAY  , "monthly_energy"                     , "Monthly Energy Gross"                           , "kWh"     ,""                                    , "Monthly"                              , "*"                                               , "LENGTH=12"                                       , "" } ,
 	{ SSC_OUTPUT , SSC_NUMBER , "annual_energy"                      , "Annual Energy"                            , "kWh"     ,""                                    , "Annual"                               , "*"                                               , ""                                                , "" } ,
 	{ SSC_OUTPUT , SSC_NUMBER , "annual_gross_energy"                , "Annual Gross Energy"                      , "kWh"     ,""                                    , "Annual"                               , "*"                                               , ""                                                , "" } ,
 	{ SSC_OUTPUT , SSC_NUMBER , "capacity_factor"                    , "Capacity factor"                          , "%"       ,""                                    , "Annual"                               , "*"                                               , ""                                                , "" } ,
@@ -208,6 +226,8 @@ cm_windpower::cm_windpower(){
 	add_var_info(vtab_technology_outputs);
 	// wind PRUF
 	add_var_info(vtab_p50p90);
+    add_var_info(vtab_hybrid_tech_om_outputs);
+
 }
 
 // wind PRUF loss framework. Can replace numerical loss percentages by calculated losses in future model
@@ -255,6 +275,8 @@ void cm_windpower::exec()
 	wt.measurementHeight = wt.hubHeight;
 	wt.rotorDiameter = as_double("wind_turbine_rotor_diameter");
 	ssc_number_t *pc_w = as_array("wind_turbine_powercurve_windspeeds", &wt.powerCurveArrayLength);
+    if (wt.powerCurveArrayLength == 1)
+        throw exec_error("windpower", util::format("The wind turbine power curves has insufficient data. Consider changing the turbine design parameters"));
 	ssc_number_t *pc_p = as_array("wind_turbine_powercurve_powerout", NULL);
 	std::vector<double> windSpeeds(wt.powerCurveArrayLength), powerOutput(wt.powerCurveArrayLength);
 	for (size_t i = 0; i < wt.powerCurveArrayLength; i++){
@@ -280,10 +302,18 @@ void cm_windpower::exec()
 		throw exec_error("windpower", util::format("wind turbine class not properly initialized"));
 	if (wpc.nTurbines < 1)
 		throw exec_error("windpower", util::format("the number of wind turbines was zero."));
+
+    // check for maximum number of turbines
+    int newMaxTurbines = 0;
+    if (is_assigned("max_turbine_override"))
+    {
+        newMaxTurbines = as_integer("max_turbine_override");
+        wpc.SetMaxTurbines(newMaxTurbines);
+    }
 	if (wpc.nTurbines > wpc.GetMaxTurbines())
 		throw exec_error("windpower", util::format("the wind model is only configured to handle up to %d turbines.", wpc.GetMaxTurbines()));
 
-	// create adjustment factors and losses
+	// create adjustment factors and losses - set them up initially here for the Weibull distribution method, rewrite them later with nrec for the time series method
 	adjustment_factors haf(this, "adjust");
 	if (!haf.setup())
 		throw exec_error("windpower", "failed to setup adjustment factors: " + haf.error());
@@ -435,7 +465,7 @@ void cm_windpower::exec()
 		nstep = wp->nrecords();
 		wdprov = smart_ptr<winddata_provider>::ptr(wp);
 		if (!wp->ok() || (nstep == 0))
-			throw exec_error("windpower", "failed to read local weather file: " + std::string(file) + " " + wp->error());
+			throw exec_error("windpower", "failed to read local weather file: " + wp->error() + ", " + std::string(file));
 	}
 	else if (is_assigned("wind_resource_data"))
 	{
@@ -472,12 +502,17 @@ void cm_windpower::exec()
 	if (steps_per_hour * 8760 != nstep  && !contains_leap_day)
 		throw exec_error("windpower", util::format("invalid number of data records (%d): must be an integer multiple of 8760", (int)nstep));
 
+    // overwrite adjustment factors setup using the correct value for nrec, which we don't have until this part of the code
+    if (!haf.setup(nstep))
+        throw exec_error("windpower", "failed to setup adjustment factors: " + haf.error());
+
 	// allocate output data
 	ssc_number_t *farmpwr = allocate("gen", nstep);
 	ssc_number_t *wspd = allocate("wind_speed", nstep);
 	ssc_number_t *wdir = allocate("wind_direction", nstep);
 	ssc_number_t *air_temp = allocate("temp", nstep);
 	ssc_number_t *air_pres = allocate("pressure", nstep);
+
 
 	std::vector<double> Power(wpc.nTurbines, 0.), Thrust(wpc.nTurbines, 0.),
 		Eff(wpc.nTurbines, 0.), Wind(wpc.nTurbines, 0.), Turb(wpc.nTurbines, 0.),
@@ -511,19 +546,19 @@ void cm_windpower::exec()
 					for (size_t j = 0; j < 24 * steps_per_hour; j++) //trash 24 hours' worth of lines in the weather file to skip the entire day of Feb 29
 					{
 						if (!wdprov->read(wt.hubHeight, &wind, &dir, &temp, &pres, &wt.measurementHeight, &closest_dir_meas_ht, true))
-							throw exec_error("windpower", util::format("error reading wind resource file at %d: ", i) + wdprov->error());
+							throw exec_error("windpower", util::format("error reading wind resource file leap day data at %d: ", i) + wdprov->error());
 					}
 			} //now continue with the normal process, none of the counters have been incremented so everything else should be ok
 
 			// if wf.read is set to interpolate (last input), and it's able to do so, then it will set wpc.measurementHeight equal to hub_ht
 			// direction will not be interpolated, pressure and temperature will be if possible
 			if (!wdprov->read(wt.hubHeight, &wind, &dir, &temp, &pres, &wt.measurementHeight, &closest_dir_meas_ht, true))
-				throw exec_error("windpower", util::format("error reading wind resource file at %d: ", i) + wdprov->error());
+				throw exec_error("windpower", util::format("error reading wind resource file for interpolation at time step %d: ", i) + wdprov->error());
 
-			if (fabs(wt.measurementHeight - wt.hubHeight) > 35.0)
+			if (std::abs(wt.measurementHeight - wt.hubHeight) > 35.0)
 				throw exec_error("windpower", util::format("the closest wind speed measurement height (%lg m) found is more than 35 m from the hub height specified (%lg m)", wt.measurementHeight, wt.hubHeight));
 
-			if (fabs(closest_dir_meas_ht - wt.measurementHeight) > 10.0)
+			if (std::abs(closest_dir_meas_ht - wt.measurementHeight) > 10.0)
 			{
 				if (i > 0) // if this isn't the first hour, then it's probably because of interpolation
 				{
@@ -540,7 +575,7 @@ void cm_windpower::exec()
 			}
 
 			// If the wind speed measurement height still differs from the turbine hub height (ie it wasn't corrected above, maybe because file only has one measurement height), use the shear to correct it.
-			if (fabs(wt.measurementHeight - wt.hubHeight) > 1) {
+			if (std::abs(wt.measurementHeight - wt.hubHeight) > 1) {
 				if (wt.shearExponent > 1.0) wt.shearExponent = 1.0 / 7.0;
 				wind = wind * pow(wt.hubHeight / wt.measurementHeight, wt.shearExponent);
 				wt.measurementHeight = wt.hubHeight;
@@ -552,7 +587,7 @@ void cm_windpower::exec()
                     /* inputs */
                     wind,    /* m/s */
                     dir,    /* degrees */
-                    pres,    /* Atm */
+                    pres,    /* Atm or Pa */
                     temp,    /* deg C */
 
                     /* outputs */
@@ -584,6 +619,7 @@ void cm_windpower::exec()
 			wspd[i] = (ssc_number_t)wind;
 			wdir[i] = (ssc_number_t)dir;
 			air_temp[i] = (ssc_number_t)temp;
+            if (pres > 1.1) pres = pres / physics::Pa_PER_Atm; // assumes that value greater than 1.1 is i Pa
 			air_pres[i] = (ssc_number_t)pres;
 
 			// accumulate monthly and annual energy
@@ -593,7 +629,7 @@ void cm_windpower::exec()
 			i++;
 		} // end steps_per_hour loop
 	} // end 1->8760 loop
-
+    ssc_number_t* p_annual_energy_dist_time = gen_heatmap(this, steps_per_hour);
 	// assign outputs
 	assign("annual_energy", var_data((ssc_number_t)annual));
 	double kWhperkW = 0.0;
@@ -603,6 +639,11 @@ void cm_windpower::exec()
 	assign("kwh_per_kw", var_data((ssc_number_t)kWhperkW));
 	assign("cutoff_losses", var_data((ssc_number_t)((withoutCutOffLosses - annual) / withoutCutOffLosses)));
 	assign("annual_gross_energy", annual_gross);
+
+    assign("lat", wdprov->lat);
+    assign("lon", wdprov->lon);
+    assign("elev", wdprov->elev);
+    assign("year", wdprov->year);
 
     double wsp_avg = 0.;
     for (size_t n = 0; n < nstep; n++)

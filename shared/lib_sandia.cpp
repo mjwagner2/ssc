@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <math.h>
@@ -391,16 +401,25 @@ bool sandia_inverter_t::acpower(
 	double *Pntloss /* Power loss due to night time tare loss (Wac) */
 	)
 {
-	//initialize values
-	*Pac = 0;
-	*Ppar = 0.0;
-	*Psoloss = 0.0; // Power consumption during operation
-	*Pntloss = 0.0;
-	*Pcliploss = 0.0;
-	double Pdc_total = 0;
+	//initialize output values, use a local variable so that not all outputs need to be retrieved in the function call (i.e. the function call can use a nullptr in place of an actual pointer value)
+	double Pac_ = 0.0;
+	double Ppar_ = 0.0;
+    double Plr_ = 0.0;
+    double Eff_ = 0.0;
+    double Pcliploss_ = 0.0;
+	double Psoloss_ = 0.0; // Power consumption during operation
+	double Pntloss_ = 0.0;
+
+    //initialize interim variables
+    double Pdc_total = 0.0;
 	std::vector<double> Pac_each;
 	std::vector<double> PacNoPso_each;
 
+    //find total DC input power
+	for (size_t m = 0; m < Pdc.size(); m++) 
+	{
+	    Pdc_total += Pdc[m];
+	}
 	//loop through each MPPT input
 	for (size_t m = 0; m < Pdc.size(); m++) 
 	{
@@ -417,37 +436,46 @@ bool sandia_inverter_t::acpower(
 		if (B < 0.5 * Pso) B = 0.5 * Pso;
 		if (B > 2.0 * Pso) B = 2.0 * Pso;
 
-		Pac_each[m] = ((Paco / (A - B)) - C * (A - B)) * (Pdc[m] - B) + C0 * (Pdc[m] - B) * (Pdc[m] - B); //calculate Pac for this MPPT input and save it
-		PacNoPso_each[m] = ((Paco / A) - C * A) * Pdc[m] + C0 * Pdc[m] * Pdc[m]; //calculate Pac without operating losses (Pso = 0) for each MPPT input to store as Pso losses later
-		Pdc_total += Pdc[m];
+		Pac_each[m] = Pdc[m] / Pdc_total * (((Paco / (A - B)) - C * (A - B)) * (Pdc_total - B) + C * (Pdc_total - B) * (Pdc_total - B)); //calculate Pac for this MPPT input and save it
+		PacNoPso_each[m] = Pdc[m] * (((Paco / A) - C * A) + C * Pdc_total); //calculate Pac without operating losses (Pso = 0) for each MPPT input to store as Pso losses later
+
 	}
 
 	// night time: power is equal to nighttime power loss (note that if PacNoPso > Pso and Pac < Pso then the night time loss could be considered an operating power loss)
 	if (Pdc_total <= Pso)
 	{
-		*Pac = -Pntare;
-		*Ppar = Pntare;
-		*Pntloss = Pntare;
+		Pac_ = -Pntare;
+		Ppar_ = Pntare;
+		Pntloss_ = Pntare;
 	}
 	// day time: calculate total Pac; power loss is the Pso loss, use values calculated above
 	else
 		for (size_t m = 0; m < Vdc.size(); m++)
 		{
-			*Psoloss += PacNoPso_each[m] - Pac_each[m];
-			*Pac += Pac_each[m];
+			Psoloss_ += PacNoPso_each[m] - Pac_each[m];
+			Pac_ += Pac_each[m];
 		}
 	
 	// clipping loss Wac (note that the Pso=0 may have no clipping)
-	double PacNoClip = *Pac;
-	if ( *Pac > Paco )
+	double PacNoClip = Pac_;
+	if ( Pac_ > Paco )
 	{
-		*Pac = Paco;
-		*Pcliploss = PacNoClip - *Pac;
+		Pac_ = Paco;
+		Pcliploss_ = PacNoClip - Pac_;
 	}
 
-	*Plr = Pdc_total / Pdco;
-	*Eff = *Pac / Pdc_total;
-	if ( *Eff < 0.0 ) *Eff = 0.0;
+	Plr_ = Pdc_total / Pdco;
+	Eff_ = Pac_ / Pdc_total;
+	if ( Eff_ < 0.0 ) Eff_ = 0.0;
+
+    //check for existence of output pointers before assigning outputs
+    if (Pac) *Pac = Pac_;
+    if (Ppar) *Ppar = Ppar_;
+    if (Plr) *Plr = Plr_;
+    if (Eff) *Eff = Eff_;
+    if (Pcliploss) *Pcliploss = Pcliploss_;
+    if (Psoloss) *Psoloss = Psoloss_; // Power consumption during operation
+    if (Pntloss) *Pntloss = Pntloss_;
 
 	return true;
 }

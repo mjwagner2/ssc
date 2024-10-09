@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "htf_props.h"
@@ -30,6 +40,40 @@ HTFProperties::HTFProperties()
 	uf_err_msg = "The user-defined htf property table is invalid (rows=%d cols=%d)";
 
 	m_is_temp_enth_avail = false;
+}
+
+void HTFProperties::Initialize(int htf_code, util::matrix_t<double> ud_htf_props)
+{
+    if (htf_code != HTFProperties::User_defined && htf_code < HTFProperties::End_Library_Fluids)
+    {
+        if (!SetFluid(htf_code))
+        {
+            throw(C_csp_exception("C_csp_cr_electric_resistance::init HTF code is not recognized"));
+        }
+    }
+    else if (htf_code == HTFProperties::User_defined)
+    {
+        // Check that 'm_field_fl_props' is allocated and correct dimensions
+        int n_rows = (int)ud_htf_props.nrows();
+        int n_cols = (int)ud_htf_props.ncols();
+        if (n_rows > 2 && n_cols == 7)
+        {
+            if (!SetUserDefinedFluid(ud_htf_props))
+            {
+                std::string error_msg = util::format(UserFluidErrMessage(), n_rows, n_cols);
+                throw(C_csp_exception(error_msg, "Heat Sink Initialization"));
+            }
+        }
+        else
+        {
+            std::string error_msg = util::format("The user defined field HTF table must contain at least 3 rows and exactly 7 columns. The current table contains %d row(s) and %d column(s)", n_rows, n_cols);
+            throw(C_csp_exception(error_msg, "Heat Sink Initialization"));
+        }
+    }
+    else
+    {
+        throw(C_csp_exception("Power cycle HTF code is not recognized", "Heat Sink Initialization"));
+    }
 }
 
 bool HTFProperties::SetUserDefinedFluid(const util::matrix_t<double> &table, bool calc_temp_enth_table)
@@ -47,6 +91,7 @@ bool HTFProperties::SetUserDefinedFluid( const util::matrix_t<double> &table )
 	// Set class member data
 	m_userTable = table;	
 	m_fluid = User_defined;
+    m_integration_points = 100;
 
 	// Specific which columns are used as the independent variable; these must be monotonically increasing
 	int ind_var_index[2] = {0, 6};	
@@ -75,8 +120,15 @@ bool HTFProperties::SetUserDefinedFluid( const util::matrix_t<double> &table )
 
 void HTFProperties::set_temp_enth_lookup()
 {
-	double T_low = 270.0 + 273.15;
-	double T_high = 600.0 + 273.15;
+    double T_low = this->min_temp();
+    double T_high = this->max_temp();
+
+    if (!std::isfinite(T_low)) {
+        T_low = 270.0 + 273.15;
+    }
+    if (!std::isfinite(T_high)) {
+        T_high = 720.0 + 273.15;
+    }
 
 	double delta_T_target = 1.0;
 
@@ -184,7 +236,7 @@ bool HTFProperties::equals(HTFProperties *comp_class)
 	return m_userTable.equals(	(*comp_class->get_prop_table()) );
 }
 
-double HTFProperties::Cp_ave(double T_cold_K, double T_hot_K, int n_points)
+double HTFProperties::Cp_ave(double T_cold_K, double T_hot_K)
 {
 	// Check that temperatures are at least positive values
 	if(T_cold_K <= 0.0)
@@ -198,23 +250,16 @@ double HTFProperties::Cp_ave(double T_cold_K, double T_hot_K, int n_points)
 		"HTFProperties::Cp_ave",1));
 	}
 	
-	// Check that 2 < n_points < 500
-	if(n_points < 2)
-		n_points = 2;
-
-	if(n_points > 500)
-		n_points = 500;
-
+    // Composite Midpoint Rule
 	double cp_sum = 0.0;
-	double T_i = std::numeric_limits<double>::quiet_NaN();
-	double delta_T = (T_hot_K - T_cold_K)/double(n_points-1);
-	for(int i = 0; i < n_points; i++)
+    double delta_T = (T_hot_K - T_cold_K) / double(m_integration_points);
+    double T_i = T_cold_K + delta_T / 2; // half step
+	for(int i = 0; i < m_integration_points; i++)
 	{
-		T_i = T_cold_K + delta_T*i;
-		cp_sum += Cp(T_i);
+        cp_sum += Cp(T_i);
+        T_i += delta_T;
 	}
-
-	return cp_sum/double(n_points);
+	return cp_sum/double(m_integration_points);
 }
 
 double HTFProperties::Cp( double T_K )
@@ -235,7 +280,12 @@ double HTFProperties::Cp( double T_K )
 	case Water_liquid: 
 		return 4.181;
 	case Salt_68_KCl_32_MgCl2:	
-		return 1.156;
+
+		// Xu et al. 2018 Experimental Test of Properties of KCl-MgCl2 Eutectic Molten Salt for Heat Transfer and Thermal Storage Fluid in Concentrated Solar Power Systems
+		return 1.9700E-08*std::pow(T_C,2) - 1.2203E-05*T_C + 1.0091;	//[kJ/kg-K]
+
+		//return 1.156;				// replaced 20.04.06 twn
+
 	case Salt_8_NaF_92_NaBF4:	
 		return 1.507;
 	case Salt_25_KF_75_KBF4:	
@@ -284,12 +334,16 @@ double HTFProperties::Cp( double T_K )
 		return 0.0033*T_C + 1.6132;
 	case Pressurized_Water:
 		return 1.E-5*T_C*T_C - 0.0014*T_C + 4.2092;
+    case Methanol:
+        return 3.E-5*T_C*T_C + 0.0047*T_C + 2.3996;
     case N06230:
         return 0.2888*T_C + 397.42; // BPVC II D
     case N07740:
         return -1.E-9*std::pow(T_C, 4) + 3.E-6*std::pow(T_C, 3) -
             0.0022*std::pow(T_C, 2) + 0.6218*T_C + 434.06;  // BPVC_CC_BPV_2017 Case 2702 - 3
-	case User_defined:
+    case Salt_45MgCl2_39KCl_16NaCl:
+        return 1.284E-6*T_C*T_C - 1.843E-3*T_C + 1.661;  // Zhao 2020 Molten Chloride Thermophysical Properties, Chemical Optimization, and Purification Purification
+    case User_defined:
 		{
 			if ( m_userTable.nrows() < 3 ) return std::numeric_limits<double>::quiet_NaN();
 			// Interpolate
@@ -319,7 +373,12 @@ double HTFProperties::dens(double T_K, double P)
 		case Water_liquid:
 			return 1000.0;
 		case Salt_68_KCl_32_MgCl2:
-			return 1E-10*T_K*T_K*T_K - 3E-07*T_K*T_K - 0.4739*T_K + 2384.2;
+			
+			// Xu et al. 2018 Experimental Test of Properties of KCl-MgCl2 Eutectic Molten Salt for Heat Transfer and Thermal Storage Fluid in Concentrated Solar Power Systems
+			return (-5.0997E-4*T_C + 1.8943) * 1.E3;	//[kg/m3], convert from g/cm3
+
+			// return 1E-10*T_K*T_K*T_K - 3E-07*T_K*T_K - 0.4739*T_K + 2384.2;	// replaced 20.04.06
+
 		case Salt_8_NaF_92_NaBF4:
 			return 8E-09*T_K*T_K*T_K - 2E-05*T_K*T_K - 0.6867*T_K + 2438.5;
 		case Salt_25_KF_75_KBF4:
@@ -368,11 +427,15 @@ double HTFProperties::dens(double T_K, double P)
 			return -0.0003*T_C*T_C - 0.6963*T_C + 988.44;
 		case Pressurized_Water:
 			return -0.0023*T_C*T_C - 0.2337*T_C + 1005.6;
+        case Methanol:
+            return -0.9566*T_C + 810.3;
         case N06230:
             return 8970.0; // BPVC II D
         case N07740:
             return 8072.0;  // BPVC_CC_BPV_2017 Case 2702 - 3
-		case User_defined:
+        case Salt_45MgCl2_39KCl_16NaCl:
+            return -5.878E-1*T_C + 1974.0;  // Zhao 2020 Molten Chloride Thermophysical Properties, Chemical Optimization, and Purification Purification
+        case User_defined:
 			if ( m_userTable.nrows() < 3 )
 						return std::numeric_limits<double>::quiet_NaN();
 
@@ -397,7 +460,13 @@ double HTFProperties::visc(double T_K)
 	case Air:
 		return fmax(0.0000010765 + 7.15173E-08*T_K - 5.03525E-11*T_K*T_K + 2.02799E-14*T_K*T_K*T_K,1.E-6);
 	case Salt_68_KCl_32_MgCl2:
-		return .0146*exp(2230.0/T_K)*0.001;			// Convert cP to kg/m-s
+
+		// Xu et al. 2018 Experimental Test of Properties of KCl-MgCl2 Eutectic Molten Salt for Heat Transfer and Thermal Storage Fluid in Concentrated Solar Power Systems
+		// Xu data also combined with another source for this curve fit
+		return (1.8075E-5*std::pow(T_C,2) - 2.8496E-2*T_C + 1.3489E1)*0.001;	// [kg/m-s] convert from cP
+
+		//return .0146*exp(2230.0/T_K)*0.001;			// replaced 20.04.06 twn
+
 	case Salt_8_NaF_92_NaBF4:
 		return .0877*exp(2240.0/T_K)*0.001;			// convert cP to kg/m-s
 	case Salt_25_KF_75_KBF4:
@@ -459,7 +528,9 @@ double HTFProperties::visc(double T_K)
 		}
 	case Pressurized_Water:
 		return 3.E-8*T_C*T_C - 1.E-5*T_C + 0.0011;
-	case User_defined:
+    case Salt_45MgCl2_39KCl_16NaCl:
+        return 0.689*std::exp(1224.73/T_K)*1.E-3;   // convert from cP; Zhao 2020 Molten Chloride Thermophysical Properties, Chemical Optimization, and Purification Purification
+    case User_defined:
 		if ( m_userTable.nrows() < 3 )
 					return std::numeric_limits<double>::quiet_NaN();
 
@@ -486,7 +557,12 @@ double HTFProperties::cond(double T_K)
 	case Stainless_AISI316:
 		return 3E-09*pow(T_K,3) - 8E-06*pow(T_K,2) + 0.0177*T_K + 7.7765;
 	case Salt_68_KCl_32_MgCl2:
-		return 0.39;
+
+		// Xu et al. 2018 Experimental Test of Properties of KCl-MgCl2 Eutectic Molten Salt for Heat Transfer and Thermal Storage Fluid in Concentrated Solar Power Systems
+		return (-1.0000E-04*T_C + 5.0470E-01);	//[W/m-K]
+
+		// return 0.39;			// replaced 20.04.06 twn
+
 	case Salt_8_NaF_92_NaBF4:
 		return 0.5;
 	case Salt_25_KF_75_KBF4:
@@ -539,7 +615,9 @@ double HTFProperties::cond(double T_K)
         return 0.0197*T_C + 8.5359; // BPVC II D
     case N07740:
         return 0.0155*T_C + 9.7239;  // BPVC_CC_BPV_2017 Case 2702 - 3
-	case User_defined:
+    case Salt_45MgCl2_39KCl_16NaCl:
+        return 7.151E-7*std::pow(T_C,2) - 1.066E-3*T_C + 0.811; //[W/K-m] // Zhao 2020 Molten Chloride Thermophysical Properties, Chemical Optimization, and Purification Purification
+    case User_defined:
 		if ( m_userTable.nrows() < 3 )
 					return std::numeric_limits<double>::quiet_NaN();
 
@@ -590,6 +668,124 @@ double HTFProperties::temp(double H)
 	default:
 		return std::numeric_limits<double>::quiet_NaN();
 	}
+}
+
+double HTFProperties::min_temp()
+{
+    // Outputs: temperature [K]
+
+    double T_C = std::numeric_limits<double>::quiet_NaN();
+
+    switch (m_fluid)
+    {
+    case Nitrate_Salt:
+        T_C = 238.;
+        break;
+    case Caloria_HT_43:
+        T_C = -12.;
+        break;
+    case Hitec_XL:
+        T_C = 120.;
+        break;
+    case Therminol_VP1:
+        T_C = 12.;
+        break;
+    case Hitec:
+        T_C = 142.;
+        break;
+    case Dowtherm_Q:
+        T_C = -35.;
+        break;
+    case Dowtherm_RP:
+        T_C = 0.;
+        break;
+    case Therminol_66:
+        T_C = 0.;
+        break;
+    case Therminol_59:
+        T_C = -45.;
+        break;
+    case Pressurized_Water:
+        T_C = 10.;
+        break;
+    case Methanol:
+        T_C = -97.0;
+        break;
+    case Salt_45MgCl2_39KCl_16NaCl:
+        T_C = 450.0;
+        break;
+    case User_defined:
+        if (m_userTable.nrows() < 2) {
+            T_C = std::numeric_limits<double>::quiet_NaN();
+        }
+        else {
+            T_C = User_Defined_Props.get_min_x_value_x_col_0();
+        }
+        break;
+    default:
+        T_C = std::numeric_limits<double>::quiet_NaN();
+    }
+
+    return T_C + 273.15;
+}
+
+double HTFProperties::max_temp()
+{
+    // Outputs: temperature [K]
+
+    double T_C = std::numeric_limits<double>::quiet_NaN();
+
+    switch (m_fluid)
+    {
+    case Nitrate_Salt:
+        T_C = 593.;
+        break;
+    case Caloria_HT_43:
+        T_C = 315.;
+        break;
+    case Hitec_XL:
+        T_C = 500.;
+        break;
+    case Therminol_VP1:
+        T_C = 400.;
+        break;
+    case Hitec:
+        T_C = 538.;
+        break;
+    case Dowtherm_Q:
+        T_C = 330.;
+        break;
+    case Dowtherm_RP:
+        T_C = 330.;
+        break;
+    case Therminol_66:
+        T_C = 345.;
+        break;
+    case Therminol_59:
+        T_C = 315.;
+        break;
+    case Pressurized_Water:
+        T_C = 220.;
+        break;
+    case Methanol:
+        T_C = 64.;
+        break;
+    case Salt_45MgCl2_39KCl_16NaCl:
+        T_C = 720.0;
+        break;
+    case User_defined:
+        if (m_userTable.nrows() < 2) {
+            T_C = std::numeric_limits<double>::quiet_NaN();
+        }
+        else {
+            T_C = User_Defined_Props.get_max_x_value_x_col_0();
+        }
+        break;
+    default:
+        T_C =  std::numeric_limits<double>::quiet_NaN();
+    }
+
+    return T_C + 273.15;
 }
 
 double HTFProperties::enth(double T_K)
@@ -684,4 +880,16 @@ double HTFProperties::Re(double T_K, double P, double vel, double d)
 	// Outputs: Reynolds number [-]
 	double Re_num = dens(T_K, P) * vel * d / visc(T_K);
 	return Re_num;
+}
+
+void HTFProperties::set_integration_points(double n_points)
+{
+    // Check that 1 < n_points < 500
+    if (n_points < 1)
+        n_points = 1;
+
+    if (n_points > 500)
+        n_points = 500;
+
+    m_integration_points = n_points;
 }

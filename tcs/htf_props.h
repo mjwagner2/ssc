@@ -1,23 +1,33 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 // HTF_props.h -- function prototypes for HTF property routines
@@ -32,7 +42,8 @@ class HTFProperties
 public:
 	HTFProperties();
 	
-	enum {
+	// The absolute value of these matter because we need to pass them in from SAM UI & cmods
+	enum E_HTF_PROPS {
 		Air = 1,
 		Stainless_AISI316,
 		Water_liquid,
@@ -63,9 +74,11 @@ public:
 		T91_Steel,
 		Therminol_66,
 		Therminol_59,
-		Pressurized_Water,
+		Pressurized_Water,        
         N06230,         // Nickel alloy
         N07740,         // Nickel alloy
+        Methanol,
+        Salt_45MgCl2_39KCl_16NaCl, // Zhao 2020 Molten Chloride Thermophysical Properties, Chemical Optimization, and Purification Purification
 		End_Library_Fluids,
 		User_defined = 50
 	};
@@ -86,6 +99,7 @@ public:
 	int GetFluid() { return m_fluid; }
 	bool SetUserDefinedFluid( const util::matrix_t<double> &table );
 	bool SetUserDefinedFluid(const util::matrix_t<double> &table, bool calc_temp_enth_table);
+    void Initialize(int htf_code, util::matrix_t<double> ud_htf_props);
 
 	double Cp( double T_K );    //[kJ/kg-K]
 	double dens( double T_K, double P );
@@ -97,6 +111,8 @@ public:
 	double Pr( double T_K, double P );
 	double Re( double T_K, double P, double vel, double d );
 	double temp( double H );
+    double min_temp();          // [K]
+    double max_temp();          // [K]
 	double enth( double T_K );
 
 	double temp_lookup( double enth /*kJ/kg*/ );
@@ -104,17 +120,16 @@ public:
 
 	// 12.11.15 twn: Add method to calculate Cp as average of values throughout temperature range
 	//               rather than at the range's midpoint
-	double Cp_ave(double T_cold_K, double T_hot_K, int n_points);
+	double Cp_ave(double T_cold_K, double T_hot_K);
 
 	const util::matrix_t<double> *get_prop_table();
 	//bool equals(const util::matrix_t<double> *comp_table);
 	bool equals(HTFProperties *comp_class);
+    void set_integration_points(double n_points);
 
 private:
-	static const int m_m = 2;		// Integer for interpolation routine
 
 	Linear_Interp User_Defined_Props;		// Define interpolation class in case user defined propeties are required
-
 	Linear_Interp mc_temp_enth_lookup;		// Enthalpy-temperature relationship, populated by pre-processor: 'set_temp_enth_lookup' 
 	void set_temp_enth_lookup();
 	bool m_is_temp_enth_avail;
@@ -123,7 +138,7 @@ private:
 	util::matrix_t<double> m_userTable;	// User table of properties
 
 	std::string uf_err_msg;	//Error message when the user HTF table is invalid
-	
+    int m_integration_points = 5;
 };
 
 class AbsorberProps

@@ -1,3 +1,36 @@
+/*
+BSD 3-Clause License
+
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+
 #include <algorithm>
 #include <set>
 
@@ -56,12 +89,14 @@ bool try_get_rate_structure(var_table* vt, const std::string& ssc_name, bool pow
             int unit_type = row[3];
             buy = row[4];
             double sell = row[5];
-            if (unit_type == 0)
+            if (unit_type == 0 || ((unit_type == -1 && max > 1e36)))
                 rate_data.table.assign("unit", var_data("kWh"));
             else if (unit_type == 2)
                 rate_data.table.assign("unit", var_data("kWh daily"));
-            else
-                throw(std::runtime_error("ElectricityRates_format_as_URDBv7 error. Unit type in " + ssc_name + " not allowed."));
+            else{
+                vt->assign("error", var_data("ElectricityRates_format_as_URDB error. Unit type in " + ssc_name + " not allowed."));
+                return false;
+            }
             rate_data.table.assign("sell", sell);
         }
         else{
@@ -75,10 +110,10 @@ bool try_get_rate_structure(var_table* vt, const std::string& ssc_name, bool pow
     return true;
 }
 
-SSCEXPORT void ElectricityRates_format_as_URDBv7(ssc_data_t data) {
+SSCEXPORT bool ElectricityRates_format_as_URDBv8(ssc_data_t data) {
     auto vt = static_cast<var_table*>(data);
     if (!vt){
-        throw std::runtime_error("ssc_data_t data invalid");
+        return false;
     }
     auto urdb_data = var_table();
     std::string log;
@@ -87,20 +122,21 @@ SSCEXPORT void ElectricityRates_format_as_URDBv7(ssc_data_t data) {
     vt_get_int(vt, "ur_metering_option", &net_metering);
     std::string dgrules;
     switch(net_metering) {
-        case 0:
+        case 0: // net energy metering
             dgrules = "Net Metering";
             break;
-        case 1:
-        case 3:
-            throw(std::runtime_error("ElectricityRates_format_as_URDBv7 error. ur_net_metering_option not available in URDBv7."));
-        case 2:
+        case 1: // net energy metering with $ credits
+            throw(std::runtime_error(util::format("ElectricityRates_format_as_URDB error. ur_net_metering_option=%d not available in URDB. Net Metering with $ credits is not supported.", net_metering)));
+        case 2: // net billing
             dgrules = "Net Billing Hourly";
             break;
-        case 4:
+        case 3: // net billing with carryover to next month
+            throw(std::runtime_error(util::format("ElectricityRates_format_as_URDB error. ur_net_metering_option=%d not available in URDB. Net Billing with Carryover to Next Month is not supported.", net_metering)));
+        case 4: // buy all / sell all
             dgrules = "Buy All Sell All";
             break;
         default:
-            throw(std::runtime_error("ElectricityRates_format_as_URDBv7 error. ur_net_metering_option not recognized."));
+            vt->assign("error", var_data(util::format("ElectricityRates_format_as_URDB error. ur_net_metering_option=%d not recognized.", net_metering)));
     }
     urdb_data.assign("dgrules", dgrules);
 
@@ -165,7 +201,7 @@ SSCEXPORT void ElectricityRates_format_as_URDBv7(ssc_data_t data) {
             for (size_t j = 0; j < flat_demand_structure.size(); j++){
                 double j_max = flat_demand_structure[j][0].table.lookup("max")->num[0];
                 double j_charge = flat_demand_structure[j][0].table.lookup("rate")->num[0];
-                if (abs(max - j_max) < 1e-3 && abs(charge - j_charge) < 1e-3){
+                if (std::abs(max - j_max) < 1e-3 && std::abs(charge - j_charge) < 1e-3){
                     period = j;
                     break;
                 }
@@ -205,6 +241,57 @@ SSCEXPORT void ElectricityRates_format_as_URDBv7(ssc_data_t data) {
         urdb_data.assign("flatdemandmonths", flat_demand_months);
     }
 
+    if (vt->is_assigned("ur_billing_demand_lookback_percentages") && vt->is_assigned("ur_enable_billing_demand")) {
+        if (vt->as_boolean("ur_enable_billing_demand")) {
+            std::vector<int> billing_demand(12);
+            util::matrix_t<double> billing_demand_matrix = vt->as_matrix("ur_billing_demand_lookback_percentages");
+            bool any_zeroes = false;
+            bool all_same = true;
+            double reference_demand = billing_demand_matrix.at(0, 0);
+            double tol = 1e-7;
+            for (size_t i = 0; i < 12; i++) {
+                double monthly_demand_percent = billing_demand_matrix.at(i, 0);
+                if (monthly_demand_percent < tol) {
+                    any_zeroes = true;
+                    billing_demand[i] = 0;
+                }
+                else {
+                    if (any_zeroes) {
+                        if (reference_demand < tol) {
+                            reference_demand = monthly_demand_percent;
+                        }
+                    }
+
+                    if (std::abs(reference_demand - monthly_demand_percent) < tol) {
+                        all_same = false;
+                    }
+
+                    billing_demand[i] = 1;
+                }
+            }
+
+            if (!all_same) {
+                // SAM supports 12 different percentages, but REopt and URDB only support one. Flag this for users
+                urdb_data.assign("warning", var_data("ur_billing_demand_lookback_percentages has multiple non-zero percentages. REopt/URDB only supports a single percentage for lookbackPercent. Using the last non-zero percent"));
+            }
+
+            // If zeroes are present, use the lookbackMonths structure to indicate which months are relevant
+            if (any_zeroes) {
+                urdb_data.assign("lookbackMonths", var_data(billing_demand));
+            }
+            else { // Else specify the lookback range in integer months. SAM supports these in tandem, REopt/URDB only supports one
+
+                if (vt->is_assigned("ur_billing_demand_lookback_period")) {
+                    urdb_data.assign("lookbackRange", vt->as_integer("ur_billing_demand_lookback_period"));
+                }
+                else {
+                    urdb_data.assign("error", var_data("ur_billing_demand_lookback_period is not assigned when the structure of ur_billing_demand_lookback_percentages requires it. please assign the lookback period, in months"));
+                }
+            }
+            urdb_data.assign("lookbackPercent", var_data(reference_demand / 100.0));
+        }
+    }
+
     // tou
     if (try_get_rate_schedule(vt, "ur_dc_sched_weekday", sched_matrix))
         urdb_data.assign("demandweekdayschedule", sched_matrix);
@@ -214,5 +301,9 @@ SSCEXPORT void ElectricityRates_format_as_URDBv7(ssc_data_t data) {
     if (try_get_rate_structure(vt, "ur_dc_tou_mat", true, rate_structure))
         urdb_data.assign("demandratestructure", rate_structure);
 
+    if (vt->is_assigned("error"))
+        return false;
+
     vt->assign("urdb_data", urdb_data);
+    return true;
 }

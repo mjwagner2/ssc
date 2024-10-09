@@ -2501,6 +2501,7 @@ bool Flux::calculateProjectedSnoutApertureIntersection(Heliostat& H, Receiver* R
 		else {	// aperture point is within snout
 			is_ap_outside_snout = false;
 		}
+
 	}
 
 	if (is_ap_within_snout) { // Snout doesn't impact image, return aperture width and height
@@ -2961,6 +2962,7 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 
 
 	switch (recgeom)
+    //switch (Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV)
 	{
 	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CLOSED:
 	case Receiver::REC_GEOM_TYPE::POLYGON_CLOSED:
@@ -3274,6 +3276,202 @@ void Flux::imageSizeAimPoint(Heliostat &H, SolarField &SF, double args[], bool i
 				}
 			}
 		}
+		break;
+	}
+	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_OPEN:
+	case Receiver::REC_GEOM_TYPE::CYLINDRICAL_CAV:
+		//IN PROGRESS
+	{
+        jsave = 0;
+
+        var_receiver* Rv = rec->getVarMap();
+
+        ////Create temporary flux surface for aperture
+        //FluxSurface S;
+        //FS = &S; //Point to new flux surface
+        //FS->setParent(rec);
+        //
+        //sp_point loc;  //Define aperture location and geometry
+        //loc.Set(0., 0., 0.);   //the flux surface offset relative to receiver coordinates should be zero for single-aperture receivers
+        //FS->setSurfaceGeometry(Rv->rec_height.val, Rv->rec_width.val, 0.);
+        //FS->setSurfaceOffset(loc);
+
+        //Vect nv;    //Define aperture normal vector
+        //double rec_az = Rv->rec_azimuth.val * D2R;
+        //double rec_elevation = Rv->rec_elevation.val * D2R;
+        //nv.i = sin(rec_az) * cos(rec_elevation);
+        //nv.j = cos(rec_az) * cos(rec_elevation);
+        //nv.k = sin(rec_elevation);
+        //FS->setNormalVector(nv);
+        //FS->setSurfaceSpanAngle(-PI / 2., PI / 2.);
+        //FS->setFluxPrecision(nfx, nfy); //Aperture flux parameters
+        //FS->setMaxFlux(Rv->peak_flux.val);
+        //FS->DefineFluxPoints(*Rv, Receiver::REC_GEOM_TYPE::PLANE_RECT);
+
+        FS = &rec->getFluxSurfaces()->at(0);	//First surface is cavity aperture
+        FG = FS->getFluxMap();
+        double totflux = FS->getTotalFlux();
+
+        //Flux grid dimensions
+        nfx = FS->getFluxNX();
+        nfy = FS->getFluxNY();
+
+        //Get the image size
+        H.getImageSize(sigx, sigy);
+        tht = SF.getVarMap()->sf.tht.val;
+
+        sigx *= tht;
+        sigy *= tht;
+
+        dx = Receiver::getReceiverWidth(*Rv) / nfx;		//Size of each node
+        dy = Rv->rec_height.val / nfy;
+
+        /*
+        Approximate the shape of the flux image as an ellipse with dimensions A (x-axis) and B (y-axis). When projecting
+        from the image plane onto the receiver plane, these dimensions will stretch according to the angles of incidence.
+        */
+
+        //Rotate the heliostat vector into receiver plane coordinates
+        rnaz = Rv->rec_azimuth.val * D2R;
+        rnel = Rv->rec_elevation.val * D2R;
+        vtemp.Set(r_to_h);
+        Toolbox::rotation(Pi - rnaz, 2, vtemp);
+        Toolbox::rotation(-rnel, 0, vtemp);
+
+        //Calculate the skew angle of the image
+        theta_img = atan2(-vtemp.i, -vtemp.k);
+
+        //The amount of stretching is calculated using the dot product between the surface normal and the incident flux
+        stretch_factor = Toolbox::dotprod(r_to_h, *NV.vect());
+
+        //Stretch the major vertical axis of the ellipse
+        imsizey = sigy * args[1] / stretch_factor;
+        imsizex = sigx * args[0];
+
+        /*
+        Calculate the reduced aiming window based on the image size. The window defines the range of nodes that are
+        suitable as aim points given the user's requirement of displacement of the flux image centroid away from the edges
+        of the aperture.
+        */
+        Toolbox::ellipse_bounding_box(imsizex, imsizey, theta_img, e_bound_box);
+
+
+        if (nfy > 1) {
+            //jstart = (int)ceil(imsizey/dy);
+            jstart = (int)ceil(e_bound_box[3] / dy);
+            jend = nfy - jstart;
+            if (jstart > jend - 1) {
+                jstart = nfy / 2 - 1;
+                jend = jstart + 1;
+            }
+        }
+        else {
+            jstart = 0;
+            jend = 1;
+        }
+        //istart = (int)ceil(imsizex/dx);
+        istart = (int)ceil(e_bound_box[1] / dx);
+        iend = nfx - istart;
+        if (nfx > 1) {
+            isave = istart;
+            jsave = jstart;
+            if (istart > iend - 1) {
+                istart = nfx / 2 - 1;
+                iend = istart + 1;
+            }
+        }
+        else {
+            istart = 0;
+            iend = 1;
+        }
+
+        matrix_t<double>* ufp = &rec->getVarMap()->user_flux_profile.val;
+        int nuserflux_x = (int)ufp->ncols();
+        int nuserflux_y = (int)ufp->nrows();
+        double iuserflux_s = (double)nuserflux_x / (double)nfx;
+        double juserflux_s = (double)nuserflux_y / (double)nfy;
+        bool is_user_flux_profile = rec->getVarMap()->flux_profile_type.mapval() == var_receiver::FLUX_PROFILE_TYPE::USER;
+
+        fsave = 9.e9;
+        for (int i = istart; i < iend; i++) // determine node with lowest flux
+        {
+            int iuserflux = (int)(i * iuserflux_s);
+
+            for (int j = jstart; j < jend; j++)
+            {
+                int juserflux = nuserflux_y - (int)(j * juserflux_s) - 1;
+
+                double fdiff = FG->at(i).at(j).flux;
+                if (is_user_flux_profile)
+                {
+                    double fdiff_denom = totflux * ufp->at(juserflux, iuserflux);
+                    if (fdiff_denom > 0.)
+                        fdiff /= fdiff_denom;
+                }
+
+                if (fdiff < fsave)
+                {
+                    fsave = fdiff;
+                    isave = i;
+                    jsave = j;
+                }
+            }
+        }
+
+        Fp = &FG->at(isave).at(jsave);
+
+        //-- now calculate the aim point position in the flux plane
+        //vector to aim point in globals
+        aimpos.Set
+        (
+            Fp->location.x + (Rv->rec_offset_x_global.Val() + FS->getSurfaceOffset()->x),
+            Fp->location.y + (Rv->rec_offset_y_global.Val() + FS->getSurfaceOffset()->y),
+            Fp->location.z + tht + (Rv->rec_offset_z_global.Val() + FS->getSurfaceOffset()->z)
+        );
+
+        //Heliostat aims at the calculated coordinate
+        haim->Set(aimpos);
+
+        //Update assignment in fluxplane coordinates (ignoring offsets)
+        H.calcAndSetAimPointFluxPlane(Fp->location, *rec, H);
+
+        //The flux grid needs to be updated after each heliostat
+        HV.clear();
+        HV.push_back(&H);
+		//calculate for the aperture first
+        fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, islast);
+
+		//calculate the flux for each panel, leaving the flux in dimensional terms
+        int nPanels = Rv->n_panels.val;
+		double flux_all_panels = 0.;	//keep track of the total accumulated flux on all panels
+        for (int i = 1; i < nPanels+1; i++) { //Update flux grid of each actual receiver panel
+            FS = &rec->getFluxSurfaces()->at(i);
+			
+			double flux_this_panel;
+            
+			fluxDensity(SF.getSimInfoObject(), *FS, HV, tht, args[2] == 1. ? true : false, false /*islast*/, false, islast ? &flux_this_panel : 0);
+			
+			if (islast)
+				flux_all_panels += flux_this_panel;
+        }
+
+		//if this is the last call, now normalize the flux according to the total accumulated flux
+		if (islast)
+		{
+			for (int i = 1; i < nPanels+1; i++)
+			{
+				FluxGrid *FG = rec->getFluxSurfaces()->at(i).getFluxMap();
+						
+				for (size_t j = 0; j < FG->size(); j++)
+				{
+					for (size_t k = 0; k < FG->front().size(); k++)
+					{
+						FG->at(j).at(k).flux *= (double)(nPanels) / flux_all_panels;
+					}
+				}
+			}
+		}
+
 		break;
 	}
 	case Receiver::REC_GEOM_TYPE::PLANE_ELLIPSE:

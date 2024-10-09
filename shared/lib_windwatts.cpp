@@ -1,24 +1,35 @@
-/**
-BSD-3-Clause
-Copyright 2019 Alliance for Sustainable Energy, LLC
-Redistribution and use in source and binary forms, with or without modification, are permitted provided 
-that the following conditions are met :
-1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
-and the following disclaimer.
-2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
-and the following disclaimer in the documentation and/or other materials provided with the distribution.
-3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
-or promote products derived from this software without specific prior written permission.
+/*
+BSD 3-Clause License
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
-DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
-OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #include <cstring>
 
@@ -26,7 +37,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "lib_physics.h"
 
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include "lib_util.h"
 #include "lib_windwakemodel.h"
 
@@ -136,13 +147,15 @@ windPowerCalculator::windPowerUsingResource(double windSpeed, double windDirDeg,
 
 	size_t i, j;
 	//unsigned char wt_id[MAX_WIND_TURBINES], wid; // unsigned char has 256 limit
-	size_t wt_id[MAX_WIND_TURBINES], wid;
+    size_t wid;
+	std::vector<size_t> wt_id;
 
 	for (i = 0; i<nTurbines; i++)
-		wt_id[i] = i;
+		wt_id.push_back(i);
 
 	// convert barometric pressure in ATM to air density
-	double fAirDensity = (airPressureAtm * physics::Pa_PER_Atm) / (physics::R_GAS_DRY_AIR * physics::CelciusToKelvin(TdryC));   //!Air Density, kg/m^3
+    if (airPressureAtm > 0.5 && airPressureAtm < 1.1) airPressureAtm = airPressureAtm * physics::Pa_PER_Atm;
+	double fAirDensity = (airPressureAtm ) / (physics::R_GAS_DRY_AIR * physics::CelciusToKelvin(TdryC));   //!Air Density, kg/m^3
 
 	// calculate output power of a turbine
 	double fTurbine_output(0.0), fThrust_coeff(0.0), fTurbine_gross(0.0);
@@ -197,7 +210,7 @@ windPowerCalculator::windPowerUsingResource(double windSpeed, double windDirDeg,
 		distanceCrosswind[i] = c;
 	}
 
-	// Remove negative numbers from downwind, crosswind coordinates 	
+	// Remove negative numbers from downwind, crosswind coordinates
 	double Dmin = distanceDownwind[0];
 	double Cmin = distanceCrosswind[0];
 
@@ -365,10 +378,11 @@ bool windPowerCalculator::windPowerUsingDistribution(std::vector<std::vector<dou
 
     size_t i, j;
     //unsigned char wt_id[MAX_WIND_TURBINES], wid; // unsigned char has 256 limit
-    size_t wt_id[MAX_WIND_TURBINES], wid;
+    size_t wid;
+    std::vector<size_t> wt_id;
 
     for (i = 0; i<nTurbines; i++)
-        wt_id[i] = i;
+        wt_id.push_back(i);
 
 
     double freq_total = 0.0, farmpower = 0.0, farmgross = 0.0;
@@ -385,10 +399,12 @@ bool windPowerCalculator::windPowerUsingDistribution(std::vector<std::vector<dou
             return false;
         }
 
-        // if there is only one turbine, we're done
+        // if there is only one turbine, calculate total farm power
         if (nTurbines < 2)
         {
-            farmpower += fTurbine_output;
+            double freq = 8760.0 * row[2];
+            farmpower += freq * fTurbine_output;
+            farmgross += freq * fTurbine_gross;
             continue;
         }
 
@@ -472,7 +488,7 @@ bool windPowerCalculator::windPowerUsingDistribution(std::vector<std::vector<dou
     }
 
 
-    if (fabs(freq_total - 1.0) > 0.01){
+    if (std::abs(freq_total - 1.0) > 0.01){
         errDetails = "Sum of wind resource distribution frequencies must be 1.";
         return false;
     }

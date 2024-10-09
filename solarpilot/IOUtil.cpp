@@ -437,6 +437,28 @@ void ioutil::parseXMLInputFile(const string &fname,var_map &V, parametric &par_d
         V.recs[i].rec_offset_reference.combo_select(rec_offset_assignments[V.recs[i].id.val]);
     }
 
+    //backwards compatibility for rec_offset_reference
+    if (rec_offset_assignments.size() == 0)
+        for (size_t i = 0; i < V.recs.size(); i++)
+            rec_offset_assignments[V.recs[i].id.val] = "Tower";
+
+    //clean up template based parameters that may not have loaded correctly
+    for (size_t i = 0; i < V.recs.size(); i++)
+    {
+        V.recs[i].rec_offset_reference.combo_clear();
+        V.recs[i].rec_offset_reference.combo_add_choice("Tower", std::to_string(var_receiver::REC_OFFSET_REFERENCE::TOWER));
+
+        for (size_t j = 0; j < V.recs.size(); j++)
+        {
+            if (i == j)
+                continue;
+
+            V.recs[i].rec_offset_reference.combo_add_choice(V.recs[j].rec_name.as_string(), V.recs[j].id.as_string());
+        }
+        
+        V.recs[i].rec_offset_reference.combo_select(rec_offset_assignments[V.recs[i].id.val]);
+    }
+
 	//Read in any parametric data
 	par_data.clear();
 	xml_node<> *par_node = top_node->first_node("parametric");

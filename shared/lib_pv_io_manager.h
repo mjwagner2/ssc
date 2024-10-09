@@ -1,3 +1,37 @@
+/*
+BSD 3-Clause License
+
+Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+
+
 #ifndef __LIB_PV_IO_MANAGER_H__
 #define __LIB_PV_IO_MANAGER_H__
 
@@ -197,7 +231,9 @@ struct Irradiance_IO
 	int radiationMode;											  /// Specify which components of radiance should be used: 0=B&D, 1=G&B, 2=G&D, 3=POA-Ref, 4=POA-Pyra
 	int skyModel;												  /// Specify which sky diffuse model should be used: 0=isotropic, 1=hdkr, 2=perez
 	flag useWeatherFileAlbedo;									  /// Specify whether to use the weather file albedo
-	std::vector<double> userSpecifiedMonthlyAlbedo;				  /// User can provide monthly ground albedo values (0-1)
+    flag useSpatialAlbedos;									      /// Specify whether to use spatial albedos
+	std::vector<double> userSpecifiedMonthlyAlbedo;				  /// User can provide monthly uniform ground albedo values (0-1)
+    util::matrix_t<double> userSpecifiedMonthlySpatialAlbedos;	  /// User can provide monthly spatial ground albedo values (0-1), [month, location]
 
 	// Irradiance data Outputs (p_ is just a convention to organize all pointer outputs)
 	ssc_number_t * p_weatherFileGHI;			/// The Global Horizonal Irradiance from the weather file [W/m2]
@@ -208,6 +244,7 @@ struct Irradiance_IO
 	ssc_number_t * p_weatherFileWindSpeed;		/// The Wind Speed from the weather file [m/s]
 	ssc_number_t * p_weatherFileAmbientTemp;	/// The ambient temperature from the weather file [C]
 	ssc_number_t * p_weatherFileAlbedo;			/// The ground albedo from the weather file
+    ssc_number_t* p_weatherFileAlbedoSpatial;	/// The ground albedo from the weather file and spatial matrix input
 	ssc_number_t * p_weatherFileSnowDepth;		/// The snow depth from the weather file
 	ssc_number_t * p_IrradianceCalculated[3];	/// The calculated components of the irradiance [W/m2]
 	ssc_number_t * p_sunZenithAngle;			/// The calculate sun zenith angle [degrees]
@@ -242,11 +279,12 @@ struct PVSystem_IO
 	PVSystem_IO(compute_module* cm, std::string cmName, Simulation_IO * SimulationIO, Irradiance_IO * IrradianceIO, std::vector<Subarray_IO*> Subarrays, Inverter_IO * InverterIO);
 
 	void AllocateOutputs(compute_module *cm);
-	void AssignOutputs(compute_module *cm);
 	void SetupPOAInput();
 
 	size_t numberOfSubarrays;
 	size_t numberOfInverters;
+    double numberOfInvertersClipping;
+    double dcNameplate;
 
 	Irradiance_IO * Irradiance;
 	Simulation_IO * Simulation;
@@ -307,23 +345,31 @@ struct PVSystem_IO
 	std::vector<ssc_number_t *> p_derateSelfShadingDiffuse;
 	std::vector<ssc_number_t *> p_derateSelfShadingReflected;
 	std::vector<ssc_number_t *> p_shadeDBShadeFraction;
+    std::vector<ssc_number_t *> p_poaRearSpatial;
+    std::vector<ssc_number_t *> p_groundRear;
+
+    std::vector<ssc_number_t*> p_poaBeamFrontCS;
+    std::vector<ssc_number_t*> p_poaDiffuseFrontCS;
+    std::vector<ssc_number_t*> p_poaGroundFrontCS;
+    std::vector<ssc_number_t*> p_poaRearCS;
+    std::vector<ssc_number_t*> p_DNIIndex;
 
 	// MPPT level outputs
 	std::vector<ssc_number_t *> p_mpptVoltage; /// An output vector containing input DC voltage in V to each mppt input
 	std::vector<ssc_number_t *> p_dcPowerNetPerMppt; /// An output vector containing Net DC Power in W for each mppt input
 
 	// Snow Model outputs
-	std::vector<ssc_number_t *> p_snowLoss; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_snowCoverage; /// The angle of incidence of the subarray [degrees]
+	std::vector<ssc_number_t *> p_snowLoss;
+	std::vector<ssc_number_t *> p_snowCoverage;
 
 	// Shade Database Validation
-	std::vector<ssc_number_t *> p_shadeDB_GPOA; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_DPOA; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_temperatureCell; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_modulesPerString; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_voltageMaxPowerSTC; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_voltageMPPTLow; /// The angle of incidence of the subarray [degrees]
-	std::vector<ssc_number_t *> p_shadeDB_voltageMPPTHigh; /// The angle of incidence of the subarray [degrees]
+	std::vector<ssc_number_t *> p_shadeDB_GPOA;
+	std::vector<ssc_number_t *> p_shadeDB_DPOA;
+	std::vector<ssc_number_t *> p_shadeDB_temperatureCell;
+	std::vector<ssc_number_t *> p_shadeDB_modulesPerString;
+	std::vector<ssc_number_t *> p_shadeDB_voltageMaxPowerSTC;
+	std::vector<ssc_number_t *> p_shadeDB_voltageMPPTLow;
+	std::vector<ssc_number_t *> p_shadeDB_voltageMPPTHigh;
 
 	// Degradation
 	ssc_number_t *p_dcDegradationFactor;
@@ -340,6 +386,15 @@ struct PVSystem_IO
 	ssc_number_t *p_poaFrontShadedTotal;
 	ssc_number_t *p_poaFrontShadedSoiledTotal;
 	ssc_number_t *p_poaRearTotal;
+    ssc_number_t* p_groundIncidentTotal;
+    ssc_number_t* p_groundAbsorbedTotal;
+    ssc_number_t* p_poaRearGroundReflectedTotal;
+    ssc_number_t* p_poaRearRowReflectionsTotal;
+    ssc_number_t* p_poaRearDirectDiffuseTotal;
+    ssc_number_t* p_poaRearSelfShadedTotal;
+    ssc_number_t* p_poaRackShadedTotal;
+    ssc_number_t* p_poaRearSoiledTotal;
+    ssc_number_t* p_bifacialElectricalMismatchTotal;
 	ssc_number_t *p_poaFrontTotal;
 	ssc_number_t *p_poaTotalAllSubarrays;
 
@@ -354,11 +409,25 @@ struct PVSystem_IO
 	ssc_number_t *p_inverterThermalLoss;
 	ssc_number_t *p_inverterTotalLoss;
 
-	ssc_number_t *p_acWiringLoss;
-	ssc_number_t *p_transmissionLoss;
+    ssc_number_t* p_inverterACOutputPreLoss; // kWac
+	ssc_number_t *p_acWiringLoss; // kWac
+	ssc_number_t *p_transmissionLoss; // kWac
+    ssc_number_t *p_acPerfAdjLoss; // kWac
+    ssc_number_t *p_acLifetimeLoss; // kWac
+    ssc_number_t *p_dcLifetimeLoss; // kWdc
 
-	ssc_number_t *p_systemDCPower;
-	ssc_number_t *p_systemACPower;
+	ssc_number_t *p_systemDCPower; // kWdc
+    ssc_number_t* p_systemDCPowerCS; // kWdc
+	ssc_number_t *p_systemACPower; // kWac
+    ssc_number_t* p_systemACPowerMax; //kWac
+
+    ssc_number_t *p_subhourlyClippingLoss;
+    ssc_number_t* p_subhourlyClippingLossFactor;
+    ssc_number_t* p_ClippingPotential;
+    ssc_number_t* p_DistributionClippingLoss;
+    //ssc_number_t* p_DNIIndex;
+    ssc_number_t* p_CPBin;
+    ssc_number_t* p_DNIIndexBin;
 };
 
 /**
@@ -373,7 +442,7 @@ struct Subarray_IO
 public:
 
 	/// Construct the Subarray_IO structure from the compute module input.
-	Subarray_IO(compute_module* cm, std::string cmName, size_t subarrayNumber);
+	Subarray_IO(compute_module* cm, const std::string& cmName, size_t subarrayNumber);
 
 	/// Allocate the Subarray_IO outputs
 	void AllocateOutputs(compute_module* cm);
@@ -398,7 +467,14 @@ public:
 
 	// Physical characteristics
 	double groundCoverageRatio;			// The ground coverage ratio [0 - 1]
+    double crossAxisSlope;              // Cross axis slope [degrees]
+    double slopeTilt;                   // Angle of sloped terrain [degrees]
+    double slopeAzm;                    // azimuth of sloped terrain relative to tracker azimuth [degrees]
 	double tiltDegrees;					// The surface tilt [degrees]
+    flag useCustomRotAngles;           // Use custom timeseries rotation angles
+    std::vector<double> customRotAngles; //Custom timeseries rotation angles [degrees]
+    flag useCustomCellTemp;
+    std::vector<double> customCellTempArray;
 	double azimuthDegrees;				// The surface azimuth [degrees]
 	int trackMode;						// The tracking mode [0 = fixed, 1 = single-axis tracking, 2 = two-axis tracking, 3 = azimuth-axis tracking, 4 = seasonal-tilt
 	double trackerRotationLimitDegrees; // The rotational limit of the tracker [degrees]
@@ -410,13 +486,17 @@ public:
 
 	// Subarray-specific losses
 	std::vector<double> monthlySoiling; // The soiling loss by month [%]
-	double rearIrradianceLossPercent;
+    bool calculateRackShading;
+    bool calculateBifacialElectricalMismatch;
+	double rearSoilingLossPercent;
+    double rackShadingLossPercent;
 	double dcOptimizerLossPercent;
 	double mismatchLossPercent;
 	double diodesLossPercent;
 	double dcWiringLossPercent;
 	double trackingLossPercent;
 	double nameplateLossPercent;
+    double electricalMismatchLossPercent;
 	double dcLossTotalPercent;			/// The DC loss due to mismatch, diodes, wiring, tracking, optimizers [%]
 
     // Shading and snow
@@ -435,6 +515,10 @@ public:
 		double poaBeamFront;	/// POA due to beam irradiance on the front of the subarray [W/m2]
 		double poaDiffuseFront; /// POA due to diffuse irradiance on the front of the subarray [W/m2]
 		double poaGroundFront;  /// POA due to ground reflection on the front of the subarray [W/m2]
+        double poaBeamFrontCS;	/// POA due to clearsky beam irradiance on the front of the subarray [W/m2]
+        double poaDiffuseFrontCS; /// POA due to clearsky diffuse irradiance on the front of the subarray [W/m2]
+        double poaGroundFrontCS;  /// POA due to clearsky ground reflection on the front of the subarray [W/m2]
+        double poaRearCS;       /// POA total clearsky irradiance on the back of the subarray if bifacial modules [W/m2]
 		double poaRear;			/// POA total irradiance on the back of the subarray if bifacial modules [W/m2]
 		double poaTotal;		/// POA total of front and rear side of array [W/m2]
 		bool sunUp;				/// Flag indicating whether the sun is up or not
@@ -443,12 +527,13 @@ public:
 		double surfaceAzimuthDegrees; /// The azimuth of the subarray after tracking [degrees]
 		double nonlinearDCShadingDerate; /// The DC loss due to non-linear shading [%]
 		bool usePOAFromWF;     /// Flag indicating whether or not to use POA input from the weatherfile
-		int poaShadWarningCount; /// A counter to track warnings related to POA
+		int poaShadWarningCount = 0; /// A counter to track warnings related to POA
 		std::unique_ptr<poaDecompReq> poaAll; /// A structure containing POA decompositions into the three irrradiance components from input POA
 	} poa;
 
 	//calculated- subarray power
 	double dcPowerSubarray; /// DC power for this subarray [W]
+    double dcPowerSubarrayCS;
 
 };
 
@@ -509,7 +594,7 @@ public:
 	double temperatureCellCelcius; /// The weighted moving average  cell temperature of the module [C]
 	double temperatureCellCelciusSS; /// The SS average cell temperature of the module [C]
 	double angleOfIncidenceModifier; /// The angle of incidence modifier on the total poa front-side irradiance [0-1]
-
+    double dcPowerWCS;
 };
 
 

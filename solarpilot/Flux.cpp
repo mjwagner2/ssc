@@ -1636,7 +1636,7 @@ void Flux::hermiteIntegralSetup(double SigXY[2], Heliostat &H, matrix_t<double> 
 		//Set up for cavity model | 2362
         sp_point *hloc = H.getLocation();
 		double hloc_az = atan2(hloc->x, hloc->y);	//Azimuth angle of the heliostat location, receiver is abscissa
-		double rxn = Receiver::getReceiverWidth(*Rv) / tht / 2.;    //Normalized half-width of the aperture
+        double rxn = Receiver::getReceiverWidth(*Rv) / tht / 2.;    //Normalized half-width of the aperture
 		double ryn = Rv->rec_height.val/tht/2.;		//Normalized half-height of the aperture
 		sp_point* aim = H.getAimPointFluxPlane();	//In X and Y coordinates, Y being vertical
 		if (Rv->is_snout.val && Rv->rec_type.mapval() == var_receiver::REC_TYPE::FALLING_PARTICLE) {
@@ -2329,7 +2329,7 @@ bool Flux::checkApertureSnout(sp_point& fp_g, sp_point* hloc, sp_point* aim,  va
 	Toolbox::rotation(pi / 2 - rec_el, 0, ap_ip);
 
 	// Test if point is within the aperture
-	double rec_width = Receiver::getReceiverWidth(*rec_var_map);		//rec_var_map->rec_width.val;
+    double rec_width = Receiver::getReceiverWidth(*rec_var_map);
 	double rec_height = rec_var_map->rec_height.val;
 	if (std::abs(ap_ip.x) > rec_width / 2)
 		return false;

@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "csp_solver_stratified_tes.h"
@@ -327,8 +317,8 @@ void C_csp_stratified_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inpu
 																					// Convert parameter units
 	ms_params.m_hot_tank_Thtr += 273.15;		//[K] convert from C
 	ms_params.m_cold_tank_Thtr += 273.15;		//[K] convert from C
-	ms_params.m_T_cold_des += 273.15;		    //[K] convert from C
-	ms_params.m_T_hot_des += 273.15;		    //[K] convert from C
+	ms_params.m_T_field_in_des += 273.15;		//[K] convert from C
+	ms_params.m_T_field_out_des += 273.15;		//[K] convert from C
 	ms_params.m_T_tank_hot_ini += 273.15;		//[K] convert from C
 	ms_params.m_T_tank_cold_ini += 273.15;		//[K] convert from C
 
@@ -337,7 +327,7 @@ void C_csp_stratified_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inpu
 
 	double d_tank_temp = std::numeric_limits<double>::quiet_NaN();
 	double q_dot_loss_temp = std::numeric_limits<double>::quiet_NaN();
-	two_tank_tes_sizing(mc_store_htfProps, Q_tes_des, ms_params.m_T_hot_des, ms_params.m_T_cold_des,
+	two_tank_tes_sizing(mc_store_htfProps, Q_tes_des, ms_params.m_T_field_out_des, ms_params.m_T_field_in_des,
 		ms_params.m_h_tank_min, ms_params.m_h_tank, ms_params.m_tank_pairs, ms_params.m_u_tank,
 		m_V_tank_active, m_vol_tank, d_tank_temp, q_dot_loss_temp);
 
@@ -346,7 +336,7 @@ void C_csp_stratified_tes::init(const C_csp_tes::S_csp_tes_init_inputs init_inpu
 
 	if (ms_params.m_ts_hours > 0.0)
 	{
-		mc_hx.init(mc_field_htfProps, mc_store_htfProps, duty, ms_params.m_dt_hot, ms_params.m_T_hot_des, ms_params.m_T_cold_des);
+		mc_hx.init(mc_field_htfProps, mc_store_htfProps, duty, ms_params.m_dt_hot, ms_params.m_T_field_out_des, ms_params.m_T_field_in_des);
 	}
 
 	// Do we need to define minimum and maximum thermal powers to/from storage?
@@ -448,15 +438,8 @@ double C_csp_stratified_tes::get_cold_massflow_avail(double step_s) //[kg/sec]
 
 double C_csp_stratified_tes::get_initial_charge_energy()
 {
-    //MWh
-    if (std::isnan(m_V_tank_hot_ini))
-    {
-        return m_q_pb_design * ms_params.m_ts_hours * (ms_params.m_f_V_hot_ini / 100.0) * 1.e-6;
-    }
-    else
-    {
-        return m_q_pb_design * ms_params.m_ts_hours * m_V_tank_hot_ini / m_vol_tank * 1.e-6;
-    }
+	//MWh
+	return m_q_pb_design * ms_params.m_ts_hours * m_V_tank_hot_ini / m_vol_tank * 1.e-6;
 }
 
 double C_csp_stratified_tes::get_min_charge_energy()
@@ -468,14 +451,14 @@ double C_csp_stratified_tes::get_min_charge_energy()
 double C_csp_stratified_tes::get_max_charge_energy()
 {
 	//MWh
-	//double cp = mc_store_htfProps.Cp(ms_params.m_T_hot_des);		//[kJ/kg-K] spec heat at average temperature during discharge from hot to cold
-	//   double rho = mc_store_htfProps.dens(ms_params.m_T_hot_des, 1.);
+	//double cp = mc_store_htfProps.Cp(ms_params.m_T_field_out_des);		//[kJ/kg-K] spec heat at average temperature during discharge from hot to cold
+	//   double rho = mc_store_htfProps.dens(ms_params.m_T_field_out_des, 1.);
 
 	//   double fadj = (1. - ms_params.m_h_tank_min / ms_params.m_h_tank);
 
 	//   double vol_avail = m_vol_tank * ms_params.m_tank_pairs * fadj;
 
-	//   double e_max = vol_avail * rho * cp * (ms_params.m_T_hot_des - ms_params.m_T_cold_des) / 3.6e6;   //MW-hr
+	//   double e_max = vol_avail * rho * cp * (ms_params.m_T_field_out_des - ms_params.m_T_field_in_des) / 3.6e6;   //MW-hr
 
 	//   return e_max;
 	return m_q_pb_design * ms_params.m_ts_hours / 1.e6;
@@ -485,7 +468,7 @@ double C_csp_stratified_tes::get_degradation_rate()
 {
 	//calculates an approximate "average" tank heat loss rate based on some assumptions. Good for simple optimization performance projections.
 	double d_tank = sqrt(m_vol_tank / ((double)ms_params.m_tank_pairs * ms_params.m_h_tank * 3.14159));
-	double e_loss = ms_params.m_u_tank * 3.14159 * ms_params.m_tank_pairs * d_tank * (ms_params.m_T_cold_des + ms_params.m_T_hot_des - 576.3)*1.e-6;  //MJ/s  -- assumes full area for loss, Tamb = 15C
+	double e_loss = ms_params.m_u_tank * 3.14159 * ms_params.m_tank_pairs * d_tank * (ms_params.m_T_field_in_des + ms_params.m_T_field_out_des - 576.3)*1.e-6;  //MJ/s  -- assumes full area for loss, Tamb = 15C
 	return e_loss / (m_q_pb_design * ms_params.m_ts_hours * 3600.); //s^-1  -- fraction of heat loss per second based on full charge
 }
 
@@ -549,8 +532,7 @@ void C_csp_stratified_tes::charge_avail_est(double T_hot_K, double step_s, doubl
 	m_m_dot_tes_ch_max = m_dot_tank_charge_avail * step_s;		//[kg/s]
 }
 
-void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, 
-	double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, S_csp_strat_tes_outputs &outputs)
+void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the hot discharge temperature on the HX side (if applicable) during FULL DISCHARGE. If no heat exchanger (direct storage),
 	//    the discharge temperature is equal to the average (timestep) hot tank outlet temperature
@@ -597,8 +579,7 @@ void C_csp_stratified_tes::discharge_full(double timestep /*s*/, double T_amb /*
 
 }
 
-bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, 
-	double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, S_csp_strat_tes_outputs &outputs)
+bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in /*K*/, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the hot discharge temperature on the HX side (if applicable). If no heat exchanger (direct storage),
 	// the discharge temperature is equal to the average (timestep) hot tank outlet temperature.
@@ -662,8 +643,7 @@ bool C_csp_stratified_tes::discharge(double timestep /*s*/, double T_amb /*K*/, 
 	return true;
 }
 
-bool C_csp_stratified_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, 
-	double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, S_csp_strat_tes_outputs &outputs)
+bool C_csp_stratified_tes::charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the cold charge return temperature on the HX side (if applicable). If no heat exchanger (direct storage),
 	// the return charge temperature is equal to the average (timestep) cold tank outlet temperature.
@@ -733,8 +713,7 @@ bool C_csp_stratified_tes::charge(double timestep /*s*/, double T_amb /*K*/, dou
 
 
 
-bool C_csp_stratified_tes::charge_discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_hot_in /*kg/s*/, 
-	double T_hot_in /*K*/, double m_dot_cold_in /*kg/s*/, double T_cold_in /*K*/, S_csp_strat_tes_outputs &outputs)
+bool C_csp_stratified_tes::charge_discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_hot_in /*kg/s*/, double T_hot_in /*K*/, double m_dot_cold_in /*kg/s*/, double T_cold_in /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// ARD This is for simultaneous charge and discharge. If no heat exchanger (direct storage),
 	// the return charge temperature is equal to the average (timestep) cold tank outlet temperature.
@@ -800,8 +779,7 @@ bool C_csp_stratified_tes::charge_discharge(double timestep /*s*/, double T_amb 
 
 }
 
-bool C_csp_stratified_tes::recirculation(double timestep /*s*/, double T_amb /*K*/, double m_dot_cold_in /*kg/s*/, 
-	double T_cold_in /*K*/, S_csp_strat_tes_outputs &outputs)
+bool C_csp_stratified_tes::recirculation(double timestep /*s*/, double T_amb /*K*/, double m_dot_cold_in /*kg/s*/, double T_cold_in /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the average (timestep) cold tank outlet temperature when recirculating cold fluid for further cooling.
 	// This warm tank is idle and its state is also determined.
@@ -865,8 +843,7 @@ bool C_csp_stratified_tes::recirculation(double timestep /*s*/, double T_amb /*K
 
 }
 
-bool C_csp_stratified_tes::stratified_tanks(double timestep /*s*/, double T_amb /*K*/, double m_dot_cond /*kg/s*/, 
-	double T_cond_out /*K*/, double m_dot_rad /*kg/s*/, double T_rad_out /*K*/, S_csp_strat_tes_outputs &outputs)
+bool C_csp_stratified_tes::stratified_tanks(double timestep /*s*/, double T_amb /*K*/, double m_dot_cond /*kg/s*/, double T_cond_out /*K*/, double m_dot_rad /*kg/s*/, double T_rad_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// ARD This is completing the energy balance on a stratified tank. Uses nodal model in Duffie & Beckman. 3-6 nodes accomodated by this code.
 
@@ -1011,8 +988,7 @@ bool C_csp_stratified_tes::stratified_tanks(double timestep /*s*/, double T_amb 
 }
 
 
-void C_csp_stratified_tes::charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, 
-	double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, S_csp_strat_tes_outputs &outputs)
+void C_csp_stratified_tes::charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	// This method calculates the cold charge return temperature and mass flow rate on the HX side (if applicable) during FULL CHARGE. If no heat exchanger (direct storage),
 	//    the charge return temperature is equal to the average (timestep) cold tank outlet temperature
@@ -1062,7 +1038,7 @@ void C_csp_stratified_tes::charge_full(double timestep /*s*/, double T_amb /*K*/
 
 
 
-void C_csp_stratified_tes::idle(double timestep, double T_amb, S_csp_strat_tes_outputs &outputs)
+void C_csp_stratified_tes::idle(double timestep, double T_amb, C_csp_tes::S_csp_tes_outputs &outputs)
 {
 	int n_nodes = ms_params.m_ctes_type;
 	int n_last = n_nodes - 1;

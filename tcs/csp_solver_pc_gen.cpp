@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <algorithm>
@@ -57,7 +47,7 @@ C_pc_gen::C_pc_gen()
 	m_q_startup_remain = m_q_startup_used =
 		m_q_des = m_qttmin = m_qttmax = std::numeric_limits<double>::quiet_NaN();
 
-	m_pc_mode_prev = m_pc_mode = C_csp_power_cycle::E_csp_power_cycle_modes::OFF;
+	m_pc_mode_prev = m_pc_mode = -1;
 
 	mc_reported_outputs.construct(S_output_info);
 }
@@ -132,7 +122,7 @@ void C_pc_gen::init(C_csp_power_cycle::S_solved_params &solved_params)
 	m_qttmax = m_q_des*ms_params.m_f_wmax;		//[MWt]
 		// Set initial values for power cycle mode and startup requirements
 	m_q_startup_remain = m_q_des*ms_params.m_f_startup;	//[MWt-hr]
-	m_pc_mode_prev = C_csp_power_cycle::E_csp_power_cycle_modes::OFF;
+	m_pc_mode_prev = 0;
 
 	// ************************
 	// Set solved parameters
@@ -149,7 +139,7 @@ void C_pc_gen::init(C_csp_power_cycle::S_solved_params &solved_params)
 	solved_params.m_m_dot_max = solved_params.m_m_dot_design*solved_params.m_max_frac;		//[kg/hr]
 }
 
-C_csp_power_cycle::E_csp_power_cycle_modes C_pc_gen::get_operating_state()
+int C_pc_gen::get_operating_state()
 {
 	return m_pc_mode_prev;		//[-]
 }
@@ -291,7 +281,8 @@ void C_pc_gen::call(const C_csp_weatherreader::S_outputs &weather,
 	out_solver.m_q_dot_htf = q_to_pb;				//[MWt]
 	out_solver.m_m_dot_htf = m_dot*3600.0;			//[kg/hr]
 	
-    out_solver.m_W_dot_elec_parasitics_tot = 0.0;   //[MWe]
+	out_solver.m_W_dot_htf_pump = 0.0;		//[MWe]
+	out_solver.m_W_cool_par = 0.0;			//[MWe]
 
 	mc_reported_outputs.value(E_ETA_THERMAL, eta_cycle);	//[-]
 

@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "csp_solver_pc_heat_sink.h"
@@ -50,7 +40,7 @@ C_pc_heat_sink::C_pc_heat_sink()
 {
 	mc_reported_outputs.construct(S_output_info);
 
-    m_max_frac = std::numeric_limits<double>::quiet_NaN();
+	m_max_frac = 100.0;
 
 	m_m_dot_htf_des = std::numeric_limits<double>::quiet_NaN();
 }
@@ -112,7 +102,7 @@ void C_pc_heat_sink::init(C_csp_power_cycle::S_solved_params &solved_params)
 	}
 
 	// Calculate the design point HTF mass flow rate
-	double cp_htf_des = mc_pc_htfProps.Cp_ave(ms_params.m_T_htf_cold_des+273.15, ms_params.m_T_htf_hot_des+273.15);	//[kJ/kg-K]
+	double cp_htf_des = mc_pc_htfProps.Cp_ave(ms_params.m_T_htf_cold_des+273.15, ms_params.m_T_htf_hot_des+273.15, 5);	//[kJ/kg-K]
 
 	m_m_dot_htf_des = ms_params.m_q_dot_des*1.E3 / (cp_htf_des*(ms_params.m_T_htf_hot_des - ms_params.m_T_htf_cold_des));	//[kg/s]
 
@@ -122,7 +112,7 @@ void C_pc_heat_sink::init(C_csp_power_cycle::S_solved_params &solved_params)
 	solved_params.m_q_dot_des = ms_params.m_q_dot_des;	//[MWt]
 	solved_params.m_q_startup = 0.0;		//[MWt-hr] Assuming heat sink does not require any startup energy
 	
-    m_max_frac = ms_params.m_max_frac;      //[-]
+	
 	solved_params.m_max_frac = m_max_frac;	//[-] For now (set in constructor), make this really large so heat sink can handle any collector-receiver output
 	solved_params.m_max_frac = 1.0;			//[-]
 
@@ -135,7 +125,7 @@ void C_pc_heat_sink::init(C_csp_power_cycle::S_solved_params &solved_params)
 	solved_params.m_m_dot_max = solved_params.m_m_dot_design*solved_params.m_max_frac;		//[kg/hr]
 }
 
-C_csp_power_cycle::E_csp_power_cycle_modes C_pc_heat_sink::get_operating_state()
+int C_pc_heat_sink::get_operating_state()
 {
 	// Assume heat sink is always able to accept thermal power from solar field/TES
 	return C_csp_power_cycle::ON;
@@ -223,7 +213,7 @@ void C_pc_heat_sink::call(const C_csp_weatherreader::S_outputs &weather,
 	double T_htf_hot = htf_state_in.m_temp;		//[C]
 	double m_dot_htf = inputs.m_m_dot/3600.0;	//[kg/s]
 
-	double cp_htf = mc_pc_htfProps.Cp_ave(ms_params.m_T_htf_cold_des+273.15, T_htf_hot+273.15);	//[kJ/kg-K]
+	double cp_htf = mc_pc_htfProps.Cp_ave(ms_params.m_T_htf_cold_des+273.15, T_htf_hot+273.15, 5);	//[kJ/kg-K]
 
 	// For now, let's assume the Heat Sink can always return the HTF at the design cold temperature
 	double q_dot_htf = m_dot_htf*cp_htf*(T_htf_hot - ms_params.m_T_htf_cold_des)/1.E3;		//[MWt]
@@ -231,19 +221,16 @@ void C_pc_heat_sink::call(const C_csp_weatherreader::S_outputs &weather,
 	out_solver.m_P_cycle = 0.0;		//[MWe] No electricity generation
 	out_solver.m_T_htf_cold = ms_params.m_T_htf_cold_des;		//[C]
 	out_solver.m_m_dot_htf = m_dot_htf*3600.0;	//[kg/hr] Return inlet mass flow rate
-
-    double W_dot_cooling_parasitic = 0.0;   //[MWe] No cooling load
+	out_solver.m_W_cool_par = 0.0;		//[MWe] No cooling load
 
 	out_solver.m_time_required_su = 0.0;	//[s] No startup requirements, for now
 	out_solver.m_q_dot_htf = q_dot_htf;		//[MWt] Thermal power form HTF
-
-    double W_dot_htf_pump = ms_params.m_htf_pump_coef*m_dot_htf/1.E3;   //[MWe]
-    out_solver.m_W_dot_elec_parasitics_tot = W_dot_cooling_parasitic + W_dot_htf_pump;  //[MWe]
+	out_solver.m_W_dot_htf_pump = ms_params.m_htf_pump_coef*m_dot_htf/1.E3;
 	
 	out_solver.m_was_method_successful = true;
 
 	mc_reported_outputs.value(E_Q_DOT_HEAT_SINK, q_dot_htf);	//[MWt]
-	mc_reported_outputs.value(E_W_DOT_PUMPING, W_dot_htf_pump);	//[MWe]
+	mc_reported_outputs.value(E_W_DOT_PUMPING, out_solver.m_W_dot_htf_pump);	//[MWe]
 	mc_reported_outputs.value(E_M_DOT_HTF, m_dot_htf);			//[kg/s]
 	mc_reported_outputs.value(E_T_HTF_IN, T_htf_hot);			//[C]
 	mc_reported_outputs.value(E_T_HTF_OUT, out_solver.m_T_htf_cold);	//[C]

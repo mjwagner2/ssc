@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __csp_solver_pt_heliostatfield_
@@ -57,13 +47,10 @@ private:
 	int m_n_flux_x;		//[-]
 	int m_n_flux_y;		//[-]
 
-        // receiver target values
-    double m_A_rec_active_total;    //[m2]
-    double m_A_rec_flux_node;       //[m2]
-
 	//Stored Variables
-    bool m_is_field_tracking;
-    bool m_is_field_tracking_prev;
+	double m_eta_prev;			//[-]
+	double m_v_wind_prev;		//[m/s]
+	double m_v_wind_current;	//[m/s]
 
 	// member string for exception messages
 	std::string error_msg;
@@ -77,7 +64,7 @@ public:
 	// Class to save messages for up stream classes
 	C_csp_messages mc_csp_messages;
 
-	C_pt_sf_perf_interp(double m_A_rec_active_total /*m2*/);
+	C_pt_sf_perf_interp();
 
 	~C_pt_sf_perf_interp();
 
@@ -111,23 +98,14 @@ public:
 
 		double m_A_sf;		//[m2]
 
-        bool m_is_field_tracking_init;
-
-        int m_clearsky_model;
-
-        std::vector<double> mv_clearsky_data;
-
 		S_params()
 		{
 			// Integers
-			m_n_flux_x = m_n_flux_y = m_N_hel = m_clearsky_model = -1;
+			m_n_flux_x = m_n_flux_y = m_N_hel = -1;
 
 			// Doubles
 			m_p_start = m_p_track = m_hel_stow_deploy = m_v_wind_max = 
 				m_land_area = m_A_sf = std::numeric_limits<double>::quiet_NaN();
-
-            // Booleans
-            m_is_field_tracking_init = false;
 
 		}		
 	};
@@ -140,17 +118,12 @@ public:
 
 		util::matrix_t<double> m_flux_map_out;
 		double m_pparasi;		//[MWe]
-		double m_eta_field;		//[-] field efficiency * sf_adjust. plant defocus not applied
+		double m_eta_field;		//[-]
         double m_sf_adjust_out;
-        double m_plant_defocus_out; //[-] plant defocus input adjusted for field control events
-
-        double m_clearsky_dni;    //[W/m2]
 
 		S_outputs()
 		{
-			m_q_dot_field_inc = m_pparasi =
-                m_eta_field = m_sf_adjust_out = m_plant_defocus_out =
-                m_clearsky_dni = std::numeric_limits<double>::quiet_NaN();
+			m_q_dot_field_inc = m_pparasi = m_eta_field = m_sf_adjust_out =  std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 
@@ -162,14 +135,9 @@ public:
 		double field_control_in, 
 		const C_csp_solver_sim_info &sim_info);
 
-	void off(const C_csp_weatherreader::S_outputs& weather,
-        const C_csp_solver_sim_info &sim_info);
+	void off(const C_csp_solver_sim_info &sim_info);
 
 	void converged();
-
-    void get_converged(bool& is_field_tracking_prev);
-
-    double get_clearsky(const C_csp_weatherreader::S_outputs& weather, double hour);
 };
 
 

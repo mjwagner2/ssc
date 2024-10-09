@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "core.h"
@@ -66,13 +56,10 @@ static var_info vtab_thirdpartyownership[] = {
 
 	//{ SSC_OUTPUT,        SSC_NUMBER,     "lcoe_real",                "Real LCOE",                          "cents/kWh",    "",                      "Cash Flow",      "*",                       "",                                         "" },
 	//{ SSC_OUTPUT,        SSC_NUMBER,     "lcoe_nom",                 "Nominal LCOE",                       "cents/kWh",    "",                      "Cash Flow",      "*",                       "",                                         "" },
-	{ SSC_OUTPUT,        SSC_NUMBER,     "npv",                      "NPV Net present value",				   "$",            "",                      "Financial Metrics",      "*",                       "",                                         "" },
+	{ SSC_OUTPUT,        SSC_NUMBER,     "npv",                      "Net present value",				   "$",            "",                      "Financial Metrics",      "*",                       "",                                         "" },
 
-    { SSC_OUTPUT,       SSC_ARRAY,      "cf_energy_net",            "Electricity net generation",       "kWh", "", "Cash Flow Electricity", "*", "LENGTH_EQUAL=cf_length", "" },
-    { SSC_OUTPUT,       SSC_ARRAY,      "cf_energy_sales",          "Electricity generation",           "kWh", "", "Cash Flow Electricity", "*", "LENGTH_EQUAL=cf_length", "" },
-    { SSC_OUTPUT,       SSC_ARRAY,      "cf_energy_purchases",      "Electricity from grid to system",  "kWh", "", "Cash Flow Electricity", "*", "LENGTH_EQUAL=cf_length", "" },
-
-    //	{ SSC_OUTPUT,        SSC_ARRAY,      "cf_energy_value",      "Value of electricity savings",                  "$",            "",                      "Cash Flow",      "*",                     "LENGTH_EQUAL=cf_length",                "" },
+	{ SSC_OUTPUT,        SSC_ARRAY,      "cf_energy_net",      "Energy",                  "kWh",            "",                      "Cash Flow",      "*",                     "LENGTH_EQUAL=cf_length",                "" },
+//	{ SSC_OUTPUT,        SSC_ARRAY,      "cf_energy_value",      "Value of electricity savings",                  "$",            "",                      "Cash Flow",      "*",                     "LENGTH_EQUAL=cf_length",                "" },
 
 	{ SSC_OUTPUT,        SSC_ARRAY,      "cf_agreement_cost",      "Agreement cost",                  "$",            "",                      "Cash Flow",      "*",                     "LENGTH_EQUAL=cf_length",                "" },
 
@@ -111,9 +98,6 @@ enum {
 	CF_cumulative_payback_with_expenses,
 	
 	CF_nte,
-
-    CF_energy_sales,
-    CF_energy_purchases,
 
 	CF_max };
 
@@ -173,41 +157,32 @@ public:
 
 		// energy
 		hourly_energy_calcs.calculate(this);
-        double first_year_energy = 0.0;
-        double first_year_sales = 0.0;
-        double first_year_purchases = 0.0;
 
-        // dispatch
-        if (as_integer("system_use_lifetime_output") == 1)
-        {
-            // hourly_enet includes all curtailment, availability
-            for (size_t y = 1; y <= (size_t)nyears; y++)
-            {
-                for (size_t h = 0; h < 8760; h++)
-                {
-                    cf.at(CF_energy_net, y) += hourly_energy_calcs.hourly_energy()[(y - 1) * 8760 + h] * cf.at(CF_degradation, y);
-                    cf.at(CF_energy_sales, y) += hourly_energy_calcs.hourly_sales()[(y - 1) * 8760 + h] * cf.at(CF_degradation, y);
-                    cf.at(CF_energy_purchases, y) += hourly_energy_calcs.hourly_purchases()[(y - 1) * 8760 + h] * cf.at(CF_degradation, y);
-                }
-            }
-        }
-        else
-        {
-            for (i = 0; i < 8760; i++) {
-                first_year_energy += hourly_energy_calcs.hourly_energy()[i]; // sum up hourly kWh to get total annual kWh first year production includes first year curtailment, availability
-                first_year_sales += hourly_energy_calcs.hourly_sales()[i];
-                first_year_purchases += hourly_energy_calcs.hourly_purchases()[i];
-            }
-            cf.at(CF_energy_net, 1) = first_year_energy;
-            cf.at(CF_energy_sales, 1) = first_year_sales;
-            cf.at(CF_energy_purchases, 1) = first_year_purchases;
-            for (i = 1; i <= nyears; i++) {
-                cf.at(CF_energy_net, i) = first_year_energy * cf.at(CF_degradation, i);
-                cf.at(CF_energy_sales, i) = first_year_sales * cf.at(CF_degradation, i);
-                cf.at(CF_energy_purchases, i) = first_year_purchases * cf.at(CF_degradation, i);
-            }
+		if (as_integer("system_use_lifetime_output") == 0)
+		{
+			double first_year_energy = 0.0;
+			for (int i = 0; i < 8760; i++)
+				first_year_energy += hourly_energy_calcs.hourly_energy()[i];
+			for (size_t y = 1; y <= nyears; y++)
+				cf.at(CF_energy_net, y) = first_year_energy * cf.at(CF_degradation, y);
+		}
+		else
+		{
+			for (size_t y = 1; y <= nyears; y++)
+			{
+				cf.at(CF_energy_net, y) = 0;
+				int i = 0;
+				for (int m = 0; m<12; m++)
+					for (size_t d = 0; d<util::nday[m]; d++)
+						for (int h = 0; h<24; h++)
+							if (i<8760)
+							{
+					cf.at(CF_energy_net, y) += hourly_energy_calcs.hourly_energy()[(y - 1) * 8760 + i] * cf.at(CF_degradation, y);
+					i++;
+							}
+			}
 
-        }
+		}
 		// output from utility rate already nyears+1 - no offset
 		arrp = as_array("annual_energy_value", &count);
 		if (count != nyears+1)
@@ -266,14 +241,14 @@ public:
 	
 		}
 		
-		double npv_energy_real = npv( CF_energy_sales, nyears, real_discount_rate );
+		double npv_energy_real = npv( CF_energy_net, nyears, real_discount_rate );
 		double lcoe_real = -( cf.at(CF_after_tax_net_equity_cost_flow,0) + npv(CF_after_tax_net_equity_cost_flow, nyears, nom_discount_rate) ) * 100;
 		if (npv_energy_real == 0.0) 
 			lcoe_real = std::numeric_limits<double>::quiet_NaN();
 		else
 			lcoe_real /= npv_energy_real;
 
-		double npv_energy_nom = npv( CF_energy_sales, nyears, nom_discount_rate );
+		double npv_energy_nom = npv( CF_energy_net, nyears, nom_discount_rate );
 		double lcoe_nom = -( cf.at(CF_after_tax_net_equity_cost_flow,0) + npv(CF_after_tax_net_equity_cost_flow, nyears, nom_discount_rate) ) * 100;
 		if (npv_energy_nom == 0.0) 
 			lcoe_nom = std::numeric_limits<double>::quiet_NaN();
@@ -296,7 +271,7 @@ public:
 		double lnte_real = npv(  CF_nte, nyears, nom_discount_rate ); 
 
 		for (i = 0; i < (int)count; i++)
-			if (cf.at(CF_energy_sales,i) > 0) cf.at(CF_nte,i) /= cf.at(CF_energy_sales,i);
+			if (cf.at(CF_energy_net,i) > 0) cf.at(CF_nte,i) /= cf.at(CF_energy_net,i);
 
 		double lnte_nom = lnte_real;
 		if (npv_energy_real == 0.0) 
@@ -326,12 +301,8 @@ public:
 		assign( "discount_nominal", var_data((ssc_number_t)(nom_discount_rate*100.0) ));		
 		
 		save_cf(CF_agreement_cost, nyears, "cf_agreement_cost");
-
-        save_cf(CF_energy_net, nyears, "cf_energy_net");
-        save_cf(CF_energy_sales, nyears, "cf_energy_sales");
-        save_cf(CF_energy_purchases, nyears, "cf_energy_purchases");
-
-        //		save_cf(CF_energy_value, nyears, "cf_energy_value");
+		save_cf(CF_energy_net, nyears, "cf_energy_net");
+//		save_cf(CF_energy_value, nyears, "cf_energy_value");
 
 
 		save_cf( CF_after_tax_net_equity_cost_flow, nyears, "cf_after_tax_net_equity_cost_flow" );
@@ -352,7 +323,7 @@ public:
 			arrp[i] = (ssc_number_t)cf.at(cf_line, i);
 	}
 
-	double npv( size_t cf_line, size_t nyears, double rate )
+	double npv( size_t cf_line, size_t nyears, double rate ) throw ( general_error )
 	{		
 		if (rate <= -1.0) throw general_error("cannot calculate NPV with discount rate less or equal to -1.0");
 

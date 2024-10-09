@@ -3781,6 +3781,7 @@ void SolarField::calcAllAimPoints(Vect &Sun, sim_params &P) //bool force_simple,
 
 	int nh = (int)_heliostats.size();
     int method = _var_map->flux.aim_method.mapval();
+
     /*
     Multiple receiver aiming method ------------------------------------------
     */
@@ -4261,14 +4262,6 @@ void SolarField::AnalyticalFluxSimulation(Hvector &helios)
 			_flux->fluxDensity(&_sim_info, surfaces->at(0), helios, _var_map->sf.tht.val, true);
 			surfaces->at(0).Normalize();
 		}
-		// for single panel
-		else
-		{
-			for (unsigned int i = 0; i < surfaces->size(); i++)
-				_flux->fluxDensity(&_sim_info, surfaces->at(i), helios, _var_map->sf.tht.val, true, true, true);
-		}
-
-
 	}
 }
 

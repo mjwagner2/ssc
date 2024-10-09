@@ -1,35 +1,24 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
 
 // Generic solar model
 #include "core.h"
@@ -40,17 +29,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static var_info _cm_vtab_tcsgeneric_solar[] = {
 //   weather reader inputs
 //   VARTYPE            DATATYPE          NAME                LABEL                                                             UNITS              META            GROUP            REQUIRED_IF                CONSTRAINTS              UI_HINTS
-    { SSC_INPUT,        SSC_STRING,      "file_name",        "local weather file path",                                        "",                 "",             "weather",        "*",                       "LOCAL_FILE",            "" },
-    { SSC_INPUT,        SSC_NUMBER,      "track_mode",       "Tracking mode",                                                  "",                 "",             "weather",        "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "tilt",             "Tilt angle of surface/axis",                                     "",                 "",             "weather",        "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_NUMBER,      "azimuth",          "Azimuth angle of surface/axis",                                  "",                 "",             "weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_STRING,      "file_name",        "local weather file path",                                        "",                 "",             "Weather",        "*",                       "LOCAL_FILE",            "" },
+    { SSC_INPUT,        SSC_NUMBER,      "track_mode",       "Tracking mode",                                                  "",                 "",             "Weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_NUMBER,      "tilt",             "Tilt angle of surface/axis",                                     "",                 "",             "Weather",        "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_NUMBER,      "azimuth",          "Azimuth angle of surface/axis",                                  "",                 "",             "Weather",        "*",                       "",                      "" },
 
 	{ SSC_INPUT, SSC_NUMBER, "system_capacity", "Nameplate capacity", "kW", "", "generic solar", "*", "", "" },
 
 
 	// TOU
-    { SSC_INPUT,        SSC_MATRIX,      "weekday_schedule", "12x24 Time of Use Values for week days",                         "",                 "",             "tou_translator", "*",                       "",                      "" },
-    { SSC_INPUT,        SSC_MATRIX,      "weekend_schedule", "12x24 Time of Use Values for week end days",                     "",                 "",             "tou_translator", "*",                       "",                      "" },
+    { SSC_INPUT,        SSC_MATRIX,      "weekday_schedule", "12x24 Time of Use Values for week days",                         "",                 "",             "tou_translator", "*",                       "",                      "" }, 
+    { SSC_INPUT,        SSC_MATRIX,      "weekend_schedule", "12x24 Time of Use Values for week end days",                     "",                 "",             "tou_translator", "*",                       "",                      "" }, 
 
 //   Generic solar model (type 260) inputs
 //   VARTYPE            DATATYPE          NAME                LABEL                                                             UNITS              META            GROUP            REQUIRED_IF                CONSTRAINTS              UI_HINTS
@@ -70,7 +59,7 @@ static var_info _cm_vtab_tcsgeneric_solar[] = {
 	{ SSC_INPUT,        SSC_ARRAY,       "sfhlQ_coefs",      "Irr-based solar field thermal loss adjustment coefficients",     "1/MWt",            "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_ARRAY,       "sfhlT_coefs",      "Temp.-based solar field thermal loss adjustment coefficients",   "1/C",              "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_ARRAY,       "sfhlV_coefs",      "Wind-based solar field thermal loss adjustment coefficients",    "1/(m/s)",          "",             "type_260",       "*",                       "",                      "" },
-
+	
 	{ SSC_INPUT,        SSC_NUMBER,      "qsf_des",          "Solar field thermal production at design",                       "MWt",              "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "w_des",            "Design power cycle gross output",                                "MWe",              "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "eta_des",          "Design power cycle gross efficiency",                            "none",             "",             "type_260",       "*",                       "",                      "" },
@@ -87,7 +76,7 @@ static var_info _cm_vtab_tcsgeneric_solar[] = {
 	{ SSC_INPUT,        SSC_ARRAY,       "Wpar_prodQ_coefs", "Part-load production parasitic adjustment coefs.",               "1/MWe",            "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_ARRAY,       "Wpar_prodT_coefs", "Temp.-based production parasitic adjustment coefs.",             "1/C",              "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_ARRAY,       "Wpar_prodD_coefs", "DNI-based production parasitic adjustment coefs.",               "m2/W",             "",            "type_260",       "*",                       "",                      "" },
-
+	
 	{ SSC_INPUT,        SSC_NUMBER,      "hrs_tes",          "Equivalent full-load hours of storage",                          "hours",            "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "f_charge",         "Storage charging energy derate",                                 "none",             "",             "type_260",       "*",                       "",                      "" },
 	{ SSC_INPUT,        SSC_NUMBER,      "f_disch",          "Storage discharging energy derate",                              "none",             "",             "type_260",       "*",                       "",                      "" },
@@ -133,7 +122,7 @@ static var_info _cm_vtab_tcsgeneric_solar[] = {
     { SSC_OUTPUT,       SSC_ARRAY,       "pres",              "Resource Pressure",                                               "mbar",         "",            "weather",        "*",                       "LENGTH=8760",           "" },
 
 	//{ SSC_OUTPUT,       SSC_ARRAY,       "irr_used",          "Irradiation value used in simulation",                           "W/m2",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
     //solar field
     { SSC_OUTPUT,       SSC_ARRAY,       "eta_opt_sf",        "Field collector optical efficiency",                             "none",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_inc",             "Field thermal power incident",                                   "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
@@ -142,23 +131,23 @@ static var_info _cm_vtab_tcsgeneric_solar[] = {
     { SSC_OUTPUT,       SSC_ARRAY,       "f_sfhl_vwind",      "Field thermal power wind-based loss correction",                 "none",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_hl_sf",           "Field thermal power loss total",                                 "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_sf",              "Field thermal power total produced",                             "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
     //thermal storage
     { SSC_OUTPUT,       SSC_ARRAY,       "q_to_tes",          "TES thermal energy into storage",                                "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_from_tes",        "TES thermal energy from storage",                                "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "e_in_tes",          "TES thermal energy available",                                   "MWht",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_hl_tes",          "TES thermal losses from tank(s)",                                "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
     //power block
     { SSC_OUTPUT,       SSC_ARRAY,       "eta_cycle",         "Cycle efficiency (gross)",                                       "",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "f_effpc_qtpb",      "Cycle efficiency load-based correction",                         "",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "f_effpc_tamb",      "Cycle efficiency temperature-based correction",                  "",         "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
     { SSC_OUTPUT,       SSC_ARRAY,       "enet",              "Cycle electrical power output (net)",                            "MWe",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "w_gr",              "Cycle electrical power output (gross)",                          "MWe",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "w_gr_solar",        "Cycle electrical power output (gross, solar share)",             "MWe",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "w_gr_fossil",       "Cycle electrical power output (gross, fossil share)",            "MWe",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
     { SSC_OUTPUT,       SSC_ARRAY,       "q_to_pb",           "Cycle thermal power input",                                      "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_startup",         "Cycle thermal startup energy",                                   "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "q_dump_tesfull",    "Cycle thermal energy dumped - TES is full",                      "MWt",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
@@ -176,11 +165,11 @@ static var_info _cm_vtab_tcsgeneric_solar[] = {
     { SSC_OUTPUT,       SSC_ARRAY,       "w_par_tot",         "Total parasitic losses",                                         "MWh",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "w_par_online",      "Online parasitics",                                              "MWh",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "w_par_offline",     "Offline parasitics",                                             "MWh",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
-
+    
 //    { SSC_OUTPUT,       SSC_ARRAY,       "hourly_energy",     "Hourly Energy",                                                  "kWh",          "",            "Outputs",        "*",                       "LENGTH=8760",           "" },
 
 	// monthly outputs
-	{ SSC_OUTPUT,       SSC_ARRAY,       "monthly_energy",    "Monthly Energy Gross",                                                 "kWh",          "",            "Generic CSP",    "*",                       "LENGTH=12",           "" },
+	{ SSC_OUTPUT,       SSC_ARRAY,       "monthly_energy",    "Monthly Energy",                                                 "kWh",          "",            "Generic CSP",    "*",                       "LENGTH=12",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "monthly_w_gr",      "Total gross power production",                                   "kWh",          "",            "Generic CSP",    "*",                       "LENGTH=12",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "monthly_q_sf",      "Solar field delivered thermal power",                            "MWt",          "",            "Generic CSP",    "*",                       "LENGTH=12",           "" },
     { SSC_OUTPUT,       SSC_ARRAY,       "monthly_q_to_pb",   "Thermal energy to the power conversion system",                  "MWt",          "",            "Generic CSP",    "*",                       "LENGTH=12",           "" },
@@ -249,7 +238,7 @@ public:
 		int weather = 0;
 		if(debug_mode) weather = add_unit("trnsys_weatherreader", "TRNSYS weather reader");
 		else weather = add_unit("weatherreader", "TCS weather reader");
-
+		
 		// Add time-of-use reader
 		int	tou = add_unit("tou_translator", "Time of Use Translator");
 		//Add Physical Solar Field Model
@@ -373,12 +362,12 @@ public:
 		// check if all connections worked
 		if ( !bConnected )
 			throw exec_error( "tcsgeneric_solar", util::format("there was a problem connecting outputs of one unit to inputs of another for the simulation.") );
-
+		
         size_t hours = 8760;
 
         //Load the solar field adjustment factors
-        adjustment_factors sf_haf(this, "sf_adjust");
-        if (!sf_haf.setup(hours))
+        sf_adjustment_factors sf_haf(this);
+        if (!sf_haf.setup())
 			throw exec_error("tcsgeneric_solar", "failed to setup sf adjustment factors: " + sf_haf.error());
         //allocate array to pass to tcs
         ssc_number_t *sf_adjust = allocate("sf_adjust", hours);
@@ -401,7 +390,7 @@ public:
 			throw exec_error("tcsgeneric_solar", "Failed to retrieve hourly net energy");
 
 		adjustment_factors haf(this, "adjust");
-		if (!haf.setup(count))
+		if (!haf.setup())
 			throw exec_error("tcsgeneric_solar", "failed to setup adjustment factors: " + haf.error());
 
 
@@ -410,7 +399,6 @@ public:
 		{
 			hourly[i] = enet[i] * 1000 * haf(i); // convert from MWh to kWh
 		}
-        ssc_number_t* p_annual_energy_dist_time = gen_heatmap(this, 1);
 
 		accumulate_annual("gen",        "annual_energy");
 		accumulate_annual("w_gr",                 "annual_w_gr",1000); // convert from MWh to kWh

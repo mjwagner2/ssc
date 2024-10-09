@@ -2210,7 +2210,7 @@ void sim_result::process_analytical_simulation(SolarField &SF, sim_params &P, in
             }
 		}
 		process_field_stats();
-		dni =  SF.getVarMap()->flux.flux_dni.val/1000.;
+		dni =  SF.getVarMap()->flux.flux_dni.val/1000.;		// TODO: Why is this not using sim_params structure?
 		power_on_field = total_heliostat_area * dni;	//[kW]
 		power_absorbed = power_on_field * eff_total_sf.ave;
 
@@ -2421,28 +2421,11 @@ void sim_result::process_flux(SolarField *SF, bool normalize){
 	for(int i=0; i<nr; i++){
 		rec = SF->getReceivers()->at(i);
 		if(! rec->isReceiverEnabled() ) continue;
-        int n_surfaces = rec->getFluxSurfaces()->size();
 		flux_surfaces.push_back( *rec->getFluxSurfaces() );
 		if(normalize){
-            if (n_surfaces == 1) {
-                for (unsigned int j = 0; j < rec->getFluxSurfaces()->size(); j++) {
-                    flux_surfaces.back().at(j).Normalize();
-                }
-            }
-            else {
-                // For aperture (j = 0), use normalize, because we don't want it to count towards total flux
-                flux_surfaces.back().at(0).Normalize();
-
-                // Sum flux on all receiver panels
-                double flux_tot = 0.0;
-                for (unsigned int j = 1; j < rec->getFluxSurfaces()->size(); j++) {
-                    flux_tot += flux_surfaces.back().at(j).getTotalFlux();
-                }
-
-                for (unsigned int j = 1; j < rec->getFluxSurfaces()->size(); j++) {
-                    flux_surfaces.back().at(j).Scale(1.0 / flux_tot);
-                }
-            }
+			for(unsigned int j=0; j<rec->getFluxSurfaces()->size(); j++){
+				flux_surfaces.back().at(j).Normalize();
+			}
 		}
 		receiver_names.push_back( SF->getReceivers()->at(i)->getVarMap()->rec_name.val );
 	}

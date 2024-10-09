@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __csp_solver_stratified_tes_
@@ -89,14 +79,14 @@ private:
 };
 
 
-class C_csp_stratified_tes //Class for cold storage based on two tank tes ARD
+class C_csp_stratified_tes : public C_csp_tes //Class for cold storage based on two tank tes ARD
 {
 private:
 
 	HTFProperties mc_field_htfProps;		// Instance of HTFProperties class for field HTF
 	HTFProperties mc_store_htfProps;		// Instance of HTFProperties class for storage HTF
 
-	C_hx_cold_tes mc_hx;
+	C_heat_exchanger mc_hx;
 
 	//Storage_HX mc_hx_storage;				// Instance of Storage_HX class for heat exchanger between storage and field HTFs
 
@@ -125,26 +115,6 @@ public:
 	// Class to save messages for up stream classes
 	C_csp_messages mc_csp_messages;
 
-	struct S_csp_strat_tes_outputs
-	{
-		double m_q_heater;			//[MWe]  Heating power required to keep tanks at a minimum temperature
-		double m_m_dot;             //[kg/s] Hot tank mass flow rate, valid for direct and indirect systems
-		double m_W_dot_rhtf_pump;	//[MWe]  Pumping power, just for tank-to-tank in indirect storage
-		double m_q_dot_loss;		//[MWt]  Storage thermal losses
-		double m_q_dot_dc_to_htf;	//[MWt]  Thermal power to the HTF from storage
-		double m_q_dot_ch_from_htf;	//[MWt]  Thermal power from the HTF to storage
-		double m_T_hot_ave;		    //[K]    Average hot tank temperature over timestep
-		double m_T_cold_ave;	    //[K]    Average cold tank temperature over timestep
-		double m_T_hot_final;	    //[K]    Hot tank temperature at end of timestep
-		double m_T_cold_final;	    //[K]    Cold tank temperature at end of timestep
-
-		S_csp_strat_tes_outputs()
-		{
-			m_q_heater = m_m_dot = m_W_dot_rhtf_pump = m_q_dot_loss = m_q_dot_dc_to_htf = m_q_dot_ch_from_htf =
-				m_T_hot_ave = m_T_cold_ave = m_T_hot_final = m_T_cold_final = std::numeric_limits<double>::quiet_NaN();
-		}
-	};
-
 	struct S_params
 	{
 		int m_field_fl;
@@ -167,8 +137,8 @@ public:
 		double m_cold_tank_Thtr;	//[C] convert to K in init()
 		double m_cold_tank_max_heat;//[MW]
 		double m_dt_hot;			//[C] Temperature difference across heat exchanger - assume hot and cold deltaTs are equal
-		double m_T_cold_des;	    //[C] convert to K in init()
-		double m_T_hot_des;	        //[C] convert to K in init()
+		double m_T_field_in_des;	//[C] convert to K in init()
+		double m_T_field_out_des;	//[C] convert to K in init()
 		double m_T_tank_hot_ini;	//[C] Initial temperature in hot storage tank
 		double m_T_tank_cold_ini;	//[C] Initial temperature in cold storage cold
 		double m_h_tank_min;		//[m] Minimum allowable HTF height in storage tank
@@ -189,7 +159,7 @@ public:
 			m_ts_hours = 0.0;		//[hr] Default to 0 so that if storage isn't defined, simulation won't crash
 
 			m_W_dot_pc_design = m_eta_pc_factor = m_solarm = m_h_tank = m_u_tank = m_hot_tank_Thtr = m_hot_tank_max_heat = m_cold_tank_Thtr =
-				m_cold_tank_max_heat = m_dt_hot = m_T_cold_des = m_T_hot_des = m_T_tank_hot_ini =
+				m_cold_tank_max_heat = m_dt_hot = m_T_field_in_des = m_T_field_out_des = m_T_tank_hot_ini =
 				m_T_tank_cold_ini = m_h_tank_min = m_f_V_hot_ini = m_htf_pump_coef = dT_cw_rad = m_dot_cw_rad = m_dot_cw_cold=m_lat= std::numeric_limits<double>::quiet_NaN();
 		}
 	};
@@ -200,71 +170,64 @@ public:
 
 	~C_csp_stratified_tes() {};
 
-	void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
+	virtual void init(const C_csp_tes::S_csp_tes_init_inputs init_inputs);
 
-	bool does_tes_exist();
+	virtual bool does_tes_exist();
 
-	double get_hot_temp();
+	virtual double get_hot_temp();
 
-	double get_cold_temp();
+	virtual double get_cold_temp();
 
-	double get_hot_mass();
+	virtual double get_hot_mass();
 
-	double get_cold_mass();
+	virtual double get_cold_mass();
 
-	double get_hot_mass_prev();
+	virtual double get_hot_mass_prev();
 
-	double get_cold_mass_prev();
+	virtual double get_cold_mass_prev();
 
-	double get_physical_volume(); //m^3
+	virtual double get_physical_volume(); //m^3
 
-	double get_hot_massflow_avail(double step_s); //kg/sec
+	virtual double get_hot_massflow_avail(double step_s); //kg/sec
 
-	double get_cold_massflow_avail(double step_s); //kg/sec
+	virtual double get_cold_massflow_avail(double step_s); //kg/sec
 
-	double get_initial_charge_energy(); //MWh
+	virtual double get_initial_charge_energy(); //MWh
 
-	double get_min_charge_energy(); //MWh
+	virtual double get_min_charge_energy(); //MWh
 
-	double get_max_charge_energy(); //MWh
+	virtual double get_max_charge_energy(); //MWh
 
-	double get_degradation_rate();  // s^-1
+	virtual double get_degradation_rate();  // s^-1
 
-	void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est);
+	virtual void discharge_avail_est(double T_cold_K, double step_s, double &q_dot_dc_est, double &m_dot_field_est, double &T_hot_field_est);
 
-	void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est);
+	virtual void charge_avail_est(double T_hot_K, double step_s, double &q_dot_ch_est, double &m_dot_field_est, double &T_cold_field_est);
 
 	// Calculate pumping power...???
-	bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, 
-		double T_htf_cold_in, double & T_htf_hot_out /*K*/, S_csp_strat_tes_outputs &outputs);
+	virtual bool discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-    void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, 
-		double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, S_csp_strat_tes_outputs &outputs);
+	virtual void discharge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_cold_in, double & T_htf_hot_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, 
-		double T_htf_hot_in, double & T_htf_cold_out /*K*/, S_csp_strat_tes_outputs &outputs);
+	virtual bool charge(double timestep /*s*/, double T_amb /*K*/, double m_dot_htf_in /*kg/s*/, double T_htf_hot_in, double & T_htf_cold_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	bool charge_discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_hot_in /*kg/s*/, 
-		double T_hot_in, double m_dot_cold_in /*kg/s*/, double T_cold_in, S_csp_strat_tes_outputs &outputs);
+	virtual bool charge_discharge(double timestep /*s*/, double T_amb /*K*/, double m_dot_hot_in /*kg/s*/, double T_hot_in, double m_dot_cold_in /*kg/s*/, double T_cold_in, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	bool recirculation(double timestep /*s*/, double T_amb /*K*/, double m_dot_cold_in /*kg/s*/, 
-		double T_cold_in /*K*/, S_csp_strat_tes_outputs &outputs);
+	virtual bool recirculation(double timestep /*s*/, double T_amb /*K*/, double m_dot_cold_in /*kg/s*/, double T_cold_in /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	bool stratified_tanks(double timestep /*s*/, double T_amb /*K*/, double m_dot_cond /*kg/s*/, 
-		double T_cond_out /*K*/, double m_dot_rad /*kg/s*/, double T_rad_out /*K*/, S_csp_strat_tes_outputs &outputs);
+	virtual bool stratified_tanks(double timestep /*s*/, double T_amb /*K*/, double m_dot_cond /*kg/s*/, double T_cond_out /*K*/, double m_dot_rad /*kg/s*/, double T_rad_out /*K*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	void charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, 
-		double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, S_csp_strat_tes_outputs &outputs);
+	virtual void charge_full(double timestep /*s*/, double T_amb /*K*/, double T_htf_hot_in /*K*/, double & T_htf_cold_out /*K*/, double & m_dot_htf_out /*kg/s*/, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	void idle(double timestep, double T_amb, S_csp_strat_tes_outputs &outputs);
+	virtual void idle(double timestep, double T_amb, C_csp_tes::S_csp_tes_outputs &outputs);
 
-	void converged();
+	virtual void converged();
 
-    int pressure_drops(double m_dot_sf, double m_dot_pb,
+    virtual int pressure_drops(double m_dot_sf, double m_dot_pb,
         double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating,
         double &P_drop_col, double &P_drop_gen);
 
-    double pumping_power(double m_dot_sf, double m_dot_pb, double m_dot_tank,
+    virtual double pumping_power(double m_dot_sf, double m_dot_pb, double m_dot_tank,
         double T_sf_in, double T_sf_out, double T_pb_in, double T_pb_out, bool recirculating);
 };
 

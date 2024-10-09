@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __geothermalModelDefinitions__
@@ -39,7 +29,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "lib_physics.h"
 #include "lib_powerblock.h"
 
-
 #ifndef __geothermalEnums__
 #define __geothermalEnums__
 
@@ -48,12 +37,12 @@ enum conversionTypes { NO_CONVERSION_TYPE, BINARY, FLASH }; //}
 enum resourceTypes { NO_RESOURCE_TYPE, HYDROTHERMAL, EGS };
 enum flashTypes { NO_FLASH_SUBTYPE, SINGLE_FLASH_NO_TEMP_CONSTRAINT, SINGLE_FLASH_WITH_TEMP_CONSTRAINT, DUAL_FLASH_NO_TEMP_CONSTRAINT, DUAL_FLASH_WITH_TEMP_CONSTRAINT };
 enum tempDeclineMethod { NO_TEMPERATURE_DECLINE_METHOD, ENTER_RATE, CALCULATE_RATE };
-enum makeupAlgorithmType { NO_MAKEUP_ALGORITHM, MA_BINARY, MA_FLASH, MA_EGS_BINARY, MA_EGS_FLASH }; //}
+enum makeupAlgorithmType { NO_MAKEUP_ALGORITHM, MA_BINARY, MA_FLASH, MA_EGS }; //}
 enum condenserTypes { NO_CONDENSER_TYPE, SURFACE, DIRECT_CONTACT };
 enum ncgRemovalTypes { NO_NCG_TYPE, JET, VAC_PUMP, HYBRID };
 enum wellCostCurveChoices { NO_COST_CURVE, LOW, MED, HIGH };
 enum depthCalculationForEGS { NOT_CHOSEN, DEPTH, TEMPERATURE };
-enum reservoirPressureChangeCalculation { NO_PC_CHOICE, ENTER_PC, SIMPLE_FRACTURE, K_AREA, USER_TEMP };
+enum reservoirPressureChangeCalculation { NO_PC_CHOICE, ENTER_PC, SIMPLE_FRACTURE, K_AREA };
 #endif
 struct SGeothermal_Inputs
 {
@@ -63,18 +52,14 @@ struct SGeothermal_Inputs
 		me_rt = NO_RESOURCE_TYPE; me_dc = NOT_CHOSEN; me_pc = NO_PC_CHOICE;
 		mi_ModelChoice = -1; mb_CalculatePumpWork = true;
 		mi_ProjectLifeYears = mi_MakeupCalculationsPerYear = mi_TotalMakeupCalculations = 0;
-		md_DesiredSalesCapacityKW = md_NumberOfWells = md_NumberofWellsInj = md_PlantEfficiency = md_TemperatureDeclineRate = md_MaxTempDeclineC = md_TemperatureWetBulbC = 0.0;
+		md_DesiredSalesCapacityKW = md_NumberOfWells = md_PlantEfficiency = md_TemperatureDeclineRate = md_MaxTempDeclineC = md_TemperatureWetBulbC = 0.0;
 		md_PressureAmbientPSI = md_ProductionFlowRateKgPerS = md_GFPumpEfficiency = md_PressureChangeAcrossSurfaceEquipmentPSI = md_ExcessPressureBar = 0.0;
-		md_DiameterProductionWellInches = md_DiameterPumpCasingInches = md_DiameterInjPumpCasingInches = md_DiameterInjectionWellInches = md_UserSpecifiedPumpWorkKW = 0.0;
+		md_DiameterProductionWellInches = md_DiameterPumpCasingInches = md_DiameterInjectionWellInches = md_UserSpecifiedPumpWorkKW = 0.0;
 		md_PotentialResourceMW = md_ResourceDepthM = md_TemperatureResourceC = md_TemperaturePlantDesignC = md_EGSThermalConductivity = md_EGSSpecificHeatConstant = 0.0;
 		md_EGSRockDensity = md_ReservoirDeltaPressure = md_ReservoirWidthM = md_ReservoirHeightM = md_ReservoirPermeability = md_DistanceBetweenProductionInjectionWellsM = 0.0;
-		md_WaterLossPercent = md_EGSFractureAperature = md_EGSNumberOfFractures = md_EGSFractureWidthM = md_EGSFractureAngle = md_EGSFractureSpacing = 0.0;
+		md_WaterLossPercent = md_EGSFractureAperature = md_EGSNumberOfFractures = md_EGSFractureWidthM = md_EGSFractureAngle = 0.0;
 		md_TemperatureEGSAmbientC = md_RatioInjectionToProduction = 0.0;
 		md_AdditionalPressure = 1.0;
-        md_dtProdWell = md_dtProdWellChoice = 0.0;
-        md_NumberOfWellsProdExp = md_NumberOfWellsInjDrilled = md_NumberOfWellsProdDrilled = md_FailedWells = md_StimSuccessRate = md_DrillSuccessRate = 0;
-        md_FailedInjFlowRatio = md_FailedProdFlowRatio = md_InjWellFriction = md_ProdWellFriction = md_InjWellPressurePSI = md_InjectivityIndex = md_ExplorationWellsProd = 0;
-        md_UseWeatherFileConditions = 0.0;
 	}
 
 	calculationBasis me_cb;									// { NO_CALCULATION_BASIS, POWER_SALES, NUMBER_OF_WELLS };
@@ -87,44 +72,25 @@ struct SGeothermal_Inputs
 
 	int mi_ModelChoice;										// -1 on initialization; 0=GETEM, 1=Power Block monthly, 2=Power Block hourly
 	bool mb_CalculatePumpWork;								// true (default) = getem calculates pump work
-    util::matrix_t<double> md_ReservoirInputs;
 
 	size_t mi_ProjectLifeYears;
 	size_t mi_MakeupCalculationsPerYear;					// 12 (monthly) or 8760 (hourly)
 	size_t mi_TotalMakeupCalculations;						// mi_ProjectLifeYears * mi_MakeupCalculationsPerYear
 
 	double md_DesiredSalesCapacityKW;						// entered or calculated, linked to 'cb'
-    double md_NumberOfWellsProdExp;
-    double md_NumberOfWellsProdDrilled;
-    double md_NumberOfWellsInjDrilled;
-    double md_FailedWells;
-    double md_FailedInjFlowRatio;
-    double md_FailedProdFlowRatio;
-    double md_StimSuccessRate;
-    double md_DrillSuccessRate;
-    double md_InjWellFriction;
-    double md_InjWellPressurePSI;
-    double md_ProdWellFriction;
 	double md_NumberOfWells;								// entered or calculated, depending on 'cb'
-    double md_NumberofWellsInj;
 	double md_PlantEfficiency;								// not in GETEM - essentially the ratio of plant brine effectiveness to max possible brine effectiveness
 	double md_TemperatureDeclineRate;						// '% per year, 3% is default
 	double md_MaxTempDeclineC;								// degrees C, default = 30
 	double md_TemperatureWetBulbC;							// degrees celcius - used in Flash brine effectiveness
 	double md_PressureAmbientPSI;							// psi, default=14.7, mostly for use in calculating flash brine effectiveness, but also pump work
-    int md_UseWeatherFileConditions;
-    double md_ProductionFlowRateKgPerS;						// 70 kilograms per second in one well (default FlowRate in GETEM)
+	double md_ProductionFlowRateKgPerS;						// 70 kilograms per second in one well (default FlowRate in GETEM)
 	double md_GFPumpEfficiency;								// default=0.6 or 60%
 	double md_PressureChangeAcrossSurfaceEquipmentPSI;		// default 25 psi
 	double md_ExcessPressureBar;							// default 3.5 bar, [2B.Resource&Well Input].D205
 	double md_DiameterProductionWellInches;					// default 10 inches
-    double md_ProductionWellType;                           // 0 open hole, 1 liner
-    double md_ProductionWellDiam;
 	double md_DiameterPumpCasingInches;						// default 9.925 inches
-    double md_DiameterInjPumpCasingInches;
 	double md_DiameterInjectionWellInches;					// default 10 inches
-    double md_InjectionWellType;                            // 0 open hole, 1 liner
-    double md_InjectionWellDiam;
 	double md_UserSpecifiedPumpWorkKW;
 	double md_PotentialResourceMW;							// MW, default = 200 MW, determines how many times reservoir can be replaced
 	double md_ResourceDepthM;								// meters, default 2000
@@ -135,58 +101,39 @@ struct SGeothermal_Inputs
 	double md_EGSSpecificHeatConstant;						// default 950 Joules per kg-C, [2B.Resource&Well Input].D241
 	double md_EGSRockDensity;								// default 2600 kg per cubic meter, [2B.Resource&Well Input].D242
 	double md_ReservoirDeltaPressure;						// default 0.35 psi-h per 1000lb, [2B.Resource&Well Input].D171
-    double md_InjectivityIndex;
-    double md_ExplorationWellsProd; 
 	double md_ReservoirWidthM;
 	double md_ReservoirHeightM;
 	double md_ReservoirPermeability;
 	double md_DistanceBetweenProductionInjectionWellsM;		// default 1500 m [2B.Resource&Well Input].F185
 	double md_WaterLossPercent;								// default 2%
 	double md_EGSFractureAperature;							// default 0.0004 m
-    double md_EGSFractureLength;
-    double md_EGSFractureSpacing;
 	double md_EGSNumberOfFractures;							// default 6
 	double md_EGSFractureWidthM;							// default 175 m
 	double md_EGSFractureAngle;								// default 15 degrees
 	double md_RatioInjectionToProduction;					// used in non-cost equation, so it needs to be an input
 	double md_AdditionalPressure;							// manually enter additional psi for injection pumps
-    double md_dtProdWell;                                   // degrees C, temperature loss in production well
-    double md_dtProdWellChoice;                             // Constant dt prod well or Ramey model
 
 
 	const char * mc_WeatherFileName;
 	int * mia_tou;											// time of use array
-    std::vector<double> haf;                                            // adjustment factor array
 };
 
 struct SGeothermal_Outputs
 {
 	SGeothermal_Outputs()
 	{
-		md_PumpWorkKW = md_NumberOfWells = md_NumberOfWellsInj = md_FlashBrineEffectiveness = md_PressureHPFlashPSI = md_PressureLPFlashPSI = 0.0;
-		md_GrossPlantOutputMW = md_GrossPowerMW = md_PlantBrineEffectiveness = md_PressureChangeAcrossReservoir = md_AverageReservoirTemperatureF = 0;
+		md_PumpWorkKW = md_NumberOfWells = md_FlashBrineEffectiveness = md_PressureHPFlashPSI = md_PressureLPFlashPSI = 0.0;
+		md_GrossPlantOutputMW = md_PlantBrineEffectiveness = md_PressureChangeAcrossReservoir = md_AverageReservoirTemperatureF = 0;
 		md_PumpDepthFt = md_PumpHorsePower = md_BottomHolePressure = 0;
 		maf_ReplacementsByYear = maf_monthly_resource_temp = maf_monthly_power = maf_monthly_energy = maf_timestep_resource_temp = NULL;
 		maf_timestep_power = maf_timestep_test_values = maf_timestep_pressure = maf_timestep_dry_bulb = maf_timestep_wet_bulb = NULL;
 		mb_BrineEffectivenessCalculated = mb_FlashPressuresCalculated = false;
 		maf_hourly_power = NULL;
-        md_NumberOfWellsProdExp = md_NumberOfWellsProdDrilled = md_NumberOfWellsInjDrilled = md_FailedWells = md_StimSuccessRate = md_DrillSuccessRate = 0;
-        md_FailedInjFlowRatio = md_FailedProdFlowRatio = 0;
-        ElapsedHours = ElapsedMonths = 0;
 
 	}
 
 	//Following list of variables used as inputs in cmod_geothermal_costs.cpp for calculating direct geothermal plant cost:
 	double md_NumberOfWells;
-    double md_NumberOfWellsProdExp;
-    double md_NumberOfWellsProdDrilled;
-    double md_NumberOfWellsInjDrilled;
-    double md_FailedWells;
-    double md_FailedInjFlowRatio;
-    double md_FailedProdFlowRatio;
-    double md_StimSuccessRate;
-    double md_DrillSuccessRate;
-    double md_NumberOfWellsInj;
 	double md_PumpWorkKW;
 	double eff_secondlaw;				//Overall Plant 2nd Law Efficiency 
 	double qRejectedTotal;				//Used in calculating Cooling Tower Cost - Flash Plant Type
@@ -212,18 +159,11 @@ struct SGeothermal_Outputs
 	double getX_hp, getX_lp;
 	double flash_count;
 	double max_secondlaw;				//Max 2nd Law efficiency
-    double ElapsedHours;
-    double ElapsedMonths;
 
 
 // single values used in calculations, some also used in UI
 	bool mb_BrineEffectivenessCalculated;
 	double md_FlashBrineEffectiveness;
-    double md_BrineEff;
-    double md_PumpWorkWattHrPerLb;
-    double md_pumpwork_prod;
-    double md_pumpwork_inj;
-    double md_InjPump_hp;
 
 	bool mb_FlashPressuresCalculated;
 	double md_PressureHPFlashPSI; // D29, D64
@@ -232,13 +172,11 @@ struct SGeothermal_Outputs
 	// only for use in the interface to show 'calculated' values
 	double md_PlantBrineEffectiveness;
 	double md_GrossPlantOutputMW;	//double GetGrossPlantOutputMW(void) { return this->PlantOutputKW()/1000; }
-    double md_GrossPowerMW;
 	double md_PumpDepthFt;
 	double md_PumpHorsePower;
 	double md_PressureChangeAcrossReservoir; //double GetPressureChangeAcrossReservoir(void) { return moPPC.GetPressureChangeAcrossReservoir(); }
 	double md_AverageReservoirTemperatureF; //double GetAverageReservoirTemperatureUsedF(void) { return moPPC.GetReservoirTemperatureF(); }
 	double md_BottomHolePressure; //double GetBottomHolePressure(void) { return moPPC.GetBottomHolePressure(); }
-    double md_FractionGFInjected;
 
 	// output arrays
 	double * maf_ReplacementsByYear;			// array of ones and zero's over time, ones representing years where reservoirs are replaced
@@ -300,7 +238,6 @@ private:
 	void init(void); // code common to both constructors
 	bool IsHourly(void);
 	double PlantGrossPowerkW(void);
-    double GrossPowerMW(void);
 	double MaxSecondLawEfficiency(void);
 	double FractionOfMaxEfficiency(void);
 	bool CanReplaceReservoir(double dTimePassedInYears);
@@ -308,8 +245,6 @@ private:
 
 
 	double GetPumpWorkKW(void);
-    double GetInjectionPumpWorkft(void);
-    double GetProductionPumpWorkft(void);
 	double NumberOfReservoirs(void);
 	double CalculatePumpWorkInKW(double flowLbPerHr, double pumpHeadFt);
 	double GetPumpWorkWattHrPerLb(void);
@@ -325,10 +260,6 @@ private:
 	double InjectionTemperatureC(void); // calculate injection temperature in degrees C
 	double InjectionTemperatureF(void);
 	double InjectionDensity(void);
-
-    double Gringarten(void);
-    double RameyWellbore(void);
-    double DT_prod_well(double prod_well_choice);
 
 	double GetAEAtTemp(double tempC);
 	double GetAEBinaryAtTemp(double tempC);
@@ -370,7 +301,7 @@ private:
 
 	// turbine output
 	double calculateX(double enthalpyIn, double temperatureF);
-    double enthalpyChangeTurbine(double dEnthalpyDeltaInitial, double dEnthalpyTurbineG, double dCondF, double dCondG); // I65-I80, I87-I102
+	double enthalpyChangeTurbine(double dEnthalpyDeltaInitial, double dEnthalpyTurbineG); // I65-I80, I87-I102
 
 	// Flash Turbine 1 - high pressure
 	double turbine1dHInitial(void); // I65
@@ -420,10 +351,8 @@ private:
 
 
 	int FlashCount(void);
-	double calculateDH1(double pressureIn);
-    double calculateDH2(double pressureIn);
+	double calculateDH(double pressureIn);
 	double TemperatureWetBulbF(void);
-    double calc_twet(double T, double RH, double P);
 	double temperatureCondF(void); // D72 - deg F
 	double pressureSaturation(void); // D72 - psi
 	double pressureCondenser(void); // D74 - psi
@@ -506,9 +435,6 @@ private:
 	double pressureDualLowConstrained(void);  // T65
 	double pressureDualLowToTest(void); // R65 or T65
 	double pressureDualLow(void); // P65
-    double pressureDualFlashTempHigh(void);
-    double pressureDualFlashTempLow(void);
-    double pressureSingleFlash(void);
 
 
 	// weather file opening, reading, checking inputs, etc.

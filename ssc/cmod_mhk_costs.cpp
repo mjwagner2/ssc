@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "core.h"
@@ -48,41 +38,40 @@ static var_info _cm_vtab_mhk_costs[] = {
 	{ SSC_INPUT,			SSC_NUMBER,			"marine_energy_tech",						"Marine energy technology",								"0/1",			"0=Wave,1=Tidal",				"MHKCosts",			"*",					"MIN=0,MAX=1",				"" },
 	{ SSC_INPUT,			SSC_NUMBER,			"library_or_input_wec",						"Wave library or user input",								"",			"0=Library,1=User",				"MHKCosts",			"marine_energy_tech=0",					"",				"" },
 	{ SSC_INPUT,			SSC_STRING,			"lib_wave_device",							"Wave library name",								"",			"",				"MHKCosts",			"marine_energy_tech=0",					"",				"" },
+
 	{ SSC_INPUT,			SSC_NUMBER,			"inter_array_cable_length",					"Inter-array cable length",								"m",			"",								"MHKCosts",			"*",					"MIN=0",					"" },
 	{ SSC_INPUT,			SSC_NUMBER,			"riser_cable_length",						"Riser cable length",									"m",			"",								"MHKCosts",			"*",					"MIN=0",					"" },
 	{ SSC_INPUT,			SSC_NUMBER,			"export_cable_length",						"Export cable length",									"m",			"",								"MHKCosts",			"*",					"MIN=0",					"" },
 
 	// User input for CapEx dependent costs
-		{ SSC_INPUT,			SSC_NUMBER,			"structural_assembly_cost_method",								"Structural assembly cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value,3=Use itemized costs in $",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"structural_assembly_cost_method",								"Structural assembly cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"structural_assembly_cost_input",								"Structural assembly cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		//{ SSC_INPUT,			SSC_NUMBER,			"structural_assembly_cost_total",								"Structural assembly itemized cost total",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"power_takeoff_system_cost_method",								"Power take-off system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value,3=Use itemized costs in $",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"power_takeoff_system_cost_method",								"Power take-off system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"power_takeoff_system_cost_input",								"Power take-off system cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		//{ SSC_INPUT,			SSC_NUMBER,			"power_takeoff_system_cost_total",								"Power take-off system cost itemized cost total",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"mooring_found_substruc_cost_method",								"Mooring, foundation, and substructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value,3=Use itemized costs in $",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"mooring_found_substruc_cost_method",								"Mooring, foundation, and substructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"mooring_found_substruc_cost_input",								"Mooring, foundation, and substructure cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		//{ SSC_INPUT,			SSC_NUMBER,			"mooring_found_substruc_cost_total",								"Mooring, foundation, and substructure itemized cost total",											"$",		"",	"MHKCosts",			"*",					"",				"" },
 
 // User input BOS values
-		{ SSC_INPUT,			SSC_NUMBER,			"development_cost_method",								"Development cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value,3=Enter in itemized costs",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"development_cost_method",								"Development cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"development_cost_input",								"Development cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"eng_and_mgmt_cost_method",								"Engineering and management cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value,3=Enter in itemized costs",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"eng_and_mgmt_cost_method",								"Engineering and management cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"eng_and_mgmt_cost_input",								"Engineering and management cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"assembly_and_install_cost_method",								"Assembly and installation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"assembly_and_install_cost_method",								"Assembly and installation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"assembly_and_install_cost_input",								"Assembly and installation cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"other_infrastructure_cost_method",								"Other infrastructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"other_infrastructure_cost_method",								"Other infrastructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"other_infrastructure_cost_input",								"Other infrastructure cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
 
-		{ SSC_INPUT,			SSC_NUMBER,			"array_cable_system_cost_method",								"Array cable system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"array_cable_system_cost_method",								"Array cable system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"array_cable_system_cost_input",								"Array cable system cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"export_cable_system_cost_method",								"Export cable system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"export_cable_system_cost_method",								"Export cable system cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"export_cable_system_cost_input",								"Export cable system cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"onshore_substation_cost_method",								"Onshore substation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"onshore_substation_cost_method",								"Onshore substation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"onshore_substation_cost_input",								"Onshore substation cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"offshore_substation_cost_method",								"Offshore substation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"offshore_substation_cost_method",								"Offshore substation cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"offshore_substation_cost_input",								"Offshore substation cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
-		{ SSC_INPUT,			SSC_NUMBER,			"other_elec_infra_cost_method",								"Other electrical infrastructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=4",				"" },
+		{ SSC_INPUT,			SSC_NUMBER,			"other_elec_infra_cost_method",								"Other electrical infrastructure cost method",											"0/1/2",		"0=Enter in $/kW,1=Enter in $,2=Use modeled value",	"MHKCosts",			"*",					"MIN=0,MAX=2",				"" },
 		{ SSC_INPUT,			SSC_NUMBER,			"other_elec_infra_cost_input",								"Other electrical infrastructure cost",											"$",		"",	"MHKCosts",			"*",					"",				"" },
+
 
 	//CapEx costs
 	{ SSC_OUTPUT,			SSC_NUMBER,			"structural_assembly_cost_modeled",			"Modeled structural assembly cost",						"$",			"",								"MHKCosts",			"",						"",							"" },
@@ -112,7 +101,8 @@ static var_info _cm_vtab_mhk_costs[] = {
 	//O and M costs
 	{ SSC_OUTPUT,			SSC_NUMBER,			"operations_cost",							"Operations cost",										"$",			"",								"MHKCosts",			"",						"",							"" },
 	{ SSC_OUTPUT,			SSC_NUMBER,			"maintenance_cost",							"Maintenance cost",										"$",			"",								"MHKCosts",			"",						"",							"" },
-    var_info_invalid };
+
+	var_info_invalid };
 
 
 
@@ -136,7 +126,6 @@ public:
 		double interarray_length = as_double("inter_array_cable_length");
 		double riser_length = as_double("riser_cable_length");
 		double export_length = as_double("export_cable_length");
-
 
 		int device_type = 4;
 		if (technology == WAVE)
@@ -163,7 +152,7 @@ public:
 		double array_cable_system, export_cable_system, onshore_substation, offshore_substation, other_elec_infra;
 		double project_contingency, insurance_during_construction, reserve_accounts;
 		double operations_cost, maintenance_cost;
-		
+
 		//Most CapEx costs depend on technology
 		if (technology == TIDAL)
 		{ // device = RM1
@@ -276,20 +265,14 @@ public:
 			structural_assembly = as_double("structural_assembly_cost_input") * system_capacity_kW;
 		else if (structural_assembly_cost_method == 1)
 			structural_assembly = as_double("structural_assembly_cost_input");
-		//else if (structural_assembly_cost_method == 3)
-			//structural_assembly = as_double("structural_assembly_cost_total");
 		if (power_takeoff_system_cost_method == 0)
 			power_takeoff = as_double("power_takeoff_system_cost_input") * system_capacity_kW;
 		else if (power_takeoff_system_cost_method == 1)
 			power_takeoff = as_double("power_takeoff_system_cost_input");
-		//else if (power_takeoff_system_cost_method == 3)
-			//power_takeoff = as_double("power_takeoff_system_cost_total");
 		if (mooring_found_substruc_cost_method == 0)
 			mooring_found_substruc = as_double("mooring_found_substruc_cost_input") * system_capacity_kW;
 		else if (mooring_found_substruc_cost_method == 1)
 			mooring_found_substruc = as_double("mooring_found_substruc_cost_input");
-		//else if (mooring_found_substruc_cost_method == 3)
-			//mooring_found_substruc = as_double("mooring_found_substruc_cost_total");
 
 		if (development_cost_method == 0)
 			development = as_double("development_cost_input") * system_capacity_kW;
@@ -346,20 +329,12 @@ public:
 		insurance_during_construction = 0.01 * capex;
 		reserve_accounts = 0.03 * capex;
 
-        
-
 		// Assign the CapEx-dependent outputs
 		assign("plant_commissioning_cost_modeled", var_data(static_cast<ssc_number_t>(plant_commissioning)));
 		assign("site_access_port_staging_cost_modeled", var_data(static_cast<ssc_number_t>(site_access_port_staging)));
 		assign("project_contingency", var_data(static_cast<ssc_number_t>(project_contingency)));
 		assign("insurance_during_construction", var_data(static_cast<ssc_number_t>(insurance_during_construction)));
 		assign("reserve_accounts", var_data(static_cast<ssc_number_t>(reserve_accounts)));
-
-		
-
-		
-
-		
 
 	}
 

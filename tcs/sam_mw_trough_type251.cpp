@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #define _TCSTYPEINTERFACE_
@@ -437,7 +427,7 @@ private:
     double * sgs_wallthicks;
     int l_sgs_lengths;
     double * sgs_lengths_in;
-    double dP_discharge;
+    double DP_SGS;
     double pb_fixed_par;
 	int l_bop_array;		
 	double * bop_array;
@@ -576,7 +566,7 @@ public:
         custom_tes_p_loss       = false;
         l_k_tes_loss_coeffs     = -1;
         k_tes_loss_coeffs_in    = 0;
-        dP_discharge    = std::numeric_limits<double>::quiet_NaN();
+        DP_SGS          = std::numeric_limits<double>::quiet_NaN();
 		pb_fixed_par	= std::numeric_limits<double>::quiet_NaN();
 		l_bop_array		= -1;
 		bop_array	= 0;
@@ -798,7 +788,7 @@ public:
         sgs_wallthicks = value(P_sgs_wallthicks, &l_sgs_wallthicks);    //[m]
         sgs_lengths_in = value(P_sgs_lengths, &l_sgs_lengths);             //[m]
         SGS_lengths.assign(sgs_lengths_in, l_sgs_lengths);
-        dP_discharge = value(P_dp_sgs) * 1.e5;              // bar to Pa;
+        DP_SGS = value(P_dp_sgs) * 1.e5;                    // bar to Pa;
 
 		pb_fixed_par	= value(P_pb_fixed_par);			//[-]
 	
@@ -1101,7 +1091,7 @@ public:
             T_field_out_at_des = value(I_T_field_out_at_des) + 273.15;
             P_field_in_at_des = value(I_P_field_in_at_des) * 1.e5;        // bar to Pa
 
-            size_sgs_piping_TandP(T_field_in_at_des, T_field_out_at_des, P_field_in_at_des, dP_discharge,
+            size_sgs_piping_TandP(T_field_in_at_des, T_field_out_at_des, P_field_in_at_des, DP_SGS,
                 SGS_lengths, k_tes_loss_coeffs, HDR_rough, tanks_in_parallel, SGS_diams, SGS_vel_des,
                 SGS_T_des, SGS_P_des);                          // Outputs
             
@@ -1891,13 +1881,13 @@ public:
 						pow( ((ms_charge + m_dot_pb - ms_disch) - m_dot_field_avail)/max(m_dot_field_avail, 1.e-6), 2) + 
 						pow( ((T_field_in - T_field_in_guess)/T_field_in), 2));
                 if (err_prev_iter != 0) {
-                    derr = std::abs((err - err_prev_iter) / err_prev_iter);
+                    derr = fabs((err - err_prev_iter) / err_prev_iter);
                 }
                 else if (err != 0) {
-                    derr = std::abs((err - err_prev_iter) / err);
+                    derr = fabs((err - err_prev_iter) / err);
                 }
                 else {
-                    derr = std::abs(err - err_prev_iter);
+                    derr = fabs(err - err_prev_iter);
                 }
 
 				err_prev_iter = err;
@@ -1917,7 +1907,7 @@ public:
 				{
 					// If the defocus control has changed during the calculations, bypass iteration and recalculate field output.
 					// Otherwise, the iteration will continue until the max # has been reached.
-                    if(std::abs(defocus - defocus_rel_prev_ncall) > 0.01 )
+                    if( abs(defocus - defocus_rel_prev_ncall) > 0.01 )
 					{
                         defocus_prev_iter = defocus;    // Does this do anything? iterate_mass_temp = false exits this loop, and defocus_prev_iter is set to 1 just before this loop
 						T_field_in = T_field_in_guess;	// MJW 12.8.2010
@@ -2163,14 +2153,14 @@ public:
             double rho_sf, rho_pb;
             double DP_col, DP_gen;
             sgs_pressure_drops(m_dot_field, m_dot_pb, SGS_v_dot_rel, T_field_in, T_field_out, T_pb_in, T_pb_out,
-                SGS_lengths, SGS_diams, HDR_rough, dP_discharge, k_tes_loss_coeffs, tanks_in_parallel, recirculating, DP_col, DP_gen);
+                SGS_lengths, SGS_diams, HDR_rough, DP_SGS, k_tes_loss_coeffs, tanks_in_parallel, recirculating, DP_col, DP_gen);
             rho_sf = field_htfProps.dens((T_field_in + T_field_out) / 2., 8e5);
             rho_pb = field_htfProps.dens((T_pb_in + T_pb_out) / 2., 1e5);
             if (is_hx) {
                 // TODO - replace tes_pump_coef with a pump efficiency. Maybe utilize unused coefficients specified for the
                 //  series configuration, namely the SGS Pump suction header to Individual SGS pump inlet and the additional
                 //  two immediately downstream
-                htf_pump_power = tes_pump_coef * std::abs(m_tank_disch - m_tank_charge) / 1000 +
+                htf_pump_power = tes_pump_coef * fabs(m_tank_disch - m_tank_charge) / 1000 +
                     (DP_col * m_dot_field / (rho_sf * eta_pump) + DP_gen * m_dot_pb / (rho_pb * eta_pump)) / 1e6;   //[MW]
             }
             else {
@@ -2179,11 +2169,11 @@ public:
         }
         else {    // original methods
             if (is_hx) {
-                htf_pump_power = (tes_pump_coef* std::abs(m_tank_disch - m_tank_charge) + pb_pump_coef * (std::abs(ms_disch - ms_charge) + m_dot_pb)) / 1000.0;	//[MW]
+                htf_pump_power = (tes_pump_coef*fabs(m_tank_disch - m_tank_charge) + pb_pump_coef * (fabs(ms_disch - ms_charge) + m_dot_pb)) / 1000.0;	//[MW]
             }
             else {
                 if (tanks_in_parallel) {
-                    htf_pump_power = pb_pump_coef * (std::abs(ms_disch - ms_charge) + m_dot_pb) / 1000.0;	//[MW]
+                    htf_pump_power = pb_pump_coef * (fabs(ms_disch - ms_charge) + m_dot_pb) / 1000.0;	//[MW]
                 }
                 else {
                     htf_pump_power = pb_pump_coef * m_dot_pb / 1000.0;	//[MW]
@@ -2420,7 +2410,7 @@ public:
         return 0;
     }
 
-    int size_sgs_piping_TandP(double T_field_in, double T_field_out, double P_field_in, double dP_discharge,
+    int size_sgs_piping_TandP(double T_field_in, double T_field_out, double P_field_in, double DP_SGS,
         const util::matrix_t<double> &L, const util::matrix_t<double> &k_tes_loss_coeffs, double pipe_rough,
         bool tanks_in_parallel, const util::matrix_t<double> &diams, const util::matrix_t<double> &vel,
         util::matrix_t<double> &SGS_T_des, util::matrix_t<double> &SGS_P_des)
@@ -2470,7 +2460,7 @@ public:
         
         // P_8
         ff = CSP::FrictionFactor(pipe_rough / diams.at(8), field_htfProps.Re(SGS_T_des.at(8), P_hi, vel.at(8), diams.at(8)));
-        SGS_P_des.at(8) = SGS_P_des.at(9) + dP_discharge + 
+        SGS_P_des.at(8) = SGS_P_des.at(9) + DP_SGS + 
             CSP::MajorPressureDrop(vel.at(8), rho_avg, ff, L.at(8), diams.at(8)) +
             CSP::MinorPressureDrop(vel.at(8), rho_avg, k_tes_loss_coeffs.at(8));
 
@@ -2545,10 +2535,10 @@ public:
         double k;                                     // effective minor loss coefficient
         double Re, ff;
         double v_dot_ref;
-        double dP_discharge;
+        double DP_SGS;
         std::vector<double> P_drops(num_sections, 0.0);
 
-        m_dot_pb > 0 ? dP_discharge = DP_SGS_nom : dP_discharge = 0.;
+        m_dot_pb > 0 ? DP_SGS = DP_SGS_nom : DP_SGS = 0.;
         v_dot_sf = m_dot_sf / field_htfProps.dens((T_sf_in + T_sf_out) / 2, (P_hi + P_lo) / 2);
         v_dot_pb = m_dot_pb / field_htfProps.dens((T_pb_in + T_pb_out) / 2, P_lo);
 
@@ -2575,7 +2565,7 @@ public:
         }
 
         P_drop_col = std::accumulate(P_drops.begin(), P_drops.begin() + gen_first_section, 0.0);
-        P_drop_gen = dP_discharge + std::accumulate(P_drops.begin() + gen_first_section, P_drops.end(), 0.0);
+        P_drop_gen = DP_SGS + std::accumulate(P_drops.begin() + gen_first_section, P_drops.end(), 0.0);
 
         return 0;
     }

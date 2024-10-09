@@ -1,36 +1,3 @@
-/*
-BSD 3-Clause License
-
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -72,20 +39,18 @@ int singleowner_common(ssc_data_t &data)
 	ssc_number_t p_om_fuel_cost[1] ={ 8 };
 	ssc_data_set_array( data, "om_fuel_cost", p_om_fuel_cost, 1 );
 	ssc_data_set_number( data, "om_fuel_cost_escal", 0 );
-    ssc_number_t itc_amount[1] = { 0 };
-    ssc_number_t itc_amount_max[1] = { 1e+38 };
-    ssc_data_set_array(data, "itc_fed_amount", itc_amount, 1);
-    ssc_data_set_array(data, "itc_sta_amount", itc_amount, 1);
-    ssc_data_set_array(data, "itc_fed_percent", itc_amount, 1);
-    ssc_data_set_array(data, "itc_sta_percent", itc_amount, 1);
-    ssc_data_set_array(data, "itc_fed_percent_maxvalue", itc_amount_max, 1);
-    ssc_data_set_array(data, "itc_sta_percent_maxvalue", itc_amount_max, 1);
-    ssc_data_set_number( data, "itc_fed_amount_deprbas_fed", 1 );
+	ssc_data_set_number( data, "itc_fed_amount", 0 );
+	ssc_data_set_number( data, "itc_fed_amount_deprbas_fed", 1 );
 	ssc_data_set_number( data, "itc_fed_amount_deprbas_sta", 1 );
+	ssc_data_set_number( data, "itc_sta_amount", 0 );
 	ssc_data_set_number( data, "itc_sta_amount_deprbas_fed", 0 );
 	ssc_data_set_number( data, "itc_sta_amount_deprbas_sta", 0 );
+	ssc_data_set_number( data, "itc_fed_percent", 0 );
+	ssc_data_set_number( data, "itc_fed_percent_maxvalue", 9.9999996802856925e+37 );
 	ssc_data_set_number( data, "itc_fed_percent_deprbas_fed", 1 );
 	ssc_data_set_number( data, "itc_fed_percent_deprbas_sta", 1 );
+	ssc_data_set_number( data, "itc_sta_percent", 0 );
+	ssc_data_set_number( data, "itc_sta_percent_maxvalue", 9.9999996802856925e+37 );
 	ssc_data_set_number( data, "itc_sta_percent_deprbas_fed", 0 );
 	ssc_data_set_number( data, "itc_sta_percent_deprbas_sta", 0 );
 	ssc_number_t p_ptc_fed_amount[1] ={ 0 };
@@ -190,10 +155,19 @@ int singleowner_common(ssc_data_t &data)
 	ssc_data_set_number( data, "pbi_oth_tax_sta", 1 );
 	ssc_number_t p_degradation[1] ={ 0 };
 	ssc_data_set_array( data, "degradation", p_degradation, 1 );
+	ssc_number_t p_roe_input[1] ={ 0 };
+	ssc_data_set_array( data, "roe_input", p_roe_input, 1 );
 	ssc_data_set_number( data, "loan_moratorium", 0 );
 	ssc_data_set_number( data, "system_use_recapitalization", 0 );
-    ssc_number_t p_dispatch_tod_factors[9] = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-    ssc_data_set_array(data, "dispatch_tod_factors", p_dispatch_tod_factors, 9);
+	ssc_data_set_number( data, "dispatch_factor1", 1 );
+	ssc_data_set_number( data, "dispatch_factor2", 1 );
+	ssc_data_set_number( data, "dispatch_factor3", 1 );
+	ssc_data_set_number( data, "dispatch_factor4", 1 );
+	ssc_data_set_number( data, "dispatch_factor5", 1 );
+	ssc_data_set_number( data, "dispatch_factor6", 1 );
+	ssc_data_set_number( data, "dispatch_factor7", 1 );
+	ssc_data_set_number( data, "dispatch_factor8", 1 );
+	ssc_data_set_number( data, "dispatch_factor9", 1 );
 	ssc_data_set_number( data, "total_installed_cost", 740249984 );
 	ssc_data_set_number( data, "reserves_interest", 1.75 );
 	ssc_data_set_number( data, "equip1_reserve_cost", 0.25 );
@@ -213,7 +187,7 @@ int singleowner_common(ssc_data_t &data)
 	ssc_data_set_number(data, "cp_battery_nameplate", 0);
 	ssc_data_set_array(data, "cp_capacity_credit_percent", p_ppa_price_input, 1);
 	ssc_data_set_array(data, "cp_capacity_payment_amount", p_ppa_price_input, 1);
-	ssc_data_set_number(data, "ppa_soln_mode", 1);
+	ssc_data_set_number(data, "ppa_soln_mode", 0);
 	ssc_data_set_number( data, "ppa_escalation", 1 );
 	ssc_data_set_number( data, "construction_financing_cost", 14805000 );
 	ssc_data_set_number( data, "term_tenor", 18 );

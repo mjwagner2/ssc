@@ -144,7 +144,6 @@ public:
 	//Declare the scripts
 	void DefineFluxPoints(var_receiver &V, int rec_geom, int nx=-1, int ny=-1);
 	void Normalize();
-    void Scale(double flux_mult /*-*/);
 	void ClearFluxGrid();
 	void ClearFluxGridResetMaxFlux();
 };

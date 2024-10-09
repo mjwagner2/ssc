@@ -1,36 +1,3 @@
-/*
-BSD 3-Clause License
-
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-
 #ifndef _SWH_COMMON_DATA_H_
 #define	_SWH_COMMON_DATA_H_
 
@@ -91,10 +58,8 @@ void swh_common(ssc_data_t &data) {
 	set_array(data, "custom_mains", swhtest::custom_mains, 8760);
 	ssc_data_set_number(data, "use_custom_set", 0);
 	set_array(data, "custom_set", swhtest::custom_set , 8760);
-	
-    ssc_data_set_number(data, "adjust_constant", 0.0);
-
-    ssc_data_set_number(data, "en_belpe", 0);
+	ssc_data_set_number(data, "adjust:constant", 0);
+	ssc_data_set_number(data, "en_belpe", 0);
 	set_array(data, "load", swhtest::load, 8760);
 	ssc_data_set_number(data, "floor_area", 2000);
 	ssc_data_set_number(data, "Stories", 2);
@@ -176,22 +141,18 @@ void swh_common(ssc_data_t &data) {
 	ssc_number_t p_om_fuel_cost[1] = { 0 };
 	ssc_data_set_array(data, "om_fuel_cost", p_om_fuel_cost, 1);
 	ssc_data_set_number(data, "om_fuel_cost_escal", 0);
-    ssc_number_t itc_amount[1] = { 0 };
-    ssc_number_t itc_fed_percent[1] = { 30 };
-    ssc_number_t itc_sta_percent[1] = { 0 };
-    ssc_number_t itc_amount_max[1] = { 1e+38 };
-    ssc_data_set_array(data, "itc_fed_amount", itc_amount, 1);
-    ssc_data_set_array(data, "itc_sta_amount", itc_amount, 1);
-    ssc_data_set_array(data, "itc_fed_percent", itc_fed_percent, 1);
-    ssc_data_set_array(data, "itc_sta_percent", itc_sta_percent, 1);
-    ssc_data_set_array(data, "itc_fed_percent_maxvalue", itc_amount_max, 1);
-    ssc_data_set_array(data, "itc_sta_percent_maxvalue", itc_amount_max, 1);
+	ssc_data_set_number(data, "itc_fed_amount", 0);
 	ssc_data_set_number(data, "itc_fed_amount_deprbas_fed", 1);
 	ssc_data_set_number(data, "itc_fed_amount_deprbas_sta", 1);
+	ssc_data_set_number(data, "itc_sta_amount", 0);
 	ssc_data_set_number(data, "itc_sta_amount_deprbas_fed", 0);
 	ssc_data_set_number(data, "itc_sta_amount_deprbas_sta", 0);
+	ssc_data_set_number(data, "itc_fed_percent", 30);
+	ssc_data_set_number(data, "itc_fed_percent_maxvalue", 9.9999996802856925e+37);
 	ssc_data_set_number(data, "itc_fed_percent_deprbas_fed", 1);
 	ssc_data_set_number(data, "itc_fed_percent_deprbas_sta", 1);
+	ssc_data_set_number(data, "itc_sta_percent", 0);
+	ssc_data_set_number(data, "itc_sta_percent_maxvalue", 9.9999996802856925e+37);
 	ssc_data_set_number(data, "itc_sta_percent_deprbas_fed", 0);
 	ssc_data_set_number(data, "itc_sta_percent_deprbas_sta", 0);
 	ssc_number_t p_ptc_fed_amount[1] = { 0 };

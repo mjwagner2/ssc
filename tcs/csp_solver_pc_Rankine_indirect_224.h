@@ -1,33 +1,23 @@
-/*
-BSD 3-Clause License
+/**
+BSD-3-Clause
+Copyright 2019 Alliance for Sustainable Energy, LLC
+Redistribution and use in source and binary forms, with or without modification, are permitted provided 
+that the following conditions are met :
+1.	Redistributions of source code must retain the above copyright notice, this list of conditions 
+and the following disclaimer.
+2.	Redistributions in binary form must reproduce the above copyright notice, this list of conditions 
+and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3.	Neither the name of the copyright holder nor the names of its contributors may be used to endorse 
+or promote products derived from this software without specific prior written permission.
 
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDER, CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES 
+DEPARTMENT OF ENERGY, NOR ANY OF THEIR EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __csp_solver_pc_Rankine_indirect_224_
@@ -56,56 +46,25 @@ private:
 	double m_F_wcMin;
 	double m_delta_h_steam;
 	double m_startup_energy_required;
-    double m_Psat_ref;      //[Pa]
-    double m_P_ND_ref;      //[-]
-    double m_Q_ND_ref;      //[-]
-
-    // Design-point conditions
-    double m_rh_des;        //[%]
-    double m_P_amb_des;     //[Pa]
-    double m_T_wb_des;      //[C]
-
-    // Cooler design - hardcoded
-    double m_evap_dt_out;	//[C/K] Temperature difference at hot side of the condenser
-
+	double m_eta_adj;
 
 	double m_m_dot_design;				//[kg/hr]
 	double m_m_dot_max;					//[kg/hr]
 	double m_m_dot_min;					//[kg/hr]
 	double m_q_dot_design;				//[MWt]
-    double m_q_dot_reject_des;          //[MWt]
 	double m_cp_htf_design;				//[kJ/kg-K]
-    double m_W_dot_htf_pump_des;          //[MWe]
-    double m_W_dot_cooling_des;         //[MWe]
 
-    double m_T_boil_des;                //[K]
-    double m_delatT_hot_to_boil_des;    //[C/K]
-
-	C_csp_power_cycle::E_csp_power_cycle_modes m_operating_mode_prev;
+	int m_standby_control_prev;
 	double m_startup_time_remain_prev;		//[hr]
 	double m_startup_energy_remain_prev;	//[kW-hr]
 
-    C_csp_power_cycle::E_csp_power_cycle_modes m_operating_mode_calc;
+	int m_standby_control_calc;
 	double m_startup_time_remain_calc;
 	double m_startup_energy_remain_calc;
 
 	util::matrix_t<double> m_db;
 
-    // UDPC calculated design metrics
-    int m_n_T_htf_pars, m_n_T_amb_pars, m_n_m_dot_pars;
-    double m_T_htf_ref_udpc_calc, m_T_htf_low_udpc_calc, m_T_htf_high_udpc_calc;
-    double m_T_amb_ref_udpc_calc, m_T_amb_low_udpc_calc, m_T_amb_high_udpc_calc;
-    double m_m_dot_htf_ref_udpc_calc, m_m_dot_htf_low_udpc_calc, m_m_dot_htf_high_udpc_calc;
-    double m_W_dot_gross_ND_des;
-    double m_Q_dot_HTF_ND_des;
-    double m_W_dot_cooling_ND_des;
-    double m_m_dot_water_ND_des;
-
 	HTFProperties mc_pc_htfProps;
-
-    std::shared_ptr<C_air_cooled_condenser> m_ACC;
-    std::shared_ptr<C_evap_tower> m_evap_tower;
-    std::shared_ptr<C_hybrid_cooling> m_hybrid_cooling;
 
 	// member string for exception messages
 	std::string m_error_msg;
@@ -118,57 +77,21 @@ private:
 
 	double GetFieldToTurbineTemperatureDropC() { return 25.0; }
 
-    void RankineCycle_V2(double T_db /*K*/, double T_wb /*K*/,
-        double P_amb /*Pa*/, double T_htf_hot /*C*/, double m_dot_htf /*kg/hr*/,
-        double F_wc /*-*/, double F_wcmin /*-*/, double F_wcmax /*-*/, double T_cold /*C*/, double dT_cw /*C*/,
+	//void RankineCycle(/*double time,*/double P_ref, double eta_ref, double T_htf_hot_ref, double T_htf_cold_ref, double T_db, double T_wb,
+	//	double P_amb, double dT_cw_ref, /*double HTF,*/ double c_p_w, double T_htf_hot, double m_dot_htf, int /*double*/ mode,
+	//	double demand_var, double P_boil, /*double tech_type,*/ double T_amb_des, double T_approach, double F_wc, double F_wcmin,
+	//	double F_wcmax, double T_ITD_des, double P_cond_ratio, /*double CT,*/ double P_cond_min, /*double n_pl_inc,*/
+	//	/*double& fcall, */ double& P_cycle, double& eta, double& T_htf_cold, double& m_dot_demand, double& m_dot_htf_ref,
+	//	double& m_dot_makeup, double& W_cool_par, double& f_hrsys, double& P_cond);
+
+    void RankineCycle(double T_db, double T_wb,
+		double P_amb, double T_htf_hot, double m_dot_htf, int mode,
+		double demand_var, double P_boil, double F_wc, double F_wcmin, double F_wcmax, double T_cold, double dT_cw,
         //outputs
-        double& P_cycle /*kWe*/, double& eta, double& T_htf_cold, double& m_dot_demand, double& m_dot_htf_ref,
-        double& m_dot_makeup, double& W_cool_par /*MWe*/, double& f_hrsys, double& P_cond /*Pa*/, double& T_cond_out /*C*/,
-        double& P_cond_iter_rel_err /*-*/);
-
-    void cycle_Rankine_ND(double T_htf_hot_ND /*-*/, double P_cond_iter_guess /*Pa*/, double m_dot_htf_ND /*-*/,
-        double& P_ND_tot /*-*/, double& Q_ND_tot /*-*/);
-
-    class C_MEQ__P_cond_OD : public C_monotonic_equation
-    {
-    private:
-        C_pc_Rankine_indirect_224* mpc_pc;
-        double m_T_htf_hot_ND;      //[-]
-        double m_m_dot_htf_ND;      //[-]
-        double m_T_db;              //[K]
-        double m_T_wb;              //[K]
-        double m_P_amb;             //[Pa]
-        double m_F_wc;              //[-]
-        double m_F_wcmin;           //[-]
-        double m_F_wcmax;           //[-]
-        double m_T_cold_rad;        //[C]
-        double m_dT_cw_rad_cooling;   //[C]
-
-        // Calculated
-        double m_P_cycle;       //[kWe]
-        double m_eta;           //[-]
-        double m_W_dot_cooling; //[MWe]
-        double m_m_dot_makeup;  //[kg/s]
-        double m_f_hrsys;       //[-]
-        double m_T_cond_out_rad;//[C]
-
-    public:
-
-        C_MEQ__P_cond_OD(C_pc_Rankine_indirect_224* pc_pc,
-            double T_htf_hot_ND /*-*/, double m_dot_htf_ND /*-*/,
-            double T_db /*K*/, double T_wb /*K*/, double P_amb /*Pa*/,
-            double F_wc /*-*/, double F_wcmin /*-*/, double F_wcmax /*-*/,
-            double T_cold_rad /*C*/, double dT_cw_rad_cooling /*C*/);
-
-        virtual int operator()(double P_cond /*Pa*/, double* diff_P_cond /*-*/) override;
-
-        void get_solved_values(double& P_cycle /*kWe*/, double& eta /*-*/, double& W_dot_cooling /*MWe*/,
-            double& m_dot_makeup /*kg/s*/, double& f_hrsys /*-*/, double& T_cond_out_rad /*C*/);
-    };
+        double& P_cycle, double& eta, double& T_htf_cold, double& m_dot_demand, double& m_dot_htf_ref,
+		double& m_dot_makeup, double& W_cool_par, double& f_hrsys, double& P_cond, double &T_cond_out);
 
 	double Interpolate(int YT, int XT, double X, double Z = std::numeric_limits<double>::quiet_NaN());
-
-    double Calculate_T_htf_cold_Converge_Cp(double q_dot_htf /*kWt*/, double T_htf_hot /*K*/, double m_dot_htf /*kg/s*/);
 
 	// Isopentane
 	double T_sat4(double P/*Bar*/) 
@@ -179,7 +102,19 @@ private:
 public:
 	
     enum
+    {
+        E_COL_T_HTF,
+        E_COL_M_DOT,
+        E_COL_T_AMB,
+        E_COL_W_CYL,
+        E_COL_Q_CYL,
+        E_COL_W_COOL,
+        E_COL_M_H2O
+    };
+
+    enum
 	{
+		E_ETA_THERMAL,		//[-] Cycle thermal efficiency (gross)
 		E_Q_DOT_HTF,		//[MWt] Cycle thermal power input
 		E_M_DOT_HTF,		//[kg/hr] Cycle HTF mass flow rate
 		E_Q_DOT_STARTUP,	//[MWt] Cycle startup thermal power
@@ -195,30 +130,21 @@ public:
 		E_M_DOT_WATER,		//[kg/hr] Cycle water consumption: makeup + cooling	
 		E_P_COND,			//[Pa] Cycle condensing pressure
 		E_RADCOOL_CNTRL,	//Code showing the status of radiative cooling with cold storage
-        E_W_DOT_HTF_PUMP,   //[MWe] HTF pump power
-        E_W_DOT_COOLER,     //[MWe] Cooling parasitic
-        E_P_COND_ITER_ERR,  //[-] Relative iteration error on condenser pressure
-
-        // State
-        E_PC_OP_MODE_FINAL, //[-] Final receiver operating mode (see E_csp_power_cycle_modes)
-        E_PC_STARTUP_TIME_REMAIN_FINAL,     //[hr] Final receiver startup time remaining
-        E_PC_STARTUP_ENERGY_REMAIN_FINAL,   //[W-hr] Final reeiver startup energy remaining
 
 		// Variables added for backwards compatability with TCS
-        E_ETA_THERMAL_STEP_AVERAGED,    //[-]
-		E_M_DOT_HTF_REF,		//[kg/hr] HTF mass flow rate at design
-
-        // Dependent output variables
-        E_ETA_THERMAL,		//[-] Cycle thermal efficiency (gross)
+		E_M_DOT_HTF_REF		//[kg/hr] HTF mass flow rate at design
 	};
 
 	C_csp_reported_outputs mc_reported_outputs;
+
+	// Class to save messages for up stream classes
+	C_csp_messages mc_csp_messages;
 	
 	// Instantiate two fully mixed tanks class for cold storage AND three node model
 	C_csp_cold_tes mc_two_tank_ctes;
-	C_csp_cold_tes::S_csp_cold_tes_outputs mc_two_tank_ctes_outputs;	// for outputs
+	C_csp_cold_tes::S_csp_tes_outputs mc_two_tank_ctes_outputs;	// for outputs
 	C_csp_stratified_tes mc_stratified_ctes;
-	C_csp_stratified_tes::S_csp_strat_tes_outputs mc_stratified_ctes_outputs;
+	C_csp_stratified_tes::S_csp_tes_outputs mc_stratified_ctes_outputs;
 
 	double m_dot_cold_avail;
 	double m_dot_warm_avail;
@@ -250,27 +176,18 @@ public:
 		double m_startup_time;		//[hr] time needed for power block startup
 		double m_startup_frac;		//[-] fraction of design thermal power needed for startup
 		double m_htf_pump_coef;		//[kW/kg/s] Pumping power to move 1 kg/s of HTF through power cycle
-
-        // Initial state parameters
-        C_csp_power_cycle::E_csp_power_cycle_modes m_operating_mode_initial;			//Operating mode at start of simulation
-        double m_startup_time_remain_init;		//[hr]
-        double m_startup_energy_remain_init;	//[kW-hr]
-
 		int m_pc_fl;				//[-] integer flag identifying Heat Transfer Fluid (HTF) in power block {1-27}
 		util::matrix_t<double> m_pc_fl_props;
         double DP_SGS;              //[bar] pressure drop within the steam generator system
 
-        bool m_is_calc_htf_pump_coef;   //[-] Default false, use m_htf_pump_coef
-        double m_W_dot_htf_pump_target; //[MWe]
 
 		// Steam Rankine or User-Defined
 		bool m_is_user_defined_pc;				//[-] True: user-defined power cycle, False: Built-in Rankine Cycle model
-        bool m_is_udpc_sco2_regr;               //[-] False: default, base udpc interpolation, True: use sco2 heuristic regression
 
 			// Parameters that have different SSCINPUT names for Rankine Cycle and User Defined Cycle
 		double m_dT_cw_ref;			//[C] design temp difference between cooling water inlet/outlet
 		double m_T_amb_des;			//[C] design ambient temperature
-		double m_P_boil_des;     	//[bar] boiler operating pressure
+		double m_P_boil;			//[bar] boiler operating pressure
 		int m_CT;					//[-] integer flag for cooling technology type {1=evaporative cooling, 2=air cooling, 3=hybrid cooling}
 		int m_tech_type;			//[-] Flag indicating which coef. set to use. (1=tower,2=trough,3=user) 
 		double m_T_approach;		//[C] cooling tower approach temp
@@ -281,34 +198,42 @@ public:
 		int m_n_pl_inc;				//[-] Number of part-load increments for the heat rejection system
 		
 		
-		std::vector<double> m_F_wc;		//[-] hybrid cooling dispatch fractions 1 thru 9 (array index 0-8)
+		std::vector<double> m_F_wc;		//[-] hybrid cooling dispatch fractions 1 thru 9 (array index 0-8)	
 		
 		// Parameters for user-defined power cycle
+			// Lookup table with dependent variables corresponding to parametric on independent variable T_htf_hot [C] (first column)
+		util::matrix_t<double> mc_T_htf_ind;	// At m_dot_htf levels (-, 0, +)
+		double m_T_htf_low;			//[C] Low level of T_htf corresponding to ambient temperature parametric (also must be included within range of independent T_HTF values)
+		double m_T_htf_high;		//[C] High level of T_htf corresponding to ambient temperature parametric (also must be included within range of independent T_HTF values)
+			// Lookup table with dependent variables corresponding to parametric on independent variable T_amb [C] (first column)
+		util::matrix_t<double> mc_T_amb_ind;	// At T_htf levels (-, 0, +)
+		double m_T_amb_low;			//[C] Low level of T_amb corresponding to m_dot_HTF parametric (also must be included within range of independent T_amb values)
+		double m_T_amb_high;		//[C] High level of T_amb corresponding to m_dot_HTF parametric (also must be included within range of independent T_amb values)
+			// Lookup table with dependent variables corresponding to parametric on independent variable m_dot_htf [ND] (first column)
+		util::matrix_t<double> mc_m_dot_htf_ind;	// At T_amb levels (-, 0, +)
+		double m_m_dot_htf_low;		//[-] Low level of m_dot_htf corresponding to T_HTF parametric (also must be included within range of independent T_htf values)
+		double m_m_dot_htf_high;	//[-] High level of m_dot_htf corresponding to T_HTF parametric (also must be included within range of independent T_htf_values)
             // Lookup table that is the combination of the three above T_htf_hot, T_amb, and m_dot_htf tables (this is the newer table format)
         util::matrix_t<double> mc_combined_ind;
+
 		double m_W_dot_cooling_des;		//[MW] Cooling parasitic at design conditions
 		double m_m_dot_water_des;		//[kg/s] Power cycle water use at design conditions
 
 		S_params()
 		{
 			m_P_ref = m_eta_ref = m_T_htf_hot_ref = m_T_htf_cold_ref = m_dT_cw_ref = m_T_amb_des =
-				m_q_sby_frac = m_P_boil_des = m_startup_time = m_startup_frac = m_T_approach = m_T_ITD_des =
+				m_q_sby_frac = m_P_boil = m_startup_time = m_startup_frac = m_T_approach = m_T_ITD_des =
 				m_P_cond_ratio = m_pb_bd_frac = m_P_cond_min = m_htf_pump_coef = std::numeric_limits<double>::quiet_NaN();
 
-            m_W_dot_htf_pump_target = std::numeric_limits<double>::quiet_NaN();
-
 			m_pc_fl = m_CT = m_tech_type = m_n_pl_inc = -1;
-            m_is_calc_htf_pump_coef = false;
 
 			// Initialize parameters for user-defined power cycle
 			m_is_user_defined_pc = false;
-            m_is_udpc_sco2_regr = false;
-				
-			m_W_dot_cooling_des = m_m_dot_water_des = std::numeric_limits<double>::quiet_NaN();
-
-            m_operating_mode_initial = C_csp_power_cycle::E_csp_power_cycle_modes::OFF;
-            m_startup_time_remain_init = std::numeric_limits<double>::quiet_NaN();		//[hr]
-            m_startup_energy_remain_init = std::numeric_limits<double>::quiet_NaN();	//[kW-hr]
+			
+			m_T_htf_low = m_T_htf_high =
+				m_T_amb_low = m_T_amb_high =
+				m_m_dot_htf_low = m_m_dot_htf_high =				
+				m_W_dot_cooling_des = m_m_dot_water_des = std::numeric_limits<double>::quiet_NaN();
 		}
 	};
 
@@ -320,7 +245,7 @@ public:
 
 	virtual void init(C_csp_power_cycle::S_solved_params &solved_params);
 
-	virtual C_csp_power_cycle::E_csp_power_cycle_modes get_operating_state();
+	virtual int get_operating_state();
 
     virtual double get_cold_startup_time(); 
     virtual double get_warm_startup_time();
@@ -354,25 +279,29 @@ public:
 
 	virtual void assign(int index, double *p_reporting_ts_array, size_t n_reporting_ts_array);
 
-    void get_design_parameters(double& m_dot_htf_des /*kg/hr*/,
-        double& cp_htf_des_at_T_ave /*kJ/kg-K*/,
-        double& W_dot_htf_pump /*MWe*/, double& W_dot_cooling /*MWe*/,
-        // UDPC
-        int& n_T_htf_pars, int& n_T_amb_pars, int& n_m_dot_pars,
-        double& T_htf_ref_calc /*C*/, double& T_htf_low_calc /*C*/, double& T_htf_high_calc /*C*/,
-        double& T_amb_ref_calc /*C*/, double& T_amb_low_calc /*C*/, double& T_amb_high_calc /*C*/,
-        double& m_dot_htf_ND_ref_calc, double& m_dot_htf_ND_low_calc /*-*/, double& m_dot_htf_ND_high_calc /*-*/,
-        double& W_dot_gross_ND_des, double& Q_dot_HTF_ND_des, double& W_dot_cooling_ND_des, double& m_dot_water_ND_des);
-
-    double get_design_input_cooling_power()
-    {
-        // For the UDPC model, the calculated design value can be different
-        // than the input design value due to the UDPC data not = 1 at the design independent variables
-
-        // This will return NaN if not using the UDPC model
-        return ms_params.m_W_dot_cooling_des;   //[MWe]
-    }
 };
+
+void get_var_setup(std::vector<double> & vec_unique, std::vector<double> & var_vec,
+    double & var_des, double & var_low, double & var_high);
+
+bool is_level_in_par(std::vector<std::vector<double>> test_combs,
+    std::vector<std::vector<double>> full_table);
+
+int split_ind_tbl(util::matrix_t<double> &combined, util::matrix_t<double> &T_htf_ind,
+    util::matrix_t<double> &m_dot_ind, util::matrix_t<double> &T_amb_ind);
+
+int split_ind_tbl(util::matrix_t<double> &combined, util::matrix_t<double> &T_htf_ind,
+    util::matrix_t<double> &m_dot_ind, util::matrix_t<double> &T_amb_ind,
+    int & n_T_htf_pars, int & n_T_amb_pars, int & n_m_dot_pars,
+    double & m_dot_low, double & m_dot_des, double & m_dot_high,
+    double & T_htf_low, double & T_htf_des, double & T_htf_high,
+    double & T_amb_low, double & T_amb_des, double & T_amb_high);
+
+int combine_ind_tbl(util::matrix_t<double>& combined, util::matrix_t<double>& T_htf_ind,
+	util::matrix_t<double>& m_dot_ind, util::matrix_t<double>& T_amb_ind,
+	double m_dot_low, double m_dot_des, double m_dot_high,
+	double T_htf_low, double T_htf_des, double T_htf_high,
+	double T_amb_low, double T_amb_des, double T_amb_high);
 
 
 #endif //__csp_solver_pc_Rankine_indirect_224_

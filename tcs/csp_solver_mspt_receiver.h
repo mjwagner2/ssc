@@ -1,95 +1,136 @@
-/*
-BSD 3-Clause License
-
-Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/ssc/blob/develop/LICENSE
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+/*******************************************************************************************************
+*  Copyright 2017 Alliance for Sustainable Energy, LLC
+*
+*  NOTICE: This software was developed at least in part by Alliance for Sustainable Energy, LLC
+*  (“Alliance”) under Contract No. DE-AC36-08GO28308 with the U.S. Department of Energy and the U.S.
+*  The Government retains for itself and others acting on its behalf a nonexclusive, paid-up,
+*  irrevocable worldwide license in the software to reproduce, prepare derivative works, distribute
+*  copies to the public, perform publicly and display publicly, and to permit others to do so.
+*
+*  Redistribution and use in source and binary forms, with or without modification, are permitted
+*  provided that the following conditions are met:
+*
+*  1. Redistributions of source code must retain the above copyright notice, the above government
+*  rights notice, this list of conditions and the following disclaimer.
+*
+*  2. Redistributions in binary form must reproduce the above copyright notice, the above government
+*  rights notice, this list of conditions and the following disclaimer in the documentation and/or
+*  other materials provided with the distribution.
+*
+*  3. The entire corresponding source code of any redistribution, with or without modification, by a
+*  research entity, including but not limited to any contracting manager/operator of a United States
+*  National Laboratory, any institution of higher learning, and any non-profit organization, must be
+*  made publicly available under this license for as long as the redistribution is made available by
+*  the research entity.
+*
+*  4. Redistribution of this software, without modification, must refer to the software by the same
+*  designation. Redistribution of a modified version of this software (i) may not refer to the modified
+*  version by the same designation, or by any confusingly similar designation, and (ii) must refer to
+*  the underlying software originally provided by Alliance as “System Advisor Model” or “SAM”. Except
+*  to comply with the foregoing, the terms “System Advisor Model”, “SAM”, or any confusingly similar
+*  designation may not be used to refer to any modified version of this software or any modified
+*  version of the underlying software originally provided by Alliance without the prior written consent
+*  of Alliance.
+*
+*  5. The name of the copyright holder, contributors, the United States Government, the United States
+*  Department of Energy, or any of their employees may not be used to endorse or promote products
+*  derived from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+*  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+*  FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER,
+*  CONTRIBUTORS, UNITED STATES GOVERNMENT OR UNITED STATES DEPARTMENT OF ENERGY, NOR ANY OF THEIR
+*  EMPLOYEES, BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+*  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+*  IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+*  THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*******************************************************************************************************/
 
 #ifndef __csp_solver_mspt_receiver_
 #define __csp_solver_mspt_receiver_
 
+#include "ngcc_powerblock.h"
 #include "csp_solver_pt_receiver.h"
 #include "csp_solver_util.h"
-#include "csp_solver_mspt_receiver_222.h"
 
-class C_mspt_receiver : public C_mspt_receiver_222
+class C_mspt_receiver : public C_pt_receiver
 {
 // The transient receiver, including legacy steady-state receiver code for either non-transient startup or non-transient operation
 
 private:
+    ngcc_power_cycle cycle_calcs;
+
+	double m_id_tube;
+	double m_A_tube;
+	int m_n_t;
+	double m_A_rec_proj;
+	double m_A_node;
 	
+	double m_Q_dot_piping_loss;		//[Wt] = Constant thermal losses from piping to env. = (THT*length_mult + length_add) * piping_loss_coef
+
+	int m_itermode;
+	double m_od_control;
+	double m_eta_field_iter_prev;	//[-] Efficiency from heliostat on last iteration. Maybe change if CR gets defocus signal from controller
+	double m_tol_od;
+
+	/* declare storage variables here */
+	double m_E_su;
+	double m_E_su_prev;
+	double m_t_su;
+	double m_t_su_prev;
+
+	util::matrix_t<int> m_flow_pattern;
+	int m_n_lines;
+
+	util::matrix_t<double> m_flux_in;
+
+	util::matrix_t<double> m_q_dot_inc;
+
+	util::matrix_t<double> m_T_s_guess;
+	util::matrix_t<double> m_T_s;
+	util::matrix_t<double> m_T_panel_out_guess;
+	util::matrix_t<double> m_T_panel_out;
+	util::matrix_t<double> m_T_panel_in_guess;
+	util::matrix_t<double> m_T_panel_in;
+	util::matrix_t<double> m_T_panel_ave;
+	util::matrix_t<double> m_T_panel_ave_guess;
+	util::matrix_t<double> m_T_film;
+	util::matrix_t<double> m_q_dot_conv;
+	util::matrix_t<double> m_q_dot_rad;
+	util::matrix_t<double> m_q_dot_loss;
+	util::matrix_t<double> m_q_dot_abs;
+
+	double m_m_mixed;
+	double m_LoverD;
+	double m_RelRough;
+
+	// ISCC-specific
+	double m_T_amb_low;
+	double m_T_amb_high;
+	double m_P_amb_low;
+	double m_P_amb_high;
+	double m_q_iscc_max;
+
 	// track number of calls per timestep, reset = -1 in converged() call
 	int m_ncall;
 
-	//-------------------
-    // Set in constructor
-    bool m_is_transient;			// Use transient model?
-    bool m_is_startup_transient;	// Use transient startup model?
-    double m_rec_tm_mult;			//[-], receiver thermal mass multiplier
-    double m_u_riser;				//[m/s], 
-    double m_th_riser;				//[mm], convert to [m] in init()
-    double m_riser_tm_mult;			//[-], riser thermal mass multiplier
-    double m_downc_tm_mult;			//[-], downcomer thermal mass multiplier
-    double m_heat_trace_power;		//[kW/m], convert to [W/m] in init()
-    double m_tube_flux_preheat;		//[kW/m2]
-    double m_min_preheat_time;      //[s] Minimum time required in preheat startup stage
-    double m_fill_time;				//[s] Time requirement to fill receiver
-    double m_flux_ramp_time;		//[s] 
-    double m_preheat_target;		//[K]
-    double m_startup_target_delta;	//[C/K], (target temperature at end of startup) - (steady state temperature at current conditions )
-    double m_initial_temperature;	//[K]
-
-    bool m_is_startup_from_solved_profile;  // Begin receiver startup from solved temperature profiles?
-    bool m_is_enforce_min_startup;		// Always enforce minimum startup time?  If false, minimum startup time is ignored when receiver starts above preheat temperature
-
-    // Transient model parameters
+	//Transient model parameters
 	int m_startup_mode;
 	int m_startup_mode_initial;
-	int m_n_call_fill;
-	int m_n_call_fill_initial;
-
-
+	int m_n_call_circ;
+	int m_n_call_circ_initial;
 	double m_id_riser;				//[m]
 	double m_od_riser;				//[m]
 	double m_id_downc;				//[m]
 	double m_od_downc;				//[m]
-    double m_th_downc;				//[m]
-
+	double m_Rtot_riser;		//[K*m/W]
+	double m_Rtot_downc;		//[K*m/W]
 	double m_total_startup_time; // [s]
 	double m_total_startup_time_initial; //[s]
 	double m_minimum_startup_time; //s
 	double m_total_ramping_time; //s
 	double m_total_ramping_time_initial; //s
-	double m_total_fill_time;
-	double m_total_fill_time_initial;
-	double m_total_preheat_time;
-	double m_total_preheat_time_initial;
-	int m_crossover_index;
 
 
 	int m_n_elem;
@@ -104,20 +145,13 @@ private:
 
 	struct transient_inputs
 	{
-		size_t nelem;
-		size_t nztot;
-		size_t npath;
+		int nelem;
+		int nztot;
+		int npath;
 		double inlet_temp;
 		util::matrix_t<double> lam1, lam2, cval, aval, tinit, tinit_wall, Rtube;
         std::vector<double> length, zpts;
         std::vector<int> nz, startpt;
-
-		transient_inputs()
-		{
-			nelem = nztot = npath = 0;
-			inlet_temp = std::numeric_limits<double>::quiet_NaN();
-		}
-
 	} trans_inputs;
 
 	struct transient_outputs
@@ -132,7 +166,6 @@ private:
 		double timeavg_piping_loss;				// Time-averaged thermal loss from piping [W]
 		double timeavg_qthermal;				// Average thermal power sent to power cycle or storage during the time step [W]
 		double timeavg_qnet;					// Average net thermal power absorbed by the receiver during the time step [W]
-		double timeavg_qheattrace;				// Average heat trace thermal input during the time step [W]
 		double timeavg_eta_therm;				// Time-averaged thermal efficiency of the receiver 
 		double time_min_tout;					// Time at which minimum downcomer outlet T occurs
 		double tube_temp_inlet;					// Receiver inlet tube wall temperature at the end of the the time step [K]
@@ -142,35 +175,16 @@ private:
 		util::matrix_t<double> t_profile_wall;	// Axial wall temperature profile at the end of the time step[K]
 		util::matrix_t<double> timeavg_temp;	// Time-average outlet temperature of each flow element [K]
 
-		transient_outputs()
-		{
-			timeavg_tout = tout = max_tout = min_tout = max_rec_tout = timeavg_conv_loss = timeavg_rad_loss = timeavg_piping_loss = std::numeric_limits<double>::quiet_NaN();
-			timeavg_qthermal = timeavg_qnet = timeavg_qheattrace  = timeavg_eta_therm = time_min_tout = tube_temp_inlet = tube_temp_outlet = std::numeric_limits<double>::quiet_NaN();
-		}
-
 	} trans_outputs;
 
 	struct parameter_eval_inputs
 	{
 		double T_amb, T_sky, pres, wspd, c_htf, rho_htf, mu_htf, k_htf, Pr_htf, mflow_tot, finitial, ffinal, ramptime;
 		std::vector<double> tm;
-		util::matrix_t<double> Tfeval, Tseval, qinc, qheattrace;
-		
-		parameter_eval_inputs()
-		{
-			T_amb = T_sky = pres = wspd = c_htf = rho_htf = mu_htf = k_htf = Pr_htf = mflow_tot = finitial = ffinal = ramptime = std::numeric_limits<double>::quiet_NaN();
-		}
-
+		util::matrix_t<double> Tfeval, Tseval, qinc;
 	} param_inputs;
 
-
-
-	void initialize_transient_parameters();
-
-
-	double calc_external_convection_coeff(double T_amb, double P_amb, double wspd, double Twall);
-	void calc_thermal_loss(double Ts, double T_amb, double T_sky, double P_amb, double wspd, double &hext, double &qconv, double &qrad);
-	void calc_surface_temperature(double Tf, double qabs, double Rtube, double OD, double T_amb, double T_sky, double P_amb, double wspd, double &Tsguess);
+	double calc_external_convection_coeff(const parameter_eval_inputs &pinputs, double Twall);
 	void calc_header_size(double pdrop, double mdot, double rhof, double muf, double Lh, double &id_calc, double &th_calc, double &od_calc);
 	double interpolate(double x, const std::vector<double> &xarray, const std::vector<double> &yarray, int klow, int khigh);
 	double integrate(double xlow, double xhigh, const std::vector<double> &xarray, const std::vector<double> &yarray, int klow, int khigh);
@@ -181,68 +195,103 @@ private:
 	
 	void calc_ss_profile(const transient_inputs &tinputs, util::matrix_t<double> &tprofile, util::matrix_t<double> &tprofile_wall);
 	void calc_axial_profile( double tpt, const transient_inputs &tinputs, util::matrix_t<double> &tprofile);
-	void calc_extreme_outlet_values(double tstep, int flowid, const transient_inputs &tinputs, util::matrix_t<double> &textreme, util::matrix_t<double> &tpt);	
-	void initialize_transient_param_inputs(const s_steady_state_soln &soln, parameter_eval_inputs &pinputs);
+	void calc_extreme_outlet_values(double tstep, int flowid, const transient_inputs &tinputs, util::matrix_t<double> &textreme, util::matrix_t<double> &tpt);
 	void update_pde_parameters(bool use_initial_t, parameter_eval_inputs &pinputs, transient_inputs &tinputs);
 	void solve_transient_model(double tstep, double allowable_Trise, parameter_eval_inputs &pinputs, transient_inputs &tinputs, transient_outputs &toutputs);
-	void solve_transient_startup_model(parameter_eval_inputs &pinputs, transient_inputs &tinputs, int startup_mode, double target_temperature, double min_time, double max_time, transient_outputs &toutputs, double &startup_time, double &energy, double &parasitic);
-	void set_heattrace_power(bool is_maintain_T, double Ttarget, double time, parameter_eval_inputs &pinputs, transient_inputs &tinputs);
+	void solve_transient_startup_model(parameter_eval_inputs &pinputs, transient_inputs &tinputs, int startup_mode, double target_temperature, double min_time, double max_time, transient_outputs &toutputs, double &startup_time, double &energy);
 
 	enum startup_modes
 	{
 		HEAT_TRACE = 0,		// No flux on receiver, riser/downcomer heated with heat tracing
 		PREHEAT,			// Low flux on receiver, no HTF flow
-		PREHEAT_HOLD,		// Preheat temperature requirement has been met, but not time requirement.  Low flux on receiver, no HTF flow
-		FILL,				// User-defined time delay for filling the receiver/piping
-		CIRCULATE,			// Full available power on receiver (with optional ramp rate), HTF mass flow rate selected to hit target hot at steady state
+		CIRCULATE,			// Full available power on receiver, HTF mass flow rate selected to hit target hot at SS
 		HOLD				// Models predict that startup has been completed, but minimum startup time has not yet been reached.  Fluid continues to circulate through the receiver.  
 	};
 
-
 public:
+	// Class to save messages for up stream classes
+	C_csp_messages csp_messages;
+
+	// Data
+	int m_n_panels;					//[-]
+	double m_d_rec;					//[m]
+	double m_h_rec;					//[m]
+	double m_od_tube;				//[mm], convert to [m] in init()
+	double m_th_tube;				//[mm], convert to [m] in init()
+	double m_hl_ffact;				//[-]
+	double m_A_sf;					//[m2]
+
+	// 8.10.2015 twn: add tower piping thermal losses to receiver performance
+	double m_pipe_loss_per_m;		//[Wt/m]
+	double m_pipe_length_add;		//[m]
+	double m_pipe_length_mult;		//[-]
+
+	// 7.13.17 twn: keep this public for now so iscc can calculate
+	double m_m_dot_htf_max;			//[kg/s]
+
+
+	int m_n_flux_x;
+	int m_n_flux_y;
+
+	// Transient model 
+	bool m_is_transient;			// Use transient model?
+	bool m_is_startup_transient;	// Use transient startup model?
+	double m_rec_tm_mult;			//[-], receiver thermal mass multiplier
+	double m_u_riser;				//[m/s], 
+	double m_th_riser;				//[mm], convert to [m] in init()
+	double m_th_downc;				//[mm], convert to [m] in init()
+	double m_piping_loss_coeff;		//[W/m2/K]
+	double m_riser_tm_mult;			//[-], riser thermal mass multiplier
+	double m_downc_tm_mult;			//[-], downcomer thermal mass multiplier
+	double m_heat_trace_power;		//[kW/m], convert to [W/m] in init()
+	double m_tube_flux_preheat;		//[kW/m2]
+	double m_flux_ramp_time;		//[hr], convert to [s] in init()
+	double m_preheat_target;		//[C], convert to [k] in init()
+	double m_startup_target;		//[C], convert to [k] in init()
+	double m_initial_temperature;	//[C], convert to [K] in init()
+
+	bool m_is_startup_from_solved_profile;  // Begin receiver startup from solved temperature profiles?
+	bool m_is_enforce_min_startup;		// Always enforce minimum startup time?  If false, minimum startup time is ignored when receiver starts above preheat temperature
+
+		// 4.17.15 twn: former TCS inputs, moved to member data because are constant throughout simulation
+	double m_T_salt_hot_target;			//[C], convert to K in init() call
+	double m_hel_stow_deploy;			//[-]
+
+		// Added for csp_solver/tcs wrappers:
+	int m_field_fl;
+	util::matrix_t<double> m_field_fl_props;	
+	int m_mat_tube;
+	int m_flow_type;
+    int m_crossover_shift;
+
+		// ISCC specific
+	bool m_is_iscc;
+	int m_cycle_config;
+	
+	S_outputs outputs;
 
 	// Methods
-	C_mspt_receiver(double h_tower, double epsilon /*-*/,
-        double T_htf_hot_des /*C*/, double T_htf_cold_des /*C*/,
-        double f_rec_min /*-*/, double q_dot_rec_des /*MWt*/,
-        double rec_su_delay /*hr*/, double rec_qf_delay /*-*/,
-        double m_dot_htf_max_frac /*-*/, double eta_pump /*-*/,
-        double od_tube /*mm*/, double th_tube /*mm*/,
-        double piping_loss_coefficient /*Wt/m2-K*/, double pipe_length_add /*m*/, double pipe_length_mult /*-*/,
-        int field_fl, util::matrix_t<double> field_fl_props,
-        int tube_mat_code /*-*/,
-        int night_recirc /*-*/,
-        int n_panels /*-*/, double d_rec /*m*/, double h_rec /*m*/,
-        int flow_type /*-*/, int crossover_shift /*-*/, double hl_ffact /*-*/,
-        double T_salt_hot_target /*C*/, double csky_frac /*-*/,
-        bool is_calc_od_tube /*-*/, double W_dot_rec_target /*MWe*/,
-        bool is_transient /*-*/, bool is_startup_transient /*-*/,
-        double rec_tm_mult /*-*/, double u_riser /*m/s*/,
-        double th_riser /*mm*/, double riser_tm_mult /*-*/,
-        double downc_tm_mult /*-*/, double heat_trace_power /*kW/m*/,
-        double tube_flux_preheat /*kW/m2*/, double min_preheat_time /*hr*/,
-        double fill_time /*hr*/, double flux_ramp_time /*hr*/,
-        double preheat_target /*C*/, double startup_target_delta /*C*/,
-        double initial_temperature /*C*/,
-        bool is_startup_from_solved_profile, bool is_enforce_min_startup);
+	C_mspt_receiver();
 
 	~C_mspt_receiver(){};
 
-	void init() override;
+	virtual void init();
 
-    void call(double step /*s*/,
-        double P_amb /*Pa*/, double T_amb /*K*/, double T_sky /*K*/,
-        double clearsky_to_input_dni /*-*/,
-        double v_wind_10 /*m/s*/, 
-        double plant_defocus /*-*/,
-        const util::matrix_t<double>* flux_map_input, C_csp_collector_receiver::E_csp_cr_modes input_operation_mode,
-        double T_salt_cold_in /*K*/) override;
+	virtual void call(const C_csp_weatherreader::S_outputs &weather, 
+		const C_csp_solver_htf_1state &htf_state_in, 
+		const C_pt_receiver::S_inputs &inputs,
+		const C_csp_solver_sim_info &sim_info);
 
-	void off(const C_csp_weatherreader::S_outputs &weather,
+	virtual void off(const C_csp_weatherreader::S_outputs &weather,
 		const C_csp_solver_htf_1state &htf_state_in,
-		const C_csp_solver_sim_info &sim_info) override;
+		const C_csp_solver_sim_info &sim_info);
 
-	void converged() override;
+	virtual void converged();
+
+    void calc_pump_performance(double rho_f, double mdot, double ffact, double &PresDrop_calc,
+        double &WdotPump_calc);
+
+    virtual double get_pumping_parasitic_coef();
 
 	void est_startup_time_energy(double fract, double &est_time, double &est_energy);
 
@@ -251,6 +300,8 @@ public:
     virtual double get_startup_time();
 
     virtual double get_startup_energy();
+
+    virtual double area_proj();
 };
 
 #endif // __csp_solver_mspt_receiver_222_

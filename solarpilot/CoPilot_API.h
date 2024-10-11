@@ -113,7 +113,7 @@ extern "C" {
 
     SPEXPORT bool sp_drop_heliostat_template(sp_data_t p_data, const char* heliostat_name);
 
-    SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int* nrecord, int* ncol);
+    SPEXPORT sp_number_t* sp_generate_weather_simulation_data(sp_data_t p_data, int* nrecord, int* ncol, int sim_method);
 
     SPEXPORT bool sp_update_geometry(sp_data_t p_data);
 

@@ -920,33 +920,33 @@ bool _load_weather_file(var_map* V, ArrayString &wf_output)
 }
 
 
-SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord, int *ncol)
+sp_number_t* sp_generate_weather_simulation_data(sp_data_t p_data, int *nrecord, int *ncol, int sim_method)
 {
     /*
-    Generate the simulation days and hours needed to evaluate performance of the field over time. This 
+    Generate the weather simulation data and hours needed to evaluate performance of the field over time. This 
     function is provided as a convenience for generating this information, but is called internally
     by the layout algorithm when needed.
-
-    This function requires that the solar field has been previously created and exists in the Copilot object
     */
     CopilotObject* mc = static_cast<CopilotObject*>(p_data);
     var_map* V = &mc->variables;
     SolarField* SF = &mc->solarfield;
     SimControl* SC = &mc->sim_control;
 
-    if (SF->getHeliostatObjects()->size() == 0)
+
+    ArrayString local_wfdat;
+    if (!_load_weather_file(V, local_wfdat))
     {
-        throw(std::runtime_error("The function sp_generate_simulation_days requires an existing field layout."));
-        return 0;
+        std::string msg = "'generate_layout' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return 0; //error
     }
+    interop::GenerateSimulationWeatherData(*V, sim_method, local_wfdat);
 
     WeatherData* wd = &V->sf.sim_step_data.Val();
     *nrecord = wd->_N_items;
-
     *ncol = 9; 
     
     sp_number_t* simsteps_out = new sp_number_t[(*ncol) * (*nrecord)];
-
     DateTime DT;
 
     for (int i = 0; i < *nrecord; i++)
@@ -975,7 +975,6 @@ SPEXPORT sp_number_t* sp_generate_simulation_days(sp_data_t p_data, int *nrecord
     return simsteps_out;
 }
 
-
 SPEXPORT bool sp_update_geometry(sp_data_t p_data)
 {
     /*
@@ -997,15 +996,12 @@ SPEXPORT bool sp_update_geometry(sp_data_t p_data)
     }
 
     ArrayString local_wfdat;
-
     if(! _load_weather_file(V, local_wfdat))
     {
         std::string msg = "'update_geometry' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
         SC->message_callback(msg.c_str(), SC->message_callback_data);
         return false; //error
     }
-
-    // Function seems to only update var_map with simulation data through GenearateSimulationWeatherData()
     interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
 
     //Set up the solar field
@@ -1093,37 +1089,13 @@ SPEXPORT bool sp_generate_layout(sp_data_t p_data, int nthreads = 0) //, bool sa
         return false;
     }
 
-    std::string weatherfile_str = std::string(V->amb.weather_file.val);
-    Ambient::readWeatherFile(*V);
-
-    //Saving local verison of weather data
-    weatherfile wf;
-    if (!wf.open(weatherfile_str))
-    {
-        std::string msg = "ERROR: Failed to open weather file.  Please check provided file path.";
-        SC->message_callback(msg.c_str(), SC->message_callback_data);
-    	return false; //error
-    }
-
-    //Update the weather data
-    std::string linef = "%d,%d,%d,%.2f,%.1f,%.1f,%.1f";
-    char cline[300];
-
-    int nrec = (int)wf.nrecords();
-
     ArrayString local_wfdat;
-    local_wfdat.resize(nrec);
-
-    weather_record wrec;
-    for (int i = 0; i < nrec; i++)
+    if (!_load_weather_file(V, local_wfdat))
     {
-        //int year, month, day, hour;
-        wf.read(&wrec);
-        sprintf(cline, linef.c_str(), wrec.day, wrec.hour, wrec.month, wrec.dn, wrec.tdry, wrec.pres / 1000., wrec.wspd);
-        std::string line(cline);
-        local_wfdat.at(i) = line;
+        std::string msg = "'generate_layout' function cannot find weather file.\n Please adjust desired file path or location to be consistent.";
+        SC->message_callback(msg.c_str(), SC->message_callback_data);
+        return false; //error
     }
-
     interop::GenerateSimulationWeatherData(*V, V->sf.des_sim_detail.mapval(), local_wfdat);
 
 

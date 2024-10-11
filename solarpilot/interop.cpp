@@ -168,15 +168,12 @@ void interop::GenerateSimulationWeatherData(var_map &V, int design_method, Array
 	switch (design_method)
 	{
     case var_solarfield::DES_SIM_DETAIL::SUBSET_OF_DAYSHOURS:
-	//case LAYOUT_DETAIL::SUBSET_HOURS:
-
 	{		//Subset of days/hours
 		//Need to add this still
 		V.amb.sim_time_step.Setval(0.);
 		throw spexception("Simulation with a user-specified list of days/hours is not currently supported. Please use another option.");
 		//break;
 	}
-	//case LAYOUT_DETAIL::SINGLE_POINT:
     case var_solarfield::DES_SIM_DETAIL::SINGLE_SIMULATION_POINT:
 	{  //2) Single design point=1;
 		V.amb.sim_time_step.Setval(0.);
@@ -201,14 +198,12 @@ void interop::GenerateSimulationWeatherData(var_map &V, int design_method, Array
         wdatvar->setStep(0, dom, hour, month, P.dni, P.Tamb, P.Patm, P.Vwind, P.Simweight);
 		break;
 	}
-	//case LAYOUT_DETAIL::NO_FILTER:
     case var_solarfield::DES_SIM_DETAIL::DO_NOT_FILTER_HELIOSTATS:
 	{	//3) Do not filter heliostats=0;
 		wdatvar->clear();
 		V.amb.sim_time_step.Setval(0.);
 		break;
 	}
-	//case LAYOUT_DETAIL::FULL_ANNUAL:
     case var_solarfield::DES_SIM_DETAIL::ANNUAL_SIMULATION:
 	{	//4) Annual simulation=3;
 		*wdatvar = WeatherData(V.amb.wf_data.val); //vset["ambient"][0]["wf_data"].value;
@@ -217,7 +212,6 @@ void interop::GenerateSimulationWeatherData(var_map &V, int design_method, Array
 		V.amb.sim_time_step.Setval(3600.);
 		break;
 	}
-	//case LAYOUT_DETAIL::MAP_TO_ANNUAL:
     case var_solarfield::DES_SIM_DETAIL::EFFICIENCY_MAP__ANNUAL:
 	{  //Efficiency map + annual simulation
 		V.amb.sim_time_step.Setval(3600.);
@@ -253,8 +247,6 @@ void interop::GenerateSimulationWeatherData(var_map &V, int design_method, Array
 		break;
 
 	}
-	//case LAYOUT_DETAIL::LIMITED_ANNUAL:
-	//case LAYOUT_DETAIL::AVG_PROFILES:
     case var_solarfield::DES_SIM_DETAIL::LIMITED_ANNUAL_SIMULATION:
     case var_solarfield::DES_SIM_DETAIL::REPRESENTATIVE_PROFILES:
 	case -1:  //for optimization

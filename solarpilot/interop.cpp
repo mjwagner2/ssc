@@ -2405,22 +2405,43 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 }
 #endif
 
-void sim_result::process_flux(SolarField *SF, bool normalize){
+void sim_result::process_flux(SolarField* SF, bool normalize) {
 	flux_surfaces.clear();
 	receiver_names.clear();
 	int nr = (int)SF->getReceivers()->size();
-	Receiver *rec;
-	for(int i=0; i<nr; i++){
+	Receiver* rec;
+	for (int i = 0; i < nr; i++) {
 		rec = SF->getReceivers()->at(i);
-		if(! rec->isReceiverEnabled() ) continue;
-		flux_surfaces.push_back( *rec->getFluxSurfaces() );
-		if(normalize){
-			for(unsigned int j=0; j<rec->getFluxSurfaces()->size(); j++){
-				flux_surfaces.back().at(j).Normalize();
+		if (!rec->isReceiverEnabled()) continue;
+		int n_surfaces = rec->getFluxSurfaces()->size();
+		flux_surfaces.push_back(*rec->getFluxSurfaces());
+		if (normalize) {
+			if (n_surfaces == 1) {
+				for (unsigned int j = 0; j < rec->getFluxSurfaces()->size(); j++) {
+					flux_surfaces.back().at(j).Normalize();
+				}
+			}
+			else {
+				// For aperture (j = 0), use normalize, because we don't want it to count towards total flux
+				flux_surfaces.back().at(0).Normalize();
+
+				// Sum flux on all receiver panels
+				double flux_tot = 0.0;
+				for (unsigned int j = 1; j < rec->getFluxSurfaces()->size(); j++) {
+					flux_tot += flux_surfaces.back().at(j).getTotalFlux();
+				}
+
+				for (unsigned int j = 1; j < rec->getFluxSurfaces()->size(); j++) {
+					flux_surfaces.back().at(j).Scale(1.0 / flux_tot);
+				}
 			}
 		}
-		receiver_names.push_back( SF->getReceivers()->at(i)->getVarMap()->rec_name.val );
+		receiver_names.push_back(
+			//*SF->getReceivers()->at(i)->getReceiverName() 
+			SF->getReceivers()->at(i)->getVarMap()->rec_name.val
+		);
 	}
+
 }
 
 //------parametric------------------------

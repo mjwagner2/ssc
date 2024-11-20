@@ -2301,7 +2301,9 @@ void sim_result::process_raytrace_simulation(SolarField& SF, sim_params& P, int 
 				if (el > 0) nrin++; // Aperture hit
 			}
 			else if (st == rstage) { // Receiver stage
-				if (!STsim->aperture_virtual_stage && el != 0) nrin++; // Reflected or Absorbed
+				if (!STsim->aperture_virtual_stage && el != 0) {
+					if (el == max_rec_e || el == -max_rec_e) nrin++; // Reflected or Absorbed
+				}
 				
 				if (el < 0 && el >= -max_rec_e) nrabs++; // Absorbed only if ray hits heat absorbing receiver elements
 			}

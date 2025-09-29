@@ -1520,7 +1520,9 @@ SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols
         "[Only valid for Hermite (analytical) simulation engine.]\n"
         "Return an array with detailed heliostat-by-heliostat results from a simulation. "
         "Each entry in the array is a table with entries as follows:\n"
-        "{ id(integer), location (array), aimpoint (array), tracking_vector (array), "
+        "{ id(integer), location (array), aimpoint (array), tracking_vector (array),"
+        "tracking_azimuth (double), "
+        "tracking_zenith (double), "
         "layout_metric (double), "
         "power_to_receiver (double), "
         "power_reflected (double), "
@@ -1567,7 +1569,7 @@ SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols
         }
 
         *nrows = (int)helio_select.size();
-        *ncols = 23;  //number of results in table
+        *ncols = 25;  //number of results in table
         if (get_corners)
             *ncols += (int)helio_select.at(0)->getCornerCoords()->size() * 3;  // assumes all heliostats have a equal number of corners
         if (SF->getReceivers()->size() > 1)
@@ -1596,6 +1598,9 @@ SPEXPORT sp_number_t* sp_detail_results(sp_data_t p_data, int* nrows, int* ncols
             c++; ret[i * (*ncols) + c] = H->getTrackVector()->i;
             c++; ret[i * (*ncols) + c] = H->getTrackVector()->j;
             c++; ret[i * (*ncols) + c] = H->getTrackVector()->k;
+
+            c++; ret[i * (*ncols) + c] = H->getAzimuthTrack();
+            c++; ret[i * (*ncols) + c] = H->getZenithTrack();
 
             if (get_corners) // adding heliostat corner coordinates
             {
@@ -1684,6 +1689,8 @@ SPEXPORT const char* sp_detail_results_header(sp_data_t p_data, bool get_corners
         tab_header.append("i_tracking_vector,");
         tab_header.append("j_tracking_vector,");
         tab_header.append("k_tracking_vector,");
+        tab_header.append("tracking_azimuth,");
+        tab_header.append("tracking_zenith,");
 
         if (get_corners)
         {

@@ -418,7 +418,6 @@ struct var_receiver : public _vartable_base
 	spout< double > aperture_area; 		//[m2] Area of the aperture available to heliostat aiming
 	spout< double > curtain_total_height; 		//[m] Particle curtain total height
 	spout< double > max_curtain_width; 		//[m] Particle curtain maximum width
-	spout< matrix_t<double> > n_user_flux_profile; 		//[none] Normalized user flux profile
 	spout< double > optical_height; 		//[m] Calculated height of the centerline of the receiver above the plane of the heliostats
 	spout< double > piping_loss; 		//[MW] Thermal loss from non-absorber receiver piping
 	spout< double > q_rec_des; 		//[MW] Power produced by the receiver at design after thermal losses

@@ -662,8 +662,6 @@ void Receiver::updateUserFluxNormalization(var_receiver &V)
         for (size_t i = 0; i < V.user_flux_profile.val.nrows(); i++)
             for (size_t j = 0; j < V.user_flux_profile.val.ncols(); j++)
                 V.user_flux_profile.val.at(i, j) *= tot;
-        
-        V.n_user_flux_profile.Setval(temp);
     }
 }
 
